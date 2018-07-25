@@ -38,11 +38,5 @@ class PredicatesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to predicate_url(@predicate)
   end
 
-  test "should destroy predicate" do
-    assert_difference('Predicate.count', -1) do
-      delete predicate_url(@predicate)
-    end
-
-    assert_redirected_to predicates_url
-  end
+  
 end

@@ -11,8 +11,10 @@ ObjectClass.create!(name: "Event")
 
 Status.create!(label:"Not reviewed")
 
-Predicate.create!(label:  "Title",language: "en")
-Predicate.create!(label:  "Title",language: "fr")
+["en","fr"].each do |lang|
+  Predicate.create!(label:  "Title",language: lang)
+  Predicate.create!(label:  "Date",language: lang)
+end
 
 site = Website.create!(seedurl: "fass.ca")
 
@@ -38,13 +40,16 @@ pages_fr = [
 ]
 
 pages_en.each do |page|
-  Webpage.create!(website: site, object_class: ObjectClass.where(name: "Event").first, language: "en", object_uri: page.split("/")[2] + "_" + page.split("/")[6])
+  Webpage.create!(url: page, website: site, object_class: ObjectClass.where(name: "Event").first, language: "en", object_uri: page.split("/")[2] + "_" + page.split("/")[6])
 end
 
 pages_fr.each do |page|
- Webpage.create!(website: site, object_class: ObjectClass.where(name: "Event").first, language: "fr", object_uri: page.split("/")[2] + "_" + page.split("/")[5])
+ Webpage.create!(url: page, website: site, object_class: ObjectClass.where(name: "Event").first, language: "fr", object_uri: page.split("/")[2] + "_" + page.split("/")[5])
 end
 
+["en","fr"].each do |lang|
+  Source.create!(website: site, predicate: Predicate.where(label: "Title", language:lang).first, algorithm_value:"xpath=//meta[@property='og:title']/@content", selected:true)
+  s = Source.create!(website: site, predicate: Predicate.where(label: "Date", language:lang).first, algorithm_value:"css=//", selected:false)
+  Source.create!(next_source_id: s.id, website: site, predicate: Predicate.where(label: "Date", language:lang).first, algorithm_value:"xpath=//meta[@property='og:title']/@content", selected:true)
 
-Source.create!(website: site, predicate: Predicate.where(label: "Title", language:"en").first, algorithm_value:"xpath=//meta[@property='og:title']/@content", selected:true)
-Source.create!(website: site, predicate: Predicate.where(label: "Title", language:"fr").first, algorithm_value:"xpath=//meta[@property='og:title']/@content", selected:true)
+end

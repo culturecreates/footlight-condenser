@@ -27,13 +27,8 @@
   </div>
 
   <div class="field">
-    <%= form.label :source_id %>
-    <%= form.text_field :source_id, id: :source_source_id %>
-  </div>
-
-  <div class="field">
-    <%= form.label :website_id %>
-    <%= form.text_field :website_id, id: :source_website_id %>
+    <%= form.label :render_js %>
+    <%= form.check_box :render_js, id: :source_render_js %>
   </div>
 
   <div class="field">
@@ -42,8 +37,13 @@
   </div>
 
   <div class="field">
-    <%= form.label :render_js %>
-    <%= form.check_box :render_js, id: :source_render_js %>
+    <%= form.label :next_source_id %>
+    <%= form.text_field :next_source_id, id: :source_next_source_id %>
+  </div>
+
+  <div class="field">
+    <%= form.label :website_id %>
+    <%= form.text_field :website_id, id: :source_website_id %>
   </div>
 
   <div class="actions">

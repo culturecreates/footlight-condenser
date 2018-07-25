@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20180725173326) do
+ActiveRecord::Schema.define(version: 20180725184237) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
@@ -34,14 +34,13 @@ ActiveRecord::Schema.define(version: 20180725173326) do
     t.string "algorithm_value"
     t.boolean "selected"
     t.string "selected_by"
-    t.bigint "source_id"
-    t.bigint "website_id"
-    t.bigint "predicate_id"
     t.boolean "render_js"
+    t.bigint "predicate_id"
+    t.bigint "next_source_id"
+    t.bigint "website_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["predicate_id"], name: "index_sources_on_predicate_id"
-    t.index ["source_id"], name: "index_sources_on_source_id"
     t.index ["website_id"], name: "index_sources_on_website_id"
   end
 
@@ -86,7 +85,6 @@ ActiveRecord::Schema.define(version: 20180725173326) do
   end
 
   add_foreign_key "sources", "predicates"
-  add_foreign_key "sources", "sources"
   add_foreign_key "sources", "websites"
   add_foreign_key "statements", "predicates"
   add_foreign_key "statements", "statuses"

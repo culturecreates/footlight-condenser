@@ -16,13 +16,8 @@
 </p>
 
 <p>
-  <strong>Source:</strong>
-  <%= @source.source %>
-</p>
-
-<p>
-  <strong>Website:</strong>
-  <%= @source.website %>
+  <strong>Render js:</strong>
+  <%= @source.render_js %>
 </p>
 
 <p>
@@ -31,8 +26,13 @@
 </p>
 
 <p>
-  <strong>Render js:</strong>
-  <%= @source.render_js %>
+  <strong>Next source:</strong>
+  <%= @source.next_source_id %>
+</p>
+
+<p>
+  <strong>Website:</strong>
+  <%= @source.website %>
 </p>
 
 <%= link_to 'Edit', edit_source_path(@source) %> |

@@ -5,13 +5,14 @@
 <table>
   <thead>
     <tr>
+      <th>ID</th>
       <th>Algorithm value</th>
       <th>Selected</th>
       <th>Selected by</th>
-      <th>Source</th>
-      <th>Website</th>
-      <th>Predicate</th>
       <th>Render js</th>
+      <th>Predicate</th>
+      <th>Next source</th>
+      <th>Website</th>
       <th colspan="3"></th>
     </tr>
   </thead>
@@ -19,13 +20,14 @@
   <tbody>
     <% @sources.each do |source| %>
       <tr>
+        <td><%= source.id %></td>
         <td><%= source.algorithm_value %></td>
         <td><%= source.selected %></td>
         <td><%= source.selected_by %></td>
-        <td><%= source.source %></td>
-        <td><%= source.website %></td>
-        <td><%= source.predicate %></td>
         <td><%= source.render_js %></td>
+        <td><%= source.predicate %></td>
+        <td><%= source.next_source_id %></td>
+        <td><%= source.website %></td>
         <td><%= link_to 'Show', source %></td>
         <td><%= link_to 'Edit', edit_source_path(source) %></td>
         <td><%= link_to 'Destroy', source, method: :delete, data: { confirm: 'Are you sure?' } %></td>

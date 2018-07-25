@@ -4,16 +4,16 @@ one:
   algorithm_value: MyString
   selected: false
   selected_by: MyString
-  source: one
-  website: one
-  predicate: one
   render_js: false
+  predicate: one
+  next_source_id: 
+  website: one
 
 two:
   algorithm_value: MyString
   selected: false
   selected_by: MyString
-  source: two
-  website: two
-  predicate: two
   render_js: false
+  predicate: two
+  next_source_id: 
+  website: two

@@ -38,11 +38,5 @@ class StatusesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to status_url(@status)
   end
 
-  test "should destroy status" do
-    assert_difference('Status.count', -1) do
-      delete status_url(@status)
-    end
-
-    assert_redirected_to statuses_url
-  end
+  
 end

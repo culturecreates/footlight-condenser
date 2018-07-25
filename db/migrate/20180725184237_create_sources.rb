@@ -4,10 +4,10 @@ class CreateSources < ActiveRecord::Migration[5.1]
       t.string :algorithm_value
       t.boolean :selected
       t.string :selected_by
-      t.references :source, foreign_key: true
-      t.references :website, foreign_key: true
-      t.references :predicate, foreign_key: true
       t.boolean :render_js
+      t.references :predicate, foreign_key: true
+      t.bigint :next_source_id
+      t.references :website, foreign_key: true
 
       t.timestamps
     end
