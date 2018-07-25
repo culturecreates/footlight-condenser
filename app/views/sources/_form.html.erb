@@ -41,6 +41,11 @@
     <%= form.text_field :predicate_id, id: :source_predicate_id %>
   </div>
 
+  <div class="field">
+    <%= form.label :render_js %>
+    <%= form.check_box :render_js, id: :source_render_js %>
+  </div>
+
   <div class="actions">
     <%= form.submit %>
   </div>

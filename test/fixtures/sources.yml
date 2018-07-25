@@ -7,6 +7,7 @@ one:
   source: one
   website: one
   predicate: one
+  render_js: false
 
 two:
   algorithm_value: MyString
@@ -15,3 +16,4 @@ two:
   source: two
   website: two
   predicate: two
+  render_js: false

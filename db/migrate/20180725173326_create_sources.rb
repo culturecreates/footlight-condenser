@@ -7,6 +7,7 @@ class CreateSources < ActiveRecord::Migration[5.1]
       t.references :source, foreign_key: true
       t.references :website, foreign_key: true
       t.references :predicate, foreign_key: true
+      t.boolean :render_js
 
       t.timestamps
     end
