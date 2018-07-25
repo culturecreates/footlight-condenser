@@ -1,0 +1,42 @@
+<%= form_with(model: webpage, local: true) do |form| %>
+  <% if webpage.errors.any? %>
+    <div id="error_explanation">
+      <h2><%= pluralize(webpage.errors.count, "error") %> prohibited this webpage from being saved:</h2>
+
+      <ul>
+      <% webpage.errors.full_messages.each do |message| %>
+        <li><%= message %></li>
+      <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="field">
+    <%= form.label :url %>
+    <%= form.text_field :url, id: :webpage_url %>
+  </div>
+
+  <div class="field">
+    <%= form.label :language %>
+    <%= form.text_field :language, id: :webpage_language %>
+  </div>
+
+  <div class="field">
+    <%= form.label :object_uri %>
+    <%= form.text_field :object_uri, id: :webpage_object_uri %>
+  </div>
+
+  <div class="field">
+    <%= form.label :website_id %>
+    <%= form.text_field :website_id, id: :webpage_website_id %>
+  </div>
+
+  <div class="field">
+    <%= form.label :object_class_id %>
+    <%= form.text_field :object_class_id, id: :webpage_object_class_id %>
+  </div>
+
+  <div class="actions">
+    <%= form.submit %>
+  </div>
+<% end %>

@@ -1,0 +1,24 @@
+<p id="notice"><%= notice %></p>
+
+<p>
+  <strong>Label:</strong>
+  <%= @predicate.label %>
+</p>
+
+<p>
+  <strong>Language:</strong>
+  <%= @predicate.language %>
+</p>
+
+<p>
+  <strong>Object datatype:</strong>
+  <%= @predicate.object_datatype %>
+</p>
+
+<p>
+  <strong>Uri:</strong>
+  <%= @predicate.uri %>
+</p>
+
+<%= link_to 'Edit', edit_predicate_path(@predicate) %> |
+<%= link_to 'Back', predicates_path %>

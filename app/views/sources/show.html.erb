@@ -1,0 +1,34 @@
+<p id="notice"><%= notice %></p>
+
+<p>
+  <strong>Algorithm value:</strong>
+  <%= @source.algorithm_value %>
+</p>
+
+<p>
+  <strong>Selected:</strong>
+  <%= @source.selected %>
+</p>
+
+<p>
+  <strong>Selected by:</strong>
+  <%= @source.selected_by %>
+</p>
+
+<p>
+  <strong>Source:</strong>
+  <%= @source.source %>
+</p>
+
+<p>
+  <strong>Website:</strong>
+  <%= @source.website %>
+</p>
+
+<p>
+  <strong>Predicate:</strong>
+  <%= @source.predicate %>
+</p>
+
+<%= link_to 'Edit', edit_source_path(@source) %> |
+<%= link_to 'Back', sources_path %>

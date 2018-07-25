@@ -1,0 +1,27 @@
+<p id="notice"><%= notice %></p>
+
+<h1>Object Classes</h1>
+
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th colspan="3"></th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <% @object_classes.each do |object_class| %>
+      <tr>
+        <td><%= object_class.name %></td>
+        <td><%= link_to 'Show', object_class %></td>
+        <td><%= link_to 'Edit', edit_object_class_path(object_class) %></td>
+        <td><%= link_to 'Destroy', object_class, method: :delete, data: { confirm: 'Are you sure?' } %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+
+<br>
+
+<%= link_to 'New Object Class', new_object_class_path %>

@@ -1,0 +1,39 @@
+<p id="notice"><%= notice %></p>
+
+<p>
+  <strong>Status:</strong>
+  <%= @statement.status %>
+</p>
+
+<p>
+  <strong>Predicate:</strong>
+  <%= @statement.predicate %>
+</p>
+
+<p>
+  <strong>Webpage:</strong>
+  <%= @statement.webpage %>
+</p>
+
+<p>
+  <strong>Cache:</strong>
+  <%= @statement.cache %>
+</p>
+
+<p>
+  <strong>Status origin:</strong>
+  <%= @statement.status_origin %>
+</p>
+
+<p>
+  <strong>Cache refreshed:</strong>
+  <%= @statement.cache_refreshed %>
+</p>
+
+<p>
+  <strong>Cache changed:</strong>
+  <%= @statement.cache_changed %>
+</p>
+
+<%= link_to 'Edit', edit_statement_path(@statement) %> |
+<%= link_to 'Back', statements_path %>

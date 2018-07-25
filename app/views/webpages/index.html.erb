@@ -1,0 +1,35 @@
+<p id="notice"><%= notice %></p>
+
+<h1>Webpages</h1>
+
+<table>
+  <thead>
+    <tr>
+      <th>Url</th>
+      <th>Language</th>
+      <th>Object uri</th>
+      <th>Website</th>
+      <th>Object class</th>
+      <th colspan="3"></th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <% @webpages.each do |webpage| %>
+      <tr>
+        <td><%= webpage.url %></td>
+        <td><%= webpage.language %></td>
+        <td><%= webpage.object_uri %></td>
+        <td><%= webpage.website %></td>
+        <td><%= webpage.object_class %></td>
+        <td><%= link_to 'Show', webpage %></td>
+        <td><%= link_to 'Edit', edit_webpage_path(webpage) %></td>
+        <td><%= link_to 'Destroy', webpage, method: :delete, data: { confirm: 'Are you sure?' } %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+
+<br>
+
+<%= link_to 'New Webpage', new_webpage_path %>

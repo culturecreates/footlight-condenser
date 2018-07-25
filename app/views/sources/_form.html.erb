@@ -1,0 +1,47 @@
+<%= form_with(model: source, local: true) do |form| %>
+  <% if source.errors.any? %>
+    <div id="error_explanation">
+      <h2><%= pluralize(source.errors.count, "error") %> prohibited this source from being saved:</h2>
+
+      <ul>
+      <% source.errors.full_messages.each do |message| %>
+        <li><%= message %></li>
+      <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="field">
+    <%= form.label :algorithm_value %>
+    <%= form.text_field :algorithm_value, id: :source_algorithm_value %>
+  </div>
+
+  <div class="field">
+    <%= form.label :selected %>
+    <%= form.check_box :selected, id: :source_selected %>
+  </div>
+
+  <div class="field">
+    <%= form.label :selected_by %>
+    <%= form.text_field :selected_by, id: :source_selected_by %>
+  </div>
+
+  <div class="field">
+    <%= form.label :source_id %>
+    <%= form.text_field :source_id, id: :source_source_id %>
+  </div>
+
+  <div class="field">
+    <%= form.label :website_id %>
+    <%= form.text_field :website_id, id: :source_website_id %>
+  </div>
+
+  <div class="field">
+    <%= form.label :predicate_id %>
+    <%= form.text_field :predicate_id, id: :source_predicate_id %>
+  </div>
+
+  <div class="actions">
+    <%= form.submit %>
+  </div>
+<% end %>

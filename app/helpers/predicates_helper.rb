@@ -1,0 +1,2 @@
+module PredicatesHelper
+end

@@ -1,0 +1,17 @@
+# Read about fixtures at http://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  algorithm_value: MyString
+  selected: false
+  selected_by: MyString
+  source: one
+  website: one
+  predicate: one
+
+two:
+  algorithm_value: MyString
+  selected: false
+  selected_by: MyString
+  source: two
+  website: two
+  predicate: two

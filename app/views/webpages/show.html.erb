@@ -1,0 +1,29 @@
+<p id="notice"><%= notice %></p>
+
+<p>
+  <strong>Url:</strong>
+  <%= @webpage.url %>
+</p>
+
+<p>
+  <strong>Language:</strong>
+  <%= @webpage.language %>
+</p>
+
+<p>
+  <strong>Object uri:</strong>
+  <%= @webpage.object_uri %>
+</p>
+
+<p>
+  <strong>Website:</strong>
+  <%= @webpage.website %>
+</p>
+
+<p>
+  <strong>Object class:</strong>
+  <%= @webpage.object_class %>
+</p>
+
+<%= link_to 'Edit', edit_webpage_path(@webpage) %> |
+<%= link_to 'Back', webpages_path %>
