@@ -1,8 +1,16 @@
 class StatementsController < ApplicationController
   before_action :set_statement, only: [:show, :edit, :update, :destroy]
 
+  #GET /statements/uri.json?uri=
+  def get_uri
+    # get webpages for uri
+    webpages = Webpage.where(rdf_uri: params[:uri])
+    webpages.each do |webpage|
+      @statements << webpage.statements
+    end
+  end
 
-  #GET /statements/refresh.json?uri=
+  #GET /statements/refresh_uri.json?uri=
   def refresh_uri
     # get webpages for uri
     webpages = Webpage.where(rdf_uri: params[:uri])
@@ -13,16 +21,23 @@ class StatementsController < ApplicationController
         #get the sources for each property (usually one by may have several steps)
         sources = Source.where(website_id: webpage.website, property_id: property.id).order(:property_id, :next_step)
         sources.each do |source|
+          scraped_data = scrape(source.algorithm_value, webpage.url, @next_step_url)
           if source.next_step.nil?
+            @next_step_url = nil
+            data = format_datatype(scraped_data, property)
             #check for existing statement
             s = Statement.where(webpage_id: webpage.id, property_id: source.property.id)
             if s.count != 1
               #create new statement
-              Statement.create!(webpage_id: webpage.id, property_id: source.property.id)
+              Statement.create!(cache:data,webpage_id: webpage.id, property_id: source.property.id)
             else
               #update existing statement
-              s.first.update(status_origin: "refresh")
+              s.first.update(cache:data,status_origin: "refresh")
             end
+          else
+            #there is another step
+            @next_step_url = scraped_data
+            @next_step_url = scraped_data.first if scraped_data.count > 1
           end
         end
       end
@@ -103,5 +118,79 @@ class StatementsController < ApplicationController
     # Never trust parameters from the scary internet, only allow the white list through.
     def statement_params
       params.require(:statement).permit(:cache, :status, :status_origin, :cache_refreshed, :cache_changed, :property_id, :webpage_id)
+    end
+
+    def scrape(algorithm, webpage, next_step_url)
+      if next_step_url.nil?
+        #scrape using webpage
+        url = webpage
+      else
+        #scrape using temp_cache
+        if next_step_url.class == Array
+          url = next_step_url.first
+        else
+            url = next_step_url
+        end
+      end
+
+      url = use_wringer(url)
+
+      agent = Mechanize.new
+      agent.user_agent_alias = 'Mac Safari'
+      html = agent.get_file  url
+      page = Nokogiri::HTML html
+
+      results_list = []
+      algorithm_list = algorithm.split(',')
+
+      algorithm_list.each do |a|
+        page_data = page.xpath(a.delete_prefix("xpath=")) if a.include? 'xpath'
+        page_data = page.css(a.delete_prefix("css="))   if a.include? 'css'
+        page_data.each { |d| results_list << d.text}
+      end
+
+      return results_list
+    end
+
+
+    def use_wringer(url)
+      puts "use_wringer:#{url}"
+      escaped_url = CGI.escape(url)
+      _base_url = "http://footlight-wringer.herokuapp.com"
+      #_path = "/websites/wring?uri=#{escaped_url}&format=raw&use_phantomjs=true&include_fragment=true"
+      _path = "/websites/wring?uri=#{escaped_url}&format=raw&include_fragment=true"
+      return _base_url + _path
+    end
+
+
+    def ISO_date(date)
+    #  SAMEDI 29 JUILLET 2017, 20 H | GRAND CHAPITEAU
+    # --> output "2017-08-29 20:00:00"
+    # swap Juillet for July, Aout for August
+      date.downcase!
+      date.gsub!('juillet','July')
+      date.gsub!('août', 'August')
+      begin
+        d = Time.parse date
+        #iso_date =  d.strftime('%F %T')
+        iso_date =  d.strftime('%F')
+      rescue
+        iso_date = "Bad input date"
+      end
+      return iso_date
+    end
+
+
+    def format_datatype (scraped_data, property)
+      data = []
+      if property.value_datatype == "xsd:date"
+        scraped_data.each do |d|
+          data << ISO_date(d)
+        end
+      else
+        data = scraped_data
+      end
+      data = data.first if data.count == 1
+      return data
     end
 end

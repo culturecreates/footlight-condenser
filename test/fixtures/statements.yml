@@ -6,7 +6,7 @@ one:
   status_origin: MyString
   cache_refreshed: 2018-07-26 08:52:09
   cache_changed: 2018-07-26 08:52:09
-  property: one
+  property:  one
   webpage: one
 
 two:
