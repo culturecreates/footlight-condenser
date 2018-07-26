@@ -69,6 +69,6 @@ class WebpagesController < ApplicationController
 
     # Never trust parameters from the scary internet, only allow the white list through.
     def webpage_params
-      params.require(:webpage).permit(:url, :language, :object_uri, :website_id, :object_class_id)
+      params.require(:webpage).permit(:url, :language, :rdf_uri, :rdfs_class_id, :website_id)
     end
 end

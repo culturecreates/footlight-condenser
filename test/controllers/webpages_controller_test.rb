@@ -17,7 +17,7 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
 
   test "should create webpage" do
     assert_difference('Webpage.count') do
-      post webpages_url, params: { webpage: { language: @webpage.language, object_class_id: @webpage.object_class_id, object_uri: @webpage.object_uri, url: @webpage.url, website_id: @webpage.website_id } }
+      post webpages_url, params: { webpage: { language: @webpage.language, rdf_uri: @webpage.rdf_uri, rdfs_class_id: @webpage.rdfs_class_id, url: @webpage.url, website_id: @webpage.website_id } }
     end
 
     assert_redirected_to webpage_url(Webpage.last)
@@ -34,7 +34,7 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "should update webpage" do
-    patch webpage_url(@webpage), params: { webpage: { language: @webpage.language, object_class_id: @webpage.object_class_id, object_uri: @webpage.object_uri, url: @webpage.url, website_id: @webpage.website_id } }
+    patch webpage_url(@webpage), params: { webpage: { language: @webpage.language, rdf_uri: @webpage.rdf_uri, rdfs_class_id: @webpage.rdfs_class_id, url: @webpage.url, website_id: @webpage.website_id } }
     assert_redirected_to webpage_url(@webpage)
   end
 

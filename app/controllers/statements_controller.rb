@@ -69,6 +69,6 @@ class StatementsController < ApplicationController
 
     # Never trust parameters from the scary internet, only allow the white list through.
     def statement_params
-      params.require(:statement).permit(:status_id, :predicate_id, :webpage_id, :cache, :status_origin, :cache_refreshed, :cache_changed)
+      params.require(:statement).permit(:cache, :status, :status_origin, :cache_refreshed, :cache_changed, :property_id, :webpage_id)
     end
 end

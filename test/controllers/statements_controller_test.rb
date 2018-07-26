@@ -17,7 +17,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
 
   test "should create statement" do
     assert_difference('Statement.count') do
-      post statements_url, params: { statement: { cache: @statement.cache, cache_changed: @statement.cache_changed, cache_refreshed: @statement.cache_refreshed, predicate_id: @statement.predicate_id, status_id: @statement.status_id, status_origin: @statement.status_origin, webpage_id: @statement.webpage_id } }
+      post statements_url, params: { statement: { cache: @statement.cache, cache_changed: @statement.cache_changed, cache_refreshed: @statement.cache_refreshed, property_id: @statement.property_id, status: @statement.status, status_origin: @statement.status_origin, webpage_id: @statement.webpage_id } }
     end
 
     assert_redirected_to statement_url(Statement.last)
@@ -34,7 +34,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "should update statement" do
-    patch statement_url(@statement), params: { statement: { cache: @statement.cache, cache_changed: @statement.cache_changed, cache_refreshed: @statement.cache_refreshed, predicate_id: @statement.predicate_id, status_id: @statement.status_id, status_origin: @statement.status_origin, webpage_id: @statement.webpage_id } }
+    patch statement_url(@statement), params: { statement: { cache: @statement.cache, cache_changed: @statement.cache_changed, cache_refreshed: @statement.cache_refreshed, property_id: @statement.property_id, status: @statement.status, status_origin: @statement.status_origin, webpage_id: @statement.webpage_id } }
     assert_redirected_to statement_url(@statement)
   end
 

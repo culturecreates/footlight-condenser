@@ -1,0 +1,27 @@
+<p id="notice"><%= notice %></p>
+
+<h1>Rdfs Classes</h1>
+
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th colspan="3"></th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <% @rdfs_classes.each do |rdfs_class| %>
+      <tr>
+        <td><%= rdfs_class.name %></td>
+        <td><%= link_to 'Show', rdfs_class %></td>
+        <td><%= link_to 'Edit', edit_rdfs_class_path(rdfs_class) %></td>
+        <td><%= link_to 'Destroy', rdfs_class, method: :delete, data: { confirm: 'Are you sure?' } %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+
+<br>
+
+<%= link_to 'New Rdfs Class', new_rdfs_class_path %>

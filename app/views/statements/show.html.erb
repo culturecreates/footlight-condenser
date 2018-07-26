@@ -1,23 +1,13 @@
 <p id="notice"><%= notice %></p>
 
 <p>
-  <strong>Status:</strong>
-  <%= @statement.status %>
-</p>
-
-<p>
-  <strong>Predicate:</strong>
-  <%= @statement.predicate %>
-</p>
-
-<p>
-  <strong>Webpage:</strong>
-  <%= @statement.webpage %>
-</p>
-
-<p>
   <strong>Cache:</strong>
   <%= @statement.cache %>
+</p>
+
+<p>
+  <strong>Status:</strong>
+  <%= @statement.status %>
 </p>
 
 <p>
@@ -33,6 +23,16 @@
 <p>
   <strong>Cache changed:</strong>
   <%= @statement.cache_changed %>
+</p>
+
+<p>
+  <strong>Property:</strong>
+  <%= @statement.property %>
+</p>
+
+<p>
+  <strong>Webpage:</strong>
+  <%= @statement.webpage %>
 </p>
 
 <%= link_to 'Edit', edit_statement_path(@statement) %> |

@@ -27,18 +27,18 @@
   </div>
 
   <div class="field">
+    <%= form.label :next_step %>
+    <%= form.text_field :next_step, id: :source_next_step %>
+  </div>
+
+  <div class="field">
     <%= form.label :render_js %>
     <%= form.check_box :render_js, id: :source_render_js %>
   </div>
 
   <div class="field">
-    <%= form.label :predicate_id %>
-    <%= form.text_field :predicate_id, id: :source_predicate_id %>
-  </div>
-
-  <div class="field">
-    <%= form.label :next_source_id %>
-    <%= form.text_field :next_source_id, id: :source_next_source_id %>
+    <%= form.label :property_id %>
+    <%= form.text_field :property_id, id: :source_property_id %>
   </div>
 
   <div class="field">

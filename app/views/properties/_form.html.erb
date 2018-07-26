@@ -1,0 +1,42 @@
+<%= form_with(model: property, local: true) do |form| %>
+  <% if property.errors.any? %>
+    <div id="error_explanation">
+      <h2><%= pluralize(property.errors.count, "error") %> prohibited this property from being saved:</h2>
+
+      <ul>
+      <% property.errors.full_messages.each do |message| %>
+        <li><%= message %></li>
+      <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="field">
+    <%= form.label :label %>
+    <%= form.text_field :label, id: :property_label %>
+  </div>
+
+  <div class="field">
+    <%= form.label :language %>
+    <%= form.text_field :language, id: :property_language %>
+  </div>
+
+  <div class="field">
+    <%= form.label :value_datatype %>
+    <%= form.text_field :value_datatype, id: :property_value_datatype %>
+  </div>
+
+  <div class="field">
+    <%= form.label :uri %>
+    <%= form.text_field :uri, id: :property_uri %>
+  </div>
+
+  <div class="field">
+    <%= form.label :rdfs_class_id %>
+    <%= form.text_field :rdfs_class_id, id: :property_rdfs_class_id %>
+  </div>
+
+  <div class="actions">
+    <%= form.submit %>
+  </div>
+<% end %>

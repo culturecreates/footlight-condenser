@@ -12,23 +12,13 @@
   <% end %>
 
   <div class="field">
-    <%= form.label :status_id %>
-    <%= form.text_field :status_id, id: :statement_status_id %>
-  </div>
-
-  <div class="field">
-    <%= form.label :predicate_id %>
-    <%= form.text_field :predicate_id, id: :statement_predicate_id %>
-  </div>
-
-  <div class="field">
-    <%= form.label :webpage_id %>
-    <%= form.text_field :webpage_id, id: :statement_webpage_id %>
-  </div>
-
-  <div class="field">
     <%= form.label :cache %>
     <%= form.text_field :cache, id: :statement_cache %>
+  </div>
+
+  <div class="field">
+    <%= form.label :status %>
+    <%= form.text_field :status, id: :statement_status %>
   </div>
 
   <div class="field">
@@ -44,6 +34,16 @@
   <div class="field">
     <%= form.label :cache_changed %>
     <%= form.datetime_select :cache_changed, id: :statement_cache_changed %>
+  </div>
+
+  <div class="field">
+    <%= form.label :property_id %>
+    <%= form.text_field :property_id, id: :statement_property_id %>
+  </div>
+
+  <div class="field">
+    <%= form.label :webpage_id %>
+    <%= form.text_field :webpage_id, id: :statement_webpage_id %>
   </div>
 
   <div class="actions">

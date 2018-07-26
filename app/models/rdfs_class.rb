@@ -1,0 +1,2 @@
+class RdfsClass < ApplicationRecord
+end

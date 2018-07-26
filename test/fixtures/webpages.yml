@@ -3,13 +3,13 @@
 one:
   url: MyString
   language: MyString
-  object_uri: MyString
+  rdf_uri: MyString
+  rdfs_class: one
   website: one
-  object_class: one
 
 two:
   url: MyString
   language: MyString
-  object_uri: MyString
+  rdf_uri: MyString
+  rdfs_class: two
   website: two
-  object_class: two

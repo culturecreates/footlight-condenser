@@ -10,22 +10,24 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20180725184237) do
+ActiveRecord::Schema.define(version: 20180726125209) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
-  create_table "object_classes", force: :cascade do |t|
-    t.string "name"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-  end
-
-  create_table "predicates", force: :cascade do |t|
+  create_table "properties", force: :cascade do |t|
     t.string "label"
     t.string "language"
-    t.string "object_datatype"
+    t.string "value_datatype"
     t.string "uri"
+    t.bigint "rdfs_class_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["rdfs_class_id"], name: "index_properties_on_rdfs_class_id"
+  end
+
+  create_table "rdfs_classes", force: :cascade do |t|
+    t.string "name"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
@@ -34,46 +36,39 @@ ActiveRecord::Schema.define(version: 20180725184237) do
     t.string "algorithm_value"
     t.boolean "selected"
     t.string "selected_by"
+    t.bigint "next_step"
     t.boolean "render_js"
-    t.bigint "predicate_id"
-    t.bigint "next_source_id"
+    t.bigint "property_id"
     t.bigint "website_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["predicate_id"], name: "index_sources_on_predicate_id"
+    t.index ["property_id"], name: "index_sources_on_property_id"
     t.index ["website_id"], name: "index_sources_on_website_id"
   end
 
   create_table "statements", force: :cascade do |t|
-    t.bigint "status_id"
-    t.bigint "predicate_id"
-    t.bigint "webpage_id"
     t.string "cache"
+    t.string "status"
     t.string "status_origin"
     t.datetime "cache_refreshed"
     t.datetime "cache_changed"
+    t.bigint "property_id"
+    t.bigint "webpage_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["predicate_id"], name: "index_statements_on_predicate_id"
-    t.index ["status_id"], name: "index_statements_on_status_id"
+    t.index ["property_id"], name: "index_statements_on_property_id"
     t.index ["webpage_id"], name: "index_statements_on_webpage_id"
-  end
-
-  create_table "statuses", force: :cascade do |t|
-    t.string "label"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
   end
 
   create_table "webpages", force: :cascade do |t|
     t.string "url"
     t.string "language"
-    t.string "object_uri"
+    t.string "rdf_uri"
+    t.bigint "rdfs_class_id"
     t.bigint "website_id"
-    t.bigint "object_class_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["object_class_id"], name: "index_webpages_on_object_class_id"
+    t.index ["rdfs_class_id"], name: "index_webpages_on_rdfs_class_id"
     t.index ["website_id"], name: "index_webpages_on_website_id"
   end
 
@@ -84,11 +79,11 @@ ActiveRecord::Schema.define(version: 20180725184237) do
     t.datetime "updated_at", null: false
   end
 
-  add_foreign_key "sources", "predicates"
+  add_foreign_key "properties", "rdfs_classes"
+  add_foreign_key "sources", "properties"
   add_foreign_key "sources", "websites"
-  add_foreign_key "statements", "predicates"
-  add_foreign_key "statements", "statuses"
+  add_foreign_key "statements", "properties"
   add_foreign_key "statements", "webpages"
-  add_foreign_key "webpages", "object_classes"
+  add_foreign_key "webpages", "rdfs_classes"
   add_foreign_key "webpages", "websites"
 end

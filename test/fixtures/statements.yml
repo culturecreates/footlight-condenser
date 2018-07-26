@@ -1,19 +1,19 @@
 # Read about fixtures at http://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
 
 one:
-  status: one
-  predicate: one
-  webpage: one
   cache: MyString
+  status: MyString
   status_origin: MyString
-  cache_refreshed: 2018-07-25 12:54:03
-  cache_changed: 2018-07-25 12:54:03
+  cache_refreshed: 2018-07-26 08:52:09
+  cache_changed: 2018-07-26 08:52:09
+  property: one
+  webpage: one
 
 two:
-  status: two
-  predicate: two
-  webpage: two
   cache: MyString
+  status: MyString
   status_origin: MyString
-  cache_refreshed: 2018-07-25 12:54:03
-  cache_changed: 2018-07-25 12:54:03
+  cache_refreshed: 2018-07-26 08:52:09
+  cache_changed: 2018-07-26 08:52:09
+  property: two
+  webpage: two

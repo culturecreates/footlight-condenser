@@ -1,0 +1,29 @@
+<p id="notice"><%= notice %></p>
+
+<p>
+  <strong>Label:</strong>
+  <%= @property.label %>
+</p>
+
+<p>
+  <strong>Language:</strong>
+  <%= @property.language %>
+</p>
+
+<p>
+  <strong>Value datatype:</strong>
+  <%= @property.value_datatype %>
+</p>
+
+<p>
+  <strong>Uri:</strong>
+  <%= @property.uri %>
+</p>
+
+<p>
+  <strong>Rdfs class:</strong>
+  <%= @property.rdfs_class %>
+</p>
+
+<%= link_to 'Edit', edit_property_path(@property) %> |
+<%= link_to 'Back', properties_path %>

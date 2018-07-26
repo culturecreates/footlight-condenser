@@ -11,18 +11,18 @@
 </p>
 
 <p>
-  <strong>Object uri:</strong>
-  <%= @webpage.object_uri %>
+  <strong>Rdf uri:</strong>
+  <%= @webpage.rdf_uri %>
+</p>
+
+<p>
+  <strong>Rdfs class:</strong>
+  <%= @webpage.rdfs_class %>
 </p>
 
 <p>
   <strong>Website:</strong>
   <%= @webpage.website %>
-</p>
-
-<p>
-  <strong>Object class:</strong>
-  <%= @webpage.object_class %>
 </p>
 
 <%= link_to 'Edit', edit_webpage_path(@webpage) %> |
