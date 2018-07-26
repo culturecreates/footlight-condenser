@@ -50,5 +50,5 @@ end
 ["en","fr"].each do |lang|
   Source.create!(website: site, property: Property.where(label: "Title", language:lang).first, algorithm_value:"xpath=//meta[@property='og:title']/@content", selected:true)
   s = Source.create!(website: site, property: Property.where(label: "Date", language:lang).first, algorithm_value:"css=.tableCell1_oo:nth-child(1),css=.tableCell1_oo:nth-child(2)", selected:true)
-  Source.create!(next_step: s.id, website: site, property: Property.where(label: "Date", language:lang).first, algorithm_value:"xpath=//a[@class='accueil_artistes_bt']/@href", selected:true)
+  Source.create!(next_step: s.id, render_js:true,website: site, property: Property.where(label: "Date", language:lang).first, algorithm_value:"xpath=//a[@class='accueil_artistes_bt']/@href", selected:true)
 end

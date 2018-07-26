@@ -20,8 +20,8 @@
         <td><%= webpage.url %></td>
         <td><%= webpage.language %></td>
         <td><%= webpage.rdf_uri %></td>
-        <td><%= webpage.rdfs_class %></td>
-        <td><%= webpage.website %></td>
+        <td><%= webpage.rdfs_class.name %></td>
+        <td><%= webpage.website.seedurl %></td>
         <td><%= link_to 'Show', webpage %></td>
         <td><%= link_to 'Edit', edit_webpage_path(webpage) %></td>
         <td><%= link_to 'Destroy', webpage, method: :delete, data: { confirm: 'Are you sure?' } %></td>
