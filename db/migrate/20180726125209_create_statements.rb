@@ -6,8 +6,8 @@ class CreateStatements < ActiveRecord::Migration[5.1]
       t.string :status_origin
       t.datetime :cache_refreshed
       t.datetime :cache_changed
-      t.references :property, foreign_key: true
-      t.references :webpage, foreign_key: true
+      t.references :property, index: {:unique=>true}, foreign_key: true
+      t.references :webpage, index: {:unique=>true}, foreign_key: true
 
       t.timestamps
     end

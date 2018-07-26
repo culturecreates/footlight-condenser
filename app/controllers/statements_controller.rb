@@ -1,6 +1,32 @@
 class StatementsController < ApplicationController
   before_action :set_statement, only: [:show, :edit, :update, :destroy]
 
+
+  #GET /statements/refresh.json?uri=
+  def refresh_uri
+    # get webpages for uri
+    webpages = Webpage.where(rdf_uri: params[:uri])
+    webpages.each do |webpage|
+      #get the properties for the laguage of the webpage
+      properties = webpage.rdfs_class.properties.where(language: webpage.language)
+      properties.each do |property|
+        #get the sources for each property (usually one by may have several steps)
+        sources = Source.where(website_id: webpage.website, property_id: property.id).order(:property_id, :next_step)
+        sources.each do |source|
+          if source.next_step.nil?
+            Statement.create!(webpage_id: webpage.id, property_id: source.property.id)
+          end
+        end
+      end
+
+
+    end
+
+    redirect_to statements_url, notice: 'All statements were successfully refreshed.'
+
+  end
+
+
   # GET /statements
   # GET /statements.json
   def index

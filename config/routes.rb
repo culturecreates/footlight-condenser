@@ -1,5 +1,9 @@
 Rails.application.routes.draw do
-  resources :statements
+  resources :statements do
+    collection do
+      get 'refresh_uri'
+    end
+  end
   resources :sources
   resources :properties
   resources :rdfs_classes

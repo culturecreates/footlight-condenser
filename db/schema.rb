@@ -56,8 +56,8 @@ ActiveRecord::Schema.define(version: 20180726125209) do
     t.bigint "webpage_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["property_id"], name: "index_statements_on_property_id"
-    t.index ["webpage_id"], name: "index_statements_on_webpage_id"
+    t.index ["property_id"], name: "index_statements_on_property_id", unique: true
+    t.index ["webpage_id"], name: "index_statements_on_webpage_id", unique: true
   end
 
   create_table "webpages", force: :cascade do |t|
