@@ -1,6 +1,7 @@
 class WebpagesController < ApplicationController
   before_action :set_webpage, only: [:show, :edit, :update, :destroy]
 
+
   # GET /webpages
   # GET /webpages.json
   def index

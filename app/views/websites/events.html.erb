@@ -1,0 +1,7 @@
+<p id="notice"><%= notice %></p>
+<ul>
+<% @events.each do |event| %>
+  <li><%= event[:rdf_uri] %>
+<% end %>
+</ul>
+<%= link_to 'Back', websites_path %>

@@ -7,13 +7,13 @@
 #   Character.create(name: 'Luke', movie: movies.first)
 
 
-ObjectClass.create!(name: "Event")
-
-Status.create!(label:"Not reviewed")
+RdfsClass.create!(name: "Event")
+RdfsClass.create!(name: "Organisation")
+RdfsClass.create!(name: "Place")
 
 ["en","fr"].each do |lang|
-  Predicate.create!(label:  "Title",language: lang)
-  Predicate.create!(label:  "Date",language: lang)
+  Property.create!(label:  "Title",language: lang, rdfs_class_id: 1)
+  Property.create!(label:  "Date",language: lang, rdfs_class_id: 1)
 end
 
 site = Website.create!(seedurl: "fass.ca")
@@ -40,15 +40,15 @@ pages_fr = [
 ]
 
 pages_en.each do |page|
-  Webpage.create!(url: page, website: site, object_class: ObjectClass.where(name: "Event").first, language: "en", object_uri: page.split("/")[2] + "_" + page.split("/")[6])
+  Webpage.create!(url: page, website: site, rdfs_class: RdfsClass.where(name: "Event").first, language: "en", rdf_uri: page.split("/")[2] + "_" + page.split("/")[6])
 end
 
 pages_fr.each do |page|
- Webpage.create!(url: page, website: site, object_class: ObjectClass.where(name: "Event").first, language: "fr", object_uri: page.split("/")[2] + "_" + page.split("/")[5])
+ Webpage.create!(url: page, website: site, rdfs_class: RdfsClass.where(name: "Event").first, language: "fr", rdf_uri: page.split("/")[2] + "_" + page.split("/")[5])
 end
 
 ["en","fr"].each do |lang|
-  Source.create!(website: site, predicate: Predicate.where(label: "Title", language:lang).first, algorithm_value:"xpath=//meta[@property='og:title']/@content", selected:true)
-  s = Source.create!(website: site, predicate: Predicate.where(label: "Date", language:lang).first, algorithm_value:"css=.tableCell1_oo:nth-child(1),css=.tableCell1_oo:nth-child(2)", selected:true)
-  Source.create!(next_source_id: s.id, website: site, predicate: Predicate.where(label: "Date", language:lang).first, algorithm_value:"xpath=//a[@class='accueil_artistes_bt']/@href", selected:true)
+  Source.create!(website: site, property: Property.where(label: "Title", language:lang).first, algorithm_value:"xpath=//meta[@property='og:title']/@content", selected:true)
+  s = Source.create!(website: site, property: Property.where(label: "Date", language:lang).first, algorithm_value:"css=.tableCell1_oo:nth-child(1),css=.tableCell1_oo:nth-child(2)", selected:true)
+  Source.create!(next_step: s.id, website: site, property: Property.where(label: "Date", language:lang).first, algorithm_value:"xpath=//a[@class='accueil_artistes_bt']/@href", selected:true)
 end

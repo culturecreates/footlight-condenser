@@ -1,6 +1,26 @@
 class WebsitesController < ApplicationController
   before_action :set_website, only: [:show, :edit, :update, :destroy]
 
+
+
+  # GET /websites/events.json?seedurl=
+  def events
+    website = Website.where(seedurl: params[:seedurl]).first
+    event_class = RdfsClass.where(name: "Event").first
+    webpages = website.webpages.where(rdfs_class: event_class)
+    event_uris = []
+    webpages.each {|page| event_uris << {rdf_uri: page.rdf_uri}}
+    event_uris.uniq!
+    @events = event_uris
+  end
+
+  # GET /websites
+  # GET /websites.json
+  def index
+    @websites = Website.all
+  end
+
+
   # GET /websites
   # GET /websites.json
   def index
