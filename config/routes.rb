@@ -1,7 +1,7 @@
 Rails.application.routes.draw do
   resources :statements do
     collection do
-      get 'refresh_uri'
+      get 'refresh_uri', 'event'
     end
   end
   resources :sources

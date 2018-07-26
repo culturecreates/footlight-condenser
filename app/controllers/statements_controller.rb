@@ -1,12 +1,17 @@
 class StatementsController < ApplicationController
   before_action :set_statement, only: [:show, :edit, :update, :destroy]
 
-  #GET /statements/uri.json?uri=
-  def get_uri
+  #GET /statements/event.json?uri=
+  def event
     # get webpages for uri
+    @statements = []
     webpages = Webpage.where(rdf_uri: params[:uri])
     webpages.each do |webpage|
-      @statements << webpage.statements
+      webpage.statements.each do |statement|
+        @statements << statement
+      end
+
+
     end
   end
 
@@ -154,7 +159,6 @@ class StatementsController < ApplicationController
 
 
     def use_wringer(url)
-      puts "use_wringer:#{url}"
       escaped_url = CGI.escape(url)
       _base_url = "http://footlight-wringer.herokuapp.com"
       #_path = "/websites/wring?uri=#{escaped_url}&format=raw&use_phantomjs=true&include_fragment=true"
