@@ -14,11 +14,18 @@ class StatementsController < ApplicationController
         sources = Source.where(website_id: webpage.website, property_id: property.id).order(:property_id, :next_step)
         sources.each do |source|
           if source.next_step.nil?
-            Statement.create!(webpage_id: webpage.id, property_id: source.property.id)
+            #check for existing statement
+            s = Statement.where(webpage_id: webpage.id, property_id: source.property.id)
+            if s.count != 1
+              #create new statement
+              Statement.create!(webpage_id: webpage.id, property_id: source.property.id)
+            else
+              #update existing statement
+              s.first.update(status_origin: "refresh")
+            end
           end
         end
       end
-
 
     end
 
