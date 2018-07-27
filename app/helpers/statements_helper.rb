@@ -64,4 +64,9 @@ module StatementsHelper
     return iso_date
   end
 
+
+  def build_key statement
+    statement.property.label.downcase.sub(" ","_") + "_" + statement.property.language
+  end
+
 end
