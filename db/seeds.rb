@@ -50,11 +50,11 @@ pages_fr = [
 ]
 
 pages_en.each do |page|
-  Webpage.create!(url: page, website: @site, rdfs_class: RdfsClass.where(name: "Event").first, language: "en", rdf_uri: page.split("/")[2] + "_" + page.split("/")[6])
+  Webpage.create!(url: page, website: @site, rdfs_class: RdfsClass.where(name: "Event").first, language: "en", rdf_uri: page.split("/")[2].sub(".","-") + "_" + page.split("/")[6])
 end
 
 pages_fr.each do |page|
- Webpage.create!(url: page, website: @site, rdfs_class: RdfsClass.where(name: "Event").first, language: "fr", rdf_uri: page.split("/")[2] + "_" + page.split("/")[5])
+ Webpage.create!(url: page, website: @site, rdfs_class: RdfsClass.where(name: "Event").first, language: "fr", rdf_uri: page.split("/")[2].sub(".","-") + "_" + page.split("/")[5])
 end
 
 

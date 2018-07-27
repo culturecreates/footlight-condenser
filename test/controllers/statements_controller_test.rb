@@ -51,31 +51,31 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     source = sources(:one)
     source.algorithm_value = "xpath=//title"
     expected_output = ['Culture Creates | Digital knowledge management for the arts']
-    assert_equal expected_output, @controller.instance_eval{scrape(source, "http://culturecreates.com")}
+    assert_equal expected_output, @controller.instance_eval{helpers.scrape(source, "http://culturecreates.com")}
   end
 
   test "should covert url for wringer" do
     @controller = StatementsController.new
     expected_output = "http://footlight-wringer.herokuapp.com/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true"
-    assert_equal expected_output, @controller.instance_eval{use_wringer("http://culturecreates.com", false)}
+    assert_equal expected_output, @controller.instance_eval{helpers.use_wringer("http://culturecreates.com", false)}
   end
 
   test "should covert url for wringer using phantomjs" do
     @controller = StatementsController.new
     expected_output = "http://footlight-wringer.herokuapp.com/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true&use_phantomjs=true"
-    assert_equal expected_output, @controller.instance_eval{use_wringer("http://culturecreates.com", true)}
+    assert_equal expected_output, @controller.instance_eval{helpers.use_wringer("http://culturecreates.com", true)}
   end
 
   test "should covert french date from webpage into ISO date" do
     @controller = StatementsController.new
     expected_output = "2018-08-02"
-    assert_equal expected_output, @controller.instance_eval{ISO_date("le jeudi 2 août 2018")}
+    assert_equal expected_output, @controller.instance_eval{helpers.ISO_date("le jeudi 2 août 2018")}
   end
 
   test "should covert english date from webpage into ISO date" do
     @controller = StatementsController.new
     expected_output = "2018-08-02"
-    assert_equal expected_output, @controller.instance_eval{ISO_date("Thursday, August 2, 2018")}
+    assert_equal expected_output, @controller.instance_eval{helpers.ISO_date("Thursday, August 2, 2018")}
   end
 
   # test "should scrape 2 items from html" do
