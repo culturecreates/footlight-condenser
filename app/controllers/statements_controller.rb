@@ -26,14 +26,15 @@ class StatementsController < ApplicationController
         #get the sources for each property (usually one by may have several steps)
         sources = Source.where(website_id: webpage.website, property_id: property.id).order(:property_id, :next_step)
         sources.each do |source|
-          scraped_data = scrape(source.algorithm_value, webpage.url, @next_step_url)
+          url = webpage.url
+          url = @next_step_url if !@next_step_url.nil?
+          scraped_data = scrape(source,url)
           if source.next_step.nil?
             @next_step_url = nil
             data = format_datatype(scraped_data, property)
             #check for existing statement
             s = Statement.where(webpage_id: webpage.id, property_id: source.property.id)
             if s.count != 1
-              #create new statement
               Statement.create!(cache:data,webpage_id: webpage.id, property_id: source.property.id)
             else
               #update existing statement
@@ -125,45 +126,37 @@ class StatementsController < ApplicationController
       params.require(:statement).permit(:cache, :status, :status_origin, :cache_refreshed, :cache_changed, :property_id, :webpage_id)
     end
 
-    def scrape(algorithm, webpage, next_step_url)
-      if next_step_url.nil?
-        #scrape using webpage
-        url = webpage
-      else
-        #scrape using temp_cache
-        if next_step_url.class == Array
-          url = next_step_url.first
-        else
-            url = next_step_url
+    def scrape(source, url)
+      begin
+        algorithm = source.algorithm_value
+        agent = Mechanize.new
+        agent.user_agent_alias = 'Mac Safari'
+        html = agent.get_file  use_wringer(url, source.render_js)
+        page = Nokogiri::HTML html
+
+        results_list = []
+        algorithm.split(',').each do |a|
+          page_data = page.xpath(a.delete_prefix("xpath=")) if a.include? 'xpath'
+          page_data = page.css(a.delete_prefix("css="))   if a.include? 'css'
+          page_data.each { |d| results_list << d.text}
         end
+      rescue => e
+        puts "Error in scrape: #{e.inspect}"
+        results_list = ["Error scrapping"]
       end
-
-      url = use_wringer(url)
-
-      agent = Mechanize.new
-      agent.user_agent_alias = 'Mac Safari'
-      html = agent.get_file  url
-      page = Nokogiri::HTML html
-
-      results_list = []
-      algorithm_list = algorithm.split(',')
-
-      algorithm_list.each do |a|
-        page_data = page.xpath(a.delete_prefix("xpath=")) if a.include? 'xpath'
-        page_data = page.css(a.delete_prefix("css="))   if a.include? 'css'
-        page_data.each { |d| results_list << d.text}
-      end
-
       return results_list
     end
 
 
-    def use_wringer(url)
+    def use_wringer(url, render_js)
       escaped_url = CGI.escape(url)
       _base_url = "http://footlight-wringer.herokuapp.com"
-      #_path = "/websites/wring?uri=#{escaped_url}&format=raw&use_phantomjs=true&include_fragment=true"
-      _path = "/websites/wring?uri=#{escaped_url}&format=raw&include_fragment=true"
-      return _base_url + _path
+      if render_js
+        path = "/websites/wring?uri=#{escaped_url}&format=raw&include_fragment=true&use_phantomjs=true"
+      else
+        path = "/websites/wring?uri=#{escaped_url}&format=raw&include_fragment=true"
+      end
+      return _base_url + path
     end
 
 
@@ -179,7 +172,7 @@ class StatementsController < ApplicationController
         #iso_date =  d.strftime('%F %T')
         iso_date =  d.strftime('%F')
       rescue
-        iso_date = "Bad input date"
+        iso_date = "Bad input date: #{date}"
       end
       return iso_date
     end

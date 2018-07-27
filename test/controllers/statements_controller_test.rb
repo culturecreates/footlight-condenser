@@ -48,14 +48,22 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
 
   test "should scrape title from html" do
     @controller = StatementsController.new
+    source = sources(:one)
+    source.algorithm_value = "xpath=//title"
     expected_output = ['Culture Creates | Digital knowledge management for the arts']
-    assert_equal expected_output, @controller.instance_eval{scrape('xpath=//title', "http://culturecreates.com", nil)}
+    assert_equal expected_output, @controller.instance_eval{scrape(source, "http://culturecreates.com")}
   end
 
   test "should covert url for wringer" do
     @controller = StatementsController.new
     expected_output = "http://footlight-wringer.herokuapp.com/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true"
-    assert_equal expected_output, @controller.instance_eval{use_wringer("http://culturecreates.com")}
+    assert_equal expected_output, @controller.instance_eval{use_wringer("http://culturecreates.com", false)}
+  end
+
+  test "should covert url for wringer using phantomjs" do
+    @controller = StatementsController.new
+    expected_output = "http://footlight-wringer.herokuapp.com/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true&use_phantomjs=true"
+    assert_equal expected_output, @controller.instance_eval{use_wringer("http://culturecreates.com", true)}
   end
 
   test "should covert french date from webpage into ISO date" do
