@@ -1,7 +1,6 @@
 <p id="notice"><%= notice %></p>
 <ul>
-<% @statements.each do |statement| %>
-  <li><%= statement.property[:label] %>@<%= statement.property[:language] %>  --> <%= statement[:cache] %> 
-<% end %>
+  <% @statements.each do |statement| %>
+    <li><%= statement.property[:label] %>@<%= statement.property[:language] %>  --> <%= statement[:cache] %>
+  <% end %>
 </ul>
-<%= link_to 'Back', statements_path %>

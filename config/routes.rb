@@ -1,7 +1,11 @@
 Rails.application.routes.draw do
+
+  root   'websites#index'
+
+
   resources :statements do
     collection do
-      get 'refresh_uri', 'event'
+      get 'refresh_rdf_uri', 'event', 'webpage','refresh_webpage'
     end
   end
   resources :sources
@@ -13,5 +17,7 @@ Rails.application.routes.draw do
       get 'events'
     end
   end
+
+
   # For details on the DSL available within this file, see http://guides.rubyonrails.org/routing.html
 end

@@ -1,7 +1,10 @@
 <p id="notice"><%= notice %></p>
+<h1> Events for <%= params[:seedurl] %> </h1>
 <ul>
 <% @events.each do |event| %>
-  <li><%= event[:rdf_uri] %> <%= link_to "view", event_statements_path(uri: event[:rdf_uri]) %> | <%= link_to "refresh", refresh_uri_statements_path(uri: event[:rdf_uri]) %>
+  <li><%= event[:rdf_uri] %>
+    <%= link_to "statements", event_statements_path(rdf_uri: event[:rdf_uri]) %> |
+    <%= link_to "refresh", refresh_rdf_uri_statements_path(rdf_uri: event[:rdf_uri]) %>
 <% end %>
 </ul>
 <%= link_to 'Back', websites_path %>

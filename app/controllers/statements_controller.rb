@@ -1,57 +1,41 @@
 class StatementsController < ApplicationController
   before_action :set_statement, only: [:show, :edit, :update, :destroy]
 
-  #GET /statements/event.json?uri=
+  #GET /statements/event.json?rdf_uri=
   def event
-    # get webpages for uri
+    # get webpages for rdf_uri
     @statements = []
-    webpages = Webpage.where(rdf_uri: params[:uri])
+    webpages = Webpage.where(rdf_uri: params[:rdf_uri])
     webpages.each do |webpage|
       webpage.statements.each do |statement|
         @statements << statement
       end
-
-
     end
   end
 
-  #GET /statements/refresh_uri.json?uri=
-  def refresh_uri
-    # get webpages for uri
-    webpages = Webpage.where(rdf_uri: params[:uri])
-    webpages.each do |webpage|
-      #get the properties for the laguage of the webpage
-      properties = webpage.rdfs_class.properties.where(language: webpage.language)
-      properties.each do |property|
-        #get the sources for each property (usually one by may have several steps)
-        sources = Source.where(website_id: webpage.website, property_id: property.id).order(:property_id, :next_step)
-        sources.each do |source|
-          url = webpage.url
-          url = @next_step_url if !@next_step_url.nil?
-          scraped_data = scrape(source,url)
-          if source.next_step.nil?
-            @next_step_url = nil
-            data = format_datatype(scraped_data, property)
-            #check for existing statement
-            s = Statement.where(webpage_id: webpage.id, property_id: source.property.id)
-            if s.count != 1
-              Statement.create!(cache:data,webpage_id: webpage.id, property_id: source.property.id)
-            else
-              #update existing statement
-              s.first.update(cache:data,status_origin: "refresh")
-            end
-          else
-            #there is another step
-            @next_step_url = scraped_data
-            @next_step_url = scraped_data.first if scraped_data.count > 1
-          end
-        end
-      end
-
+  #GET /statements/webpage.json?uri=
+  def webpage
+    @statements = []
+    webpage = Webpage.where(url: params[:url]).first
+    webpage.statements.each do |statement|
+      @statements << statement
     end
+  end
 
-    redirect_to statements_url, notice: 'All statements were successfully refreshed.'
+  #GET /statements/refresh_webpage.json?url=
+  def refresh_webpage
+    webpage = Webpage.where(url: params[:url]).first
+    refresh_statements(webpage)
+    redirect_to webpage_statements_path(url: params[:url]), notice: 'All statements were successfully refreshed.'
+  end
 
+  #GET /statements/refresh_rdf_uri.json?uri=
+  def refresh_rdf_uri
+    webpages = Webpage.where(rdf_uri: params[:rdf_uri])
+    webpages.each do |webpage|
+      refresh_statements(webpage)
+    end
+    redirect_to event_statements_path(rdf_uri: params[:rdf_uri]), notice: 'All statements were successfully refreshed.'
   end
 
 
@@ -126,68 +110,31 @@ class StatementsController < ApplicationController
       params.require(:statement).permit(:cache, :status, :status_origin, :cache_refreshed, :cache_changed, :property_id, :webpage_id)
     end
 
-    def scrape(source, url)
-      begin
-        algorithm = source.algorithm_value
-        agent = Mechanize.new
-        agent.user_agent_alias = 'Mac Safari'
-        html = agent.get_file  use_wringer(url, source.render_js)
-        page = Nokogiri::HTML html
-
-        results_list = []
-        algorithm.split(',').each do |a|
-          page_data = page.xpath(a.delete_prefix("xpath=")) if a.include? 'xpath'
-          page_data = page.css(a.delete_prefix("css="))   if a.include? 'css'
-          page_data.each { |d| results_list << d.text}
+    def refresh_statements(webpage)
+      #get the properties for the rdfs_class and laguage of the webpage
+      properties = webpage.rdfs_class.properties.where(language: webpage.language)
+      properties.each do |property|
+        #get the sources for each property (usually one by may have several steps)
+        sources = Source.where(website_id: webpage.website, property_id: property.id).order(:property_id, :next_step)
+        sources.each do |source|
+          _scraped_data = helpers.scrape(source, @next_step.nil? ? webpage.url :  @next_step)
+          if source.next_step.nil?
+            @next_step = nil #clear to break chain of scraping urls
+            _data = helpers.format_datatype(_scraped_data, property)
+            s = Statement.where(webpage_id: webpage.id, property_id: source.property.id)
+            if s.count != 1  #create or update database entry
+              Statement.create!(cache:_data,webpage_id: webpage.id, property_id: source.property.id)
+            else
+              s.first.update(cache:_data,status_origin: "refresh")
+            end
+          else
+            #there is another step
+            @next_step = _scraped_data.count == 1 ? _scraped_data : _scraped_data.first
+          end
         end
-      rescue => e
-        puts "Error in scrape: #{e.inspect}"
-        results_list = ["Error scrapping"]
       end
-      return results_list
     end
 
 
-    def use_wringer(url, render_js)
-      escaped_url = CGI.escape(url)
-      _base_url = "http://footlight-wringer.herokuapp.com"
-      if render_js
-        path = "/websites/wring?uri=#{escaped_url}&format=raw&include_fragment=true&use_phantomjs=true"
-      else
-        path = "/websites/wring?uri=#{escaped_url}&format=raw&include_fragment=true"
-      end
-      return _base_url + path
-    end
 
-
-    def ISO_date(date)
-    #  SAMEDI 29 JUILLET 2017, 20 H | GRAND CHAPITEAU
-    # --> output "2017-08-29 20:00:00"
-    # swap Juillet for July, Aout for August
-      date.downcase!
-      date.gsub!('juillet','July')
-      date.gsub!('août', 'August')
-      begin
-        d = Time.parse date
-        #iso_date =  d.strftime('%F %T')
-        iso_date =  d.strftime('%F')
-      rescue
-        iso_date = "Bad input date: #{date}"
-      end
-      return iso_date
-    end
-
-
-    def format_datatype (scraped_data, property)
-      data = []
-      if property.value_datatype == "xsd:date"
-        scraped_data.each do |d|
-          data << ISO_date(d)
-        end
-      else
-        data = scraped_data
-      end
-      data = data.first if data.count == 1
-      return data
-    end
 end
