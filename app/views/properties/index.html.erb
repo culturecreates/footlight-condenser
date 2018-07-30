@@ -5,6 +5,7 @@
 <table>
   <thead>
     <tr>
+      <th>ID</th>
       <th>Rdfs class</th>
       <th>Label</th>
       <th>Language</th>
@@ -18,6 +19,7 @@
   <tbody>
     <% @properties.each do |property| %>
       <tr>
+        <td><%= property.id %></td>
         <td><%= property.rdfs_class.name %></td>
         <td><%= property.label %></td>
         <td><%= property.language %></td>

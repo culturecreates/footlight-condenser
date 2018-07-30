@@ -70,7 +70,7 @@ def self.create_source(label, algo, next_algo)
 end
 
 create_source("Title","xpath=//meta[@property='og:title']/@content","")
-create_source("Description","xpath=//comment()[.='OVERVIEW CONTENT']/following-sibling::div[1]","")
+create_source("Description","xpath=//meta[@property='og:description']/@content","")
 create_source("Webpage link","xpath=//meta[@property='og:url']/@content","")
 create_source("Photo","xpath=//meta[@property='og:image']/@content","")
 
