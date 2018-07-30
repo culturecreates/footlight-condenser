@@ -6,6 +6,7 @@ class StatementsController < ApplicationController
     # get webpages for rdf_uri
     @statements = []
     webpages = Webpage.where(rdf_uri: params[:rdf_uri])
+
     webpages.each do |webpage|
       webpage.statements.each do |statement|
         @statements << statement
