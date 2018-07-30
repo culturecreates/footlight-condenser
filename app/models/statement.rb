@@ -1,6 +1,6 @@
 class Statement < ApplicationRecord
-  belongs_to :property
+  belongs_to :source
   belongs_to :webpage
 
-  validates :property, uniqueness: { scope: :webpage }
+  validates :source, uniqueness: { scope: :webpage }
 end

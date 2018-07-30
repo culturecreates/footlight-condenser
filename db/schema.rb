@@ -17,7 +17,6 @@ ActiveRecord::Schema.define(version: 20180726125209) do
 
   create_table "properties", force: :cascade do |t|
     t.string "label"
-    t.string "language"
     t.string "value_datatype"
     t.string "uri"
     t.bigint "rdfs_class_id"
@@ -37,6 +36,7 @@ ActiveRecord::Schema.define(version: 20180726125209) do
     t.boolean "selected"
     t.string "selected_by"
     t.bigint "next_step"
+    t.string "language"
     t.boolean "render_js"
     t.bigint "property_id"
     t.bigint "website_id"
@@ -52,12 +52,12 @@ ActiveRecord::Schema.define(version: 20180726125209) do
     t.string "status_origin"
     t.datetime "cache_refreshed"
     t.datetime "cache_changed"
-    t.bigint "property_id"
+    t.bigint "source_id"
     t.bigint "webpage_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["property_id", "webpage_id"], name: "index_statements_on_property_id_and_webpage_id", unique: true
-    t.index ["property_id"], name: "index_statements_on_property_id"
+    t.index ["source_id", "webpage_id"], name: "index_statements_on_source_id_and_webpage_id", unique: true
+    t.index ["source_id"], name: "index_statements_on_source_id"
     t.index ["webpage_id"], name: "index_statements_on_webpage_id"
   end
 
@@ -83,7 +83,7 @@ ActiveRecord::Schema.define(version: 20180726125209) do
   add_foreign_key "properties", "rdfs_classes"
   add_foreign_key "sources", "properties"
   add_foreign_key "sources", "websites"
-  add_foreign_key "statements", "properties"
+  add_foreign_key "statements", "sources"
   add_foreign_key "statements", "webpages"
   add_foreign_key "webpages", "rdfs_classes"
   add_foreign_key "webpages", "websites"

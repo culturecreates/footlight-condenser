@@ -107,23 +107,23 @@ class StatementsController < ApplicationController
 
     # Never trust parameters from the scary internet, only allow the white list through.
     def statement_params
-      params.require(:statement).permit(:cache, :status, :status_origin, :cache_refreshed, :cache_changed, :property_id, :webpage_id)
+      params.require(:statement).permit(:cache, :status, :status_origin, :cache_refreshed, :cache_changed, :source_id, :webpage_id)
     end
 
     def refresh_statements(webpage)
       #get the properties for the rdfs_class and laguage of the webpage
-      properties = webpage.rdfs_class.properties.where(language: webpage.language)
+      properties = webpage.rdfs_class.properties
       properties.each do |property|
         #get the sources for each property (usually one by may have several steps)
-        sources = Source.where(website_id: webpage.website, property_id: property.id).order(:property_id, :next_step)
+        sources = Source.where(website_id: webpage.website, language: webpage.language , property_id: property.id).order(:property_id, :next_step)
         sources.each do |source|
           _scraped_data = helpers.scrape(source, @next_step.nil? ? webpage.url :  @next_step)
           if source.next_step.nil?
             @next_step = nil #clear to break chain of scraping urls
             _data = helpers.format_datatype(_scraped_data, property)
-            s = Statement.where(webpage_id: webpage.id, property_id: source.property.id)
+            s = Statement.where(webpage_id: webpage.id, source_id: source.id)
             if s.count != 1  #create or update database entry
-              Statement.create!(cache:_data,webpage_id: webpage.id, property_id: source.property.id)
+              Statement.create!(cache:_data,webpage_id: webpage.id, source_id: source.id)
             else
               s.first.update(cache:_data,status_origin: "refresh")
             end

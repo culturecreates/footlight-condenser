@@ -4,7 +4,8 @@ one:
   algorithm_value: MyString
   selected: false
   selected_by: MyString
-  next_step: 
+  language: En
+  next_step:
   render_js: false
   property: one
   website: one
@@ -13,7 +14,18 @@ two:
   algorithm_value: MyString
   selected: false
   selected_by: MyString
-  next_step: 
+  language: En
+  next_step:
+  render_js: false
+  property: two
+  website: two
+
+three:
+  algorithm_value: MyString
+  selected: false
+  selected_by: MyString
+  language: En
+  next_step:
   render_js: false
   property: two
   website: two

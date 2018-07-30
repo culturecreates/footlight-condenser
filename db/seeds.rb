@@ -11,20 +11,20 @@ RdfsClass.create!(name: "Event")
 RdfsClass.create!(name: "Organisation")
 RdfsClass.create!(name: "Place")
 
-["en","fr"].each do |lang|
-  Property.create!(label:  "Title",language: lang, rdfs_class_id: 1)
-  Property.create!(label:  "Date",language: lang, value_datatype: "xsd:date", rdfs_class_id: 1)
-  Property.create!(label:  "Photo",language: lang, rdfs_class_id: 1)
-  Property.create!(label:  "Description",language: lang, rdfs_class_id: 1)
-  Property.create!(label:  "Location",language: lang, rdfs_class_id: 1)
-  Property.create!(label:  "Organized by",language: lang, rdfs_class_id: 1)
-  Property.create!(label:  "Time",language: lang, value_datatype: "xsd:time", rdfs_class_id: 1)
-  Property.create!(label:  "Duration",language: lang, rdfs_class_id: 1)
-  Property.create!(label:  "Tickets link",language: lang, rdfs_class_id: 1)
-  Property.create!(label:  "Webpage link",language: lang, rdfs_class_id: 1)
-  Property.create!(label:  "Produced by",language: lang, rdfs_class_id: 1)
-  Property.create!(label:  "Performed by",language: lang, rdfs_class_id: 1)
-end
+
+Property.create!(label:  "Title", rdfs_class_id: 1)
+Property.create!(label:  "Date", value_datatype: "xsd:date", rdfs_class_id: 1)
+Property.create!(label:  "Photo", rdfs_class_id: 1)
+Property.create!(label:  "Description", rdfs_class_id: 1)
+Property.create!(label:  "Location", rdfs_class_id: 1)
+Property.create!(label:  "Organized by", rdfs_class_id: 1)
+Property.create!(label:  "Time", value_datatype: "xsd:time", rdfs_class_id: 1)
+Property.create!(label:  "Duration", rdfs_class_id: 1)
+Property.create!(label:  "Tickets link", rdfs_class_id: 1)
+Property.create!(label:  "Webpage link", rdfs_class_id: 1)
+Property.create!(label:  "Produced by", rdfs_class_id: 1)
+Property.create!(label:  "Performed by", rdfs_class_id: 1)
+
 
 @site = Website.create!(seedurl: "fass.ca")
 
@@ -58,20 +58,22 @@ pages_fr.each do |page|
 end
 
 
-def self.create_source(label, algo, next_algo)
-  ["en","fr"].each do |lang|
+def self.create_source( label, algo, next_algo = "", selected = true, languages = ["en"])
+
+  languages.each do |lang|
     if !next_algo.blank?
-      s = Source.create!(render_js: true, website: @site, property: Property.where(label: label, language:lang).first, algorithm_value:next_algo, selected:true)
-      Source.create!(next_step: s.id, website: @site, property: Property.where(label: label, language:lang).first, algorithm_value:algo, selected:true)
+      s = Source.create!(language: lang, render_js: true, website: @site, property: Property.where(label: label).first, algorithm_value:next_algo, selected:selected)
+      Source.create!(language: lang, next_step: s.id, website: @site, property: Property.where(label: label).first, algorithm_value:algo, selected:selected)
     else
-      Source.create!(website: @site, property: Property.where(label: label, language:lang).first, algorithm_value:algo, selected:true)
+      Source.create!(language: lang, website: @site, property: Property.where(label: label).first, algorithm_value:algo, selected:selected)
     end
   end
 end
 
-create_source("Title","xpath=//meta[@property='og:title']/@content","")
-create_source("Description","xpath=//meta[@property='og:description']/@content","")
-create_source("Webpage link","xpath=//meta[@property='og:url']/@content","")
-create_source("Photo","xpath=//meta[@property='og:image']/@content","")
+create_source("Title","xpath=//meta[@property='og:title']/@content","",true,["en","fr"])
+create_source("Description","xpath=//meta[@property='og:description']/@content","",false,["en","fr"])
+create_source("Description","css=.fw-row :nth-child(1) .textblock-shortcode p:nth-child(1)","",true,["en","fr"])
+create_source("Webpage link","xpath=//meta[@property='og:url']/@content")
+create_source("Photo","xpath=//meta[@property='og:image']/@content")
 
 create_source("Date","xpath=//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(1),css=.tableCell1_oe:nth-child(1)")

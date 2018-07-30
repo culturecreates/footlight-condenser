@@ -66,7 +66,7 @@ module StatementsHelper
 
 
   def build_key statement
-    statement.property.label.downcase.sub(" ","_") + "_" + statement.property.language
+    statement.source.property.label.downcase.sub(" ","_") + "_" + statement.source.language
   end
 
 end

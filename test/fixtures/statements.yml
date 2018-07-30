@@ -4,16 +4,16 @@ one:
   cache: MyString
   status: MyString
   status_origin: MyString
-  cache_refreshed: 2018-07-26 08:52:09
-  cache_changed: 2018-07-26 08:52:09
-  property:  one
+  cache_refreshed: 2018-07-30 16:46:00 UTC
+  cache_changed: 2018-07-30 16:46:00 UTC
+  source:  one
   webpage: one
 
 two:
   cache: MyString
   status: MyString
   status_origin: MyString
-  cache_refreshed: 2018-07-26 08:52:09
-  cache_changed: 2018-07-26 08:52:09
-  property: two
+  cache_refreshed: 2018-07-30 16:46:00 UTC
+  cache_changed: 2018-07-30 16:46:00 UTC
+  source: two
   webpage: two

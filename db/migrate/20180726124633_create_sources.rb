@@ -5,6 +5,7 @@ class CreateSources < ActiveRecord::Migration[5.1]
       t.boolean :selected
       t.string :selected_by
       t.bigint :next_step
+      t.string :language
       t.boolean :render_js
       t.references :property, foreign_key: true
       t.references :website, foreign_key: true

@@ -2,14 +2,12 @@
 
 one:
   label: MyString
-  language: MyString
   value_datatype: MyString
   uri: MyString
   rdfs_class: one
 
 two:
   label: MyString
-  language: MyString
   value_datatype: MyString
   uri: MyString
   rdfs_class: two

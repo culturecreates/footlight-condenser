@@ -26,13 +26,13 @@
 </p>
 
 <p>
-  <strong>Property:</strong>
-  <%= @statement.property %>
+  <strong>Source:</strong>
+  <%= @statement.source.algorithm_value %>
 </p>
 
 <p>
   <strong>Webpage:</strong>
-  <%= @statement.webpage %>
+  <%= @statement.webpage.url %>
 </p>
 
 <%= link_to 'Edit', edit_statement_path(@statement) %> |

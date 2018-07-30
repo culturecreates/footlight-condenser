@@ -17,7 +17,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
   test "should create property" do
     assert_difference('Property.count') do
-      post properties_url, params: { property: { label: @property.label, language: @property.language, rdfs_class_id: @property.rdfs_class_id, uri: @property.uri, value_datatype: @property.value_datatype } }
+      post properties_url, params: { property: { label: @property.label,  rdfs_class_id: @property.rdfs_class_id, uri: @property.uri, value_datatype: @property.value_datatype } }
     end
 
     assert_redirected_to property_url(Property.last)
@@ -34,7 +34,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "should update property" do
-    patch property_url(@property), params: { property: { label: @property.label, language: @property.language, rdfs_class_id: @property.rdfs_class_id, uri: @property.uri, value_datatype: @property.value_datatype } }
+    patch property_url(@property), params: { property: { label: @property.label, rdfs_class_id: @property.rdfs_class_id, uri: @property.uri, value_datatype: @property.value_datatype } }
     assert_redirected_to property_url(@property)
   end
 

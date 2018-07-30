@@ -1,6 +1,9 @@
 <p id="notice"><%= notice %></p>
 <ul>
   <% @statements.each do |statement| %>
-    <li><%= statement.property[:label] %>@<%= statement.property[:language] %>  --> <%= statement[:cache] %>
+    <%= statement.source.selected ? "<li>".html_safe : "<ul><li>".html_safe  %>
+      <%= statement.source.property[:label] %>@<%= statement.source[:language] %>
+     --> <%= statement[:cache] %>
+     <%= statement.source.selected ? "" : "</ul>".html_safe %>
   <% end %>
 </ul>
