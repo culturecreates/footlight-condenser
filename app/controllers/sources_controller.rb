@@ -20,7 +20,7 @@ class SourcesController < ApplicationController
 
   # GET /sources/1/test_scrape
   def test_scrape
-    #get the first statement and refresh it
+    #test by getting only the first statement and refreshing it
     source = Source.where(id: params[:id]).first
     @statement = source.statements.first
     redirect_to refresh_statement_path(@statement), notice: 'Test scrape.'
