@@ -116,7 +116,13 @@ class StatementsController < ApplicationController
       properties = webpage.rdfs_class.properties
       properties.each do |property|
         #get the sources for each property (usually one by may have several steps)
-        sources = Source.where(website_id: webpage.website, language: webpage.language , property_id: property.id).order(:property_id, :next_step)
+        #if english add sources without a langauge
+        if webpage.language == "en"
+          sources = Source.where(website_id: webpage.website, language: [webpage.language,''], property_id: property.id).order(:property_id, :next_step)
+        else
+          sources = Source.where(website_id: webpage.website, language: webpage.language, property_id: property.id).order(:property_id, :next_step)
+        end
+
         sources.each do |source|
           _scraped_data = helpers.scrape(source, @next_step.nil? ? webpage.url :  @next_step)
           if source.next_step.nil?

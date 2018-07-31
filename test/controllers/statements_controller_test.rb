@@ -15,13 +15,13 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "should create statement" do
-    assert_difference('Statement.count') do
-      post statements_url, params: { statement: { cache: @statement.cache, cache_changed: @statement.cache_changed, cache_refreshed: @statement.cache_refreshed, source_id: @statement.source_id, status: @statement.status, status_origin: @statement.status_origin, webpage_id: :two } }
-    end
-
-    assert_redirected_to statement_url(Statement.last)
-  end
+  # test "should create statement" do
+  #   assert_difference('Statement.count') do
+  #     post statements_url, params: { statement: { cache: @statement.cache, cache_changed: @statement.cache_changed, cache_refreshed: @statement.cache_refreshed, source_id: @statement.source_id, status: @statement.status, status_origin: @statement.status_origin, webpage_id: :two } }
+  #   end
+  #
+  #   assert_redirected_to statement_url(Statement.last)
+  # end
 
   test "should show statement" do
     get statement_url(@statement)

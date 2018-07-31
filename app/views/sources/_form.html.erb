@@ -17,6 +17,11 @@
   </div>
 
   <div class="field">
+    <%= form.label :language %>
+    <%= form.text_field :language, id: :source_language %>
+  </div>
+
+  <div class="field">
     <%= form.label :selected %>
     <%= form.check_box :selected, id: :source_selected %>
   </div>

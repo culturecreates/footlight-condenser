@@ -73,7 +73,8 @@ end
 create_source("Title","xpath=//meta[@property='og:title']/@content","",true,["en","fr"])
 create_source("Description","xpath=//meta[@property='og:description']/@content","",false,["en","fr"])
 create_source("Description","css=.fw-row :nth-child(1) .textblock-shortcode p:nth-child(1)","",true,["en","fr"])
-create_source("Webpage link","xpath=//meta[@property='og:url']/@content")
+create_source("Webpage link","xpath=//meta[@property='og:url']/@content","",true,["en","fr"])
+create_source("Tickets link","xpath=//a[@class='accueil_artistes_bt']/@href","",true,["en","fr"])
 create_source("Photo","xpath=//meta[@property='og:image']/@content")
 
 create_source("Date","xpath=//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(1),css=.tableCell1_oe:nth-child(1)")
