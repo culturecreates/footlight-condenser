@@ -34,17 +34,32 @@ module StatementsHelper
   end
 
 
+
   def format_datatype (scraped_data, property)
     data = []
     if property.value_datatype == "xsd:date"
       scraped_data.each do |d|
         data << ISO_date(d)
       end
+    elsif property.value_datatype == "xsd:time"
+      scraped_data.each do |t|
+        data << ISO_time(t)
+      end
     else
       data = scraped_data
     end
     data = data.first if data.count == 1
     return data
+  end
+
+  def ISO_time(time)
+    begin
+      d = Time.parse time
+      iso_date =  d.strftime('%T')
+    rescue
+      iso_date = "Bad input time: #{time}"
+    end
+    return iso_date
   end
 
   def ISO_date(date)
@@ -64,11 +79,14 @@ module StatementsHelper
     return iso_date
   end
 
+  def format_language language
+    "@" + language if !language.blank?
+  end
 
   def build_key statement
 
       statement.source.property.label.downcase.sub(" ","_") + "_" + statement.source.language
-  
+
   end
 
 end

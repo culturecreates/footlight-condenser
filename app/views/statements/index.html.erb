@@ -24,7 +24,7 @@
         <td><%= statement.status_origin %></td>
         <td><%= statement.cache_refreshed %></td>
         <td><%= statement.cache_changed %></td>
-        <td><%= statement.source.property.label %> @<%= statement.source.language %></td>
+        <td><%= statement.source.property.label %> <%= format_language statement.source.language%></td>
         <td><%= statement.webpage.url %></td>
         <td><%= link_to 'Show', statement %></td>
         <td><%= link_to 'Edit', edit_statement_path(statement) %></td>

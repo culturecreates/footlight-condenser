@@ -1,7 +1,12 @@
 <p id="notice"><%= notice %></p>
 <ul>
 <% @statements.each do |statement| %>
-  <li><%= '***alternative***' if !statement.source.selected%><%= statement.source.property[:label] %><%= '@' + statement.source[:language] if !statement.source[:language].empty? %>  --> <%= statement[:cache] %>
+  <%= statement.source.selected ? "<li>".html_safe : "<ul><li> Alternative".html_safe  %>
+  <%= statement.source.property[:label] %>
+  <%= format_language statement.source[:language] %>
+  -->
+  <%= statement[:cache] %>
+ <%= statement.source.selected ? "" : "</ul>".html_safe %>
 <% end %>
 </ul>
 <%= link_to 'Back', webpages_path %>

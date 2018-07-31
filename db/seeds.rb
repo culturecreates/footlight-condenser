@@ -58,7 +58,7 @@ pages_fr.each do |page|
 end
 
 
-def self.create_source( label, algo, next_algo = "", selected = true, languages = ["en"])
+def self.create_source( label, algo, next_algo = "", selected = true, languages = [""])
 
   languages.each do |lang|
     if !next_algo.blank?
@@ -74,7 +74,11 @@ create_source("Title","xpath=//meta[@property='og:title']/@content","",true,["en
 create_source("Description","xpath=//meta[@property='og:description']/@content","",false,["en","fr"])
 create_source("Description","css=.fw-row :nth-child(1) .textblock-shortcode p:nth-child(1)","",true,["en","fr"])
 create_source("Webpage link","xpath=//meta[@property='og:url']/@content","",true,["en","fr"])
+create_source("Organized by","xpath=//meta[@property='og:site_name']/@content")
+create_source("Produced by","xpath=//meta[@property='og:site_name']/@content")
 create_source("Tickets link","xpath=//a[@class='accueil_artistes_bt']/@href","",true,["en","fr"])
 create_source("Photo","xpath=//meta[@property='og:image']/@content")
 
 create_source("Date","xpath=//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(1),css=.tableCell1_oe:nth-child(1)")
+create_source("Time","xpath=//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(2),css=.tableCell1_oe:nth-child(2)")
+create_source("Location","xpath=//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(3)")

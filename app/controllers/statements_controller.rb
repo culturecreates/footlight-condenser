@@ -12,6 +12,7 @@ class StatementsController < ApplicationController
         @statements << statement
       end
     end
+    @statements.sort
   end
 
   #GET /statements/webpage.json?uri=
@@ -21,6 +22,7 @@ class StatementsController < ApplicationController
     webpage.statements.each do |statement|
       @statements << statement
     end
+    @statements.sort
   end
 
   #GET /statements/refresh_webpage.json?url=
