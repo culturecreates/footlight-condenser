@@ -6,4 +6,7 @@
 
 <br>
 
-<%= link_to 'New Source', new_source_path %>
+<% @rdfs_classes.each do |rdfs_class| %>
+  <%= link_to "New #{rdfs_class.name} Source", new_source_path(rdfs_class_id: rdfs_class.id) %>
+  <%= '|' if  rdfs_class != @rdfs_classes.last %>
+<% end %>

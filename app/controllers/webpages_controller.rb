@@ -8,6 +8,12 @@ class WebpagesController < ApplicationController
     @webpages = Webpage.all
   end
 
+  # GET /webpages/website?seedurl=
+  def website
+    @website = Website.where(seedurl: params[:seedurl]).first
+    @webpages = Webpage.where(website_id: @website.id)
+  end
+
   # GET /webpages/1
   # GET /webpages/1.json
   def show

@@ -5,6 +5,7 @@ class SourcesController < ApplicationController
   # GET /sources.json
   def index
     @sources = Source.all
+    @rdfs_classes = RdfsClass.all
   end
 
   # GET /sources/website?id=
@@ -23,7 +24,11 @@ class SourcesController < ApplicationController
     #test by getting only the first statement and refreshing it
     source = Source.where(id: params[:id]).first
     @statement = source.statements.first
-    redirect_to refresh_statement_path(@statement), notice: 'Test scrape.'
+    if @statement.nil?
+      redirect_to source, notice: 'No statements exist. First do a page refresh.'
+    else
+      redirect_to refresh_statement_path(@statement), notice: 'Test scrape.'
+    end
   end
 
   # GET /sources/new
@@ -31,6 +36,8 @@ class SourcesController < ApplicationController
     @source = Source.new
     @websites = Website.all
     @properties = Property.all
+    @rdfs_class_id = params[:rdfs_class_id] || 1
+    @rdfs_class_name = RdfsClass.where(id: @rdfs_class_id).first.name
   end
 
   # GET /sources/1/edit

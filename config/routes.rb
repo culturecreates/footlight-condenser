@@ -21,7 +21,11 @@ Rails.application.routes.draw do
   end
   resources :properties
   resources :rdfs_classes
-  resources :webpages
+  resources :webpages do
+    collection do
+      get 'website'
+    end
+  end
   resources :websites do
     collection do
       get 'events'
