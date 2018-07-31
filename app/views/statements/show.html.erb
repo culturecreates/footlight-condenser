@@ -35,5 +35,6 @@
   <%= @statement.webpage.url %>
 </p>
 
+<%= link_to 'Refresh', refresh_statement_path(@statement) %> |
 <%= link_to 'Edit', edit_statement_path(@statement) %> |
 <%= link_to 'Back', statements_path %>

@@ -7,18 +7,36 @@ class SourcesController < ApplicationController
     @sources = Source.all
   end
 
+  # GET /sources/website?id=
+  def website
+    @sources = Source.where(website_id: params[:id])
+    @website = Website.where(id: params[:id]).first
+  end
+
   # GET /sources/1
   # GET /sources/1.json
   def show
   end
 
+  # GET /sources/1/test_scrape
+  def test_scrape
+    #get the first statement and refresh it
+    source = Source.where(id: params[:id]).first
+    @statement = source.statements.first
+    redirect_to refresh_statement_path(@statement), notice: 'Test scrape.'
+  end
+
   # GET /sources/new
   def new
     @source = Source.new
+    @websites = Website.all
+    @properties = Property.all
   end
 
   # GET /sources/1/edit
   def edit
+    @websites = Website.all
+    @properties = Property.all
   end
 
   # POST /sources

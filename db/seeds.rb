@@ -76,9 +76,9 @@ create_source("Description","css=.fw-row :nth-child(1) .textblock-shortcode p:nt
 create_source("Webpage link","xpath=//meta[@property='og:url']/@content","",true,["en","fr"])
 create_source("Organized by","xpath=//meta[@property='og:site_name']/@content")
 create_source("Produced by","xpath=//meta[@property='og:site_name']/@content")
-create_source("Tickets link","xpath=//a[@class='accueil_artistes_bt']/@href","",true,["en","fr"])
+create_source("Tickets link","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","",true,["en","fr"])
 create_source("Photo","xpath=//meta[@property='og:image']/@content")
 
-create_source("Date","xpath=//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(1),css=.tableCell1_oe:nth-child(1)")
-create_source("Time","xpath=//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(2),css=.tableCell1_oe:nth-child(2)")
-create_source("Location","xpath=//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(3)")
+create_source("Date","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(1),css=.tableCell1_oe:nth-child(1)")
+create_source("Time","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(2),css=.tableCell1_oe:nth-child(2)")
+create_source("Location","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(3)")
