@@ -42,7 +42,7 @@
   </div>
 
   <div class="field">
-    <%= form.label :property_id %>
+    <%= @rdfs_class_name %> <%= form.label :property_id %>
     <%= form.collection_select(:property_id, @properties.where(rdfs_class_id: @rdfs_class_id), :id, :label, {:prompt => false}) %>
   </div>
 

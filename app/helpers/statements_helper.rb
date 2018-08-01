@@ -10,9 +10,15 @@ module StatementsHelper
 
       results_list = []
       algorithm.split(',').each do |a|
-        page_data = page.xpath(a.delete_prefix("xpath=")) if a.include? 'xpath'
-        page_data = page.css(a.delete_prefix("css="))   if a.include? 'css'
-        page_data.each { |d| results_list << d.text}
+        if a.start_with? 'url'
+          #replace current page by sraping new url
+          html = agent.get_file  use_wringer(a.delete_prefix("url="), source.render_js)
+          page = Nokogiri::HTML html
+        else
+          page_data = page.xpath(a.delete_prefix("xpath=")) if a.start_with? 'xpath'
+          page_data = page.css(a.delete_prefix("css="))   if a.start_with? 'css'
+          page_data.each { |d| results_list << d.text}
+        end
       end
     rescue => e
       puts "Error in scrape: #{e.inspect}"

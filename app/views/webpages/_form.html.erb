@@ -28,12 +28,12 @@
 
   <div class="field">
     <%= form.label :rdfs_class_id %>
-    <%= form.text_field :rdfs_class_id, id: :webpage_rdfs_class_id %>
+    <%= form.collection_select(:rdfs_class_id, @rdfs_classes, :id, :name, {:prompt => false}) %>
   </div>
 
   <div class="field">
     <%= form.label :website_id %>
-    <%= form.text_field :website_id, id: :webpage_website_id %>
+    <%= form.collection_select(:website_id, @websites, :id, :seedurl, {:prompt => false}) %>
   </div>
 
   <div class="actions">

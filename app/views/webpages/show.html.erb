@@ -1,5 +1,6 @@
 <p id="notice"><%= notice %></p>
 
+<h1> Webpage </h1>
 <p>
   <strong>Url:</strong>
   <%= @webpage.url %>
@@ -17,12 +18,12 @@
 
 <p>
   <strong>Rdfs class:</strong>
-  <%= @webpage.rdfs_class %>
+  <%= @webpage.rdfs_class.name %>
 </p>
 
 <p>
   <strong>Website:</strong>
-  <%= @webpage.website %>
+  <%= @webpage.website.seedurl %>
 </p>
 
 <%= link_to 'Edit', edit_webpage_path(@webpage) %> |

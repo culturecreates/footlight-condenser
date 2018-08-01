@@ -14,6 +14,18 @@ class WebsitesController < ApplicationController
     @events = event_uris
   end
 
+
+  # GET /websites/events.json?seedurl=
+  def places
+    website = Website.where(seedurl: params[:seedurl]).first
+    event_class = RdfsClass.where(name: "Place").first
+    webpages = website.webpages.where(rdfs_class: event_class)
+    event_uris = []
+    webpages.each {|page| event_uris << {rdf_uri: page.rdf_uri}}
+    event_uris.uniq!
+    @places = event_uris
+  end
+
   # GET /websites
   # GET /websites.json
   def index

@@ -32,12 +32,12 @@
 
 <p>
   <strong>Property:</strong>
-  <%= @source.property %>
+  <%= @source.property.rdfs_class.name %> <%= @source.property.label %>
 </p>
 
 <p>
   <strong>Website:</strong>
-  <%= @source.website %>
+  <%= @source.website.seedurl %>
 </p>
 
 <%= link_to 'Test scrape', test_scrape_source_path(@source) %> |

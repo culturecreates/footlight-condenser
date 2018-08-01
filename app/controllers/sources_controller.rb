@@ -36,7 +36,7 @@ class SourcesController < ApplicationController
     @source = Source.new
     @websites = Website.all
     @properties = Property.all
-    @rdfs_class_id = params[:rdfs_class_id] || 1
+    @rdfs_class_id = params[:rdfs_class_id] || 1 #default to event class
     @rdfs_class_name = RdfsClass.where(id: @rdfs_class_id).first.name
   end
 
@@ -44,6 +44,8 @@ class SourcesController < ApplicationController
   def edit
     @websites = Website.all
     @properties = Property.all
+    @rdfs_class_id = @source.rdfs_class_id
+    @rdfs_class_name = @source.property.rdfs_class.name
   end
 
   # POST /sources

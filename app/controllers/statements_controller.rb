@@ -1,8 +1,8 @@
 class StatementsController < ApplicationController
   before_action :set_statement, only: [:show, :edit, :update, :destroy]
 
-  #GET /statements/event.json?rdf_uri=
-  def event
+  #GET /statements/uri.json?rdf_uri=
+  def uri
     # get webpages for rdf_uri
     @statements = []
     webpages = Webpage.where(rdf_uri: params[:rdf_uri])
@@ -13,6 +13,7 @@ class StatementsController < ApplicationController
     end
     @statements.sort
   end
+
 
   #GET /statements/webpage.json?uri=
   def webpage
@@ -37,7 +38,7 @@ class StatementsController < ApplicationController
     webpages.each do |webpage|
       refresh_webpage_statements(webpage)
     end
-    redirect_to event_statements_path(rdf_uri: params[:rdf_uri]), notice: 'All statements were successfully refreshed.'
+    redirect_to uri_statements_path(rdf_uri: params[:rdf_uri]), notice: 'All statements were successfully refreshed.'
   end
 
   # GET /statements/1/refresh
@@ -67,10 +68,12 @@ class StatementsController < ApplicationController
   # GET /statements/new
   def new
     @statement = Statement.new
+    @websites = Website.all
   end
 
   # GET /statements/1/edit
   def edit
+    @websites = Website.all
   end
 
   # POST /statements
