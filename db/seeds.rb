@@ -16,7 +16,7 @@ Property.create!(label:  "Title", rdfs_class_id: 1)
 Property.create!(label:  "Date", value_datatype: "xsd:date", rdfs_class_id: 1)
 Property.create!(label:  "Photo", rdfs_class_id: 1)
 Property.create!(label:  "Description", rdfs_class_id: 1)
-Property.create!(label:  "Location", rdfs_class_id: 1)
+Property.create!(label:  "Location", value_datatype: "xsd:anyURI", rdfs_class_id: 1)
 Property.create!(label:  "Organized by", rdfs_class_id: 1)
 Property.create!(label:  "Time", value_datatype: "xsd:time", rdfs_class_id: 1)
 Property.create!(label:  "Duration", rdfs_class_id: 1)
@@ -25,10 +25,13 @@ Property.create!(label:  "Webpage link", rdfs_class_id: 1)
 Property.create!(label:  "Produced by", rdfs_class_id: 1)
 Property.create!(label:  "Performed by", rdfs_class_id: 1)
 
+#Place properties
+Property.create!(label:  "Name", rdfs_class_id: 3)
+
 
 @site = Website.create!(seedurl: "fass.ca")
 
-pages_en = [
+event_pages_en = [
 "http://festivaldesarts.ca/en/performances/feature-presentations/romeo-et-juliette/",
 "http://festivaldesarts.ca/en/performances/feature-presentations/toronto-dance-theater/",
 "http://festivaldesarts.ca/en/performances/feature-presentations/orchestre-metropolitain/",
@@ -37,7 +40,7 @@ pages_en = [
 "http://festivaldesarts.ca/en/performances/feature-presentations/a-night-with-the-stars/",
 "http://festivaldesarts.ca/en/performances/feature-presentations/guillaume-cote/"
 ]
-pages_fr = [
+event_pages_fr = [
 "http://festivaldesarts.ca/programmation/en-salle/romeo-et-juliette/",
 "http://festivaldesarts.ca/programmation/en-salle/toronto-dance-theater/",
 "http://festivaldesarts.ca/programmation/en-salle/orchestre-metropolitain/",
@@ -49,13 +52,26 @@ pages_fr = [
 "http://festivaldesarts.ca/programmation/en-salle/soiree-des-etoiles-2/"
 ]
 
-pages_en.each do |page|
-  Webpage.create!(url: page, website: @site, rdfs_class: RdfsClass.where(name: "Event").first, language: "en", rdf_uri: page.split("/")[2].sub(".","-") + "_" + page.split("/")[6])
+event_pages_en.each do |page|
+  Webpage.create!(url: page, website: @site, rdfs_class: RdfsClass.where(name: "Event").first, language: "en", rdf_uri: "adr:" + page.split("/")[2].sub(".","-") + "_" + page.split("/")[6])
 end
 
-pages_fr.each do |page|
- Webpage.create!(url: page, website: @site, rdfs_class: RdfsClass.where(name: "Event").first, language: "fr", rdf_uri: page.split("/")[2].sub(".","-") + "_" + page.split("/")[5])
+event_pages_fr.each do |page|
+ Webpage.create!(url: page, website: @site, rdfs_class: RdfsClass.where(name: "Event").first, language: "fr", rdf_uri: "adr:" + page.split("/")[2].sub(".","-") + "_" + page.split("/")[5])
 end
+
+
+place_pages_en = ["http://festivaldesarts.ca/en/visitors-infos/"]
+place_pages_fr = ["http://festivaldesarts.ca/infos-visiteurs/"]
+
+place_pages_en.each do |page|
+  Webpage.create!(url: page, website: @site, rdfs_class: RdfsClass.where(name: "Place").first, language: "en", rdf_uri: "adr:festivaldesarts-ca_visitors-infos")
+end
+
+place_pages_fr.each do |page|
+ Webpage.create!(url: page, website: @site, rdfs_class: RdfsClass.where(name: "Place").first, language: "fr", rdf_uri: "adr:festivaldesarts-ca_visitors-infos")
+end
+
 
 
 def self.create_source( label, algo, next_algo = "", selected = true, languages = [""])
@@ -82,3 +98,7 @@ create_source("Photo","xpath=//meta[@property='og:image']/@content")
 create_source("Date","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(1),css=.tableCell1_oe:nth-child(1)")
 create_source("Time","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(2),css=.tableCell1_oe:nth-child(2)")
 create_source("Location","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(3)")
+
+
+create_source("Name","css=#content li:nth-child(1)","",true,["en","fr"])
+create_source("Name","url=https://fass.ticketpro.ca/?lang=fr&aff=fass#def_1277542554,css=.tableCell1_oo:nth-child(3)","",false)

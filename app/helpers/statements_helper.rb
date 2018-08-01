@@ -7,7 +7,6 @@ module StatementsHelper
       agent.user_agent_alias = 'Mac Safari'
       html = agent.get_file  use_wringer(url, source.render_js)
       page = Nokogiri::HTML html
-
       results_list = []
       algorithm.split(',').each do |a|
         if a.start_with? 'url'
@@ -29,6 +28,7 @@ module StatementsHelper
 
 
   def use_wringer(url, render_js)
+    url = url.first if url.class == Array
     escaped_url = CGI.escape(url)
     _base_url = "http://footlight-wringer.herokuapp.com"
     if render_js
