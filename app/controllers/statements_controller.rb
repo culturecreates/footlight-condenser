@@ -154,12 +154,12 @@ class StatementsController < ApplicationController
         _scraped_data = helpers.scrape(source, @next_step.nil? ? webpage.url :  @next_step)
         if source.next_step.nil?
           @next_step = nil #clear to break chain of scraping urls
-          _data = helpers.format_datatype(_scraped_data, source.property)
+          _data = helpers.format_datatype(_scraped_data, source.property, webpage)
           s = Statement.where(webpage_id: webpage.id, source_id: source.id)
           if s.count != 1  #create or update database entry
             Statement.create!(cache:_data, webpage_id: webpage.id, source_id: source.id, status: "unreviewed", cache_changed: Time.new, cache_refreshed: Time.new)
           else
-            #add check if cache changed
+            #check if cache changed
             current_data = s.first.cache
             if current_data == _data
               s.first.update(cache_refreshed: Time.new)

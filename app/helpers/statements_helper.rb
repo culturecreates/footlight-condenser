@@ -41,7 +41,7 @@ module StatementsHelper
 
 
 
-  def format_datatype (scraped_data, property)
+  def format_datatype (scraped_data, property, webpage)
     data = []
     if property.value_datatype == "xsd:date"
       scraped_data.each do |d|
@@ -51,11 +51,27 @@ module StatementsHelper
       scraped_data.each do |t|
         data << ISO_time(t)
       end
+    elsif property.value_datatype == "xsd:anyURI"
+      scraped_data.each do |t|
+        data << search_for_uri(t,property,webpage)
+      end
     else
       data = scraped_data
     end
     data = data.first if data.count == 1
     return data
+  end
+
+  def search_for_uri name, property, webpage
+    #search for name in statments.where(website, class)
+    uris = [name]
+    statements = Statement.where(cache: name)
+    #use property label to determine class
+    expected_class = "Place"
+    statements.each do |s|
+      uris << s.webpage.rdf_uri if (s.webpage.website == webpage.website) && (s.webpage.rdfs_class.name == expected_class)
+    end
+    return uris
   end
 
   def ISO_time(time)
@@ -89,10 +105,10 @@ module StatementsHelper
     "@" + language if !language.blank?
   end
 
-  def build_key statement
-
-      statement.source.property.label.downcase.sub(" ","_") + "_" + statement.source.language
-
+  def build_key statement # for JSON output
+      new_key = statement.source.property.label.downcase.sub(" ","_")
+      new_key = "#{new_key}_#{statement.source.language}" if !statement.source.language.blank?
+      return new_key
   end
 
 end

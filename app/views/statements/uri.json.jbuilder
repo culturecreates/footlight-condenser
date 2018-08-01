@@ -1,21 +1,15 @@
 alternatives = []
+json.subject_uri params[:rdf_uri]
+json.subject_class @statements.first.source.property.rdfs_class.name
 json.statements do
   @statements.each do |statement|
     if statement.source.selected
-      json.set! build_key(statement) do
-        json.(statement, :cache, :status, :status_origin, :cache_refreshed, :cache_changed)
-        json.label statement.source.property.label
-        json.language statement.source.language
-      end
+      json.partial! "statements/uri", statement: statement
     else
       alternatives << statement
     end
   end
 end
 json.alternatives alternatives.each do |statement|
-  json.set! build_key(statement) do
-    json.(statement, :cache, :status, :status_origin, :cache_refreshed, :cache_changed)
-    json.label statement.source.property.label
-    json.language statement.source.language
-  end
+  json.partial! "statements/uri", statement: statement
 end

@@ -31,20 +31,20 @@ class SourcesController < ApplicationController
     end
   end
 
-  # GET /sources/new
+  # GET /sources/new[?rdfs_class_id=]
   def new
     @source = Source.new
     @websites = Website.all
     @properties = Property.all
     @rdfs_class_id = params[:rdfs_class_id] || 1 #default to event class
-    @rdfs_class_name = RdfsClass.where(id: @rdfs_class_id).first.name
+    @rdfs_class_name = RdfsClass.find(@rdfs_class_id).name
   end
 
   # GET /sources/1/edit
   def edit
     @websites = Website.all
     @properties = Property.all
-    @rdfs_class_id = @source.rdfs_class_id
+    @rdfs_class_id = @source.property.rdfs_class_id
     @rdfs_class_name = @source.property.rdfs_class.name
   end
 

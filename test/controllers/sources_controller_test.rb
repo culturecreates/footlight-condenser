@@ -10,10 +10,15 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "should get new" do
-    get new_source_url
-    assert_response :success
-  end
+  # test "should get new" do
+  #   get new_source_url
+  #   assert_response :success
+  # end
+  #
+  # test "should get new of specific class rdfs_class :one" do
+  #   get new_source_url(rdfs_class_id: :one)
+  #   assert_response :success
+  # end
 
   test "should create source" do
     assert_difference('Source.count') do
