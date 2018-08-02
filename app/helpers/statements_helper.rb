@@ -1,27 +1,31 @@
 module StatementsHelper
 
   def scrape(source, url)
-    begin
-      algorithm = source.algorithm_value
-      agent = Mechanize.new
-      agent.user_agent_alias = 'Mac Safari'
-      html = agent.get_file  use_wringer(url, source.render_js)
-      page = Nokogiri::HTML html
-      results_list = []
-      algorithm.split(',').each do |a|
-        if a.start_with? 'url'
-          #replace current page by sraping new url
-          html = agent.get_file  use_wringer(a.delete_prefix("url="), source.render_js)
-          page = Nokogiri::HTML html
-        else
-          page_data = page.xpath(a.delete_prefix("xpath=")) if a.start_with? 'xpath'
-          page_data = page.css(a.delete_prefix("css="))   if a.start_with? 'css'
-          page_data.each { |d| results_list << d.text}
+    algorithm = source.algorithm_value
+    if algorithm.start_with?("manual=")
+      results_list = [algorithm.delete_prefix("manual=")]
+    else
+      begin
+        agent = Mechanize.new
+        agent.user_agent_alias = 'Mac Safari'
+        html = agent.get_file  use_wringer(url, source.render_js)
+        page = Nokogiri::HTML html
+        results_list = []
+        algorithm.split(',').each do |a|
+          if a.start_with? 'url'
+            #replace current page by sraping new url
+            html = agent.get_file  use_wringer(a.delete_prefix("url="), source.render_js)
+            page = Nokogiri::HTML html
+          else
+            page_data = page.xpath(a.delete_prefix("xpath=")) if a.start_with? 'xpath'
+            page_data = page.css(a.delete_prefix("css="))   if a.start_with? 'css'
+            page_data.each { |d| results_list << d.text}
+          end
         end
+      rescue => e
+        puts "Error in scrape: #{e.inspect}"
+        results_list = ["Error scrapping"]
       end
-    rescue => e
-      puts "Error in scrape: #{e.inspect}"
-      results_list = ["Error scrapping"]
     end
     return results_list
   end

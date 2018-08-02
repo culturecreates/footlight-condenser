@@ -54,6 +54,15 @@
   </div>
 <% end %>
 
+<%= form_with(model: @statement, local: true) do |form| %>
+
+  <%= form.text_field :cache, id: :statement_cache%>
+  <div class="actions">
+    <%= form.submit "Not Reviewed"%>
+  </div>
+<% end %>
+
+
 <%= link_to 'Refresh', refresh_statement_path(@statement) %> |
 <%= link_to 'Edit', edit_statement_path(@statement) %> |
 <%= link_to 'Back', statements_path %>

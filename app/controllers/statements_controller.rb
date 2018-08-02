@@ -161,14 +161,17 @@ class StatementsController < ApplicationController
           _data = helpers.format_datatype(_scraped_data, source.property, webpage)
           s = Statement.where(webpage_id: webpage.id, source_id: source.id)
           if s.count != 1  #create or update database entry
-            Statement.create!(cache:_data, webpage_id: webpage.id, source_id: source.id, status: "unreviewed", cache_changed: Time.new, cache_refreshed: Time.new)
+            Statement.create!(cache:_data, webpage_id: webpage.id, source_id: source.id, status: "unreviewed", status_origin: "condensor_refresh",cache_changed: Time.new, cache_refreshed: Time.new)
           else
+            #check if manual entry and if yes then don't update
+            next if source.algorithm_value.start_with?("manual=")
+
             #check if cache changed
             current_data = s.first.cache
             if current_data == _data
               s.first.update(cache_refreshed: Time.new)
             else
-              s.first.update(cache:_data, status: "updated", cache_changed: Time.new, cache_refreshed: Time.new)
+              s.first.update(cache:_data, status: "updated", status_origin: "condensor_refresh", cache_changed: Time.new, cache_refreshed: Time.new)
             end
           end
         else

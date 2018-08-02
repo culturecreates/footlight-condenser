@@ -5,4 +5,5 @@ json.set! build_key(statement) do
   statement.cache
   json.language statement.source.language
   json.datatype statement.source.property.value_datatype
+  json.manual statement.source.algorithm_value.start_with?("manual=") ? true : false
 end
