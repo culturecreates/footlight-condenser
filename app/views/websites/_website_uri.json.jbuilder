@@ -1,1 +1,1 @@
-json.extract! event, :rdf_uri
+json.extract! uri, :rdf_uri

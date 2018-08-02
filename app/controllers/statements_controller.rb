@@ -3,7 +3,7 @@ class StatementsController < ApplicationController
 
   #GET /statements/uri.json?rdf_uri=
   def uri
-    # get webpages for rdf_uri
+    # get all statements for all webpages for rdf_uri
     @statements = []
     webpages = Webpage.where(rdf_uri: params[:rdf_uri])
     webpages.each do |webpage|
@@ -50,8 +50,8 @@ class StatementsController < ApplicationController
       format.html { redirect_to @statement, notice: 'Statement was successfully refreshed.' }
       format.json { render :show, status: :refreshed, location: @statement }
     end
-
   end
+
 
   # GET /statements
   # GET /statements.json
@@ -63,6 +63,8 @@ class StatementsController < ApplicationController
   # GET /statements/1.json
   def show
   end
+
+
 
 
   # GET /statements/new
@@ -105,6 +107,8 @@ class StatementsController < ApplicationController
       end
     end
   end
+
+
 
   # DELETE /statements/1
   # DELETE /statements/1.json

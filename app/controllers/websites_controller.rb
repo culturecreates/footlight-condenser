@@ -1,35 +1,15 @@
 class WebsitesController < ApplicationController
   before_action :set_website, only: [:show, :edit, :update, :destroy]
 
-
-
   # GET /websites/events.json?seedurl=
   def events
-    website = Website.where(seedurl: params[:seedurl]).first
-    event_class = RdfsClass.where(name: "Event").first
-    webpages = website.webpages.where(rdfs_class: event_class)
-    event_uris = []
-    webpages.each {|page| event_uris << {rdf_uri: page.rdf_uri}}
-    event_uris.uniq!
-    @events = event_uris
+    @events = get_uris params[:seedurl], "Event"
   end
 
 
   # GET /websites/events.json?seedurl=
   def places
-    website = Website.where(seedurl: params[:seedurl]).first
-    event_class = RdfsClass.where(name: "Place").first
-    webpages = website.webpages.where(rdfs_class: event_class)
-    event_uris = []
-    webpages.each {|page| event_uris << {rdf_uri: page.rdf_uri}}
-    event_uris.uniq!
-    @places = event_uris
-  end
-
-  # GET /websites
-  # GET /websites.json
-  def index
-    @websites = Website.all
+    @places = get_uris params[:seedurl], "Place"
   end
 
 
@@ -102,5 +82,17 @@ class WebsitesController < ApplicationController
     # Never trust parameters from the scary internet, only allow the white list through.
     def website_params
       params.require(:website).permit(:name, :seedurl)
+    end
+
+    def get_uris seedurl, rdfs_class_name
+      uri_list = []
+      website = Website.where(seedurl: seedurl).first
+      if !website.nil?
+        rdfs_class = RdfsClass.where(name: rdfs_class_name).first
+        webpages = website.webpages.where(rdfs_class: rdfs_class)
+        webpages.each {|page| uri_list << {rdf_uri: page.rdf_uri}}
+        uri_list.uniq!
+      end
+      return uri_list
     end
 end

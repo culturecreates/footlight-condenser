@@ -35,6 +35,25 @@
   <%= @statement.webpage.url %>
 </p>
 
+<p>
+  <strong>updated:</strong>
+  <%= @statement.updated_at %>
+</p>
+
+<%= form_with(model: @statement, local: true) do |form| %>
+  <%= form.hidden_field :status, id: :statement_status, value: "OK"%>
+  <div class="actions">
+    <%= form.submit "Reviewed"%>
+  </div>
+<% end %>
+
+<%= form_with(model: @statement, local: true) do |form| %>
+  <%= form.hidden_field :status, id: :statement_status, value: "Not reviewed"%>
+  <div class="actions">
+    <%= form.submit "Not Reviewed"%>
+  </div>
+<% end %>
+
 <%= link_to 'Refresh', refresh_statement_path(@statement) %> |
 <%= link_to 'Edit', edit_statement_path(@statement) %> |
 <%= link_to 'Back', statements_path %>

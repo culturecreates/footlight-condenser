@@ -1,1 +1,1 @@
-json.array! @events, partial: 'websites/website_uri', as: :event
+json.array! @places, partial: 'websites/website_uri', as: :uri
