@@ -5,6 +5,7 @@
   <li><%= event[:rdf_uri] %>
     <%= link_to "statements", uri_statements_path(rdf_uri: event[:rdf_uri]) %> |
     <%= link_to "refresh", refresh_rdf_uri_statements_path(rdf_uri: event[:rdf_uri]) %>
+    <%= link_to "review all", review_uri_statements_path(rdf_uri: event[:rdf_uri]) %>
 <% end %>
 </ul>
 <%= link_to 'Back', websites_path %>

@@ -1,5 +1,6 @@
 class StatementsController < ApplicationController
   before_action :set_statement, only: [:show, :edit, :update, :destroy]
+  skip_before_action :verify_authenticity_token
 
   #GET /statements/uri.json?rdf_uri=
   def uri
@@ -12,6 +13,23 @@ class StatementsController < ApplicationController
       end
     end
     @statements.sort
+  end
+
+  # PATCH /statements/review_uri.json?rdf_uri=
+  def review_uri
+    @statements = []
+    _webpages = Webpage.where(rdf_uri: params[:rdf_uri])
+    _webpages.each do |webpage|
+      webpage.statements.each do |statement|
+        @statements << statement
+      end
+    end
+    @statements.each do |statement|
+      statement.status = "OK" if statement.source.selected
+      statement.save
+    end
+    render :uri
+
   end
 
 
@@ -63,9 +81,6 @@ class StatementsController < ApplicationController
   # GET /statements/1.json
   def show
   end
-
-
-
 
   # GET /statements/new
   def new
