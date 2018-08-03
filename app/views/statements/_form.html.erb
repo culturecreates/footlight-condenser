@@ -43,8 +43,7 @@
 
   <div class="field">
     <%= form.label :webpage_id %>
-    <%= form.collection_select(:website_id, @websites, :id, :seedurl, {:prompt => false}) %>
-    
+    <%= form.text_field :webpage_id, id: :statement_webpage_id %>
   </div>
 
   <div class="actions">

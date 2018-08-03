@@ -40,29 +40,38 @@
   <%= @statement.updated_at %>
 </p>
 
+
+<hr>
+<p>
+Change status:
+  <%= form_with(model: @statement, local: true) do |form| %>
+    <%= form.hidden_field :status, id: :statement_status, value: "OK"%>
+    <div class="actions">
+      <%= form.submit "Reviewed"%>
+    </div>
+  <% end %>
+
+  <%= form_with(model: @statement, local: true) do |form| %>
+    <%= form.hidden_field :status, id: :statement_status, value: "Not reviewed"%>
+    <div class="actions">
+      <%= form.submit "Not Reviewed"%>
+    </div>
+  <% end %>
+</p>
+
+<hr>
+<p>
+Manual update:
 <%= form_with(model: @statement, local: true) do |form| %>
-  <%= form.hidden_field :status, id: :statement_status, value: "OK"%>
+
+  <%= form.text_field :cache, id: :statement_cache, size: 80%>
   <div class="actions">
-    <%= form.submit "Reviewed"%>
+    <%= form.submit "Update Cache"%>
   </div>
 <% end %>
+</p>
 
-<%= form_with(model: @statement, local: true) do |form| %>
-  <%= form.hidden_field :status, id: :statement_status, value: "Not reviewed"%>
-  <div class="actions">
-    <%= form.submit "Not Reviewed"%>
-  </div>
-<% end %>
-
-<%= form_with(model: @statement, local: true) do |form| %>
-
-  <%= form.text_field :cache, id: :statement_cache%>
-  <div class="actions">
-    <%= form.submit "Not Reviewed"%>
-  </div>
-<% end %>
-
-
+<hr>
 <%= link_to 'Refresh', refresh_statement_path(@statement) %> |
 <%= link_to 'Edit', edit_statement_path(@statement) %> |
 <%= link_to 'Back', statements_path %>

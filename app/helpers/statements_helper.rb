@@ -71,7 +71,7 @@ module StatementsHelper
     uris = [name]
     statements = Statement.where(cache: name)
     #use property label to determine class
-    expected_class = "Place"
+    expected_class = property.expected_class
     statements.each do |s|
       uris << s.webpage.rdf_uri if (s.webpage.website == webpage.website) && (s.webpage.rdfs_class.name == expected_class)
     end

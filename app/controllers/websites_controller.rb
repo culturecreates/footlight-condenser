@@ -1,17 +1,16 @@
 class WebsitesController < ApplicationController
   before_action :set_website, only: [:show, :edit, :update, :destroy]
 
-  # GET /websites/events.json?seedurl=
+  # GET /webpages/events.json?seedurl=
   def events
     @events = get_uris params[:seedurl], "Event"
   end
 
 
-  # GET /websites/events.json?seedurl=
+  # GET /webpages/places.json?seedurl=
   def places
     @places = get_uris params[:seedurl], "Place"
   end
-
 
   # GET /websites
   # GET /websites.json

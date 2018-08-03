@@ -82,4 +82,6 @@ class WebpagesController < ApplicationController
     def webpage_params
       params.require(:webpage).permit(:url, :language, :rdf_uri, :rdfs_class_id, :website_id)
     end
+
+  
 end

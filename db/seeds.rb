@@ -8,7 +8,7 @@
 
 
 RdfsClass.create!(name: "Event")
-RdfsClass.create!(name: "Organisation")
+RdfsClass.create!(name: "Organization")
 RdfsClass.create!(name: "Place")
 
 
@@ -16,14 +16,14 @@ Property.create!(label:  "Title", rdfs_class_id: 1)
 Property.create!(label:  "Date", value_datatype: "xsd:date", rdfs_class_id: 1)
 Property.create!(label:  "Photo", rdfs_class_id: 1)
 Property.create!(label:  "Description", rdfs_class_id: 1)
-Property.create!(label:  "Location", value_datatype: "xsd:anyURI", rdfs_class_id: 1)
-Property.create!(label:  "Organized by", rdfs_class_id: 1)
+Property.create!(label:  "Location", value_datatype: "xsd:anyURI", rdfs_class_id: 1, expected_class: "Place")
+Property.create!(label:  "Organized by", value_datatype: "xsd:anyURI", rdfs_class_id: 1, expected_class: "Organization")
 Property.create!(label:  "Time", value_datatype: "xsd:time", rdfs_class_id: 1)
 Property.create!(label:  "Duration", rdfs_class_id: 1)
 Property.create!(label:  "Tickets link", rdfs_class_id: 1)
 Property.create!(label:  "Webpage link", rdfs_class_id: 1)
-Property.create!(label:  "Produced by", rdfs_class_id: 1)
-Property.create!(label:  "Performed by", rdfs_class_id: 1)
+Property.create!(label:  "Produced by",  value_datatype: "xsd:anyURI",rdfs_class_id: 1, expected_class: "Organization")
+Property.create!(label:  "Performed by", value_datatype: "xsd:anyURI", rdfs_class_id: 1, expected_class: "Organization")
 
 #Place properties
 Property.create!(label:  "Name", rdfs_class_id: 3)
@@ -91,7 +91,8 @@ create_source("Description","xpath=//meta[@property='og:description']/@content",
 create_source("Description","css=.fw-row :nth-child(1) .textblock-shortcode p:nth-child(1)","",true,["en","fr"])
 create_source("Webpage link","xpath=//meta[@property='og:url']/@content","",true,["en","fr"])
 create_source("Organized by","xpath=//meta[@property='og:site_name']/@content")
-create_source("Produced by","xpath=//meta[@property='og:site_name']/@content")
+create_source("Produced by","manual=Enter the organization that produced this event")
+create_source("Performed by","manual=Enter the organization that performed this event")
 create_source("Tickets link","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","",true,["en","fr"])
 create_source("Photo","xpath=//meta[@property='og:image']/@content")
 
