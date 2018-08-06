@@ -5,14 +5,14 @@ if @statements.count > 0
   json.statements do
     @statements.each do |statement|
       if statement.source.selected
-        json.partial! "statements/uri", statement: statement
+        json.partial! "resources/uri", statement: statement
       else
         alternatives << statement
       end
     end
   end
   json.alternatives alternatives.each do |statement|
-    json.partial! "statements/uri", statement: statement
+    json.partial! "resources/uri", statement: statement
   end
 else
   json.subject_uri "URI NOT FOUND #{params[:rdf_uri]}"

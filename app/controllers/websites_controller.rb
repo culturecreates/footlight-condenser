@@ -1,21 +1,28 @@
 class WebsitesController < ApplicationController
   before_action :set_website, only: [:show, :edit, :update, :destroy]
 
+
+
   # GET /webpages/events.json?seedurl=
   def events
-    @events = get_uris params[:seedurl], "Event"
+    @events = helpers.get_uris params[:seedurl], "Event"
   end
 
 
   # GET /webpages/places.json?seedurl=
   def places
-    @places = get_uris params[:seedurl], "Place"
+    @places = helpers.get_uris params[:seedurl], "Place"
   end
 
   # GET /websites
   # GET /websites.json
   def index
-    @websites = Website.all
+    if params[:q]
+      like_keyword = "%#{params[:q]}%"
+      @websites = Website.where("name LIKE ?", like_keyword)
+    else
+      @websites = Website.all
+    end
   end
 
   # GET /websites/1
@@ -83,15 +90,5 @@ class WebsitesController < ApplicationController
       params.require(:website).permit(:name, :seedurl)
     end
 
-    def get_uris seedurl, rdfs_class_name
-      uri_list = []
-      website = Website.where(seedurl: seedurl).first
-      if !website.nil?
-        rdfs_class = RdfsClass.where(name: rdfs_class_name).first
-        webpages = website.webpages.where(rdfs_class: rdfs_class)
-        webpages.each {|page| uri_list << {rdf_uri: page.rdf_uri}}
-        uri_list.uniq!
-      end
-      return uri_list
-    end
+
 end

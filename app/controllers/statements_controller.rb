@@ -2,35 +2,7 @@ class StatementsController < ApplicationController
   before_action :set_statement, only: [:show, :edit, :update, :destroy]
   skip_before_action :verify_authenticity_token
 
-  #GET /statements/uri.json?rdf_uri=
-  def uri
-    # get all statements for all webpages for rdf_uri
-    @statements = []
-    webpages = Webpage.where(rdf_uri: params[:rdf_uri])
-    webpages.each do |webpage|
-      webpage.statements.each do |statement|
-        @statements << statement
-      end
-    end
-    @statements.sort
-  end
 
-  # PATCH /statements/review_uri.json?rdf_uri=
-  def review_uri
-    @statements = []
-    _webpages = Webpage.where(rdf_uri: params[:rdf_uri])
-    _webpages.each do |webpage|
-      webpage.statements.each do |statement|
-        @statements << statement
-      end
-    end
-    @statements.each do |statement|
-      statement.status = "OK" if statement.source.selected
-      statement.save
-    end
-    render :uri
-
-  end
 
 
   #GET /statements/webpage.json?uri=
@@ -80,6 +52,7 @@ class StatementsController < ApplicationController
   # GET /statements/1
   # GET /statements/1.json
   def show
+    @rdf_uri = @statement.webpage.rdf_uri
   end
 
   # GET /statements/new
@@ -176,12 +149,12 @@ class StatementsController < ApplicationController
           _data = helpers.format_datatype(_scraped_data, source.property, webpage)
           s = Statement.where(webpage_id: webpage.id, source_id: source.id)
           if s.count != 1  #create or update database entry
-            Statement.create!(cache:_data, webpage_id: webpage.id, source_id: source.id, status: "unreviewed", status_origin: "condensor_refresh",cache_refreshed: Time.new)
+            Statement.create!(cache:_data, webpage_id: webpage.id, source_id: source.id, status: "never_reviewed", status_origin: "condensor_refresh",cache_refreshed: Time.new)
           else
             #check if manual entry and if yes then don't update
             next if source.algorithm_value.start_with?("manual=")
             #model automatically sets cache changed and cache refreshed
-            s.first.update(cache:_data, status: "unreviewed", status_origin: "condensor_refresh", cache_refreshed: Time.new)
+            s.first.update(cache:_data, status: "needs_review", status_origin: "condensor_refresh", cache_refreshed: Time.new)
           end
         else
           #there is another step
