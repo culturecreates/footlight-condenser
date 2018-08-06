@@ -52,7 +52,6 @@ class StatementsController < ApplicationController
   # GET /statements/1
   # GET /statements/1.json
   def show
-    @rdf_uri = @statement.webpage.rdf_uri
   end
 
   # GET /statements/new

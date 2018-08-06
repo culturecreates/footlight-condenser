@@ -52,7 +52,7 @@ defaults format: :json do
       constraints: {rdf_uri: /[^\/]+/ },
       as: :show_resources
 
-  get 'resources/:rdf_uri/reviewed_all',
+  patch 'resources/:rdf_uri/reviewed_all',
       to: "resources#reviewed_all",
       constraints: {rdf_uri: /[^\/]+/ },
       as: :reviewed_all_resources

@@ -4,6 +4,6 @@ json.language statement.source.language
 json.value_datatype statement.source.property.value_datatype
 
 
-json.event_rdf_uri @rdf_uri
+json.event_rdf_uri @statement.webpage.rdf_uri
 
 json.url statement_url(statement, format: :json)

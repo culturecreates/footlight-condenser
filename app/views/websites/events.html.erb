@@ -5,7 +5,13 @@
   <li><%= event[:rdf_uri] %>
     <%= link_to "statements", show_resources_path(rdf_uri: event[:rdf_uri]) %> |
     <%= link_to "refresh", refresh_rdf_uri_statements_path(rdf_uri: event[:rdf_uri]) %>
-    <%= link_to "review all", reviewed_all_resources_path(rdf_uri: event[:rdf_uri]) %>
+    
+    <%= form_for :event, options = {url: reviewed_all_resources_path(rdf_uri: event[:rdf_uri]), method: :patch } do |form| %>
+      <div class="actions">
+        <%= form.submit "Review ALL"%>
+      </div>
+    <% end %>
+
 <% end %>
 </ul>
 <%= link_to 'Back', websites_path %>
