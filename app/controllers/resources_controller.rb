@@ -22,9 +22,9 @@ class ResourcesController < ApplicationController
     @statements.sort
   end
 
- #REDOOOO
-  # PATCH /statements/review_uri.json?rdf_uri=
-  def review_uri
+
+  # PATCH /resources/:rdf_uri/reviewed_all
+  def reviewed_all
     @statements = []
     _webpages = Webpage.where(rdf_uri: params[:rdf_uri])
     _webpages.each do |webpage|
@@ -36,7 +36,7 @@ class ResourcesController < ApplicationController
       statement.status = "reviewed" if statement.source.selected
       statement.save
     end
-    render :uri
+    render :show
 
   end
 
