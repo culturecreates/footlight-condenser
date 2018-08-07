@@ -3,10 +3,11 @@
 <ul>
 <% @events.each do |event| %>
   <li><%= event[:rdf_uri] %>
-    <%= link_to "statements", show_resources_path(rdf_uri: event[:rdf_uri]) %> |
+    <%= link_to "statements", show_resources_path(rdf_uri: event[:rdf_uri], format: :html) %> |
     <%= link_to "refresh", refresh_rdf_uri_statements_path(rdf_uri: event[:rdf_uri]) %>
-    
-    <%= form_for :event, options = {url: reviewed_all_resources_path(rdf_uri: event[:rdf_uri]), method: :patch } do |form| %>
+
+    <%= form_for :event, options = {url: reviewed_all_resources_path(rdf_uri: event[:rdf_uri], format: :html), method: :patch } do |form| %>
+      <%= form.hidden_field :status_origin, id: :status_origin, value: "admin"%>
       <div class="actions">
         <%= form.submit "Review ALL"%>
       </div>

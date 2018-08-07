@@ -38,23 +38,22 @@ Rails.application.routes.draw do
 
 ### eventually replace these with resouces websites, param: :seedurl
 
+###   constraints: {seedurl: /[^\/]+/ }
+
 defaults format: :json do
   get 'websites/:seedurl/resources',
-      to: "resources#index",
-      constraints: {seedurl: /[^\/]+/ }
+      to: "resources#index"
+
 
   get 'websites/:seedurl/events',
-      to: "events#index",
-      constraints: {seedurl: /[^\/]+/ }
+      to: "events#index"
 
   get 'resources/:rdf_uri',
       to: "resources#show",
-      constraints: {rdf_uri: /[^\/]+/ },
       as: :show_resources
 
   patch 'resources/:rdf_uri/reviewed_all',
       to: "resources#reviewed_all",
-      constraints: {rdf_uri: /[^\/]+/ },
       as: :reviewed_all_resources
 end
 

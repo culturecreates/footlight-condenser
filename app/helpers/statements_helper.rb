@@ -45,6 +45,16 @@ module StatementsHelper
 
 
 
+  def status_checker (scraped_data, property)
+    if property.value_datatype == "xsd:anyURI"
+      #check for 2 items in list
+      scraped_data.count > 1 ? status = "initial" : status = "missing"
+    else
+      !scraped_data.blank? ? status = "initial" : status = "missing"
+    end
+    return status
+  end
+
   def format_datatype (scraped_data, property, webpage)
     data = []
     if property.value_datatype == "xsd:date"

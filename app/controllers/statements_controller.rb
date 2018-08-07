@@ -28,7 +28,7 @@ class StatementsController < ApplicationController
     webpages.each do |webpage|
       refresh_webpage_statements(webpage)
     end
-    redirect_to uri_statements_path(rdf_uri: params[:rdf_uri]), notice: 'All statements were successfully refreshed.'
+    redirect_to show_resources_path(rdf_uri: params[:rdf_uri]), notice: 'All statements were successfully refreshed.'
   end
 
   # GET /statements/1/refresh
@@ -148,12 +148,12 @@ class StatementsController < ApplicationController
           _data = helpers.format_datatype(_scraped_data, source.property, webpage)
           s = Statement.where(webpage_id: webpage.id, source_id: source.id)
           if s.count != 1  #create or update database entry
-            Statement.create!(cache:_data, webpage_id: webpage.id, source_id: source.id, status: "never_reviewed", status_origin: "condensor_refresh",cache_refreshed: Time.new)
+            Statement.create!(cache:_data, webpage_id: webpage.id, source_id: source.id, status: helpers.status_checker(_data, source.property) , status_origin: "condensor_refresh",cache_refreshed: Time.new)
           else
             #check if manual entry and if yes then don't update
             next if source.algorithm_value.start_with?("manual=")
             #model automatically sets cache changed and cache refreshed
-            s.first.update(cache:_data, status: "needs_review", status_origin: "condensor_refresh", cache_refreshed: Time.new)
+            s.first.update(cache:_data, status: "updated", status_origin: "condensor_refresh", cache_refreshed: Time.new)
           end
         else
           #there is another step
