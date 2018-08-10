@@ -9,6 +9,7 @@ Rails.application.routes.draw do
     end
     member do
       get 'refresh'
+      patch 'activate'
     end
   end
 
@@ -56,6 +57,8 @@ defaults format: :json do
       to: "resources#reviewed_all",
       as: :reviewed_all_resources
 end
+
+
 
 
 

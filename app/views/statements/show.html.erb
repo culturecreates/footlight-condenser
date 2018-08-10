@@ -61,6 +61,12 @@ Change status:
 
 <hr>
 <p>
+Activate:
+<%= link_to "Activate", activate_statement_path(@statement), local: true,   method: :patch %>
+</p>
+
+<hr>
+<p>
 Manual update:
 <%= form_with(model: @statement, local: true) do |form| %>
 

@@ -12,15 +12,27 @@ class ResourcesController < ApplicationController
 
   #GET /resources/:rdf_uri
   def show
-    # get all statements for all webpages for rdf_uri
-    @statements = []
+    # get resource by rdf_uri and all statements for all related webpages
+    @resource = { uri: params[:rdf_uri],
+                  rdfs_class: "",
+                  statements: {}}
+
     webpages = Webpage.where(rdf_uri: params[:rdf_uri])
+    @resource[:rdfs_class] = webpages.first.rdfs_class.name if !webpages.empty?
+
     webpages.each do |webpage|
       webpage.statements.each do |statement|
-        @statements << statement
+        property = helpers.build_key(statement)
+        @resource[:statements][property] = {} if @resource[:statements][property].nil?
+        #add statements that are 'not selected' as an alternative inside the selected statement
+        if statement.source.selected
+          @resource[:statements][property].merge!(helpers.adjust_labels_for_api(statement))
+        else
+          @resource[:statements][property].merge!({alternatives: []}) if @resource[:statements][property][:alternatives].nil?
+          @resource[:statements][property][:alternatives] << helpers.adjust_labels_for_api(statement)
+        end
       end
     end
-    @statements.sort
   end
 
 

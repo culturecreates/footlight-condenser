@@ -2,9 +2,6 @@ class StatementsController < ApplicationController
   before_action :set_statement, only: [:show, :edit, :update, :destroy]
   skip_before_action :verify_authenticity_token
 
-
-
-
   #GET /statements/webpage.json?uri=
   def webpage
     @statements = []
@@ -46,7 +43,7 @@ class StatementsController < ApplicationController
   # GET /statements
   # GET /statements.json
   def index
-    @statements = Statement.all
+    @statements = Statement.all.order(:id)
   end
 
   # GET /statements/1
@@ -94,6 +91,35 @@ class StatementsController < ApplicationController
       end
     end
   end
+
+
+  # PATCH/PUT /statements/1/activate
+  # PATCH/PUT /statements/1/activate.json
+  def activate
+    #get all statements about this property/language for the resource(individual)
+    @statement = Statement.find(params[:id])
+    @source_id = @statement.source.id
+    @property = @statement.source.property
+    @language = @statement.source.language
+    @webpage =  @statement.webpage
+    @website = @webpage.website
+    @sources = Source.where(website_id: @website.id, property_id: @property.id, language: @language )
+
+    #set all source selected = false
+    @sources.each do |source|
+      if source.id != @source_id
+        source.update(selected: false)
+      else
+        source.update(selected: true)
+      end
+    end
+
+    respond_to do |format|
+        format.html { redirect_to show_resources_path(rdf_uri: @webpage.rdf_uri), notice: 'Statement was successfully activated.' }
+        format.json { render "resources/show" }
+    end
+  end
+
 
 
 
@@ -153,7 +179,7 @@ class StatementsController < ApplicationController
             #check if manual entry and if yes then don't update
             next if source.algorithm_value.start_with?("manual=")
             #model automatically sets cache changed and cache refreshed
-            s.first.update(cache:_data, status: "updated", status_origin: "condensor_refresh", cache_refreshed: Time.new)
+            s.first.update(cache:_data, cache_refreshed: Time.new)
           end
         else
           #there is another step

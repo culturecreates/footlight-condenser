@@ -5,6 +5,7 @@
 <table>
   <thead>
     <tr>
+      <th>Id</th>
       <th>Cache</th>
       <th>Status</th>
       <th>Status origin</th>
@@ -19,6 +20,7 @@
   <tbody>
     <% @statements.each do |statement| %>
       <tr>
+        <td><%= statement.id %></td>
         <td><%= statement.cache %></td>
         <td><%= statement.status %></td>
         <td><%= statement.status_origin %></td>

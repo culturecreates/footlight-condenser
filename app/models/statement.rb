@@ -6,7 +6,7 @@ class Statement < ApplicationRecord
 
   STATUSES = { initial: 'Initial', missing: 'Missing', ok: 'Ok', problem: 'Problem',updated: 'Upated' }
   validates :status, inclusion: { in: STATUSES.keys.map(&:to_s) }
-  
+
   STATUSES.keys.each do |type|
     define_method("is_#{type}?") { self.status == type.to_s }
     scope type, -> { where(status: type) }
@@ -16,6 +16,8 @@ class Statement < ApplicationRecord
   def save
     if !self.changed_attributes[:cache].nil?
       self.cache_changed = Time.new
+      self.status = "updated"
+      self.status_origin = "condensor_refresh"
     end
 
     super
