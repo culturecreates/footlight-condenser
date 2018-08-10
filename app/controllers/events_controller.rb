@@ -4,7 +4,7 @@ class EventsController < ApplicationController
   def index
     @events = helpers.get_uris params[:seedurl], "Event"
     @events.each do |event|
-      statements = Webpage.where(rdf_uri: event[:rdf_uri]).first.statements
+      statements = Webpage.where(rdf_uri: event[:rdf_uri], language:"en").first.statements
       if !statements.blank?
         event[:statements_status] = helpers.calculate_resource_status statements
         statements.each do |s|

@@ -116,7 +116,8 @@ class StatementsController < ApplicationController
 
     respond_to do |format|
         format.html { redirect_to show_resources_path(rdf_uri: @webpage.rdf_uri), notice: 'Statement was successfully activated.' }
-        format.json { render "resources/show" }
+        format.json { redirect_to show_resources_path(rdf_uri: @webpage.rdf_uri)}
+      #  format.json { render "resources/show", rdf_uri: @webpage.rdf_uri}
     end
   end
 
