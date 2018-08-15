@@ -41,7 +41,7 @@ Rails.application.routes.draw do
 
 ###   constraints: {seedurl: /[^\/]+/ }
 
-defaults format: :json do
+#defaults format: :json do
   get 'websites/:seedurl/resources',
       to: "resources#index"
 
@@ -56,7 +56,7 @@ defaults format: :json do
   patch 'resources/:rdf_uri/reviewed_all',
       to: "resources#reviewed_all",
       as: :reviewed_all_resources
-end
+#end
 
 
 
