@@ -66,6 +66,10 @@ module StatementsHelper
       scraped_data.each do |d|
         data << ISO_date(d)
       end
+    elsif property.value_datatype == "xsd:dateTime"
+      scraped_data.each do |t|
+        data << ISO_dateTime(t)
+      end
     elsif property.value_datatype == "xsd:time"
       scraped_data.each do |t|
         data << ISO_time(t)
@@ -120,6 +124,16 @@ module StatementsHelper
       iso_date = "Bad input date: #{date}"
     end
     return iso_date
+  end
+
+  def ISO_dateTime(date_time)
+    begin
+      d = Time.parse date_time
+      iso_date_time =  d.strftime('%FT%T')
+    rescue
+      iso_date_time = "Bad input date_time: #{date_time}"
+    end
+    return iso_date_time
   end
 
   def format_language language
