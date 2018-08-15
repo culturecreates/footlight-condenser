@@ -16,6 +16,11 @@ module StatementsHelper
             #replace current page by sraping new url
             html = agent.get_file  use_wringer(a.delete_prefix("url="), source.render_js)
             page = Nokogiri::HTML html
+          elsif a.start_with? 'ruby'
+            command = a.delete_prefix("ruby=")
+            # replace "$algorithm" with results_list
+            command.gsub!("$array","results_list")
+            results_list = eval(command)
           else
             page_data = page.xpath(a.delete_prefix("xpath=")) if a.start_with? 'xpath'
             page_data = page.css(a.delete_prefix("css="))   if a.start_with? 'css'
@@ -72,7 +77,9 @@ module StatementsHelper
     else
       data = scraped_data
     end
-    data = data.first if data.count == 1
+    if data.class == Array
+      data = data.first if data.count == 1
+    end
     return data
   end
 

@@ -2,7 +2,7 @@
 
 one:
   cache: MyString
-  status: MyString
+  status: initial
   status_origin: MyString
   cache_refreshed: 2018-07-30 16:46:00 UTC
   cache_changed: 2018-07-30 16:46:00 UTC
@@ -11,7 +11,7 @@ one:
 
 two:
   cache: MyString
-  status: MyString
+  status: initial
   status_origin: MyString
   cache_refreshed: 2018-07-30 16:46:00 UTC
   cache_changed: 2018-07-30 16:46:00 UTC

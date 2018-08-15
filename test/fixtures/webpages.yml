@@ -9,7 +9,15 @@ one:
 
 two:
   url: MyString
-  language: MyString
+  language: en
+  rdf_uri: MyString
+  rdfs_class: two
+  website: two
+
+
+three:
+  url: MyString
+  language: fr
   rdf_uri: MyString
   rdfs_class: two
   website: two
