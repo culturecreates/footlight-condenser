@@ -32,6 +32,7 @@ module StatementsHelper
         results_list = ["Error scrapping"]
       end
     end
+    puts "results_list: #{results_list}"
     return results_list
   end
 
@@ -90,10 +91,13 @@ module StatementsHelper
   def search_for_uri name, property, webpage
     #search for name in statments.where(website, class)
     uris = [name]
+
     statements = Statement.where(cache: name)
     #use property label to determine class
     expected_class = property.expected_class
+    uris << expected_class
     statements.each do |s|
+
       uris << s.webpage.rdf_uri if (s.webpage.website == webpage.website) && (s.webpage.rdfs_class.name == expected_class)
     end
     return uris

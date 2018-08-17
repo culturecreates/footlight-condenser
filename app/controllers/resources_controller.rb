@@ -47,11 +47,10 @@ class ResourcesController < ApplicationController
     end
     @statements.each do |statement|
       statement.update!(status: "ok", status_origin: params[:event][:status_origin]) if (statement.source.selected && !statement.is_problem? && !statement.is_missing?)
-
     end
     respond_to do |format|
       format.html { redirect_to show_resources_path(rdf_uri: params[:rdf_uri], format: :html) }
-      format.json { render :show,  location: @statement }
+      format.json { redirect_to show_resources_path(rdf_uri: params[:rdf_uri], format: :json)}
     end
   end
 
