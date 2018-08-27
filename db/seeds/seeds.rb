@@ -33,34 +33,29 @@ Property.create!(label:  "Name", rdfs_class_id: 3)
 
 @site = Website.create!(seedurl: "fass-ca")
 
-event_pages_en = [
-"http://festivaldesarts.ca/en/performances/feature-presentations/romeo-et-juliette/",
-"http://festivaldesarts.ca/en/performances/feature-presentations/toronto-dance-theater/",
-"http://festivaldesarts.ca/en/performances/feature-presentations/orchestre-metropolitain/",
-"http://festivaldesarts.ca/en/performances/feature-presentations/hubbard-street-dance-chicago/",
-"http://festivaldesarts.ca/en/performances/feature-presentations/yemen-blues/",
-"http://festivaldesarts.ca/en/performances/feature-presentations/a-night-with-the-stars/",
-"http://festivaldesarts.ca/en/performances/feature-presentations/guillaume-cote/"
-]
-event_pages_fr = [
-"http://festivaldesarts.ca/programmation/en-salle/romeo-et-juliette/",
-"http://festivaldesarts.ca/programmation/en-salle/toronto-dance-theater/",
-"http://festivaldesarts.ca/programmation/en-salle/orchestre-metropolitain/",
-"http://festivaldesarts.ca/programmation/en-salle/hubbard-street-dance-chicago/",
-"http://festivaldesarts.ca/programmation/en-salle/yemen-blues/",
-"http://festivaldesarts.ca/programmation/en-salle/soiree-des-etoiles/",
-"http://festivaldesarts.ca/programmation/en-salle/guillaume-cote/",
-"http://festivaldesarts.ca/programmation/en-salle/orchestre-metropolitain-2/",
-"http://festivaldesarts.ca/programmation/en-salle/soiree-des-etoiles-2/"
+# ["URL","URI","en"], ["URL","URI","fr"]
+pages = [
+  ["http://festivaldesarts.ca/en/performances/feature-presentations/romeo-et-juliette/","adr:festivaldesarts-ca_romeo-et-juliette","en"],
+  ["http://festivaldesarts.ca/en/performances/feature-presentations/toronto-dance-theater/","adr:festivaldesarts-ca_toronto-dance-theater","en"],
+  ["http://festivaldesarts.ca/en/performances/feature-presentations/orchestre-metropolitain/","adr:festivaldesarts-ca_orchestre-metropolitain","en"],
+  ["http://festivaldesarts.ca/en/performances/feature-presentations/hubbard-street-dance-chicago/","adr:festivaldesarts-ca_hubbard-street-dance-chicago","en"],
+  ["http://festivaldesarts.ca/en/performances/feature-presentations/yemen-blues/","adr:festivaldesarts-ca_yemen-blues","en"],
+  ["http://festivaldesarts.ca/en/performances/feature-presentations/a-night-with-the-stars/","adr:festivaldesarts-ca_a-night-with-the-stars","en"],
+  ["http://festivaldesarts.ca/en/performances/feature-presentations/guillaume-cote/","adr:festivaldesarts-ca_guillaume-cote","en"],
+  ["http://festivaldesarts.ca/programmation/en-salle/romeo-et-juliette/","adr:festivaldesarts-ca_romeo-et-juliette","fr"],
+  ["http://festivaldesarts.ca/programmation/en-salle/toronto-dance-theater/","adr:festivaldesarts-ca_toronto-dance-theater","fr"],
+  ["http://festivaldesarts.ca/programmation/en-salle/orchestre-metropolitain/","adr:festivaldesarts-ca_orchestre-metropolitain","fr"],
+  ["http://festivaldesarts.ca/programmation/en-salle/hubbard-street-dance-chicago/","adr:festivaldesarts-ca_hubbard-street-dance-chicago","fr"],
+  ["http://festivaldesarts.ca/programmation/en-salle/yemen-blues/","adr:festivaldesarts-ca_yemen-blues","fr"],
+  ["http://festivaldesarts.ca/programmation/en-salle/soiree-des-etoiles/","adr:festivaldesarts-ca_a-night-with-the-stars","fr"],
+  ["http://festivaldesarts.ca/programmation/en-salle/guillaume-cote/","adr:festivaldesarts-ca_guillaume-cote","fr"]
 ]
 
-event_pages_en.each do |page|
-  Webpage.create!(url: page, website: @site, rdfs_class: RdfsClass.where(name: "Event").first, language: "en", rdf_uri: "adr:" + page.split("/")[2].sub(".","-") + "_" + page.split("/")[6])
+
+pages.each do |page|
+  Webpage.create!(url: page[0], rdf_uri: page[1], language: page[2], website: @site, rdfs_class: RdfsClass.where(name: "Event").first)
 end
 
-event_pages_fr.each do |page|
- Webpage.create!(url: page, website: @site, rdfs_class: RdfsClass.where(name: "Event").first, language: "fr", rdf_uri: "adr:" + page.split("/")[2].sub(".","-") + "_" + page.split("/")[5])
-end
 
 
 place_pages_en = ["http://festivaldesarts.ca/en/visitors-infos/"]
