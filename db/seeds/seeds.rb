@@ -24,12 +24,14 @@ Property.create!(label:  "Tickets link", rdfs_class_id: 1)
 Property.create!(label:  "Webpage link", rdfs_class_id: 1)
 Property.create!(label:  "Produced by",  value_datatype: "xsd:anyURI",rdfs_class_id: 1, expected_class: "Organization")
 Property.create!(label:  "Performed by", value_datatype: "xsd:anyURI", rdfs_class_id: 1, expected_class: "Organization")
+Property.create!(label:  "Start date", value_datatype: "xsd:dateTime", rdfs_class_id: 1, uri: "http://schema.org/startDate")
+
 
 #Place properties
 Property.create!(label:  "Name", rdfs_class_id: 3)
 
 
-@site = Website.create!(seedurl: "fass.ca")
+@site = Website.create!(seedurl: "fass-ca")
 
 event_pages_en = [
 "http://festivaldesarts.ca/en/performances/feature-presentations/romeo-et-juliette/",
@@ -99,6 +101,7 @@ create_source("Photo","xpath=//meta[@property='og:image']/@content")
 create_source("Date","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(1),css=.tableCell1_oe:nth-child(1)")
 create_source("Time","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(2),css=.tableCell1_oe:nth-child(2)")
 create_source("Location","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(3)")
+create_source("Start date","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(1),css=.tableCell1_oo:nth-child(2),css=.tableCell1_oe:nth-child(1),css=.tableCell1_oe:nth-child(2),ruby=$array.each_slice(2).map {|n| n.first + " " + n.second}")
 
 
 create_source("Name","css=#content li:nth-child(1)","",true,["en","fr"])

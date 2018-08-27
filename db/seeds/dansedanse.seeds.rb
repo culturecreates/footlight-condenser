@@ -1,5 +1,9 @@
 # rails db:seed:single SEED=dansedanse
 
+
+RdfsClass.create!(name: "City")
+
+
 @site = Website.create!(seedurl: "dansedanse-ca")
 
 # ["URL","URI","en"], ["URL","URI","fr"]

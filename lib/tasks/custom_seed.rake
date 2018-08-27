@@ -5,5 +5,11 @@ namespace :db do
       puts "Seeding #{filename}..."
       load(filename) if File.exist?(filename)
     end
+
+    task :base => :environment do
+      filename = Dir[File.join(Rails.root, 'db', 'seeds', "seeds.rb")][0]
+      puts "Seeding #{filename}..."
+      load(filename) if File.exist?(filename)
+    end
   end
 end
