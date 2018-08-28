@@ -5,7 +5,13 @@ class WebpagesController < ApplicationController
   # GET /webpages
   # GET /webpages.json
   def index
-    @webpages = Webpage.all
+    if cookies[:seedurl]
+      @webpages = Webpage.where(website_id: Website.where(seedurl: cookies[:seedurl]).first.id)
+    else
+      @webpages = Webpage.all
+    end
+
+
   end
 
   # GET /webpages/website?seedurl=
@@ -83,5 +89,5 @@ class WebpagesController < ApplicationController
       params.require(:webpage).permit(:url, :language, :rdf_uri, :rdfs_class_id, :website_id)
     end
 
-  
+
 end

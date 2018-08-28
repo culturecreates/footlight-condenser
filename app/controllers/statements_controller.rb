@@ -43,7 +43,14 @@ class StatementsController < ApplicationController
   # GET /statements
   # GET /statements.json
   def index
-    @statements = Statement.all.order(:id)
+    if cookies[:seedurl]
+      @statements = Statement.all.order(:id).to_a
+      @statements.select! {|statement| statement.webpage.website.seedurl ==  cookies[:seedurl]}
+    else
+      @statements = Statement.all.order(:id)
+    end
+
+
   end
 
   # GET /statements/1

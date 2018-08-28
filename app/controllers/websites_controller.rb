@@ -2,10 +2,10 @@ class WebsitesController < ApplicationController
   before_action :set_website, only: [:show, :edit, :update, :destroy]
 
 
-
   # GET /webpages/events.json?seedurl=
   def events
     @events = helpers.get_uris params[:seedurl], "Event"
+    cookies[:seedurl] = params[:seedurl]
   end
 
 

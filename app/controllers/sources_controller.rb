@@ -4,7 +4,11 @@ class SourcesController < ApplicationController
   # GET /sources
   # GET /sources.json
   def index
-    @sources = Source.all
+    if cookies[:seedurl]
+      @sources = Source.where(website_id: Website.where(seedurl: cookies[:seedurl]).first.id )
+    else
+      @sources = Source.all
+    end
     @rdfs_classes = RdfsClass.all
   end
 
