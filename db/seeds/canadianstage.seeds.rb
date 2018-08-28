@@ -1,11 +1,12 @@
 # rails db:seed:single SEED=dansedanse
 
-@site = Website.create!(seedurl: "dansedanse-ca")
+@site = Website.create!(seedurl: "canadianstage-com")
 
 # ["URL","URI","en"], ["URL","URI","fr"]
 pages = [
-  ["http://www.dansedanse.ca/fr/dada-masilo-dance-factory-johannesburg-giselle","adr:dansedanse-ca_dada-masilo-dance-factory-johannesburg-giselle", "fr"],
-  ["http://www.dansedanse.ca/en/dada-masilo-dance-factory-johannesburg-giselle","adr:dansedanse-ca_dada-masilo-dance-factory-johannesburg-giselle","en"]
+  ["https://www.canadianstage.com/online/shakespeare","adr:canadianstage-com_shakespeare_2018", "en"],
+  ["https://www.canadianstage.com/online/grand-finale","adr:canadianstage-com_grand-finale_2018", "en"],
+  ["https://www.canadianstage.com/online/children","adr:canadianstage-com_children_2018","en"]
 ]
 
 
@@ -25,16 +26,16 @@ def self.create_source( label, algo = "", next_algo = "", selected = true, langu
   end
 end
 
-create_source("Title","","",true,["en","fr"])
-create_source("Title","","",false,["en","fr"])
-create_source("Description","","",true,["en","fr"])
-create_source("Description","","",false,["en","fr"])
-create_source("Photo")
-create_source("Photo","","",false)
+create_source("Title","","",true,["en"])
+create_source("Title","","",false,["en"])
+create_source("Description","","",true,["en"])
+create_source("Description","","",false,["en"])
+create_source("Photo",'xpath=//div[@id="cs-carousel-image"]//img/@src,ruby="https://canadianstage.com#{$array.first}"')
+create_source("Photo",'xpath=//div[@id="cs-carousel-image"]//img/@src,ruby="https://canadianstage.com#{$array.second}"',"",false)
 create_source("Location")
 create_source("Start date")
 create_source("Organized by")
 create_source("Produced by","manual=Enter the organization that produced this event")
 create_source("Performed by","manual=Enter the organization that performed this event")
-create_source("Tickets link","","",true,["en","fr"])
-create_source("Webpage link","","",true,["en","fr"])
+create_source("Tickets link","","",true,["en"])
+create_source("Webpage link","","",true,["en"])

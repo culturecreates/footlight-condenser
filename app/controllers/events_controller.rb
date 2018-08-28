@@ -17,8 +17,8 @@ class EventsController < ApplicationController
       if !_statements.blank?
         event[:statements_status] = helpers.calculate_resource_status _statements
         _statements.each do |s|
-          event[:title_en] = s.cache if s.source.property.label == "Title"
-          event[:photo] = s.cache if s.source.property.label == "Photo"
+          event[:title_en] = s.cache if s.source.property.label == "Title"  && s.source.selected
+          event[:photo] = s.cache if s.source.property.label == "Photo" && s.source.selected
         end
       end
     end

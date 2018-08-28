@@ -93,8 +93,6 @@ create_source("Performed by","manual=Enter the organization that performed this 
 create_source("Tickets link","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","",true,["en","fr"])
 create_source("Photo","xpath=//meta[@property='og:image']/@content")
 
-create_source("Date","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(1),css=.tableCell1_oe:nth-child(1)")
-create_source("Time","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(2),css=.tableCell1_oe:nth-child(2)")
 create_source("Location","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(3)")
 create_source("Start date","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(1),css=.tableCell1_oo:nth-child(2),css=.tableCell1_oe:nth-child(1),css=.tableCell1_oe:nth-child(2),ruby=$array.each_slice(2).map {|n| n.first + " " + n.second}")
 

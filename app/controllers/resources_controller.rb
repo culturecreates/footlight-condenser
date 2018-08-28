@@ -5,9 +5,9 @@ class ResourcesController < ApplicationController
   # GET /events.json
   def index
     @resources = {}
-    @resources["Event"] = helpers.get_uris params[:seedurl], "Event"
-    @resources["Place"] =  helpers.get_uris params[:seedurl], "Place"
-    @resources["Organisation"] =  helpers.get_uris params[:seedurl], "Organisation"
+    @resources["event"] = helpers.get_uris params[:seedurl], "Event"
+    @resources["place"] =  helpers.get_uris params[:seedurl], "Place"
+    @resources["organization"] =  helpers.get_uris params[:seedurl], "Organisation"
   end
 
   #GET /resources/:rdf_uri
