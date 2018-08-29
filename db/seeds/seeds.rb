@@ -94,7 +94,7 @@ create_source("Tickets link","xpath=//*[(@id = 'programmation-header')]//a[@clas
 create_source("Photo","xpath=//meta[@property='og:image']/@content")
 
 create_source("Location","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(3)")
-create_source("Start date","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(1),css=.tableCell1_oo:nth-child(2),css=.tableCell1_oe:nth-child(1),css=.tableCell1_oe:nth-child(2),ruby=$array.each_slice(2).map {|n| n.first + " " + n.second}")
+create_source("Start date","xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href","css=.tableCell1_oo:nth-child(1);css=.tableCell1_oo:nth-child(2);css=.tableCell1_oe:nth-child(1);css=.tableCell1_oe:nth-child(2);ruby=$array.each_slice(2).map {|n| n.first + " " + n.second}")
 
 
 create_source("Name","css=#content li:nth-child(1)","",true,["en","fr"])
