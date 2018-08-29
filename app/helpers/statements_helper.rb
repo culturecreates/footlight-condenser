@@ -11,7 +11,7 @@ module StatementsHelper
         html = agent.get_file  use_wringer(url, source.render_js)
         page = Nokogiri::HTML html
         results_list = []
-        algorithm.split(',').each do |a|
+        algorithm.split(';').each do |a|
           if a.start_with? 'url'
             #replace current page by sraping new url
             html = agent.get_file  use_wringer(a.delete_prefix("url="), source.render_js)

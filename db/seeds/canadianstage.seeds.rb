@@ -15,27 +15,32 @@ pages.each do |page|
 end
 
 
-def self.create_source( label, algo = "", next_algo = "", selected = true, languages = [""])
-  languages.each do |lang|
-    if !next_algo.blank?
-      s = Source.create!(language: lang, render_js: true, website: @site, property: Property.where(label: label).first, algorithm_value:next_algo, selected:selected)
-      Source.create!(language: lang, next_step: s.id, website: @site, property: Property.where(label: label).first, algorithm_value:algo, selected:selected)
+def self.create_source(label, options={})
+  options[:algo]      ||= ''
+  options[:next_algo] ||= ''
+  options[:selected]  ||= true
+  options[:languages] ||= [""]
+
+  options[:languages].each do |lang|
+    if !options[:next_algo].blank?
+      s = Source.create!(language: lang, render_js: true, website: @site, property: Property.where(label: label).first, algorithm_value: options[:next_algo], selected: options[:selected])
+      Source.create!(language: lang, next_step: s.id, website: @site, property: Property.where(label: label).first, algorithm_value: options[:algo], selected: options[:selected])
     else
-      Source.create!(language: lang, website: @site, property: Property.where(label: label).first, algorithm_value:algo, selected:selected)
+      Source.create!(language: lang, website: @site, property: Property.where(label: label).first, algorithm_value: options[:algo], selected: options[:selected])
     end
   end
 end
 
-create_source("Title","","",true,["en"])
-create_source("Title","","",false,["en"])
-create_source("Description","","",true,["en"])
-create_source("Description","","",false,["en"])
-create_source("Photo",'xpath=//div[@id="cs-carousel-image"]//img/@src,ruby="https://canadianstage.com#{$array.first}"')
-create_source("Photo",'xpath=//div[@id="cs-carousel-image"]//img/@src,ruby="https://canadianstage.com#{$array.second}"',"",false)
+create_source("Title",{languages: ["en"]})
+create_source("Title",{languages: ["en"], selected: false})
+create_source("Description",{languages: ["en"]})
+create_source("Description",{languages: ["en"], selected: false})
+create_source("Photo",{algo: 'xpath=//div[@id="cs-carousel-image"]//img/@src,ruby="https://canadianstage.com#{$array.first}"'})
+create_source("Photo",{selected: false, algo: 'xpath=//div[@id="cs-carousel-image"]//img/@src,ruby="https://canadianstage.com#{$array.second}"'})
 create_source("Location")
 create_source("Start date")
 create_source("Organized by")
-create_source("Produced by","manual=Enter the organization that produced this event")
-create_source("Performed by","manual=Enter the organization that performed this event")
-create_source("Tickets link","","",true,["en"])
-create_source("Webpage link","","",true,["en"])
+create_source("Produced by",{algo: "manual=Enter the organization that produced this event")}
+create_source("Performed by",{algo: "manual=Enter the organization that performed this event")}
+create_source("Tickets link",{languages: ["en"]})
+create_source("Webpage link",{languages: ["en"]})
