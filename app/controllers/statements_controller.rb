@@ -91,7 +91,6 @@ class StatementsController < ApplicationController
     respond_to do |format|
       if @statement.update(statement_params)
         format.html { redirect_to show_resources_path(rdf_uri: @statement.webpage.rdf_uri), notice: 'Statement was successfully updated.' }
-      ##  format.json { render :show, status: :ok, location: @statement }
         format.json { redirect_to show_resources_path(rdf_uri: @statement.webpage.rdf_uri, format: :json)}
       else
         format.html { render :edit }
@@ -124,7 +123,7 @@ class StatementsController < ApplicationController
 
     respond_to do |format|
         format.html { redirect_to show_resources_path(rdf_uri: @webpage.rdf_uri), notice: 'Statement was successfully activated.' }
-        format.json { redirect_to show_resources_path(rdf_uri: @webpage.rdf_uri)}
+        format.json { redirect_to show_resources_path(rdf_uri: @webpage.rdf_uri, format: :json)}
       #  format.json { render "resources/show", rdf_uri: @webpage.rdf_uri}
     end
   end
