@@ -40,7 +40,7 @@ create_source("Photo",{selected: false, algo: 'xpath=//div[@id="cs-carousel-imag
 create_source("Location")
 create_source("Start date")
 create_source("Organized by")
-create_source("Produced by",{algo: "manual=Enter the organization that produced this event")}
-create_source("Performed by",{algo: "manual=Enter the organization that performed this event")}
+create_source("Produced by",{algo: "manual=Enter the organization that produced this event"})
+create_source("Performed by",{algo: "manual=Enter the organization that performed this event"})
 create_source("Tickets link",{languages: ["en"]})
 create_source("Webpage link",{languages: ["en"]})
