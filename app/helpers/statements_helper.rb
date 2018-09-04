@@ -18,8 +18,8 @@ module StatementsHelper
             page = Nokogiri::HTML html
           elsif a.start_with? 'ruby'
             command = a.delete_prefix("ruby=")
-            # replace "$algorithm" with results_list
             command.gsub!("$array","results_list")
+            command.gsub!("$url","url")
             results_list = eval(command)
           else
             page_data = page.xpath(a.delete_prefix("xpath=")) if a.start_with? 'xpath'
@@ -32,7 +32,7 @@ module StatementsHelper
         results_list = ["Error scrapping"]
       end
     end
-    puts "results_list: #{results_list}"
+    puts "  ------------->>>>>>>> results_list: #{results_list}"
     return results_list
   end
 
