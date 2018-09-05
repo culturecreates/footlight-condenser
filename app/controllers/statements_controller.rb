@@ -203,8 +203,11 @@ class StatementsController < ApplicationController
             Statement.create!(cache:_data, webpage_id: webpage.id, source_id: source.id, status: helpers.status_checker(_data, source.property) , status_origin: "condensor_refresh",cache_refreshed: Time.new)
           else
             #check if manual entry and if yes then don't update
-            next if source.algorithm_value.start_with?("manual=")
+            if source.algorithm_value.start_with?("manual=")
+              next if s.first.status != "missing"
+            end
             #model automatically sets cache changed and cache refreshed
+            puts "Retrying to process manual entry"
             s.first.update(cache:_data, cache_refreshed: Time.new)
           end
         else

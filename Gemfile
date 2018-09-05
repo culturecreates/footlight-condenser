@@ -37,6 +37,7 @@ gem 'jbuilder', '~> 2.5'
 
 gem 'mechanize'
 gem 'chronic_duration'
+gem 'httparty'
 
 group :development, :test do
   # Call 'byebug' anywhere in the code to stop execution and get a debugger console

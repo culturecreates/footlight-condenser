@@ -101,15 +101,63 @@ module StatementsHelper
     #search for name in statments.where(website, class)
     uris = [name]
 
-    statements = Statement.where(cache: name)
     #use property label to determine class
     expected_class = property.expected_class
     uris << expected_class
-    statements.each do |s|
 
+    #search condensor database
+    statements = Statement.where(cache: name)
+    statements.each do |s|
       uris << s.webpage.rdf_uri if (s.webpage.website == webpage.website) && (s.webpage.rdfs_class.name == expected_class)
     end
+
+    #search Culture Creates KG
+    search_cckg(name, expected_class).each do |uri|
+      uris << uri
+    end
+
     return uris
+  end
+
+
+
+  def search_cckg str, rdfs_class
+
+    @cckg_cache = {} if !defined? @cckg_cache
+
+    q = "PREFIX schema: <http://schema.org/>            \
+        select DISTINCT ?uri ?name where {              \
+	          ?uri a schema:#{rdfs_class} .                \
+            ?uri schema:name ?name .                    \
+            filter (!EXISTS {filter (isBlank(?uri)) })  \
+        } limit 100 "
+
+
+    if !@cckg_cache[rdfs_class]
+      data = HTTParty.post("http://rdf.ontotext.com/4045483734/cc/repositories/webPages",
+        body: {'query' => q},
+        headers: { 'Content-Type' => 'application/x-www-form-urlencoded',
+                  'Accept' => 'application/json',
+                  'Authorization' => 'Basic czRkYWxsZGdnaDgxOjUwZjVnMXQ3OTI4OXFqdg=='} )
+
+      if data.response.code[0] == '2'
+        result = JSON.parse(data.body)["results"]["bindings"]
+        @cckg_cache[rdfs_class] = result
+      else
+        return  {error: data.response}
+      end
+    else
+      result = @cckg_cache[rdfs_class]
+    end
+
+    hits = []
+    result.each do |hit|
+      hits << hit["uri"]["value"] if hit["name"]["value"] == str
+    end
+
+    return hits
+
+
   end
 
 
