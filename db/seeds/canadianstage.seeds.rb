@@ -19,7 +19,7 @@ pages = [
   ["https://canadianstage.com/online/887","adr:canadianstage-com_887_18-19-season","en"],
   ["https://canadianstage.com/online/moon","adr:canadianstage-com_moon_18-19-season","en"],
   ["https://canadianstage.com/online/by-heart","adr:canadianstage-com_by-heart_18-19-season","en"],
-  ["https://canadianstage.com/online/full-ligh","adr:canadianstage-com_full-ligh_18-19-season","en"]
+  ["https://canadianstage.com/online/full-light","adr:canadianstage-com_full-ligh_18-19-season","en"]
 ]
 
 
