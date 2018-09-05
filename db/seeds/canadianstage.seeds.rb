@@ -44,6 +44,7 @@ def self.create_source(label, options={})
   end
 end
 
+
 create_source("Title",{algo: "xpath=//title", languages: ["en"]})
 create_source("Title",{selected: false, algo: "xpath=//title;ruby=$array[0] + ' | Canadian Stage'",languages: ["en"]})
 create_source("Description",{algo: "xpath=//div[@id='overview']//div[@class='mol-md-6 mol-sm-12'];ruby=$array.first.squish.gsub(/Subscribe *\+ *Save/,'')", languages: ["en"]})
