@@ -59,4 +59,4 @@ create_source("Produced by",{algo: "manual=Enter the organization that produced 
 create_source("Performed by",{algo: "manual=Enter the organization that performed this event"})
 create_source("Tickets link",{algo: "ruby=$url", languages: ["en"]})
 create_source("Webpage link",{algo: "ruby=$url", languages: ["en"]})
-create_source("Duration", {algo: "xpath=//div[@id='overview']//ul//li[2];ruby=$array.select {|item| item.include? 'Run Time'}.map {|item| item.squish.sub(/Run Time:(.*)\(+.*/,'\1').strip}"})
+create_source("Duration", {algo: "xpath=//div[@id='overview']//ul//li[2];ruby=$array.select {|item| item.include? 'Run Time'}.map {|item| item.squish.sub(/Run Time:(.*)\\(+.*/,'\\1').strip}"})
