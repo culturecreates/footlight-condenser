@@ -8,7 +8,12 @@ module StatementsHelper
       begin
         agent = Mechanize.new
         agent.user_agent_alias = 'Mac Safari'
-        html = agent.get_file  use_wringer(url, source.render_js)
+        if @html_cache[0] == url &&  @html_cache[1] == source.render_js
+          html = @html_cache[2]
+        else
+          html = agent.get_file  use_wringer(url, source.render_js)
+          @html_cache = [url,source.render_js,html]
+        end
         page = Nokogiri::HTML html
         results_list = []
         algorithm.split(';').each do |a|
@@ -79,6 +84,10 @@ module StatementsHelper
       scraped_data.each do |t|
         data << search_for_uri(t,property,webpage)
       end
+    elsif property.value_datatype == "xsd:duration"
+      scraped_data.each do |t|
+        data << ISO_duration(t)
+      end
     else
       data = scraped_data
     end
@@ -102,6 +111,17 @@ module StatementsHelper
     end
     return uris
   end
+
+
+  def ISO_duration(duration_str)
+    begin
+      duration_seconds = "PT#{ChronicDuration.parse(duration_str)}S"
+    rescue
+      duration_seconds = "Bad duration: #{time}"
+    end
+    return duration_seconds
+  end
+
 
   def ISO_time(time)
     begin

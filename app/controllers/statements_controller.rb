@@ -14,6 +14,7 @@ class StatementsController < ApplicationController
 
   #GET /statements/refresh_webpage.json?url=
   def refresh_webpage
+      @html_cache = []
     webpage = Webpage.where(url: params[:url]).first
     refresh_webpage_statements(webpage)
     redirect_to webpage_statements_path(url: params[:url]), notice: 'All statements were successfully refreshed.'
@@ -21,6 +22,7 @@ class StatementsController < ApplicationController
 
   #GET /statements/refresh_rdf_uri.json?rdf_uri=
   def refresh_rdf_uri
+      @html_cache = []
     webpages = Webpage.where(rdf_uri: params[:rdf_uri])
     webpages.each do |webpage|
       refresh_webpage_statements(webpage)
@@ -31,12 +33,26 @@ class StatementsController < ApplicationController
   # GET /statements/1/refresh
   # GET /statements/1/refresh.json
   def refresh
+      @html_cache = []
     @statement = Statement.where(id: params[:id]).first
     refresh_statement @statement
     respond_to do |format|
       format.html { redirect_to @statement, notice: 'Statement was successfully refreshed.' }
       format.json { render :show, status: :refreshed, location: @statement }
     end
+  end
+
+  def refresh_website_events
+    @html_cache = []
+    events = helpers.get_uris params[:seedurl], "Event"
+    events.each do |event|
+      webpages = Webpage.where(rdf_uri: event[:rdf_uri])
+      webpages.each do |webpage|
+        refresh_webpage_statements(webpage)
+      end
+    end
+    redirect_to events_websites_path(seedurl: params[:seedurl]) , notice: 'All website events were successfully refreshed.'
+
   end
 
 
@@ -153,6 +169,7 @@ class StatementsController < ApplicationController
     end
 
     def refresh_webpage_statements(webpage)
+      @html_cache = []
       #get the properties for the rdfs_class of the webpage
       properties = webpage.rdfs_class.properties
       properties.each do |property|
@@ -168,6 +185,7 @@ class StatementsController < ApplicationController
     end
 
     def refresh_statement statement
+      @html_cache = []
       #get the webpage and sources (check if more than one sounce with steps)
       webpage = statement.webpage
       sources = Source.where(id: statement.source_id).or(Source.where(next_step: statement.source_id)).order(:next_step)

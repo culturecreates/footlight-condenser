@@ -14,6 +14,9 @@ class WebsitesController < ApplicationController
     @places = helpers.get_uris params[:seedurl], "Place"
   end
 
+
+
+
   # GET /websites
   # GET /websites.json
   def index

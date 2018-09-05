@@ -5,7 +5,7 @@ Rails.application.routes.draw do
 
   resources :statements do
     collection do
-      get  'refresh_rdf_uri', 'webpage','refresh_webpage'
+      get  'refresh_rdf_uri', 'webpage','refresh_webpage','refresh_website_events'
     end
     member do
       get 'refresh'
