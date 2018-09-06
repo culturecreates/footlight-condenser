@@ -10,6 +10,7 @@
 RdfsClass.create!(name: "Event")
 RdfsClass.create!(name: "Organization")
 RdfsClass.create!(name: "Place")
+RdfsClass.create!(name: "Category")
 
 
 Property.create!(label:  "Title", rdfs_class_id: 1)
@@ -25,12 +26,12 @@ Property.create!(label:  "Webpage link", rdfs_class_id: 1)
 Property.create!(label:  "Produced by",  value_datatype: "xsd:anyURI",rdfs_class_id: 1, expected_class: "Organization")
 Property.create!(label:  "Performed by", value_datatype: "xsd:anyURI", rdfs_class_id: 1, expected_class: "Organization")
 Property.create!(label:  "Start date", value_datatype: "xsd:dateTime", rdfs_class_id: 1, uri: "http://schema.org/startDate")
-Property.create!(label:  "Event type", value_datatype: "xsd:anyURI", rdfs_class_id: 1)
+Property.create!(label:  "Event type", value_datatype: "xsd:anyURI", rdfs_class_id: 1, expected_class: "Category")
 
 
-#Place properties
+#Other Class properties
 Property.create!(label:  "Name", rdfs_class_id: 3)
-
+Property.create!(label:  "Name", rdfs_class_id: 4)
 
 @site = Website.create!(seedurl: "fass-ca")
 

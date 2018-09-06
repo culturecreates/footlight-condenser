@@ -33,6 +33,7 @@ def self.create_source(label, options={})
   options[:next_algo] ||= ''
   options[:selected] = true if options[:selected].nil?
   options[:languages] ||= [""]
+  options[:rdfs_class_id] ||= 1  #Event class
 
   options[:languages].each do |lang|
     if !options[:next_algo].blank?
@@ -60,3 +61,7 @@ create_source("Performed by",{algo: "xpath=//div[@class='cs-layer-line']//div[@c
 create_source("Tickets link",{algo: "ruby=$url", languages: ["en"]})
 create_source("Webpage link",{algo: "ruby=$url", languages: ["en"]})
 create_source("Duration", {algo: "xpath=//div[@id='overview']//ul//li[2];ruby=$array.select {|item| item.include? 'Run Time'}.map {|item| item.squish.sub(/Run Time:(.*)\\(+.*/,'\\1').strip}"})
+
+
+create_source("Event type", {algo: "manual=Live performance"})
+create_source("Name", {rdfs_class_id: 4, algo: "manual=Live performance"})
