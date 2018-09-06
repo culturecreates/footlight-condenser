@@ -1,5 +1,5 @@
 class StatementsController < ApplicationController
-  before_action :set_statement, only: [:show, :edit, :update, :destroy]
+  before_action :set_statement, only: [:show, :edit, :update, :destroy, :add_linked_data, :remove_linked_data]
   skip_before_action :verify_authenticity_token
 
   #GET /statements/webpage.json?uri=
@@ -114,6 +114,51 @@ class StatementsController < ApplicationController
       end
     end
   end
+
+  # PATCH/PUT /statements/1
+  # PATCH/PUT /statements/1/add_linked_data.json
+  def add_linked_data
+    s = statement_params
+    #  { "statement": {"cache": "[\"#{options[:name]}\",\"#{options[:rdfs_class]}\",\"#{options[:uri]}\"]", "status": "ok", "status_origin": user_name} }
+
+    statement_cache = JSON.parse(@statement.cache)
+    statement_cache << [JSON.parse(s['cache'])[0], JSON.parse(s['cache'])[2]]
+
+    s['cache'] = statement_cache.to_s
+    respond_to do |format|
+      if @statement.update(s)
+        format.html { redirect_to show_resources_path(rdf_uri: @statement.webpage.rdf_uri), notice: 'Statement was successfully updated.' }
+        format.json { redirect_to show_resources_path(rdf_uri: @statement.webpage.rdf_uri, format: :json)}
+      else
+        format.html { render :edit }
+        format.json { render json: @statement.errors, status: :unprocessable_entity }
+      end
+    end
+  end
+
+  # PATCH/PUT /statements/1
+  # PATCH/PUT /statements/1/add_linked_data.json
+  def remove_linked_data
+    s = statement_params
+    #  { "statement": {"cache": "[\"#{options[:name]}\",\"#{options[:rdfs_class]}\",\"#{options[:uri]}\"]", "status": "ok", "status_origin": user_name} }
+
+    statement_cache = JSON.parse(@statement.cache)
+
+    uri_to_delete =  JSON.parse(s['cache'])[2]
+    statement_cache.select! {|linked_data| linked_data[1] != uri_to_delete}
+    puts "Delete: #{uri_to_delete} from #{statement_cache}"
+    s['cache'] = statement_cache.to_s
+    respond_to do |format|
+      if @statement.update(s)
+        format.html { redirect_to show_resources_path(rdf_uri: @statement.webpage.rdf_uri), notice: 'Statement was successfully updated.' }
+        format.json { redirect_to show_resources_path(rdf_uri: @statement.webpage.rdf_uri, format: :json)}
+      else
+        format.html { render :edit }
+        format.json { render json: @statement.errors, status: :unprocessable_entity }
+      end
+    end
+  end
+
 
 
   # PATCH/PUT /statements/1/activate

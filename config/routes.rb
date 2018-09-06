@@ -9,7 +9,7 @@ Rails.application.routes.draw do
     end
     member do
       get 'refresh'
-      patch 'activate'
+      patch 'activate', 'add_linked_data','remove_linked_data'
     end
   end
 
