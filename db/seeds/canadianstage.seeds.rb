@@ -40,7 +40,7 @@ def self.create_source(label, options={})
       s = Source.create!(language: lang, render_js: true, website: @site, property: Property.where(label: label).first, algorithm_value: options[:next_algo], selected: options[:selected])
       Source.create!(language: lang, next_step: s.id, website: @site, property: Property.where(label: label).first, algorithm_value: options[:algo], selected: options[:selected])
     else
-      Source.create!(language: lang, website: @site, property: Property.where(label: label).first, algorithm_value: options[:algo], selected: options[:selected])
+      Source.create!(language: lang, website: @site, property: Property.where(label: label, rdfs_class_id: options[:rdfs_class_id]).first, algorithm_value: options[:algo], selected: options[:selected])
     end
   end
 end
@@ -56,8 +56,8 @@ create_source("Photo",{algo: 'xpath=//div[@id="cs-carousel-image"]//img/@src;rub
 create_source("Location",{algo: "xpath=//div[@id='overview']//ul//li;ruby=$array.select {|item| item.include? 'Location'}.map {|item| item.squish.sub(/Location: /,'')}"})
 create_source("Start date",{algo: "xpath=//div[@class='item-start-date']/span[@class='start-date']"})
 create_source("Organized by",{algo: "manual=Canadian Stage"})
-create_source("Produced by",{algo: "xpath=//div[@class='cs-layer-line']//div[@class='cs-everything-box'];ruby=$array.map {|str| str.squish.titleize}"})
-create_source("Performed by",{algo: "xpath=//div[@class='cs-layer-line']//div[@class='cs-everything-box'];ruby=$array.map {|str| str.squish.titleize}"})
+create_source("Produced by",{algo: "xpath=(//div[@class='cs-layer-line']//div[@class='cs-everything-box'])[1];ruby=$array.map {|str| str.squish.titleize}"})
+create_source("Performed by",{algo: "xpath=(//div[@class='cs-layer-line']//div[@class='cs-everything-box'])[1];ruby=$array.map {|str| str.squish.titleize}"})
 create_source("Tickets link",{algo: "ruby=$url", languages: ["en"]})
 create_source("Webpage link",{algo: "ruby=$url", languages: ["en"]})
 create_source("Duration", {algo: "xpath=//div[@id='overview']//ul//li[2];ruby=$array.select {|item| item.include? 'Run Time'}.map {|item| item.squish.sub(/Run Time:(.*)\\(+.*/,'\\1').strip}"})
