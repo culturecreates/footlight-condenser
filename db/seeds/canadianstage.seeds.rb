@@ -27,6 +27,8 @@ pages.each do |page|
   Webpage.create!(url: page[0], rdf_uri: page[1], language: page[2], website: @site, rdfs_class: RdfsClass.where(name: "Event").first)
 end
 
+Webpage.create!(url: 'http://placeholder.com', rdf_uri: "adr:category-event-type_live-performance", language: '', website: @site, rdfs_class: RdfsClass.where(name: "Category").first)
+
 
 def self.create_source(label, options={})
   options[:algo]      ||= ''
