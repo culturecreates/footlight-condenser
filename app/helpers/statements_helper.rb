@@ -108,12 +108,12 @@ module StatementsHelper
     #search condensor database
     statements = Statement.where(cache: name)
     statements.each do |s|
-      uris << s.webpage.rdf_uri if (s.webpage.website == webpage.website) && (s.webpage.rdfs_class.name == expected_class)
+      uris << [name,s.webpage.rdf_uri] if (s.webpage.website == webpage.website) && (s.webpage.rdfs_class.name == expected_class)
     end
 
     #search Culture Creates KG
     search_cckg(name, expected_class).each do |uri|
-      uris << uri
+      uris << [name,uri]
     end
 
     return uris
