@@ -5,10 +5,14 @@ class WebpagesController < ApplicationController
   # GET /webpages
   # GET /webpages.json
   def index
-    if cookies[:seedurl]
-      @webpages = Webpage.where(website_id: Website.where(seedurl: cookies[:seedurl]).first.id)
+    if params[:seedurl]
+      @webpages = Webpage.where(website_id: Website.where(seedurl: params[:seedurl]).first.id).where(rdfs_class: 1)
     else
-      @webpages = Webpage.all
+      if cookies[:seedurl]
+        @webpages = Webpage.where(website_id: Website.where(seedurl: cookies[:seedurl]).first.id)
+      else
+        @webpages = Webpage.all
+      end
     end
 
 

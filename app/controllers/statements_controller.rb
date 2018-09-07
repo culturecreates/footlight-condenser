@@ -179,6 +179,7 @@ class StatementsController < ApplicationController
         source.update(selected: false)
       else
         source.update(selected: true)
+        #?????set all statements with this source to status: updated if in initial status
       end
     end
 

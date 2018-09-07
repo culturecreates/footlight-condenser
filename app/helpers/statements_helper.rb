@@ -37,7 +37,6 @@ module StatementsHelper
         results_list = ["Error scrapping"]
       end
     end
-    puts "  ------------->>>>>>>> results_list: #{results_list}"
     return results_list
   end
 
@@ -200,8 +199,8 @@ module StatementsHelper
 
   def ISO_dateTime(date_time)
     begin
-      d = Time.parse date_time
-      iso_date_time =  d.strftime('%FT%T')
+      d = Time.parse(date_time).in_time_zone('Eastern Time (US & Canada)')
+      iso_date_time =  d.iso8601
     rescue
       iso_date_time = "Bad input date_time: #{date_time}"
     end
