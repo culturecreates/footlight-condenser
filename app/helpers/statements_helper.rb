@@ -199,8 +199,9 @@ module StatementsHelper
 
   def ISO_dateTime(date_time)
     begin
-      d = Time.parse(date_time).in_time_zone('Eastern Time (US & Canada)')
+      d = Time.parse(date_time + ' ET')
       iso_date_time =  d.iso8601
+      puts "iso_date_time: #{date_time} in zone #{d.zone}--> #{iso_date_time}"
     rescue
       iso_date_time = "Bad input date_time: #{date_time}"
     end
