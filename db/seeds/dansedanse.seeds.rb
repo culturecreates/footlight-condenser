@@ -4,8 +4,32 @@
 
 # ["URL","URI","en"], ["URL","URI","fr"]
 pages = [
-  ["http://www.dansedanse.ca/fr/dada-masilo-dance-factory-johannesburg-giselle","adr:dansedanse-ca_dada-masilo-dance-factory-johannesburg-giselle", "fr"],
-  ["http://www.dansedanse.ca/en/dada-masilo-dance-factory-johannesburg-giselle","adr:dansedanse-ca_dada-masilo-dance-factory-johannesburg-giselle","en"]
+  ["https://www.dansedanse.ca/fr/dada-masilo-dance-factory-johannesburg-giselle","adr:dansedanse-ca_dada-masilo-dance-factory-johannesburg-giselle", "fr"],
+  ["https://www.dansedanse.ca/en/dada-masilo-dance-factory-johannesburg-giselle","adr:dansedanse-ca_dada-masilo-dance-factory-johannesburg-giselle","en"],
+  ["https://www.dansedanse.ca/fr/sylvain-lafortune-esther-rousseau-morin-lun-lautre","adr:dansedanse-ca_sylvain-lafortune-esther-rousseau-morin-lun-lautre", "fr"],
+  ["https://www.dansedanse.ca/en/sylvain-lafortune-esther-rousseau-morin-lun-lautre","adr:dansedanse-ca_sylvain-lafortune-esther-rousseau-morin-lun-lautre","en"],
+  ["https://www.dansedanse.ca/fr/gauthier-dance-dance-company-theaterhaus-stuttgart-0","adr:dansedanse-ca_gauthier-dance-dance-company-theaterhaus-stuttgart-0", "fr"],
+  ["https://www.dansedanse.ca/en/gauthier-dance-dance-company-theaterhaus-stuttgart-0","adr:dansedanse-ca_gauthier-dance-dance-company-theaterhaus-stuttgart-0","en"],
+  ["https://www.dansedanse.ca/fr/tentacle-tribe-ghost","adr:dansedanse-ca_tentacle-tribe-ghost", "fr"],
+  ["https://www.dansedanse.ca/en/tentacle-tribe-ghost","adr:dansedanse-ca_tentacle-tribe-ghost","en"],
+  ["https://www.dansedanse.ca/fr/groupe-rubberbandance-vraiment-doucement","adr:dansedanse-ca_groupe-rubberbandance-vraiment-doucement", "fr"],
+  ["https://www.dansedanse.ca/en/groupe-rubberbandance-vraiment-doucement","adr:dansedanse-ca_groupe-rubberbandance-vraiment-doucement","en"],
+  ["https://www.dansedanse.ca/fr/grupo-corpo-bach-gira","adr:dansedanse-ca_grupo-corpo-bach-gira", "fr"],
+  ["https://www.dansedanse.ca/en/grupo-corpo-bach-gira","adr:dansedanse-ca_grupo-corpo-bach-gira","en"],
+  ["https://www.dansedanse.ca/fr/rosas-love-supreme","adr:dansedanse-ca_rosas-love-supreme", "fr"],
+  ["https://www.dansedanse.ca/en/rosas-love-supreme","adr:dansedanse-ca_rosas-love-supreme","en"],
+  ["https://www.dansedanse.ca/fr/akram-khan-company-xenos","adr:dansedanse-ca_akram-khan-company-xenos", "fr"],
+  ["https://www.dansedanse.ca/en/akram-khan-company-xenos","adr:dansedanse-ca_akram-khan-company-xenos","en"],
+  ["https://www.dansedanse.ca/fr/peggy-baker-dance-projects-who-we-are-dark","adr:dansedanse-ca_peggy-baker-dance-projects-who-we-are-dark", "fr"],
+  ["https://www.dansedanse.ca/en/peggy-baker-dance-projects-who-we-are-dark","adr:dansedanse-ca_peggy-baker-dance-projects-who-we-are-dark","en"],
+  ["https://www.dansedanse.ca/fr/bjm-les-ballets-jazz-de-montreal-dance-me","adr:dansedanse-ca_bjm-les-ballets-jazz-de-montreal-dance-me", "fr"],
+  ["https://www.dansedanse.ca/en/bjm-les-ballets-jazz-de-montreal-dance-me","adr:dansedanse-ca_bjm-les-ballets-jazz-de-montreal-dance-me","en"],
+  ["https://www.dansedanse.ca/fr/red-sky-performance-backbone","adr:dansedanse-ca_red-sky-performance-backbone", "fr"],
+  ["https://www.dansedanse.ca/en/red-sky-performance-backbone","adr:dansedanse-ca_red-sky-performance-backbone","en"],
+  ["https://www.dansedanse.ca/fr/kidd-pivot-revisor","adr:dansedanse-ca_kidd-pivot-revisor", "fr"],
+  ["https://www.dansedanse.ca/en/kidd-pivot-revisor","adr:dansedanse-ca_kidd-pivot-revisor","en"],
+  ["https://www.dansedanse.ca/fr/alonzo-king-lines-ballet-propelled-heart","adr:dansedanse-ca_dada-masilo-dance-factory-johannesburg-giselle", "fr"],
+  ["https://www.dansedanse.ca/en/alonzo-king-lines-ballet-propelled-heart","adr:dansedanse-ca_dada-masilo-dance-factory-johannesburg-giselle","en"]
 ]
 
 
@@ -13,28 +37,44 @@ pages.each do |page|
   Webpage.create!(url: page[0], rdf_uri: page[1], language: page[2], website: @site, rdfs_class: RdfsClass.where(name: "Event").first)
 end
 
+Webpage.create!(url: 'http://placeholder.com', rdf_uri: "adr:category-event-type_live-performance", language: '', website: @site, rdfs_class: RdfsClass.where(name: "Category").first)
 
-def self.create_source( label, algo = "", next_algo = "", selected = true, languages = [""])
-  languages.each do |lang|
-    if !next_algo.blank?
-      s = Source.create!(language: lang, render_js: true, website: @site, property: Property.where(label: label).first, algorithm_value:next_algo, selected:selected)
-      Source.create!(language: lang, next_step: s.id, website: @site, property: Property.where(label: label).first, algorithm_value:algo, selected:selected)
+
+def self.create_source(label, options={})
+  options[:algo]      ||= ''
+  options[:next_algo] ||= ''
+  options[:selected] = true if options[:selected].nil?
+  options[:languages] ||= [""]
+  options[:rdfs_class_id] ||= 1  #Event class
+
+  options[:languages].each do |lang|
+    if !options[:next_algo].blank?
+      s = Source.create!(language: lang, render_js: true, website: @site, property: Property.where(label: label).first, algorithm_value: options[:next_algo], selected: options[:selected])
+      Source.create!(language: lang, next_step: s.id, website: @site, property: Property.where(label: label).first, algorithm_value: options[:algo], selected: options[:selected])
     else
-      Source.create!(language: lang, website: @site, property: Property.where(label: label).first, algorithm_value:algo, selected:selected)
+      Source.create!(language: lang, website: @site, property: Property.where(label: label, rdfs_class_id: options[:rdfs_class_id]).first, algorithm_value: options[:algo], selected: options[:selected])
     end
   end
 end
 
-create_source("Title","","",true,["en","fr"])
-create_source("Title","","",false,["en","fr"])
-create_source("Description","","",true,["en","fr"])
-create_source("Description","","",false,["en","fr"])
-create_source("Photo")
-create_source("Photo","","",false)
-create_source("Location")
-create_source("Start date")
-create_source("Organized by")
-create_source("Produced by","manual=Enter the organization that produced this event")
-create_source("Performed by","manual=Enter the organization that performed this event")
-create_source("Tickets link","","",true,["en","fr"])
-create_source("Webpage link","","",true,["en","fr"])
+
+create_source("Title",{algo: "xpath=//title", languages: ["en","fr"]})
+create_source("Title",{selected: false, languages: ["en","fr"]})
+create_source("Description",{algo: "xpath=//div[@id='overview']//div[@class='mol-md-6 mol-sm-12'];ruby=$array.first.squish.gsub(/Subscribe \\+ Save/,'')", languages: ["en","fr"]})
+create_source("Description",{selected: false, languages: ["en","fr"]})
+create_source("Photo",{algo: 'xpath=//div[@id="cs-carousel-image"]//img/@src;ruby="https://canadianstage.com#{$array.first}"'})
+create_source("Photo",{selected: false})
+create_source("Photo",{selected: false})
+create_source("Photo",{selected: false})
+create_source("Location",{algo: "xpath=//div[@id='overview']//ul//li;ruby=$array.select {|item| item.include? 'Location'}.map {|item| item.squish.sub(/Location: /,'')}"})
+create_source("Start date",{algo: "xpath=//div[@class='item-start-date']/span[@class='start-date']"})
+create_source("Organized by",{algo: "manual=Canadian Stage"})
+create_source("Produced by",{algo: "xpath=(//div[@class='cs-layer-line']//div[@class='cs-everything-box'])[1];ruby=$array.map {|str| str.squish.titleize}"})
+create_source("Performed by",{algo: "xpath=(//div[@class='cs-layer-line']//div[@class='cs-everything-box'])[1];ruby=$array.map {|str| str.squish.titleize}"})
+create_source("Tickets link",{algo: "ruby=$url", languages: ["en","fr"]})
+create_source("Webpage link",{algo: "ruby=$url", languages: ["en","fr"]})
+create_source("Duration", {algo: "xpath=//div[@id='overview']//ul//li[2];ruby=$array.select {|item| item.include? 'Run Time'}.map {|item| item.squish.sub(/Run Time:(.*)\\(+.*/,'\\1').strip}"})
+
+
+create_source("Event type", {algo: "manual=Live performance"})
+create_source("Name", {rdfs_class_id: 4, algo: "manual=Live performance"})
