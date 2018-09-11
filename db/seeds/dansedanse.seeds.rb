@@ -9,7 +9,7 @@ pages = [
   ["https://www.dansedanse.ca/fr/sylvain-lafortune-esther-rousseau-morin-lun-lautre","adr:dansedanse-ca_sylvain-lafortune-esther-rousseau-morin-lun-lautre", "fr"],
   ["https://www.dansedanse.ca/en/sylvain-lafortune-esther-rousseau-morin-lun-lautre","adr:dansedanse-ca_sylvain-lafortune-esther-rousseau-morin-lun-lautre","en"],
   ["https://www.dansedanse.ca/fr/gauthier-dance-dance-company-theaterhaus-stuttgart-0","adr:dansedanse-ca_gauthier-dance-dance-company-theaterhaus-stuttgart-0", "fr"],
-  ["https://www.dansedanse.ca/en/gauthier-dance-dance-company-theaterhaus-stuttgart-0","adr:dansedanse-ca_gauthier-dance-dance-company-theaterhaus-stuttgart-0","en"],
+  ["https://www.dansedanse.ca/en/gauthier-dance-theaterhaus-stuttgart","adr:dansedanse-ca_gauthier-dance-dance-company-theaterhaus-stuttgart-0","en"],
   ["https://www.dansedanse.ca/fr/tentacle-tribe-ghost","adr:dansedanse-ca_tentacle-tribe-ghost", "fr"],
   ["https://www.dansedanse.ca/en/tentacle-tribe-ghost","adr:dansedanse-ca_tentacle-tribe-ghost","en"],
   ["https://www.dansedanse.ca/fr/groupe-rubberbandance-vraiment-doucement","adr:dansedanse-ca_groupe-rubberbandance-vraiment-doucement", "fr"],
@@ -28,8 +28,8 @@ pages = [
   ["https://www.dansedanse.ca/en/red-sky-performance-backbone","adr:dansedanse-ca_red-sky-performance-backbone","en"],
   ["https://www.dansedanse.ca/fr/kidd-pivot-revisor","adr:dansedanse-ca_kidd-pivot-revisor", "fr"],
   ["https://www.dansedanse.ca/en/kidd-pivot-revisor","adr:dansedanse-ca_kidd-pivot-revisor","en"],
-  ["https://www.dansedanse.ca/fr/alonzo-king-lines-ballet-propelled-heart","adr:dansedanse-ca_dada-masilo-dance-factory-johannesburg-giselle", "fr"],
-  ["https://www.dansedanse.ca/en/alonzo-king-lines-ballet-propelled-heart","adr:dansedanse-ca_dada-masilo-dance-factory-johannesburg-giselle","en"]
+  ["https://www.dansedanse.ca/fr/alonzo-king-lines-ballet-propelled-heart","adr:dansedanse-ca_alonzo-king-lines-ballet-propelled-heart", "fr"],
+  ["https://www.dansedanse.ca/en/alonzo-king-lines-ballet-propelled-heart","adr:dansedanse-ca_alonzo-king-lines-ballet-propelled-heart","en"]
 ]
 
 
@@ -59,21 +59,23 @@ end
 
 
 create_source("Title",{algo: "xpath=//title", languages: ["en","fr"]})
-create_source("Title",{selected: false, languages: ["en","fr"]})
-create_source("Description",{algo: "xpath=//div[@id='overview']//div[@class='mol-md-6 mol-sm-12'];ruby=$array.first.squish.gsub(/Subscribe \\+ Save/,'')", languages: ["en","fr"]})
-create_source("Description",{selected: false, languages: ["en","fr"]})
-create_source("Photo",{algo: 'xpath=//div[@id="cs-carousel-image"]//img/@src;ruby="https://canadianstage.com#{$array.first}"'})
-create_source("Photo",{selected: false})
-create_source("Photo",{selected: false})
-create_source("Photo",{selected: false})
-create_source("Location",{algo: "xpath=//div[@id='overview']//ul//li;ruby=$array.select {|item| item.include? 'Location'}.map {|item| item.squish.sub(/Location: /,'')}"})
-create_source("Start date",{algo: "xpath=//div[@class='item-start-date']/span[@class='start-date']"})
-create_source("Organized by",{algo: "manual=Canadian Stage"})
-create_source("Produced by",{algo: "xpath=(//div[@class='cs-layer-line']//div[@class='cs-everything-box'])[1];ruby=$array.map {|str| str.squish.titleize}"})
-create_source("Performed by",{algo: "xpath=(//div[@class='cs-layer-line']//div[@class='cs-everything-box'])[1];ruby=$array.map {|str| str.squish.titleize}"})
-create_source("Tickets link",{algo: "ruby=$url", languages: ["en","fr"]})
+create_source("Title",{algo: "xpath=//h2[@itemprop='composer'];ruby=$array.map {|e| e + ' | Danse Danse'}", selected: false, languages: ["en","fr"]})
+create_source("Title",{algo: "xpath=//h2[@itemprop='composer']", selected: false, languages: ["en","fr"]})
+create_source("Description",{selected: false, algo: "xxpath=//div[@itemprop='description'];ruby=$array.map {|t| t.squish}", languages: ["en","fr"]})
+create_source("Description",{algo: "xpath=//span[@class='txt-saison']", languages: ["en","fr"]})
+create_source("Photo",{algo: "xpath=//img[@typeof='foaf:Image']/@src;ruby=$array.first"})
+create_source("Photo",{selected: false, algo: "xpath=//img[@typeof='foaf:Image']/@src;ruby=$array.first"})
+create_source("Photo",{selected: false, algo: "xpath=//img[@typeof='foaf:Image']/@src;ruby=$array[1]"})
+create_source("Photo",{selected: false, algo: "xpath=//img[@typeof='foaf:Image']/@src;ruby=$array[2]"})
+create_source("Photo",{selected: false, algo: "xpath=//img[@typeof='foaf:Image']/@src;ruby=$array[3]"})
+create_source("Location",{algo: "xpath=//span[@itemprop='name address']"})
+create_source("Start date",{algo: "xpath=//span[@class='date-display-single']"})
+create_source("Organized by",{algo: "manual=Danse Danse"})
+create_source("Produced by",{algo: "xpath=//h2[@itemprop='composer']"})
+create_source("Performed by",{algo: "xpath=//span[@itemprop='performer'];ruby=$array.map {|p| p.squish}"})
+create_source("Tickets link",{algo: "xpath=//a[@class='button btn-saison fullwidth']/@href", languages: ["en","fr"]})
 create_source("Webpage link",{algo: "ruby=$url", languages: ["en","fr"]})
-create_source("Duration", {algo: "xpath=//div[@id='overview']//ul//li[2];ruby=$array.select {|item| item.include? 'Run Time'}.map {|item| item.squish.sub(/Run Time:(.*)\\(+.*/,'\\1').strip}"})
+create_source("Duration", {algo: "xpath=//span[@id='duree']"})
 
 
 create_source("Event type", {algo: "manual=Live performance"})
