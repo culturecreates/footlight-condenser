@@ -61,7 +61,7 @@ end
 create_source("Title",{algo: "xpath=//title", languages: ["en","fr"]})
 create_source("Title",{algo: "xpath=//h2[@itemprop='composer'];ruby=$array.map {|e| e + ' | Danse Danse'}", selected: false, languages: ["en","fr"]})
 create_source("Title",{algo: "xpath=//h2[@itemprop='composer']", selected: false, languages: ["en","fr"]})
-create_source("Description",{selected: false, algo: "xxpath=//div[@itemprop='description'];ruby=$array.map {|t| t.squish}", languages: ["en","fr"]})
+create_source("Description",{selected: false, algo: "xpath=//div[@itemprop='description'];ruby=$array.map {|t| t.squish}", languages: ["en","fr"]})
 create_source("Description",{algo: "xpath=//span[@class='txt-saison']", languages: ["en","fr"]})
 create_source("Photo",{algo: "xpath=//img[@typeof='foaf:Image']/@src;ruby=$array.first"})
 create_source("Photo",{selected: false, algo: "xpath=//img[@typeof='foaf:Image']/@src;ruby=$array.first"})
@@ -75,7 +75,7 @@ create_source("Produced by",{algo: "xpath=//h2[@itemprop='composer']"})
 create_source("Performed by",{algo: "xpath=//span[@itemprop='performer'];ruby=$array.map {|p| p.squish}.join(', ').split('*')"})
 create_source("Tickets link",{algo: "xpath=//a[@class='button btn-saison fullwidth']/@href", languages: ["en","fr"]})
 create_source("Webpage link",{algo: "ruby=$url", languages: ["en","fr"]})
-create_source("Duration", {algo: "xpath=//span[@id='duree']"})
+create_source("Duration", {algo: "xpath=//span[@id='duree'];ruby=$array.map {|s| s.squish.gsub(/min/,'') + ' minute '}"})
 
 
 create_source("Event type", {algo: "manual=Live performance"})
