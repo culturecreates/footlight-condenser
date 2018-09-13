@@ -15,7 +15,7 @@ pages.each do |page|
   Webpage.create!(url: page[0], rdf_uri: page[1], language: page[2], website: @site, rdfs_class: RdfsClass.where(name: "Event").first)
 end
 
-Webpage.create!(url: 'http://placeholder.com', rdf_uri: "adr:category-event-type_live-performance", language: '', website: @site, rdfs_class: RdfsClass.where(name: "Category").first)
+Webpage.create!(url: 'http://placeholder.com', rdf_uri: "adr:category-event-type_live-performance", language: 'fr', website: @site, rdfs_class: RdfsClass.where(name: "Category").first)
 
 
 def self.create_source(label, options={})
@@ -40,9 +40,9 @@ create_source("Title",{algo: "xpath=//title", languages: ["fr"]})
 create_source("Description",{languages: ["fr"], algo: "xpath=//meta[@property='og:description']/@content"})
 create_source("Description",{selected: false, languages: ["fr"], algo: "xpath=//section[@id='fiche_txt'];ruby=$array.map {|t| t.squish}"})
 create_source("Photo",{languages: ["fr"], algo: "xpath=//meta[@property='og:image']/@content;ruby=$array.select {|i| !(i.include? 'share.jpg')}"})
-create_source("Location",{languages: ["fr"], algo: "xpath=//td[@class='cell_salle'];ruby=$array.map {|t| t.squish}"})
+create_source("Location",{languages: ["fr"], algo: "xpath=(//td[@class='cell_salle'])[1];ruby=$array.map {|t| t.squish}	"})
 create_source("Start date",{languages: ["fr"], algo: "xpath=//div[@class='show_date']"})
-create_source("Organized by",{languages: ["fr"], algo: "manual='Théâtre Hector-Charland'"})
+create_source("Organized by",{languages: ["fr"], algo: "manual=Théâtre Hector-Charland"})
 create_source("Produced by",{languages: ["fr"], algo: "xpath=//section[@id='fiche_txt'];ruby=$array.map{|t| t.truncate_words(15)}.map {|t| t.squish}"})
 create_source("Performed by",{languages: ["fr"], algo: "xpath=//section[@id='fiche_txt'];ruby=$array.map{|t| t.truncate_words(15)}.map {|t| t.squish}"})
 create_source("Tickets link",{languages: ["fr"], algo: "xpath=//td[@class='cell_code']/a/@href;ruby=$array.map {|t| t.squish}"})

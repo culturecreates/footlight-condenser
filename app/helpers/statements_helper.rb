@@ -107,7 +107,8 @@ module StatementsHelper
     #search condensor database
     statements = Statement.where(cache: name)
     statements.each do |s|
-      uris << [name,s.webpage.rdf_uri] if (s.webpage.website == webpage.website) && (s.webpage.rdfs_class.name == expected_class)
+      uris << [name,s.webpage.rdf_uri] if (s.webpage.rdfs_class.name == expected_class)
+      ## ????also check (s.webpage.website == webpage.website) 
     end
 
     #search Culture Creates KG
