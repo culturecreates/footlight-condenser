@@ -16,7 +16,7 @@ two:
 
 
 three:
-  url: MyString
+  url: http://festivaldesarts.ca/en/performances/feature-presentations/romeo-et-juliette/
   language: fr
   rdf_uri: MyString
   rdfs_class: two

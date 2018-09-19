@@ -1,5 +1,7 @@
 Rails.application.routes.draw do
 
+  get 'structured_data/event_markup'
+
   root 'websites#index'
 
 
