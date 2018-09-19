@@ -1,9 +1,9 @@
 class StructuredDataController < ApplicationController
+
+  # GET /structured_data/event_markup?url=
   def event_markup
     params[:url]
-
     webpage = Webpage.where(url: params[:url]).first
-
 
     if webpage.blank?
       render json: {error: "No condensor webpage: #{params[:url]}"}, status: :unprocessable_entity
@@ -16,7 +16,6 @@ class StructuredDataController < ApplicationController
           _condensor_statements << s
         end
       end
-
       _jsonld = {"@context": "http://schema.org", "@type": "Event"}
       _condensor_statements.each do |statement|
         if statement.source.selected == true  && (statement.status == "ok" || statement.status == "updated")  && (statement.source.language == _lang || statement.source.language == "")
@@ -30,14 +29,12 @@ class StructuredDataController < ApplicationController
             #add offers
             _jsonld["offers"] = {
                   "@type": "Offer",
-                  "url": statement.cache
-                }
+                  "url": statement.cache }
           else
             _jsonld[prop] = statement.cache
           end
         end
       end
-
       #add location address
       location = helpers.get_kg_place _jsonld["location"][:@id]  if _jsonld["location"]
       if !location.blank?
@@ -50,8 +47,6 @@ class StructuredDataController < ApplicationController
               "postalCode": location["postalCode"]
             }
       end
-
-
       #creates seperate events per startDate
       if !_jsonld["startDate"].blank?
         @events = []
