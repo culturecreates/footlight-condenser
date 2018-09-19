@@ -9,7 +9,6 @@ class StructuredDataController < ApplicationController
       render json: {error: "No condensor webpage: #{params[:url]}"}, status: :unprocessable_entity
     else
       _lang = webpage.language
-
       _condensor_statements = []
       webpages = Webpage.where(rdf_uri: webpage.rdf_uri)
       webpages.each do |w|
@@ -18,31 +17,31 @@ class StructuredDataController < ApplicationController
         end
       end
 
-      @statements = {"@context": "http://schema.org", "@type": "Event"}
+      _jsonld = {"@context": "http://schema.org", "@type": "Event"}
       _condensor_statements.each do |statement|
         if statement.source.selected == true  && (statement.status == "ok" || statement.status == "updated")  && (statement.source.language == _lang || statement.source.language == "")
           prop = statement.source.property.uri.to_s.split("/").last
           if statement.source.property.value_datatype == "xsd:anyURI"
             uri_object = JSON.parse(statement.cache)
-            @statements[prop] = {"@type": uri_object[1], "name": uri_object[2][0], "@id": uri_object[2][1]}
+            _jsonld[prop] = {"@type": uri_object[1], "name": uri_object[2][0], "@id": uri_object[2][1]}
           elsif  statement.source.property.value_datatype == "xsd:dateTime"
-            @statements[prop] = JSON.parse(statement.cache)
+            _jsonld[prop] = JSON.parse(statement.cache)
           elsif prop == "offer:url"
             #add offers
-            @statements["offers"] = {
+            _jsonld["offers"] = {
                   "@type": "Offer",
                   "url": statement.cache
                 }
           else
-            @statements[prop] = statement.cache
+            _jsonld[prop] = statement.cache
           end
         end
       end
 
       #add location address
-      location = helpers.get_kg_place @statements["location"][:@id]  if @statements["location"]
+      location = helpers.get_kg_place _jsonld["location"][:@id]  if _jsonld["location"]
       if !location.blank?
-        @statements["location"]["address"] = {
+        _jsonld["location"]["address"] = {
               "@type": "PostalAddress",
               "streetAddress": location["streetAddress"],
               "addressCountry": location["addressCountry"],
@@ -54,10 +53,10 @@ class StructuredDataController < ApplicationController
 
 
       #creates seperate events per startDate
-      if !@statements["startDate"].blank?
+      if !_jsonld["startDate"].blank?
         @events = []
-        @statements["startDate"].each do |event_startDate|
-          event =  @statements.dup
+        _jsonld["startDate"].each do |event_startDate|
+          event =  _jsonld.dup
           event["startDate"] = event_startDate
           @events << event
         end
