@@ -60,7 +60,7 @@ create_source("Description",{selected: false, algo: "xpath=//div[@class='event_m
 create_source("Description",{selected: false, algo: "xpath=//div[@class='event_main_copy'];ruby=$array.first.squish.gsub(/ En savoir plus ›/,'')", languages: ["fr"]})
 create_source("Description",{algo: "xpath=//script[@type='application/ld+json'];ruby=sanitize(JSON.parse($array.first).first['description_en'])", languages: ["en"]})
 create_source("Description",{algo: "xpath=//script[@type='application/ld+json'];ruby=sanitize(JSON.parse($array.first).first['description_fr'])", languages: ["fr"]})
-create_source("Photo",{algo: "xpath=//script[@type='application/ld+json'];ruby=JSON.parse($array.first).first['image']"})
+create_source("Photo",{algo: "xpath=//meta[@name='thumbnail']/@content"})
 create_source("Location",{algo: "xpath=//script[@type='application/ld+json'];ruby=JSON.parse($array.first).second['name'].split('*')"})
 create_source("Start date",{algo: "xpath=//script[@type='application/ld+json'];ruby=JSON.parse($array.first).map { |e| e['startDate'] }.uniq"})
 create_source("Organized by",{algo: "manual=National Arts Centre"})
