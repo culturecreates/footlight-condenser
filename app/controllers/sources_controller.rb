@@ -5,7 +5,7 @@ class SourcesController < ApplicationController
   # GET /sources.json
   def index
     if cookies[:seedurl]
-      @sources = Source.where(website_id: Website.where(seedurl: cookies[:seedurl]).first.id )
+      @sources = Source.where(website_id: Website.where(seedurl: cookies[:seedurl]).first.id).order(:id)
     else
       @sources = Source.all
     end
