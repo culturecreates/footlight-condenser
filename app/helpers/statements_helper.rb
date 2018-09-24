@@ -67,17 +67,9 @@ module StatementsHelper
 
   def format_datatype (scraped_data, property, webpage)
     data = []
-    if property.value_datatype == "xsd:date"
-      scraped_data.each do |d|
-        data << ISO_date(d)
-      end
-    elsif property.value_datatype == "xsd:dateTime"
+    if property.value_datatype == "xsd:dateTime"
       scraped_data.each do |t|
         data << ISO_dateTime(t)
-      end
-    elsif property.value_datatype == "xsd:time"
-      scraped_data.each do |t|
-        data << ISO_time(t)
       end
     elsif property.value_datatype == "xsd:anyURI"
       scraped_data.each do |t|
@@ -147,32 +139,6 @@ module StatementsHelper
   end
 
 
-  def ISO_time(time)
-    begin
-      d = Time.parse time
-      iso_date =  d.strftime('%T')
-    rescue
-      iso_date = "Bad input time: #{time}"
-    end
-    return iso_date
-  end
-
-  def ISO_date(date)
-  #  SAMEDI 29 JUILLET 2017, 20 H | GRAND CHAPITEAU
-  # --> output "2017-08-29 20:00:00"
-  # swap Juillet for July, Aout for August
-    date.downcase!
-    date.gsub!('juillet','July')
-    date.gsub!('août', 'August')
-    begin
-      d = Time.parse date
-      #iso_date =  d.strftime('%F %T')
-      iso_date =  d.strftime('%F')
-    rescue
-      iso_date = "Bad input date: #{date}"
-    end
-    return iso_date
-  end
 
   def ISO_dateTime(date_time)
     begin

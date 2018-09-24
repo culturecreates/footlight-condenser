@@ -59,7 +59,7 @@ create_source "Performed by", {algo:"manual=Enter the organization that performe
 create_source "Tickets link", {algo:"xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href", selected: true,languages: ["en","fr"] }
 create_source "Photo", {algo:"xpath=//meta[@property='og:image']/@content"}
 create_source "Location", {algo:"xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href", next_algo: "css=.tableCell1_oo:nth-child(3)"}
-create_source "Start date", {algo:"xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href", next_algo: "css=.tableCell1_oo:nth-child(1);css=.tableCell1_oo:nth-child(2);css=.tableCell1_oe:nth-child(1);css=.tableCell1_oe:nth-child(2);ruby=$array.each_slice(2).map {|n| n.first + " " + n.second}"}
+create_source "Start date", {algo:"xpath=//*[(@id = 'programmation-header')]//a[@class='accueil_artistes_bt']/@href", next_algo: "css=.tableCell1_oo:nth-child(1);css=.tableCell1_oo:nth-child(2);css=.tableCell1_oe:nth-child(1);css=.tableCell1_oe:nth-child(2);ruby=$array.each_slice(2).map {|n| n.first + ' ' + n.second}"}
 
 create_source "Name", {rdfs_class_id: 3, algo: "css=#content li:nth-child(1);ruby=$array.first.split(',')[0]", selected: true, languages: ["en","fr"]}
 create_source "Name", {rdfs_class_id: 3, algo: "manual=Grand Chapiteau FASS Big Top", selected: false}
