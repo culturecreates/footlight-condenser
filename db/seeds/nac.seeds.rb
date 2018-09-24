@@ -1,4 +1,4 @@
-# rails db:seed:single SEED=dansedanse
+# rails db:seed:single SEED=nac
 
 @site = Website.create!(seedurl: "nac-cna-ca")
 

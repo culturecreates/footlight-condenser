@@ -10,8 +10,13 @@ module CcKgHelper
                   'Authorization' => 'Basic czRkYWxsZGdnaDgxOjUwZjVnMXQ3OTI4OXFqdg=='} )
 
       if data.response.code[0] == '2'
-        result = JSON.parse(data.body)["results"]["bindings"]
-        @cckg_cache[cache_key] = result
+        begin
+          result = JSON.parse(data.body)["results"]["bindings"]
+          @cckg_cache[cache_key] = result
+        rescue
+          puts  "ERROR parsing JSON in cc_kg_query"
+          result =  []
+        end
       else
         result =  {error: data.response.inspect}
       end
