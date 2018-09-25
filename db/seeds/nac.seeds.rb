@@ -74,8 +74,8 @@ end
 
 create_source("Title",{selected: false, algo: "xpath=//title", languages: ["en","fr"]})
 create_source("Title",{selected: false, algo: "xpath=//div[@class='title large-12 xlarge-8 columns'];ruby=$array.map {|s| s.squish}", languages: ["en","fr"]})
-create_source("Title",{algo: "xpath=//script[@type='application/ld+json'];ruby=CGI::unescapeHTML(CGI::unescapeHTML(JSON.parse($array.first.squish).first['name_en']))", languages: ["en"]})
-create_source("Title",{algo: "xpath=//script[@type='application/ld+json'];ruby=CGI::unescapeHTML(CGI::unescapeHTML(JSON.parse($array.first.squish).first['name_fr']))", languages: ["fr"]})
+create_source("Title",{algo: "xpath=//script[@type='application/ld+json'];ruby=CGI::unescapeHTML(sanitize(CGI::unescapeHTML(JSON.parse($array.first.squish).first['name_en'])))", languages: ["en"]})
+create_source("Title",{algo: "xpath=//script[@type='application/ld+json'];ruby=CGI::unescapeHTML(sanitize(CGI::unescapeHTML(JSON.parse($array.first.squish).first['name_fr'])))", languages: ["fr"]})
 create_source("Description",{selected: false, algo: "xpath=//div[@class='event_main_copy'];ruby=$array.first.squish.gsub(/ Learn more ›/,'')", languages: ["en"]})
 create_source("Description",{selected: false, algo: "xpath=//div[@class='event_main_copy'];ruby=$array.first.squish.gsub(/ En savoir plus ›/,'')", languages: ["fr"]})
 create_source("Description",{algo: "xpath=//script[@type='application/ld+json'];ruby=sanitize(JSON.parse($array.first.squish).first['description_en'])", languages: ["en"]})
