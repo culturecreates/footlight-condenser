@@ -7,11 +7,11 @@ Rails.application.routes.draw do
 
   resources :statements do
     collection do
-      get  'refresh_rdf_uri', 'webpage','refresh_webpage','refresh_website_events'
+      get  'refresh_rdf_uri', 'webpage','refresh_website_events'
+      patch 'refresh_webpage'
     end
     member do
-      get 'refresh'
-      patch 'activate', 'add_linked_data','remove_linked_data'
+      patch 'activate', 'add_linked_data','remove_linked_data','refresh'
     end
   end
 
@@ -29,6 +29,7 @@ Rails.application.routes.draw do
     collection do
       get 'website'
       post 'create_api'
+      patch 'refresh'
     end
   end
 
@@ -44,13 +45,13 @@ Rails.application.routes.draw do
 
 ###   constraints: {seedurl: /[^\/]+/ }
 
-#defaults format: :json do
   get 'websites/:seedurl/resources',
       to: "resources#index"
 
 
   get 'websites/:seedurl/events',
       to: "events#index"
+
 
   get 'resources/:rdf_uri',
       to: "resources#show",
@@ -59,7 +60,7 @@ Rails.application.routes.draw do
   patch 'resources/:rdf_uri/reviewed_all',
       to: "resources#reviewed_all",
       as: :reviewed_all_resources
-#end
+
 
 
 

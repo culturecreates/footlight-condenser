@@ -2,7 +2,7 @@ class StatementsController < ApplicationController
   before_action :set_statement, only: [:show, :edit, :update, :destroy, :add_linked_data, :remove_linked_data]
   skip_before_action :verify_authenticity_token
 
-  #GET /statements/webpage.json?uri=
+  #GET /statements/webpage.json?url=http://
   def webpage
     @statements = []
     webpage = Webpage.where(url: params[:url]).first
@@ -12,17 +12,20 @@ class StatementsController < ApplicationController
     @statements.sort
   end
 
-  #GET /statements/refresh_webpage.json?url=
+  #PATCH /statements/refresh_webpage.json?url=http://
   def refresh_webpage
-      @html_cache = []
+    @html_cache = []
     webpage = Webpage.where(url: params[:url]).first
     refresh_webpage_statements(webpage)
-    redirect_to webpage_statements_path(url: params[:url]), notice: 'All statements were successfully refreshed.'
+    respond_to do |format|
+        format.html {redirect_to webpage_statements_path(url: params[:url]), notice: 'All statements were successfully refreshed.'}
+        format.json {render json: {message:"statements refreshed"}.to_json }
+    end
   end
 
   #GET /statements/refresh_rdf_uri.json?rdf_uri=
   def refresh_rdf_uri
-      @html_cache = []
+    @html_cache = []
     webpages = Webpage.where(rdf_uri: params[:rdf_uri])
     webpages.each do |webpage|
       refresh_webpage_statements(webpage)
@@ -30,8 +33,8 @@ class StatementsController < ApplicationController
     redirect_to show_resources_path(rdf_uri: params[:rdf_uri]), notice: 'All statements were successfully refreshed.'
   end
 
-  # GET /statements/1/refresh
-  # GET /statements/1/refresh.json
+  # PATCH /statements/1/refresh
+  # PATCH /statements/1/refresh.json
   def refresh
       @html_cache = []
     @statement = Statement.where(id: params[:id]).first
