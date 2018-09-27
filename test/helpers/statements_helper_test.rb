@@ -20,15 +20,6 @@ class StatementsHelperTest < ActionView::TestCase
     assert_equal expected_output, use_wringer("http://culturecreates.com", true)
   end
 
-  test "should covert french date from webpage into ISO date" do
-    expected_output = "2018-08-02"
-    assert_equal expected_output, ISO_date("le jeudi 2 août 2018")
-  end
-
-  test "should covert english date from webpage into ISO date" do
-    expected_output = "2018-08-02"
-    assert_equal expected_output, ISO_date("Thursday, August 2, 2018")
-  end
 
   # test "should scrape 2 items from html" do
   #   source = OpenStruct.new(algorithm_value: 'xpath=//title,xpath=//meta[@property="og:title"]/@content')
@@ -43,6 +34,29 @@ class StatementsHelperTest < ActionView::TestCase
   #   assert_equal expected_output, scrape(source, "http://culturecreates.com")
   # end
 
+  test "should covert french month mai to english" do
+    expected_output = "7 MAY  2019 - 20 h"
+    assert_equal expected_output, french_to_english_month("7 mai 2019 - 20 h")
+  end
 
+  test "should covert accented french month fév to english" do
+    expected_output = "7 FEB  2019 - 20 h"
+    assert_equal expected_output, french_to_english_month("7 fév 2019 - 20 h")
+  end
+
+  test "should covert capitalized french month fév to english" do
+    expected_output = "7 FEB  2019 - 20 h"
+    assert_equal expected_output, french_to_english_month("7 Fév 2019 - 20 h")
+  end
+
+  test "should covert french month février to FEB with spacer" do
+    expected_output = "7 FEB rier 2019 - 20 h"
+    assert_equal expected_output, french_to_english_month("7 Février 2019 - 20 h")
+  end
+
+  test "should convert to ISO date time" do
+   expected_output = "2019-07-03T20:30:00-04:00"
+   assert_equal expected_output, ISO_dateTime("3 juillet 2019 - 20 h 30")
+  end
 
 end

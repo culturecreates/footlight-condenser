@@ -28,6 +28,7 @@ Rails.application.routes.draw do
   resources :webpages do
     collection do
       get 'website'
+      post 'create_api'
     end
   end
 

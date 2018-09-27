@@ -138,13 +138,16 @@ module StatementsHelper
     return duration_seconds
   end
 
-
+  def french_to_english_month(date_time)
+    date_time.downcase.gsub(/ h /, 'h').gsub(/fév|avr|mai|juillet|aou|aoû|déc/, 'fév'=> 'FEB ', 'avr'=> 'APR ', 'mai'=>'MAY ', 'juillet' => 'JUL ','aou'=>'AUG ', 'aoû'=>'AUG ', 'déc'=>'DEC ')
+  end
 
   def ISO_dateTime(date_time)
     begin
       current_timezone = Time.zone
       Time.zone = "Eastern Time (US & Canada)"
-      d = Time.zone.parse(date_time)
+
+      d = Time.zone.parse(self.french_to_english_month(date_time))
       Time.zone = current_timezone
 
       iso_date_time =  d.iso8601

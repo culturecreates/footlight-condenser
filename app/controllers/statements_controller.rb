@@ -115,7 +115,7 @@ class StatementsController < ApplicationController
     end
   end
 
-  # PATCH/PUT /statements/1
+
   # PATCH/PUT /statements/1/add_linked_data.json
   def add_linked_data
     s = statement_params
@@ -136,8 +136,8 @@ class StatementsController < ApplicationController
     end
   end
 
-  # PATCH/PUT /statements/1
-  # PATCH/PUT /statements/1/add_linked_data.json
+
+  # PATCH/PUT /statements/1/remove_linked_data.json
   def remove_linked_data
     s = statement_params
     #  { "statement": {"cache": "[\"#{options[:name]}\",\"#{options[:rdfs_class]}\",\"#{options[:uri]}\"]", "status": "ok", "status_origin": user_name} }
