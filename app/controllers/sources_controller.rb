@@ -23,17 +23,6 @@ class SourcesController < ApplicationController
   def show
   end
 
-  # GET /sources/1/test_scrape
-  def test_scrape
-    #test by getting only the first statement and refreshing it
-    source = Source.where(id: params[:id]).first
-    @statement = source.statements.first
-    if @statement.nil?
-      redirect_to source, notice: 'No statements exist. First do a page refresh.'
-    else
-      redirect_to refresh_statement_path(@statement), notice: 'Test scrape.'
-    end
-  end
 
   # GET /sources/new[?rdfs_class_id=]
   def new

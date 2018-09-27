@@ -36,7 +36,7 @@ class StatementsController < ApplicationController
   # PATCH /statements/1/refresh
   # PATCH /statements/1/refresh.json
   def refresh
-      @html_cache = []
+    @html_cache = []
     @statement = Statement.where(id: params[:id]).first
     refresh_statement @statement
     respond_to do |format|

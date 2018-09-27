@@ -19,10 +19,8 @@ Rails.application.routes.draw do
     collection do
       get 'website'
     end
-    member do
-      get 'test_scrape'
-    end
   end
+
   resources :properties
   resources :rdfs_classes
   resources :webpages do
