@@ -35,22 +35,22 @@ class StatementsHelperTest < ActionView::TestCase
   # end
 
   test "should covert french month mai to english" do
-    expected_output = "7 MAY  2019 - 20 h"
+    expected_output = "7 MAY 2019 - 20 h"
     assert_equal expected_output, french_to_english_month("7 mai 2019 - 20 h")
   end
 
   test "should covert accented french month fév to english" do
-    expected_output = "7 FEB  2019 - 20 h"
+    expected_output = "7 FEB 2019 - 20 h"
     assert_equal expected_output, french_to_english_month("7 fév 2019 - 20 h")
   end
 
   test "should covert capitalized french month fév to english" do
-    expected_output = "7 FEB  2019 - 20 h"
+    expected_output = "7 FEB 2019 - 20 h"
     assert_equal expected_output, french_to_english_month("7 Fév 2019 - 20 h")
   end
 
   test "should covert french month février to FEB with spacer" do
-    expected_output = "7 FEB rier 2019 - 20 h"
+    expected_output = "7 FEB 2019 - 20 h"
     assert_equal expected_output, french_to_english_month("7 Février 2019 - 20 h")
   end
 
@@ -58,5 +58,10 @@ class StatementsHelperTest < ActionView::TestCase
    expected_output = "2019-07-03T20:30:00-04:00"
    assert_equal expected_output, ISO_dateTime("3 juillet 2019 - 20 h 30")
   end
+  test "should convert août to ISO date time" do
+   expected_output = "2019-08-09T20:30:00-04:00"
+   assert_equal expected_output, ISO_dateTime("9 août 2019 - 20 h 30")
+  end
+
 
 end

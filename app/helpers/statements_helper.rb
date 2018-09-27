@@ -139,7 +139,7 @@ module StatementsHelper
   end
 
   def french_to_english_month(date_time)
-    date_time.downcase.gsub(/ h /, 'h').gsub(/fév|avr|mai|juillet|aou|aoû|déc/, 'fév'=> 'FEB ', 'avr'=> 'APR ', 'mai'=>'MAY ', 'juillet' => 'JUL ','aou'=>'AUG ', 'aoû'=>'AUG ', 'déc'=>'DEC ')
+    date_time.downcase.gsub(/ h /, 'h').gsub(/janvier|février|fév|mars|avr|mai|juin|juillet|août|aou|aoû|septembre|octobre|novembre|décembre|déc/, 'janvier'=> 'JAN', 'février'=> 'FEB', 'fév'=> 'FEB', 'mars'=> 'MAR', 'avril'=> 'APR', 'avr'=> 'APR', 'mai'=>'MAY', 'juin' => 'JUN', 'juillet' => 'JUL','aou'=>'AUG', 'août'=>'AUG', 'aoû'=>'AUG','septembre'=> 'SEP','octobre'=> 'OCT','novembre'=> 'NOV','décembre'=>'DEC', 'déc'=>'DEC')
   end
 
   def ISO_dateTime(date_time)
