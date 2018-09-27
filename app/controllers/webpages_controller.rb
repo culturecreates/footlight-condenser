@@ -70,14 +70,13 @@ class WebpagesController < ApplicationController
     rdfs_class_id = rdfs_class.id if !rdfs_class.blank?
     website = Website.where(seedurl: p["seedurl"]).first
     website_id = website.id if !website.blank?
-
+    
     @webpage = Webpage.new(url: url, rdfs_class_id: rdfs_class_id, rdf_uri: rdf_uri, language: language, website_id: website_id)
     if @webpage.save
       render :show, status: :created, location: @webpage
     else
       render json: @webpage.errors, status: :unprocessable_entity
     end
-
   end
 
   # PATCH/PUT /webpages/1
