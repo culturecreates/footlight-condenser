@@ -253,10 +253,14 @@ class StatementsController < ApplicationController
           else
             #check if manual entry and if yes then don't update
             if source.algorithm_value.start_with?("manual=")
-              next if s.first.status != "missing"
+              if s.first.status != "missing"
+                puts "Skipping update of manual entry"
+                next
+              else
+                puts "Retrying to process manual entry beecause status is MISSING"
+              end
             end
-            #model automatically sets cache changed and cache refreshed
-            puts "Retrying to process manual entry"
+            #model automatically sets cache changed
             s.first.update(cache:_data, cache_refreshed: Time.new)
           end
         else
@@ -265,7 +269,6 @@ class StatementsController < ApplicationController
         end
       end
     end
-
 
 
 end
