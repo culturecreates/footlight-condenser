@@ -40,6 +40,10 @@
   <%= @source.website.seedurl %>
 </p>
 
-<%= link_to 'Test scrape', refresh_statement_path(@source.statements.first), method: :patch %> |
+<% if !@source.statements.first.nil? %>
+  <%= link_to 'Test scrape', refresh_statement_path(@source.statements.first), method: :patch %> |
+<% else %>
+  Test scrape (to test a new source first refresh a webpage) |
+<% end %>
 <%= link_to 'Edit', edit_source_path(@source) %> |
 <%= link_to 'Back', sources_path %>
