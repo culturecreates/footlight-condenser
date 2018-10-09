@@ -1,13 +1,13 @@
 module ResourcesHelper
 
-  def get_uris seedurl, rdfs_class_name, page = 1, per_page = 1000
+  def get_uris seedurl, rdfs_class_name
 
     uri_list = []
     website = Website.where(seedurl: seedurl).first
     if !website.nil?
       rdfs_class = RdfsClass.where(name: rdfs_class_name).first
-    
-      uri_list = website.webpages.where(rdfs_class: rdfs_class).pluck(:rdf_uri).uniq.paginate(page: page, per_page: per_page)
+
+      uri_list = website.webpages.where(rdfs_class: rdfs_class).pluck(:rdf_uri).uniq
       #webpages.each {|page| uri_list << {rdf_uri: page.rdf_uri}}
       #uri_list.uniq!
     end

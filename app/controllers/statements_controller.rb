@@ -47,9 +47,9 @@ class StatementsController < ApplicationController
 
   def refresh_website_events
     @html_cache = []
-    events = helpers.get_uris params[:seedurl], "Event"
-    events.each do |event|
-      webpages = Webpage.where(rdf_uri: event[:rdf_uri])
+    event_uris = helpers.get_uris params[:seedurl], "Event"
+    event_uris.each do |uri|
+      webpages = Webpage.where(rdf_uri: uri)
       webpages.each do |webpage|
         refresh_webpage_statements(webpage)
       end

@@ -1,8 +1,7 @@
 class ResourcesController < ApplicationController
     skip_before_action :verify_authenticity_token
 
-  # GET /events
-  # GET /events.json
+
   def index
     @resources = {}
     @resources["event"] = helpers.get_uris params[:seedurl], "Event"

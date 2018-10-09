@@ -33,7 +33,7 @@ Rails.application.routes.draw do
 
   resources :websites do
     collection do
-      get 'events','places'
+      get 'events','places', 'test_api'
     end
   end
 
@@ -43,11 +43,13 @@ Rails.application.routes.draw do
 ###   constraints: {seedurl: /[^\/]+/ }
 
   get 'websites/:seedurl/resources',
-      to: "resources#index"
+      to: "resources#index",
+      as: :website_all_resources
 
 
   get 'websites/:seedurl/events',
-      to: "events#index"
+      to: "events#index",
+      as: :website_events
 
 
   get 'resources/:rdf_uri',

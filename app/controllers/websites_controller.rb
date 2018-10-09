@@ -2,6 +2,12 @@ class WebsitesController < ApplicationController
   before_action :set_website, only: [:show, :edit, :update, :destroy]
 
 
+
+def test_api
+  @websites =  Website.all
+
+end
+
   # GET /webpages/events.json?seedurl=
   def events
     @events = []
@@ -15,7 +21,11 @@ class WebsitesController < ApplicationController
 
   # GET /webpages/places.json?seedurl=
   def places
-    @places = helpers.get_uris params[:seedurl], "Place"
+    @places = []
+    uris = helpers.get_uris params[:seedurl], "Place"
+    uris.each do |uri|
+      @places << {rdf_uri: uri}
+    end
   end
 
 
