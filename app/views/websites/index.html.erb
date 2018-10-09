@@ -16,7 +16,7 @@
       <tr>
         <td><%= website.name %></td>
         <td><%= website.seedurl %></td>
-        <td><%= link_to 'Webpages', website_webpages_path(seedurl: website[:seedurl])  %></td>
+        <td><%= link_to 'Webpages', webpages_path(seedurl: website[:seedurl])  %></td>
         <td><%= link_to 'Events', events_websites_path(seedurl: website[:seedurl])  %></td>
         <td><%= link_to 'Places', places_websites_path(seedurl: website[:seedurl])  %></td>
         <td><%= link_to 'Sources', website_sources_path(id: website[:id])  %></td>

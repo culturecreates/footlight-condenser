@@ -2,9 +2,23 @@ class EventsController < ApplicationController
 
   # GET /websites/:seedurl/events
   def index
-    @events = helpers.get_uris params[:seedurl], "Event"
-    @events.each do |event|
 
+    require 'will_paginate/array'
+
+
+    @events = []
+
+    #use helpers in resources_helper
+    event_uris = helpers.get_uris params[:seedurl], "Event"
+    event_uris.each do |event_uri|
+      @events << {rdf_uri: event_uri }
+    end
+
+    @total_events = event_uris.count
+    #### PAGINATE
+    @events = @events.paginate(page:params[:page], per_page: params[:per_page])
+
+    @events.each do |event|
       _statements = []
       _webpages = Webpage.where(rdf_uri: event[:rdf_uri])
       _webpages.each do |webpage|
@@ -24,7 +38,11 @@ class EventsController < ApplicationController
           event[:photo] = s.cache if s.source.property.label == "Photo" && s.source.selected
         end
       end
+
+
     end
+
+
   end
 
 

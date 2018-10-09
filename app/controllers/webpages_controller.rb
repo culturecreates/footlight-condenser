@@ -6,22 +6,21 @@ class WebpagesController < ApplicationController
   # GET /webpages
   # GET /webpages.json
   def index
+    params[:page] ||= 1
     if params[:seedurl]
-      @webpages = Webpage.where(website_id: Website.where(seedurl: params[:seedurl]).first.id).where(rdfs_class: 1)
+      website_id = Website.where(seedurl: params[:seedurl]).first.id
     else
       if cookies[:seedurl]
-        @webpages = Webpage.where(website_id: Website.where(seedurl: cookies[:seedurl]).first.id)
-      else
-        @webpages = Webpage.all
+        website_id =  Website.where(seedurl: cookies[:seedurl]).first.id
       end
+    end
+    if !website_id.nil?
+      @webpages = Webpage.where(website_id: website_id).paginate(page: params[:page], per_page:params[:per_page])
+    else
+      @webpages = Webpage.all.paginate(page: params[:page], per_page:params[:per_page])
     end
   end
 
-  # GET /webpages/website?seedurl=
-  def website
-    @website = Website.where(seedurl: params[:seedurl]).first
-    @webpages = Webpage.where(website_id: @website.id)
-  end
 
   # GET /webpages/1
   # GET /webpages/1.json

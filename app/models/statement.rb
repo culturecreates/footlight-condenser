@@ -4,6 +4,10 @@ class Statement < ApplicationRecord
 
   validates :source, uniqueness: { scope: :webpage }
 
+  # for pagination
+  self.per_page = 100
+
+
   STATUSES = { initial: 'Initial', missing: 'Missing', ok: 'Ok', problem: 'Problem',updated: 'Upated' }
   validates :status, inclusion: { in: STATUSES.keys.map(&:to_s) }
 

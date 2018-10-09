@@ -25,7 +25,6 @@ Rails.application.routes.draw do
   resources :rdfs_classes
   resources :webpages do
     collection do
-      get 'website'
       post 'create_api'
       patch 'refresh'
     end
