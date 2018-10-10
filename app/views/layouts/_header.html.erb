@@ -3,10 +3,11 @@
 <%= link_to "sources", sources_path %> |
 <%= link_to "properties", properties_path %> |
 <%= link_to "statements", statements_path %> |
-<%= link_to "classes", rdfs_classes_path %>
+<%= link_to "classes", rdfs_classes_path %> |
+<%= link_to "test api", test_api_websites_path %>
 
 <br>
-Filter: 
+Filter:
 <%= select_tag "filter", options_from_collection_for_select(@websites, "seedurl", "seedurl", cookies[:seedurl]) %>
 
 

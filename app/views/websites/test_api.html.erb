@@ -6,6 +6,10 @@
    <%= link_to "resources", website_all_resources_path(seedurl: website.seedurl, format: :json) %>
    |  <%= link_to "events", website_events_path(seedurl: website.seedurl, format: :json) %>
     |  <%= link_to "events (5)", website_events_path(per_page: 5, seedurl: website.seedurl, format: :json) %>
+    <% if !website.webpages.blank? %>
     |  <%= link_to "first event", show_resources_path(rdf_uri: website.webpages.first.rdf_uri, format: :json) %>
+    |  <%= link_to "first JSON-LD", structured_data_event_markup_path(url: website.webpages.first.url, format: :json) %>
+    <% end %>
+
  <br>
 <% end %>
