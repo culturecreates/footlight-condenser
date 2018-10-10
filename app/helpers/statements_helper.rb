@@ -30,10 +30,11 @@ module StatementsHelper
             page_data = page.xpath(a.delete_prefix("xpath=")) if a.start_with? 'xpath'
             page_data = page.css(a.delete_prefix("css="))   if a.start_with? 'css'
             page_data.each { |d| results_list << d.text}
+            logger.info("***  algorithm: #{a} RESULT => #{page_data} ")
           end
         end
       rescue => e
-        puts "Error in scrape: #{e.inspect}"
+        logger.error(" ****************** Error in scrape: #{e.inspect}")
         results_list = ["Error scrapping"]
       end
     end
@@ -50,6 +51,7 @@ module StatementsHelper
     else
       path = "/websites/wring?uri=#{escaped_url}&format=raw&include_fragment=true"
     end
+    logger.info("***  calling wringer with: #{_base_url + path} ")
     return _base_url + path
   end
 

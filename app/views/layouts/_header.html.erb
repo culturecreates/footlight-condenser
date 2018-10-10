@@ -6,4 +6,19 @@
 <%= link_to "classes", rdfs_classes_path %>
 
 <br>
-Filter: <%= cookies[:seedurl] %>
+Filter: 
+<%= select_tag "filter", options_from_collection_for_select(@websites, "seedurl", "seedurl", cookies[:seedurl]) %>
+
+
+<script>
+    $(function(){
+      // bind change event to select
+      $('#filter').on('change', function () {
+          var seedurl = $(this).val(); // get selected value
+
+          window.location = "/websites/events?seedurl=" + seedurl
+
+          return false;
+      });
+    });
+</script>

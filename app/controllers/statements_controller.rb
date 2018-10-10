@@ -239,8 +239,10 @@ class StatementsController < ApplicationController
     end
 
     def scrape_sources sources, webpage
+      logger.info("*** Starting scrape with sources:#{sources.inspect} for webpage: #{webpage.inspect}")
       sources.each do |source|
         _scraped_data = helpers.scrape(source, @next_step.nil? ? webpage.url :  @next_step)
+      
         if source.next_step.nil?
           @next_step = nil #clear to break chain of scraping urls
           _data = helpers.format_datatype(_scraped_data, source.property, webpage)
@@ -254,14 +256,16 @@ class StatementsController < ApplicationController
                 puts "Skipping update of manual entry"
                 next
               else
-                puts "Retrying to process manual entry beecause status is MISSING"
+                puts "Retrying to process manual entry because status is MISSING"
               end
             end
             #model automatically sets cache changed
+            logger.info("*** Last step cache: #{_data}")
             s.first.update(cache:_data, cache_refreshed: Time.new)
           end
         else
           #there is another step
+          logger.info("*** First step cache: #{_scraped_data}")
           @next_step = _scraped_data.count == 1 ? _scraped_data : _scraped_data.first
         end
       end

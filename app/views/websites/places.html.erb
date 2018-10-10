@@ -3,7 +3,7 @@
 <ul>
 <% @places.each do |event| %>
   <li><%= event[:rdf_uri] %>
-    <%= link_to "statements", uri_statements_path(rdf_uri: event[:rdf_uri]) %> |
+    <%= link_to "statements", show_resources_path(rdf_uri: event[:rdf_uri]) %> |
     <%= link_to "refresh", refresh_rdf_uri_statements_path(rdf_uri: event[:rdf_uri]) %>
 <% end %>
 </ul>
