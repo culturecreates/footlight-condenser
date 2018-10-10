@@ -19,7 +19,9 @@ module StatementsHelper
         algorithm.split(';').each do |a|
           if a.start_with? 'url'
             #replace current page by sraping new url
-            html = agent.get_file  use_wringer(a.delete_prefix("url="), source.render_js)
+            new_url = eval(a.delete_prefix("url=").gsub!("$url","url"))
+            logger.info ("*** New URL formed: #{new_url}")
+            html = agent.get_file  use_wringer(new_url, source.render_js)
             page = Nokogiri::HTML html
           elsif a.start_with? 'ruby'
             command = a.delete_prefix("ruby=")
