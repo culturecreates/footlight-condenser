@@ -103,7 +103,11 @@ module StatementsHelper
     #search condensor database
     statements = Statement.where(cache: name)
     statements.each do |s|
-      uris << [name,s.webpage.rdf_uri] if (s.webpage.rdfs_class.name == expected_class)
+      if (s.webpage.rdfs_class.name == expected_class)
+        #TODO: get proper name
+        #_uri_statements =  Statements.join(:resources).where(resources: {rdf_uri: s.webpage.rdf_uri})
+        uris << [name,s.webpage.rdf_uri]
+      end
       ## ????also check (s.webpage.website == webpage.website)
     end
 
