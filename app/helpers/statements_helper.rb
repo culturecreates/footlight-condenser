@@ -14,12 +14,16 @@ module StatementsHelper
           html = agent.get_file  use_wringer(url, source.render_js)
           @html_cache = [url,source.render_js,html]
         end
+
         page = Nokogiri::HTML html
         results_list = []
+        logger.info ("*** Algorithm split: #{algorithm.split(';')}")
         algorithm.split(';').each do |a|
+          logger.info ("*** Algorithm: #{a}")
           if a.start_with? 'url'
             #replace current page by sraping new url
-            new_url = eval(a.delete_prefix("url=").gsub!("$url","url"))
+
+            new_url = eval(a.delete_prefix("url=").gsub("$url","url"))
             logger.info ("*** New URL formed: #{new_url}")
             html = agent.get_file  use_wringer(new_url, source.render_js)
             page = Nokogiri::HTML html
