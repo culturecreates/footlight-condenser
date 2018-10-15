@@ -22,8 +22,10 @@ module StatementsHelper
           logger.info ("*** Algorithm: #{a}")
           if a.start_with? 'url'
             #replace current page by sraping new url
-
-            new_url = eval(a.delete_prefix("url=").gsub("$url","url"))
+            new_url = a.delete_prefix("url=")
+            new_url = new_url.gsub("$array","results_list")
+            new_url = new_url.gsub("$url","url")
+            new_url = eval(new_url)
             logger.info ("*** New URL formed: #{new_url}")
             html = agent.get_file  use_wringer(new_url, source.render_js)
             page = Nokogiri::HTML html
