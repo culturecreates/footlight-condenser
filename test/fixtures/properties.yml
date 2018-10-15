@@ -7,10 +7,10 @@ one:
   rdfs_class: one
 
 two:
-  label: MyString
+  label: Name
   value_datatype: MyString
   uri: MyString
-  rdfs_class: two
+  rdfs_class: place
 
 three:
   label: MyString

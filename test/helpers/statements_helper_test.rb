@@ -34,22 +34,42 @@ class StatementsHelperTest < ActionView::TestCase
   #   assert_equal expected_output, scrape(source, "http://culturecreates.com")
   # end
 
-  test "should covert french month mai to english" do
+  # search_condenser
+  test "search_condenser: should search condenser for uris that match 100%" do
+    expected = [["myPlaceName", "httpUri"]]
+    actual = search_condenser "myPlaceName", "Place"
+    assert_equal expected, actual
+  end
+
+  test "search_condenser: should search condenser for uris by matching name in substring" do
+    expected = [["myPlaceName", "httpUri"]]
+    actual = search_condenser "Show is at myPlaceName", "Place"
+    assert_equal expected, actual
+  end
+
+  test "search_condenser: should search condenser for nowhere" do
+    expected = []
+    actual = search_condenser "Show is at nowhere", "Place"
+    assert_equal expected, actual
+  end
+  
+  # french_to_english_month
+  test "french_to_english_month: should covert french month mai to english" do
     expected_output = "7 MAY 2019 - 20 h"
     assert_equal expected_output, french_to_english_month("7 mai 2019 - 20 h")
   end
 
-  test "should covert accented french month fév to english" do
+  test "french_to_english_month: should covert accented french month fév to english" do
     expected_output = "7 FEB 2019 - 20 h"
     assert_equal expected_output, french_to_english_month("7 fév 2019 - 20 h")
   end
 
-  test "should covert capitalized french month fév to english" do
+  test "french_to_english_month: should covert capitalized french month fév to english" do
     expected_output = "7 FEB 2019 - 20 h"
     assert_equal expected_output, french_to_english_month("7 Fév 2019 - 20 h")
   end
 
-  test "should covert french month février to FEB with spacer" do
+  test "french_to_english_month: should covert french month février to FEB with spacer" do
     expected_output = "7 FEB 2019 - 20 h"
     assert_equal expected_output, french_to_english_month("7 Février 2019 - 20 h")
   end
@@ -58,6 +78,7 @@ class StatementsHelperTest < ActionView::TestCase
    expected_output = "2019-07-03T20:30:00-04:00"
    assert_equal expected_output, ISO_dateTime("3 juillet 2019 - 20 h 30")
   end
+
   test "should convert août to ISO date time" do
    expected_output = "2019-08-09T20:30:00-04:00"
    assert_equal expected_output, ISO_dateTime("9 août 2019 - 20 h 30")

@@ -80,8 +80,8 @@ module StatementsHelper
         data << ISO_dateTime(t)
       end
     elsif property.value_datatype == "xsd:anyURI"
-      scraped_data.each do |t|
-        data << search_for_uri(t,property,webpage)
+      scraped_data.each do |uri_string|
+        data << search_for_uri(uri_string,property,webpage)
       end
     elsif property.value_datatype == "xsd:duration"
       scraped_data.each do |t|
@@ -96,33 +96,37 @@ module StatementsHelper
     return data
   end
 
-  def search_for_uri name, property, webpage
-    #search for name in statments.where(website, class)
-    uris = [name]
-
-    #use property label to determine class
-    expected_class = property.expected_class
-    uris << expected_class
-
-    #search condensor database
-    statements = Statement.where(cache: name)
-    statements.each do |s|
-      if (s.webpage.rdfs_class.name == expected_class)
-        #TODO: get proper name
-        #_uri_statements =  Statements.join(:resources).where(resources: {rdf_uri: s.webpage.rdf_uri})
-        uris << [name,s.webpage.rdf_uri]
-      end
-      ## ????also check (s.webpage.website == webpage.website)
+  def search_for_uri uri_string, property_obj, webpage_obj
+    #data structure of uri = ['name', 'rdfs_class', ['name', 'uri'], ['name','uri'],...]
+    uris = [uri_string]
+    #use property object to determine class
+    rdfs_class = property_obj.expected_class
+    uris << rdfs_class
+    #search condenser database
+    search_condenser(uri_string, rdfs_class).each do |uri|
+      uris << uri
     end
-
     #search Culture Creates KG
-    search_cckg(name, expected_class).each do |uri|
-      uris << [name,uri]
+    search_cckg(uri_string, rdfs_class).each do |uri|
+      uris << uri
     end
-
     return uris
   end
 
+  def search_condenser uri_string, expected_class
+    # get names of all statements of expected_class
+    hits = []
+    #statements = Statement.where(cache: uri_string)
+    places = Statement.joins(source: :property).where({sources: { properties: {label: "Name"},properties: {rdfs_class: RdfsClass.where(name:"Place")}}}).pluck(:cache,:webpage_id)
+    places.any? {|place| hits << place if uri_string.include?(place[0])}
+    # get uris for found places
+    webpages = Webpage.find(hits.map {|hit| hit[1]})
+    hits.count.times do |n|
+      hits[n][1] = webpages[n][:rdf_uri]
+    end
+    return hits
+    ##TODO: ????also check (s.webpage.website == webpage.website)
+  end
 
 
   def search_cckg str, rdfs_class
@@ -135,7 +139,9 @@ module StatementsHelper
     result = cc_kg_query(q, rdfs_class)
     hits = []
     result.each do |hit|
-      hits << hit["uri"]["value"] if hit["name"]["value"] == str
+      if hit["name"]["value"] == str
+        hits << [hit["name"]["value"],hit["uri"]["value"]]
+      end
     end
     return hits
   end

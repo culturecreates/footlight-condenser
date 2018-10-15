@@ -15,5 +15,14 @@ two:
   status_origin: MyString
   cache_refreshed: 2018-07-30 16:46:00 UTC
   cache_changed: 2018-07-30 16:46:00 UTC
-  source: two
+  source: one
   webpage: two
+
+three:
+  cache: myPlaceName
+  status: initial
+  status_origin: MyString
+  cache_refreshed: 2018-07-30 16:46:00 UTC
+  cache_changed: 2018-07-30 16:46:00 UTC
+  source: two
+  webpage: four

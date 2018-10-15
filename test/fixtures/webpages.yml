@@ -21,3 +21,10 @@ three:
   rdf_uri: MyString
   rdfs_class: two
   website: two
+
+four:
+  url: MyPlaceUrl
+  language: en
+  rdf_uri: httpUri
+  rdfs_class: place
+  website: two

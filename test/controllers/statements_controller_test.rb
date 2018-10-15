@@ -18,7 +18,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
   test "should create statement" do
     assert_difference('Statement.count') do
       #use different combination of webpage_id and source_id
-      post statements_url, params: { statement: { cache: @statement.cache, cache_changed: @statement.cache_changed, cache_refreshed: @statement.cache_refreshed, source_id: @statement.source_id, status: @statement.status, status_origin: @statement.status_origin, webpage_id: statements(:two).webpage.id } }
+      post statements_url, params: { statement: { cache: @statement.cache, cache_changed: @statement.cache_changed, cache_refreshed: @statement.cache_refreshed, source_id: @statement.source_id, status: @statement.status, status_origin: @statement.status_origin, webpage_id: statements(:three).webpage.id } }
     end
 
     assert_redirected_to statement_url(Statement.last)
