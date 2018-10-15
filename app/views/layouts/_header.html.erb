@@ -6,6 +6,7 @@
 <%= link_to "classes", rdfs_classes_path %> |
 <%= link_to "test api", test_api_websites_path %>
 
+
 <br>
 Filter:
 <%= select_tag "filter", options_from_collection_for_select(@websites, "seedurl", "seedurl", cookies[:seedurl]) %>
