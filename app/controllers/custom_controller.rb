@@ -22,8 +22,11 @@ class CustomController < ApplicationController
       #extract location
       @locations << location.text
       logger.info ("Waiting:#{params[:sleep_sec].to_i} seconds")
-      sleep params[:sleep_sec].to_i
+      sleep params[:sleep_sec].to_i if id_list.count >= 2
     end
+
+    # if all locations are the same then collapse into a single location
+    @locations.uniq! if @locations.uniq.count == 1
 
     render json: @locations
 
