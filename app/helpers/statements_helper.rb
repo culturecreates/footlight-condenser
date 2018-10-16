@@ -59,7 +59,7 @@ module StatementsHelper
   end
 
 
-  def use_wringer(url, render_js)
+  def use_wringer(url, render_js = false)
     url = url.first if url.class == Array
     escaped_url = CGI.escape(url)
     _base_url = "http://footlight-wringer.herokuapp.com"
