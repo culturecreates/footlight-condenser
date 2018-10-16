@@ -31,6 +31,8 @@ module StatementsHelper
             page = Nokogiri::HTML html
           elsif a.start_with? 'api'
             new_url = a.delete_prefix("api=")
+            new_url = new_url.gsub("$array","results_list")
+            new_url = new_url.gsub("$url","url")
             new_url = eval(new_url)
             logger.info ("*** New json api URL formed: #{new_url}")
             data = HTTParty.get new_url
