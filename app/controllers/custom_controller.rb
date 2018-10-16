@@ -1,23 +1,25 @@
 class CustomController < ApplicationController
   def get_comotion_locations
-      @ids = params[:ids]
+    params[:ids] ||= '42645,42694'
+    id_list = params[:ids].split(',')
+    base_url = "https://www.reservatech.net/SelectTickets.aspx?EventDateId="
 
-       id_list = params[:ids]
-       base_url = "https://www.reservatech.net/SelectTickets.aspx?EventDateId="
+    agent = Mechanize.new
+    agent.user_agent_alias = 'Mac Safari'
 
-      #
-      # id_list.each do |id|
-      #   # get html page from
-      #   url = base_url + id
-      #   #scrape url
-      #   page = agent.get(url)
-      #
-      #   location = page.xpath("//row")
-      #   #extract location
-      #   locations << location
-      # end
+    @locations = []
+    id_list.each do |id|
+      # get html page from
+      url = base_url + id
+      #scrape url
+      page = agent.get(url)
 
-      render json: {"hi":"there"}
+      location = page.xpath("//span[@id='PageContentHolder_ctl00_lblVenueName']")
+      #extract location
+      @locations << location.text
+    end
+
+    render json: @locations
 
   end
 end
