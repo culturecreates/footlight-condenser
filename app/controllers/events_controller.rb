@@ -4,7 +4,8 @@ class EventsController < ApplicationController
   def index
 
     require 'will_paginate/array'
-
+    per_page = params[:per_page]
+    per_page ||= 100
 
     @events = []
 
@@ -16,7 +17,7 @@ class EventsController < ApplicationController
 
     @total_events = event_uris.count
     #### PAGINATE
-    @events = @events.paginate(page:params[:page], per_page: params[:per_page])
+    @events = @events.paginate(page:params[:page], per_page: per_page)
 
     @events.each do |event|
       _statements = []
@@ -26,7 +27,6 @@ class EventsController < ApplicationController
           _statements << statement
         end
       end
-
 
       if !_statements.blank?
         event[:statements_status] = helpers.calculate_resource_status _statements
