@@ -15,13 +15,23 @@ class CustomController < ApplicationController
       # get html page from
       url = base_url + id
       #scrape url
-      logger.info ("Getting html from wringer url:#{url}")
+      logger.info ("*** Getting html from wringer url:#{url}")
       html = agent.get_file  helpers.use_wringer(url)
       page = Nokogiri::HTML html
+      logger.info ("*** Testing for blank title = #{page.xpath('//title').text}")
+      if page.xpath("//title").text.blank?
+        #title is blank when you need to wait in queue for ticketing system
+        sleep params[:sleep_sec].to_i
+
+        url_force_scrape = helpers.use_wringer(url) + "&force_scrape=true"
+        logger.info ("*** RESCRAPING: #{url_force_scrape} ")
+        html = agent.get_file  url_force_scrape
+        page = Nokogiri::HTML html
+      end
       location = page.xpath("//span[@id='PageContentHolder_ctl00_lblVenueName']")
       #extract location
       @locations << location.text
-      logger.info ("Waiting:#{params[:sleep_sec].to_i} seconds")
+      logger.info ("*** Waiting:#{params[:sleep_sec].to_i} seconds")
       sleep params[:sleep_sec].to_i if id_list.count >= 2
     end
 
