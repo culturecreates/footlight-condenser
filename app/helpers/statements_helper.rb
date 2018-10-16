@@ -29,6 +29,12 @@ module StatementsHelper
             logger.info ("*** New URL formed: #{new_url}")
             html = agent.get_file  use_wringer(new_url, source.render_js)
             page = Nokogiri::HTML html
+          elsif a.start_with? 'api'
+            new_url = a.delete_prefix("api=")
+            logger.info ("*** New json api URL formed: #{new_url}")
+            data = HTTParty.get new_url
+            logger.info ("*** api response body: #{data.body}")
+            results_list = JSON.parse(data.body)
           elsif a.start_with? 'ruby'
             command = a.delete_prefix("ruby=")
             command.gsub!("$array","results_list")

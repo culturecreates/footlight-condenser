@@ -1,5 +1,7 @@
 Rails.application.routes.draw do
 
+  get 'custom/get_comotion_locations'
+
   get 'structured_data/event_markup'
 
   root 'websites#index'
