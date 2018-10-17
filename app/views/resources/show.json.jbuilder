@@ -1,1 +1,1 @@
-json.extract!  @resource, :uri, :rdfs_class, :statements
+json.extract!  @resource, :uri, :rdfs_class, :seedurl, :statements
