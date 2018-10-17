@@ -5,7 +5,7 @@ class EventsController < ApplicationController
 
     require 'will_paginate/array'
     per_page = params[:per_page]
-    per_page ||= 100
+    per_page ||= 200
 
     @events = []
 
