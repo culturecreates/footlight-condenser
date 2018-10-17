@@ -21,12 +21,16 @@ class EventsController < ApplicationController
 
     @events.each do |event|
       _statements = []
-      _webpages = Webpage.where(rdf_uri: event[:rdf_uri])
+      #query
+      _webpages = Webpage.where(rdf_uri: event[:rdf_uri]).includes([:statements,{:statements => {:source => :property}}])
+  #  _webpages = Webpage.where(rdf_uri: event[:rdf_uri])
+
       _webpages.each do |webpage|
         webpage.statements.each do |statement|
           _statements << statement
         end
       end
+
 
       if !_statements.blank?
         event[:statements_status] = helpers.calculate_resource_status _statements
