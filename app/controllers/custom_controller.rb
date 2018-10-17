@@ -3,7 +3,7 @@
 class CustomController < ApplicationController
   def get_comotion_locations
     params[:ids] ||= '42645,42694'
-    params[:sleep_sec] ||= '2'
+    params[:sleep_sec] ||= '1'
     id_list = params[:ids].split(',')
     base_url = "https://www.reservatech.net/SelectTickets.aspx?EventDateId="
 
@@ -29,10 +29,13 @@ class CustomController < ApplicationController
         page = Nokogiri::HTML html
       end
       location = page.xpath("//span[@id='PageContentHolder_ctl00_lblVenueName']")
-      #extract location
-      @locations << location.text
-      logger.info ("*** Waiting:#{params[:sleep_sec].to_i} seconds")
-      sleep params[:sleep_sec].to_i if id_list.count >= 2
+      date = page.xpath("//span[@id='PageContentHolder_ctl00_lblEventDate']")
+      #extract
+      @locations << date.text + " @ " + location.text
+      if id_list.count >= 2
+        logger.info ("*** Waiting:#{params[:sleep_sec].to_i} seconds")
+        sleep params[:sleep_sec].to_i
+      end
     end
 
     # if all locations are the same then collapse into a single location
