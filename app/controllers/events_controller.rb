@@ -21,17 +21,15 @@ class EventsController < ApplicationController
 
     @events.each do |event|
       _statements = []
-      #query
       _webpages = Webpage.where(rdf_uri: event[:rdf_uri]).includes([:statements,{:statements => {:source => :property}}])
   #  _webpages = Webpage.where(rdf_uri: event[:rdf_uri])
-
       _webpages.each do |webpage|
         webpage.statements.each do |statement|
           _statements << statement
         end
       end
 
-
+      #alternative is to do 2 queries: pluck :title from all statements related to seedurl and with property title, second for photo
       if !_statements.blank?
         event[:statements_status] = helpers.calculate_resource_status _statements
         _statements.each do |s|
@@ -42,10 +40,7 @@ class EventsController < ApplicationController
           event[:photo] = s.cache if s.source.property.label == "Photo" && s.source.selected
         end
       end
-
-
     end
-
 
   end
 
