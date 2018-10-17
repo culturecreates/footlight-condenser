@@ -26,5 +26,15 @@
   <%= @webpage.website.seedurl %>
 </p>
 
+<p>
+  <strong>created:</strong>
+  <%= @webpage.website.created_at %>
+</p>
+
+<p>
+  <strong>updated:</strong>
+  <%= @webpage.website.updated_at %>
+</p>
+
 <%= link_to 'Edit', edit_webpage_path(@webpage) %> |
 <%= link_to 'Back', webpages_path %>
