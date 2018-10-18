@@ -36,6 +36,7 @@ Rails.application.routes.draw do
   resources :websites do
     collection do
       get 'events','places', 'test_api'
+      delete 'delete_all_statements'
     end
   end
 

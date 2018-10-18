@@ -1,5 +1,5 @@
 class WebsitesController < ApplicationController
-  before_action :set_website, only: [:show, :edit, :update, :destroy]
+  before_action :set_website, only: [:show, :edit, :update, :destroy, :delete_all_statements]
 
 
 
@@ -95,6 +95,18 @@ end
       format.json { head :no_content }
     end
   end
+
+  def delete_all_statements
+    @statements = Statement.joins(webpage: :website).where(webpages: { website: @website})
+    @statements.destroy_all
+    respond_to do |format|
+      format.html { redirect_to websites_url, notice: 'Website was successfully destroyed.' }
+      format.json { head :no_content }
+    end
+  end
+
+
+
 
   private
     # Use callbacks to share common setup or constraints between actions.
