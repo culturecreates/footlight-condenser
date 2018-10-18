@@ -54,7 +54,7 @@ class ResourcesController < ApplicationController
     uri_to_load = params[:rdf_uri]
     if params[:review_next] == "true"
       #get next rdf_uri
-      uris_to_review = Statement.joins({webpage: :website},:source, {webpage: :rdfs_class}).where(webpages:{websites: {seedurl: params[:seedurl]}, rdfs_classes: {name: "Event"}}).where(sources: {selected: true}).where(status: "initial").pluck(:rdf_uri).uniq
+      uris_to_review = Statement.joins({webpage: :website},:source, {webpage: :rdfs_class}).where(webpages:{websites: {seedurl: params[:seedurl]}, rdfs_classes: {name: "Event"}}).where(sources: {selected: true}).where(status: "initial").order(:created_at).pluck(:rdf_uri).uniq
       if !uris_to_review.blank?
         uri_to_load = uris_to_review.first
       end
