@@ -24,6 +24,7 @@
         <td><%= link_to 'Edit', edit_website_path(website) %></td>
         <td><%= link_to 'Destroy', website, method: :delete, data: { confirm: 'Are you sure?' } %></td>
         <td><%= link_to 'Destroy all statements', delete_all_statements_websites_path(id: website[:id]), method: :delete, data: { confirm: "Are you sure to delete all #{website.seedurl} statements ?" } %></td>
+        <td><%= link_to 'Destroy all webpages', delete_all_webpages_websites_path(id: website[:id]), method: :delete, data: { confirm: "Are you sure to delete all webpages for #{website.seedurl} ?" } %></td>
       </tr>
     <% end %>
   </tbody>

@@ -100,7 +100,16 @@ end
     @statements = Statement.joins(webpage: :website).where(webpages: { website: @website})
     @statements.destroy_all
     respond_to do |format|
-      format.html { redirect_to websites_url, notice: 'Website was successfully destroyed.' }
+      format.html { redirect_to websites_url, notice: 'ALL website statements were successfully destroyed.' }
+      format.json { head :no_content }
+    end
+  end
+
+  def delete_all_webpages
+    @webpages = Webpage.where(website_id: params[:id])
+    @webpages.destroy_all
+    respond_to do |format|
+      format.html { redirect_to websites_url, notice: 'ALL webpages were successfully destroyed.' }
       format.json { head :no_content }
     end
   end
