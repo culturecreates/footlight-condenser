@@ -37,8 +37,18 @@ class StructuredDataController < ApplicationController
           if prop != nil
             if statement.source.property.value_datatype == "xsd:anyURI"
               begin
-                uri_object = JSON.parse(statement.cache)
-                _jsonld[prop] = {"@type": uri_object[1], "name": uri_object[2][0], "@id": uri_object[2][1]}
+                _uri_statement = statement.cache
+                # Handle 2 possible data structres by making both into a list of arrays.
+                #1: [["source 1","Place",["place name","adr:palce_uri"]],[]]
+                #2: ["source 1","Place",["place name","adr:palce_uri"]]
+                if !_uri_statement.starts_with?("[[")
+                  _uri_statement = "[#{_uri_statement}]"
+                end
+                uri_object = JSON.parse(_uri_statement)
+                _jsonld[prop] = []
+                uri_object.each do |uri_object|
+                  _jsonld[prop] << {"@type": uri_object[1], "name": uri_object[2][0], "@id": uri_object[2][1]}
+                end
               rescue
                 puts "ERROR making JSON-LD parsing property #{prop} statement.cache: #{statement.cache}"
               end
@@ -71,36 +81,46 @@ class StructuredDataController < ApplicationController
       end
 
       #add location address
-      location = helpers.get_kg_place _jsonld["location"][:@id]  if _jsonld["location"]
-      if !location.blank?
-        _jsonld["location"]["address"] = {
-              "@type": "PostalAddress",
-              "streetAddress": location["streetAddress"],
-              "addressCountry": location["addressCountry"],
-              "addressLocality": location["addressLocality"],
-              "addressRegion": location["addressRegion"],
-              "postalCode": location["postalCode"]
-            }
-      end
+      # location = helpers.get_kg_place _jsonld["location"][:@id]  if _jsonld["location"]
+      # if !location.blank?
+      #   _jsonld["location"]["address"] = {
+      #         "@type": "PostalAddress",
+      #         "streetAddress": location["streetAddress"],
+      #         "addressCountry": location["addressCountry"],
+      #         "addressLocality": location["addressLocality"],
+      #         "addressRegion": location["addressRegion"],
+      #         "postalCode": location["postalCode"]
+      #       }
+      # end
 
 
       # REPLACE adr: with http://artsdata.ca/resource/
       _jsonld = eval(_jsonld.to_s.gsub(/adr:/,"http://artsdata.ca/resource/"))
 
-      #creates seperate events per startDate
+      #creates seperate events per startDate each with location is there is a list of locations.
       ## MUST have startDate, location and name
+      #TODO: Add locations
+
       if (!_jsonld["startDate"].blank? && !_jsonld["location"].blank? && (!_jsonld["name"].blank? || !_jsonld["name_en"].blank? || !_jsonld["name_fr"].blank?))
         @events = []
-        _jsonld["startDate"].each do |event_startDate|
+        dates = _jsonld["startDate"]
+        locations = _jsonld["location"]
+        dates.each_with_index do |date,index|
           event =  _jsonld.dup
-          event["startDate"] = event_startDate
+          event["startDate"] = date
+          if dates.count == locations.count
+            event["location"] = locations[index]
+          else
+            event["location"] = locations[0]
+          end
           @events << event
         end
+        render :event_markup, formats: :json
       else
-        @events = ["Mandatory Event fields need review: title, location, startDate"]
+        render json: {error: "Mandatory Event fields need review: title, location, startDate for #{_jsonld[:@id]}"}, status: :unprocessable_entity
       end
 
-      render :event_markup, formats: :json
+
     end
   end
 end
