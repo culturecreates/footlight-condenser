@@ -25,7 +25,8 @@ class StructuredDataController < ApplicationController
             "name_en":{"@id": "name",	"@language": "en"},
       		  "name_fr":{"@id": "name", "@language": "fr"}
           },
-        "@type": "Event"
+        "@type": "Event",
+        "superEvent": "#{webpage.rdf_uri}"
         }
 
 
@@ -118,7 +119,7 @@ class StructuredDataController < ApplicationController
         @events << {
             "@context": "http://schema.org",
             "@type": "EventSeries",
-             "@id": "#{_jsonld[]}"
+             "@id": "#{webpage.rdf_uri}"
             }
 
         render :event_markup, formats: :json
