@@ -99,7 +99,6 @@ class StructuredDataController < ApplicationController
 
       #creates seperate events per startDate each with location is there is a list of locations.
       ## MUST have startDate, location and name
-      #TODO: Add locations
 
       if (!_jsonld["startDate"].blank? && !_jsonld["location"].blank? && (!_jsonld["name"].blank? || !_jsonld["name_en"].blank? || !_jsonld["name_fr"].blank?))
         @events = []
@@ -116,10 +115,11 @@ class StructuredDataController < ApplicationController
           @events << event
         end
 
+        # Add Event Series to include all events with the same CreativeWork (Name, description, event page)
         @events << {
             "@context": "http://schema.org",
             "@type": "EventSeries",
-             "@id": "#{webpage.rdf_uri}"
+             "@id": "#{webpage.rdf_uri.gsub(/adr:/,'http://artsdata.ca/resource/')}"
             }
 
         render :event_markup, formats: :json
