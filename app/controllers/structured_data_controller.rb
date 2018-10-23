@@ -23,10 +23,9 @@ class StructuredDataController < ApplicationController
             "description_en":{"@id": "description", "@language": "en"},
             "description_fr":{ "@id": "description","@language": "fr"},
             "name_en":{"@id": "name",	"@language": "en"},
-      			 "name_fr":{"@id": "name", "@language": "fr"}
+      		  "name_fr":{"@id": "name", "@language": "fr"}
           },
-        "@type": "Event",
-        "@id": "#{webpage.rdf_uri}"
+        "@type": "Event"
         }
 
 
