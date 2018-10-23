@@ -114,6 +114,13 @@ class StructuredDataController < ApplicationController
           end
           @events << event
         end
+
+        @events << {
+            "@context": "http://schema.org",
+            "@type": "EventSeries",
+             "@id": "#{_jsonld[]}"
+            }
+
         render :event_markup, formats: :json
       else
         render json: {error: "Mandatory Event fields need review: title, location, startDate for #{_jsonld[:@id]}"}, status: :unprocessable_entity
