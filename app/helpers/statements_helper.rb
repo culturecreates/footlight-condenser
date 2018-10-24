@@ -43,9 +43,16 @@ module StatementsHelper
             command.gsub!("$array","results_list")
             command.gsub!("$url","url")
             results_list = eval(command)
-          else
-            page_data = page.xpath(a.delete_prefix("xpath=")) if a.start_with? 'xpath'
-            page_data = page.css(a.delete_prefix("css="))   if a.start_with? 'css'
+          elsif a.start_with? 'xpath_sanitize'
+            page_data = page.xpath(a.delete_prefix("xpath_sanitize="))
+            page_data.each { |d| results_list << sanitize(d.to_s ,tags: %w(h1 h2 h3 p li ul ol strong em a i), attributes: %w(href)) }
+            logger.info("***  algorithm: #{a} RESULT => #{page_data} ")
+          elsif a.start_with? 'xpath'
+            page_data = page.xpath(a.delete_prefix("xpath="))
+            page_data.each { |d| results_list << d.text}
+            logger.info("***  algorithm: #{a} RESULT => #{page_data} ")
+          elsif  a.start_with? 'css'
+            page_data = page.css(a.delete_prefix("css="))
             page_data.each { |d| results_list << d.text}
             logger.info("***  algorithm: #{a} RESULT => #{page_data} ")
           end
