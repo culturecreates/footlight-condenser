@@ -45,7 +45,7 @@ module StatementsHelper
             results_list = eval(command)
           elsif a.start_with? 'xpath_sanitize'
             page_data = page.xpath(a.delete_prefix("xpath_sanitize="))
-            page_data.each { |d| results_list << sanitize(d.to_s ,tags: %w(h1 h2 h3 p li ul ol strong em a i), attributes: %w(href)) }
+            page_data.each { |d| results_list << sanitize(d.to_s ,tags: %w(h1 h2 h3 p li ul ol strong em a i br), attributes: %w(href)) }
             logger.info("***  algorithm: #{a} RESULT => #{page_data} ")
           elsif a.start_with? 'xpath'
             page_data = page.xpath(a.delete_prefix("xpath="))
