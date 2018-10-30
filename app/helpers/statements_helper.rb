@@ -124,9 +124,11 @@ module StatementsHelper
     search_condenser(uri_string, rdfs_class).each do |uri|
       uris << uri
     end
-    #search Culture Creates KG
-    search_cckg(uri_string, rdfs_class).each do |uri|
-      uris << uri
+    if uris.count == 2 #then no matches found yet, keep looking
+      #search Culture Creates KG
+      search_cckg(uri_string, rdfs_class).each do |uri|
+        uris << uri
+      end
     end
     return uris
   end
