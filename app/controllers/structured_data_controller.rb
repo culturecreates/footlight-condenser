@@ -42,6 +42,8 @@ class StructuredDataController < ApplicationController
               add_anyURI _jsonld, prop, statement.cache
             elsif  statement.source.property.value_datatype == "xsd:dateTime"
               add_dateTime  _jsonld, prop, statement.cache
+            elsif prop == "duration"
+              add_duration _jsonld, "duration", statement.cache
             elsif prop == "offer:url"
               add_offer _jsonld, "url", statement.cache
             elsif prop == "offer:price"
@@ -71,6 +73,7 @@ class StructuredDataController < ApplicationController
         @events = []
         dates = _jsonld["startDate"]
         locations = _jsonld["location"]
+        durations = _jsonld["duration"]
         dates.each_with_index do |date,index|
           event =  _jsonld.dup
           event["startDate"] = date
@@ -78,6 +81,11 @@ class StructuredDataController < ApplicationController
             event["location"] = locations[index]
           else
             event["location"] = locations[0]
+          end
+          if dates.count == durations.count
+            event["duration"] = durations[index]
+          else
+            event["duration"] = durations[0]
           end
           @events << event
         end
@@ -180,13 +188,24 @@ class StructuredDataController < ApplicationController
       return jsonld
     end
 
-    def add_dateTime   jsonld, prop, dateTime_array
-      if dateTime_array[0] != ("[" || "{")
-          jsonld[prop] = [] << dateTime_array
-      else
-        jsonld[prop] = JSON.parse(dateTime_array)
-      end
+    def add_dateTime   jsonld, prop, dateTime_str
+      jsonld[prop] = make_into_array dateTime_str
       return jsonld
+    end
+
+    def add_duration  jsonld, prop, duration_str
+      jsonld[prop] = make_into_array duration_str
+      return jsonld
+    end
+
+
+    def make_into_array str
+      if str[0] != ("[" || "{")
+        array = [] << str
+      else
+        array = JSON.parse(str)
+      end
+      return array
     end
 
     def add_location
