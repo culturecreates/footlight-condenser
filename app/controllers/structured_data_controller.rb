@@ -41,9 +41,9 @@ class StructuredDataController < ApplicationController
             if statement.source.property.value_datatype == "xsd:anyURI"
               add_anyURI _jsonld, prop, statement.cache
             elsif  statement.source.property.value_datatype == "xsd:dateTime"
-              add_dateTime  _jsonld, prop, statement.cache
+              _jsonld[prop] = helpers.make_into_array statement.cache
             elsif prop == "duration"
-              add_duration _jsonld, "duration", statement.cache
+              _jsonld[prop] = helpers.make_into_array statement.cache
             elsif prop == "offer:url"
               add_offer _jsonld, "url", statement.cache
             elsif prop == "offer:price"
@@ -75,18 +75,24 @@ class StructuredDataController < ApplicationController
         locations = _jsonld["location"]
         durations = _jsonld["duration"]
         dates.each_with_index do |date,index|
+
           event =  _jsonld.dup
           event["startDate"] = date
+
+          ### handle single or multiple locations and durations per date.
           if dates.count == locations.count
             event["location"] = locations[index]
           else
             event["location"] = locations[0]
           end
-          if dates.count == durations.count
-            event["duration"] = durations[index]
-          else
-            event["duration"] = durations[0]
+          if !durations.blank?
+            if dates.count == durations.count
+              event["duration"] = durations[index]
+            else
+              event["duration"] = durations[0]
+            end
           end
+
           @events << event
         end
 
@@ -119,54 +125,59 @@ class StructuredDataController < ApplicationController
   private
     def add_offer jsonld, property, value
       if !jsonld[:offers]
-        jsonld[:offers] = {
-                        "@type": "Offer",
-                        "url": "",
-                        "availability": "http://schema.org/InStock",
-                        "price": "",
-                        "validFrom": Date.today.to_s(:iso8601),   #Today's date
-                        "priceCurrency": "CAD" }
+        jsonld[:offers] = { "@type": "Offer" }
+          jsonld[:offers]["validFrom"] =  Date.today.to_s(:iso8601)
       end
-      if property == "url" || property == "price"
-        jsonld[:offers][property] = value
+      if property == "url"
+        jsonld[:offers]["url"] = value
+      elsif property == "price" && !value.blank?
+        jsonld[:offers]["price"] = value
+        jsonld[:offers]["availability"] = "http://schema.org/InStock"
+        jsonld[:offers]["priceCurrency"] = "CAD"
       else
-          logger.error ("*** Invalid property for schema.org/Offer: #{property} for JSON-LD: #{jsonld.inspect}")
+        logger.error ("*** Invalid property for schema.org/Offer: #{property} for JSON-LD: #{jsonld.inspect}")
       end
       return jsonld
     end
 
     def add_keywords jsonld, value
       #  Event:workPerformed:CreativeWork:keywords
-      if !jsonld[:workPerformed]
-        jsonld[:workPerformed] = {"@type": "CreativeWork"}
+      if !value.blank?
+        if !jsonld[:workPerformed]
+          jsonld[:workPerformed] = {"@type": "CreativeWork"}
+        end
+        jsonld[:workPerformed][:keywords] = value
       end
-      jsonld[:workPerformed][:keywords] = value
       return jsonld
     end
 
     def add_video jsonld, value
      #  Event:workPerformed:CreativeWork:video:VideoObject:url
-      if !jsonld[:workPerformed]
-        jsonld[:workPerformed] = {"@type": "CreativeWork"}
-      end
+      if !value.blank? && value != "[]"
+        if !jsonld[:workPerformed]
+          jsonld[:workPerformed] = {"@type": "CreativeWork"}
+        end
 
-      if !jsonld[:workPerformed][:video]
-        jsonld[:workPerformed][:video] = {
-            "@type": "VideoObject",
-            "url": []
-          }
+        if !jsonld[:workPerformed][:video]
+          jsonld[:workPerformed][:video] = {
+              "@type": "VideoObject",
+              "url": []
+            }
+        end
+        jsonld[:workPerformed][:video][:url] << value
       end
-      jsonld[:workPerformed][:video][:url] << value
       return jsonld
     end
 
-    def add_performer jsonld, prop,value
+    def add_performer jsonld, prop, value
       #  Event:performer:PerformingGroup:url
-       if !jsonld[:performer]
-         jsonld[:performer] = { "@type": "PerformingGroup" }
-       end
-       jsonld[:performer][prop] = value
-       return jsonld
+      if !value.blank? && value != "[]"
+        if !jsonld[:performer]
+          jsonld[:performer] = { "@type": "PerformingGroup" }
+        end
+        jsonld[:performer][prop] = value
+      end
+      return jsonld
     end
 
     def add_anyURI jsonld, prop, uri_statement
@@ -188,25 +199,8 @@ class StructuredDataController < ApplicationController
       return jsonld
     end
 
-    def add_dateTime   jsonld, prop, dateTime_str
-      jsonld[prop] = make_into_array dateTime_str
-      return jsonld
-    end
-
-    def add_duration  jsonld, prop, duration_str
-      jsonld[prop] = make_into_array duration_str
-      return jsonld
-    end
 
 
-    def make_into_array str
-      if str[0] != ("[" || "{")
-        array = [] << str
-      else
-        array = JSON.parse(str)
-      end
-      return array
-    end
 
     def add_location
 

@@ -107,15 +107,15 @@ class StatementsHelperTest < ActionView::TestCase
     expected_output = "PT9000S"
     assert_equal expected_output, ISO_duration("duration: 2 h 30 m")
   end
-
-  test "ISO_duration: should convert messy string to ISO duration" do
-    expected_output = "PT3600S"
-    assert_equal expected_output, ISO_duration(" samedi 20 octobre 2018, de 10 h à 11 h ")
-  end
+  #
+  # test "ISO_duration: should convert messy string to ISO duration" do
+  #   expected_output = "PT3600S"
+  #   assert_equal expected_output, ISO_duration(" samedi 20 octobre 2018, de 10 h à 11 h ")
+  # end
 
  # href="/Pages/Fr/Calendrier/semaine-lavalloise-aines-activites-organismes.aspx"
   #du 10 octobre 2018, 4 h, au 22 octobre 2018, 3 h 59
-  
+
 #  href="/Pages/Fr/Calendrier/consultation-politique-stationnement.aspx">
   #du 22 octobre 2018, 23 h, au 23 octobre 2018, 2 h
 

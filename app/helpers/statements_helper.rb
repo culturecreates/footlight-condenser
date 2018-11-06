@@ -137,7 +137,7 @@ module StatementsHelper
     # get names of all statements of expected_class
     hits = []
     #statements = Statement.where(cache: uri_string)
-    places = Statement.joins(source: :property).where({sources: { properties: {label: "Name"},properties: {rdfs_class: RdfsClass.where(name:"Place")}}}).pluck(:cache,:webpage_id)
+    places = Statement.joins(source: :property).where({sources: { properties: {label: "Name"},properties: {rdfs_class: RdfsClass.where(name:expected_class)}}}).pluck(:cache,:webpage_id)
     places.any? {|place| hits << place if uri_string.downcase.include?(place[0].downcase)}
     # get uris for found places
     webpages = Webpage.find(hits.map {|hit| hit[1]})

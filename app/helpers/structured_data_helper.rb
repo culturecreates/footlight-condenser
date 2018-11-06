@@ -23,4 +23,14 @@ module StructuredDataHelper
     end
     return place
   end
+
+  def make_into_array str
+    if str[0] != "[" 
+      array = [] << str
+    else
+      array = JSON.parse(str)
+    end
+    return array
+  end
+
 end
