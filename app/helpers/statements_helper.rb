@@ -1,5 +1,7 @@
 module StatementsHelper
 
+  include CcKgHelper
+
   def scrape(source, url)
     algorithm = source.algorithm_value
     if algorithm.start_with?("manual=")
@@ -144,13 +146,15 @@ module StatementsHelper
     #statements = Statement.where(cache: uri_string)
     entities = Statement.joins(source: :property).where({sources: { properties: {label: "Name"}, properties: {rdfs_class: RdfsClass.where(name: expected_class)}}}).pluck(:cache,:webpage_id)
     logger.info("*** In search_condenser: found names of class #{expected_class}: #{entities.inspect}")
-    entities.any? {|entity| hits << entity if uri_string.downcase.include?(entity[0].downcase)}
+    entities.each {|entity| hits << entity if uri_string.downcase.include?(entity[0].downcase)}
+
+
     # get uris for found places
     webpages = Webpage.find(hits.map {|hit| hit[1]})
     hits.count.times do |n|
       hits[n][1] = webpages[n][:rdf_uri]
     end
-    return hits
+    return hits.uniq
     ##TODO: ????also check (s.webpage.website == webpage.website)
   end
 
@@ -162,14 +166,14 @@ module StatementsHelper
             ?uri schema:name ?name .                    \
             filter (!EXISTS {filter (isBlank(?uri)) })  \
         } limit 100 "
-    result = cc_kg_query(q, rdfs_class)
+    results = cc_kg_query(q, rdfs_class)
     hits = []
-    result.each do |hit|
-      if hit["name"]["value"] == str
-        hits << [hit["name"]["value"],hit["uri"]["value"]]
-      end
+
+    results.each {|entity|  hits << entity if str.downcase.include?(entity["name"]["value"].downcase)}
+    hits.count.times do |n|
+      hits[n] = [hits[n]["name"]["value"],hits[n]["uri"]["value"]]
     end
-    return hits
+    return hits.uniq
   end
 
 

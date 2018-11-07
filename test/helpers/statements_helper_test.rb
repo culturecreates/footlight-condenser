@@ -53,6 +53,36 @@ class StatementsHelperTest < ActionView::TestCase
     assert_equal expected, actual
   end
 
+
+
+  #search_cckg
+  test "search_cckg: should search cckg for uris that match 100%" do
+    expected = [["Southam Hall", "http://corpo.culturecreates.com/#place_southam_hall"]]
+    actual = search_cckg "Southam Hall", "Place"
+    assert_equal expected, actual
+  end
+
+  test "search_cckg: should search cckg for uris by matching name in substring" do
+    expected =[["Berkeley Street Theatre", "http://corpo.culturecreates.com/#place_berkeley_street_theatre"], ["Southam Hall", "http://corpo.culturecreates.com/#place_southam_hall"]]
+    actual = search_cckg "The locations is in the lovely Southam Hall and Berkeley Street Theatre.", "Place"
+    assert_equal expected, actual
+  end
+
+  test "search_cckg: should search condenser for nowhere" do
+    expected = []
+    actual = search_cckg "Show is at nowhere", "Place"
+    assert_equal expected, actual
+  end
+
+  test "search_cckg: remove duplicates" do
+    expected = [["Southam Hall", "http://corpo.culturecreates.com/#place_southam_hall"]]
+    actual = search_cckg "The locations is in the lovely Southam Hall and Southam Hall.", "Place"
+    assert_equal expected, actual
+  end
+
+
+
+
   # french_to_english_month
   test "french_to_english_month: should covert french month mai to english" do
     expected_output = "7 MAY 2019 - 20 h"
