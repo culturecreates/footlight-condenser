@@ -12,7 +12,7 @@ module StatementsHelper
           html = @html_cache[2]
         else
           html = agent.get_file  use_wringer(url, source.render_js)
-          @html_cache = [url,source.render_js,html]
+          @html_cache = [url, source.render_js, html]
         end
 
         page = Nokogiri::HTML html
@@ -47,6 +47,11 @@ module StatementsHelper
             page_data = page.xpath(a.delete_prefix("xpath_sanitize="))
             page_data.each { |d| results_list << sanitize(d.to_s ,tags: %w(h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br), attributes: %w(href)) }
             logger.info("***  algorithm: #{a} RESULT => #{page_data} ")
+          elsif a.start_with? 'if_xpath'
+            page_data = page.xpath(a.delete_prefix("if_xpath="))
+            break if page_data.blank?
+            page_data.each { |d| results_list << d.text}
+            logger.info("***  algorithm: #{a} RESULT => #{page_data} ")
           elsif a.start_with? 'xpath'
             page_data = page.xpath(a.delete_prefix("xpath="))
             page_data.each { |d| results_list << d.text}
@@ -59,7 +64,7 @@ module StatementsHelper
         end
       rescue => e
         logger.error(" ****************** Error in scrape: #{e.inspect}")
-        results_list = ["Error scrapping"]
+        results_list = [["Error scrapping"],["Inside algorithm #{a} with error: #{e.inspect}"]]
       end
     end
     return results_list
@@ -138,7 +143,7 @@ module StatementsHelper
     hits = []
     #statements = Statement.where(cache: uri_string)
     entities = Statement.joins(source: :property).where({sources: { properties: {label: "Name"}, properties: {rdfs_class: RdfsClass.where(name: expected_class)}}}).pluck(:cache,:webpage_id)
-    logger.info("*** Found names of class #{expected_class}: #{entities.inspect}")
+    logger.info("*** In search_condenser: found names of class #{expected_class}: #{entities.inspect}")
     entities.any? {|entity| hits << entity if uri_string.downcase.include?(entity[0].downcase)}
     # get uris for found places
     webpages = Webpage.find(hits.map {|hit| hit[1]})
