@@ -173,7 +173,7 @@ module StatementsHelper
     hits.count.times do |n|
       hits[n] = [hits[n]["name"]["value"],hits[n]["uri"]["value"]]
     end
-    return hits.uniq
+    return hits.uniq {|hit| hit[1]}
   end
 
 

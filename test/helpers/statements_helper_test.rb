@@ -80,6 +80,13 @@ class StatementsHelperTest < ActionView::TestCase
     assert_equal expected, actual
   end
 
+  test "search_cckg: find alternate names" do
+    expected = [["Gauthier Dance - Dance Company Theaterhaus Stuttgart", "http://corpo.culturecreates.com/#gauthier_dance"]]
+    actual = search_cckg "The dance group also known as Gauthier Dance is also known as Gauthier Dance - Dance Company Theaterhaus Stuttgart.", "Organization"
+    assert_equal expected, actual
+  end
+
+
 
 
 
