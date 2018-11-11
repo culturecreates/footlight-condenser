@@ -179,11 +179,16 @@ module StatementsHelper
 
   def ISO_duration(duration_str)
     begin
-      duration_seconds = "PT#{ChronicDuration.parse(duration_str)}S"
+      duration_in_seconds = ChronicDuration.parse(duration_str)
+      if duration_in_seconds.blank?
+        duration_iso8601 = "No duration found: #{duration_str}"
+      else
+        duration_iso8601 = "PT#{duration_in_seconds}S"
+      end
     rescue
-      duration_seconds = "Bad duration: #{time}"
+      duration_iso8601 = "Error in duration: #{duration_str}"
     end
-    return duration_seconds
+    return duration_iso8601
   end
 
   def french_to_english_month(date_time)

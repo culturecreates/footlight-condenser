@@ -144,6 +144,14 @@ class StatementsHelperTest < ActionView::TestCase
     expected_output = "PT9000S"
     assert_equal expected_output, ISO_duration("duration: 2 h 30 m")
   end
+
+  test "ISO_duration: should find no duration" do
+    expected_output = "No duration found: There is nothing here"
+    assert_equal expected_output, ISO_duration("There is nothing here")
+  end
+
+
+
   #
   # test "ISO_duration: should convert messy string to ISO duration" do
   #   expected_output = "PT3600S"
