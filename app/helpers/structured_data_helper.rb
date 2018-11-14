@@ -24,7 +24,11 @@ module StructuredDataHelper
           elsif  statement.source.property.value_datatype == "xsd:dateTime"
             _jsonld[prop] = make_into_array statement.cache
           elsif prop == "duration"
-            _jsonld[prop] = make_into_array statement.cache
+            duration_array = make_into_array statement.cache
+            _jsonld["duration"] = []
+            duration_array.each do |d|
+              _jsonld["duration"] << d if d[0..1] == "PT" #needs to be in ISO8601 duration syntax to avoid adding "Duration not available"
+            end
           elsif prop == "offer:url"
             add_offer _jsonld, "url", statement.cache
           elsif prop == "offer:price"
@@ -65,7 +69,7 @@ module StructuredDataHelper
            "@id": "#{rdf_uri}",
            "location":@events[0]["location"],
            "startDate": @events[0]["startDate"],
-           "name": _jsonld["name_fr"] ||= _jsonld["name_en"] 
+           "name": _jsonld["name_fr"] ||= _jsonld["name_en"]
           }
       # REPLACE adr: with URI
       @events = eval(@events.to_s.gsub(/adr:/,"http://laval.footlight.io/resource/"))
@@ -82,7 +86,8 @@ module StructuredDataHelper
     dates = _jsonld["startDate"]
     locations = _jsonld["location"]
     durations = _jsonld["duration"]
-    offer_urls = _jsonld["offers"]["url"]  if _jsonld["offers"]
+    offer_urls = _jsonld[:offers]["url"]  if _jsonld[:offers]
+
 
 
     dates.each_with_index do |date,index|
@@ -105,15 +110,13 @@ module StructuredDataHelper
         end
       end
       if !offer_urls.blank?
-
         if dates.count == offer_urls.count
-          event["offers"] = event["offers"].dup
-          event["offers"]["url"] = offer_urls[index]
+          event[:offers] = event[:offers].dup
+          event[:offers]["url"] = offer_urls[index]
         else
-          event["offers"]["url"] = offer_urls[0]
+          event[:offers]["url"] = offer_urls[0]
         end
       end
-
       events << event
     end
     return events

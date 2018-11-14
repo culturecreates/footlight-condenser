@@ -66,7 +66,7 @@ module StatementsHelper
         end
       rescue => e
         logger.error(" ****************** Error in scrape: #{e.inspect}")
-        results_list = [["Error scrapping"],["Inside algorithm #{a} with error: #{e.inspect}"]]
+        results_list = [["Error scrapping"],["error: #{e.inspect}"]]
       end
     end
     return results_list
@@ -123,10 +123,13 @@ module StatementsHelper
 
   def search_for_uri uri_string, property_obj, webpage_obj
     #data structure of uri = ['name', 'rdfs_class', ['name', 'uri'], ['name','uri'],...]
+    uri_string = uri_string.to_s
+    
     uris = [uri_string]
     #use property object to determine class
     rdfs_class = property_obj.expected_class
     uris << rdfs_class
+
     #search condenser database
     search_condenser(uri_string, rdfs_class).each do |uri|
       uris << uri
@@ -144,15 +147,17 @@ module StatementsHelper
     # get names of all statements of expected_class
     hits = []
     #statements = Statement.where(cache: uri_string)
-    entities = Statement.joins(source: :property).where({sources: { properties: {label: "Name"}, properties: {rdfs_class: RdfsClass.where(name: expected_class)}}}).pluck(:cache,:webpage_id)
+    entities = Statement.joins(source: :property).where({sources: { properties: {label: "Name", rdfs_class: RdfsClass.where(name: expected_class)}}}).pluck(:cache,:webpage_id)
     logger.info("*** In search_condenser: found names of class #{expected_class}: #{entities.inspect}")
     entities.each {|entity| hits << entity if uri_string.downcase.include?(entity[0].downcase)}
 
 
     # get uris for found places
-    webpages = Webpage.find(hits.map {|hit| hit[1]})
-    hits.count.times do |n|
-      hits[n][1] = webpages[n][:rdf_uri]
+    hits.each_with_index do |hit,index|
+      webpage = Webpage.find(hit[1])
+      if webpage
+        hits[index][1] = webpage.rdf_uri
+      end
     end
     return hits.uniq
     ##TODO: ????also check (s.webpage.website == webpage.website)
