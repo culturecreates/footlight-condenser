@@ -87,9 +87,7 @@ module StructuredDataHelper
     locations = _jsonld["location"]
     durations = _jsonld["duration"]
     offer_urls = _jsonld[:offers]["url"]  if _jsonld[:offers]
-
-
-
+  
     dates.each_with_index do |date,index|
       event =  _jsonld.dup
       event["startDate"] = date
@@ -126,15 +124,19 @@ module StructuredDataHelper
     if !jsonld[:offers]
       jsonld[:offers] = { "@type": "Offer" }
       jsonld[:offers]["validFrom"] =  Date.today.to_s(:iso8601)
+      jsonld[:offers]["availability"] = "http://schema.org/InStock"
     end
     if property == "url"
-      jsonld[:offers]["url"]  = []
-      make_into_array(value).each do |v|
-        jsonld[:offers]["url"] << v
+      if value.include?("Complet")
+        jsonld[:offers]["availability"] =  "http://schema.org/SoldOut"
+      else
+        jsonld[:offers]["url"] = []
+        make_into_array(value).each do |v|
+          jsonld[:offers]["url"] << v
+        end
       end
     elsif property == "price" && !value.blank?
       jsonld[:offers]["price"] = value
-      jsonld[:offers]["availability"] = "http://schema.org/InStock"
       jsonld[:offers]["priceCurrency"] = "CAD"
     else
       logger.error ("*** Invalid property for schema.org/Offer: #{property} for JSON-LD: #{jsonld.inspect}")

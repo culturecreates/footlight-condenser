@@ -35,15 +35,18 @@ class StructuredDataHelperTest < ActionView::TestCase
     assert_equal expected_output, build_events_per_startDate({"startDate" => ["Today", "Tomorrow"], "duration" => ["1 hr","2 hrs"]})
   end
 
+
+
   test "build_events_per_startDate: 2 dates with 1 ticket offer url" do
-    expected_output = [{"startDate"=>"Today", "offers"=>{"url"=>"offer_url"}}, {"startDate"=>"Tomorrow", "offers"=>{"url"=>"offer_url"}}]
-    assert_equal expected_output, build_events_per_startDate({"startDate" => ["Today", "Tomorrow"], "offers" => {"url" => ["offer_url"]}})
+    expected_output = [{"startDate"=>"Today", :offers =>{"url"=>"offer_url"}}, {"startDate"=>"Tomorrow", :offers =>{"url"=>"offer_url"}}]
+    assert_equal expected_output, build_events_per_startDate({"startDate" => ["Today", "Tomorrow"], :offers => {"url" => ["offer_url"]}})
   end
 
   test "build_events_per_startDate: 2 dates with 2 ticket offer urls" do
-    expected_output = [{"startDate"=>"Today", "offers"=>{"url"=>"offer_url_one"}}, {"startDate"=>"Tomorrow", "offers"=>{"url"=>"offer_url_two"}}]
-    assert_equal expected_output, build_events_per_startDate({"startDate" => ["Today", "Tomorrow"], "offers" => {"url" => ["offer_url_one","offer_url_two"]}})
+    expected_output = [{"startDate"=>"Today", :offers =>{"url"=>"offer_url_one"}}, {"startDate"=>"Tomorrow", :offers => {"url"=>"offer_url_two"}}]
+    assert_equal expected_output, build_events_per_startDate({"startDate" => ["Today", "Tomorrow"], :offers => {"url" => ["offer_url_one","offer_url_two"]}})
   end
+
 
 
 
@@ -54,16 +57,16 @@ class StructuredDataHelperTest < ActionView::TestCase
     some_date = DateTime.new(2014, 12, 12, 1, 1, 1)
     Date.stubs(:today).returns(some_date)
     #add url
-    expected_output = {:offers=>{:@type=>"Offer", "validFrom"=>"2014-12-12T01:01:01+00:00", "url"=>["http://ticket_link_url.com"]}}
+    expected_output = {:offers=>{:@type=>"Offer", "validFrom"=>"2014-12-12T01:01:01+00:00", "availability"=>"http://schema.org/InStock", "url"=>["http://ticket_link_url.com"]}}
     assert_equal expected_output, add_offer({},"url", "http://ticket_link_url.com")
 
     #add price
-    expected_output = {:offers=>{:@type=>"Offer", "validFrom"=>"2014-12-12T01:01:01+00:00", "price"=>"12.5", "availability"=>"http://schema.org/InStock", "priceCurrency"=>"CAD"}}
+    expected_output = {:offers=>{:@type=>"Offer", "validFrom" => "2014-12-12T01:01:01+00:00", "availability"=>"http://schema.org/InStock", "price"=>"12.5", "priceCurrency"=>"CAD"}}
     assert_equal expected_output, add_offer({},"price", "12.5")
 
     #add url after adding price
     jsonld = add_offer({},"price", "12.5")
-    expected_output = {:offers=>{:@type=>"Offer", "validFrom"=>"2014-12-12T01:01:01+00:00", "price"=>"12.5", "availability"=>"http://schema.org/InStock", "priceCurrency"=>"CAD", "url"=>["http://ticket_link_url.com"]}}
+    expected_output = {:offers=>{:@type=>"Offer", "validFrom" => "2014-12-12T01:01:01+00:00", "availability" => "http://schema.org/InStock", "price" => "12.5", "priceCurrency" => "CAD", "url" => ["http://ticket_link_url.com"]}}
     assert_equal expected_output, add_offer(jsonld, "url", "http://ticket_link_url.com")
   end
 
@@ -71,9 +74,18 @@ class StructuredDataHelperTest < ActionView::TestCase
   test "add_offer: multiple buy links" do
     some_date = DateTime.new(2014, 12, 12, 1, 1, 1)
     Date.stubs(:today).returns(some_date)
-    expected_output = {:offers=>{:@type=>"Offer", "validFrom"=>"2014-12-12T01:01:01+00:00", "url"=>["http://ticket_link_one.com", "http://ticket_link_two.com"]}}
+    expected_output = {:offers=>{:@type=>"Offer", "validFrom"=>"2014-12-12T01:01:01+00:00", "availability"=>"http://schema.org/InStock", "url"=>["http://ticket_link_one.com", "http://ticket_link_two.com"]}}
     assert_equal expected_output, add_offer({}, "url", "[\"http://ticket_link_one.com\", \"http://ticket_link_two.com\"]")
   end
+
+
+  test "add_offer: Complet" do
+    some_date = DateTime.new(2014, 12, 12, 1, 1, 1)
+    Date.stubs(:today).returns(some_date)
+    expected_output = {:offers=>{:@type=>"Offer", "validFrom"=>"2014-12-12T01:01:01+00:00", "availability"=>"http://schema.org/SoldOut"}}
+    assert_equal expected_output, add_offer({}, "url", "[\"Complet\"]")
+  end
+
 
 
 
