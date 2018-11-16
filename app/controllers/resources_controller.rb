@@ -36,6 +36,19 @@ class ResourcesController < ApplicationController
     end
   end
 
+  # DELETE /resources/:rdf_uri
+  def destroy
+    webpages = Webpage.where(rdf_uri: params[:rdf_uri])
+    seedurl = webpages.first.website.seedurl
+    webpages.each do |webpage|
+      webpage.destroy
+    end
+    respond_to do |format|
+      format.html { redirect_to "/websites/events?seedurl=#{seedurl}", notice: 'Event was successfully destroyed.' }
+      format.json { head :no_content }
+    end
+  end
+
 
   # PATCH /resources/:rdf_uri/reviewed_all
   def reviewed_all
