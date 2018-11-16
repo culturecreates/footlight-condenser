@@ -9,7 +9,7 @@ Rails.application.routes.draw do
 
   resources :statements do
     collection do
-      get  'refresh_rdf_uri', 'webpage','refresh_website_events'
+      get  'refresh_rdf_uri', 'webpage'
       patch 'refresh_webpage'
     end
     member do

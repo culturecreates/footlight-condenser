@@ -45,19 +45,6 @@ class StatementsController < ApplicationController
     end
   end
 
-  def refresh_website_events
-    @html_cache = []
-    event_uris = helpers.get_uris params[:seedurl], "Event"
-    event_uris.each do |uri|
-      webpages = Webpage.where(rdf_uri: uri)
-      webpages.each do |webpage|
-        refresh_webpage_statements(webpage)
-      end
-    end
-    redirect_to events_websites_path(seedurl: params[:seedurl]) , notice: 'All website events were successfully refreshed.'
-
-  end
-
 
   # GET /statements
   # GET /statements.json
@@ -242,7 +229,7 @@ class StatementsController < ApplicationController
       logger.info("*** Starting scrape with sources:#{sources.inspect} for webpage: #{webpage.inspect}")
       sources.each do |source|
         _scraped_data = helpers.scrape(source, @next_step.nil? ? webpage.url :  @next_step)
-      
+
         if source.next_step.nil?
           @next_step = nil #clear to break chain of scraping urls
           _data = helpers.format_datatype(_scraped_data, source.property, webpage)

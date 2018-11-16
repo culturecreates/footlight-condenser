@@ -1,12 +1,12 @@
 <p id="notice"><%= notice %></p>
 <h1> Events for <%= params[:seedurl] %> </h1>
-<%= link_to "Refresh ALL", refresh_website_events_statements_path(seedurl:  params[:seedurl]) %>
+
 
 <ul>
 <% @events.each do |event| %>
   <li><%= event[:rdf_uri] %>
     <%= link_to "Statements", show_resources_path(rdf_uri: event[:rdf_uri], format: :html) %> |
-    <%= link_to "Refresh", refresh_rdf_uri_statements_path(rdf_uri: event[:rdf_uri]) %> | 
+    <%= link_to "Refresh", refresh_rdf_uri_statements_path(rdf_uri: event[:rdf_uri]) %> |
     <%= link_to "Destroy", destroy_resources_path(rdf_uri: event[:rdf_uri]),method: :delete, data: { confirm: 'Are you sure?' }   %>
 
 
