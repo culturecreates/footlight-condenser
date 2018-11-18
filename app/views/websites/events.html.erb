@@ -6,8 +6,8 @@
 <% @events.each do |event| %>
   <li><%= event[:rdf_uri] %>
     <%= link_to "Statements", show_resources_path(rdf_uri: event[:rdf_uri], format: :html) %> |
-    <%= link_to "Refresh", refresh_rdf_uri_statements_path(rdf_uri: event[:rdf_uri]) %> |
-    <%= link_to "Destroy", destroy_resources_path(rdf_uri: event[:rdf_uri]),method: :delete, data: { confirm: 'Are you sure?' }   %>
+    <%= link_to "Refresh", refresh_rdf_uri_statements_path(rdf_uri: event[:rdf_uri]), method: :patch %> |
+    <%= link_to "Destroy", destroy_resources_path(rdf_uri: event[:rdf_uri]), method: :delete, data: { confirm: 'Are you sure?' }   %>
 
 
     <%= form_for :event, options = {url: reviewed_all_resources_path(rdf_uri: event[:rdf_uri], format: :html), method: :patch } do |form| %>

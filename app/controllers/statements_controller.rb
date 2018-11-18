@@ -23,7 +23,7 @@ class StatementsController < ApplicationController
     end
   end
 
-  #GET /statements/refresh_rdf_uri.json?rdf_uri=
+  #PATCH /statements/refresh_rdf_uri.json?rdf_uri=
   def refresh_rdf_uri
     @html_cache = []
     webpages = Webpage.where(rdf_uri: params[:rdf_uri])
