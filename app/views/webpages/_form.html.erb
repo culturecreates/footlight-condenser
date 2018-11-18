@@ -32,6 +32,11 @@
   </div>
 
   <div class="field">
+    <%= form.label :archive_date %>
+    <%= form.datetime_select :archive_date,  id: :webpage_archive_date %>
+  </div>
+
+  <div class="field">
     <%= form.label :website_id %>
     <%= form.collection_select(:website_id, @websites, :id, :seedurl, {:prompt => false}) %>
   </div>
