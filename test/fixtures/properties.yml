@@ -17,3 +17,9 @@ three:
   value_datatype: MyString
   uri: MyString
   rdfs_class: one
+
+four:
+  label: Title
+  value_datatype: MyString
+  uri: MyString
+  rdfs_class: one

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20180927145330) do
+ActiveRecord::Schema.define(version: 20181118184740) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
@@ -70,6 +70,7 @@ ActiveRecord::Schema.define(version: 20180927145330) do
     t.bigint "website_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "archive_date"
     t.index ["rdfs_class_id"], name: "index_webpages_on_rdfs_class_id"
     t.index ["url", "website_id"], name: "index_webpages_on_url_and_website_id", unique: true
     t.index ["url"], name: "index_webpages_on_url"
