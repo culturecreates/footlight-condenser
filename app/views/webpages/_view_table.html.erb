@@ -10,6 +10,7 @@
       <th>Rdf uri</th>
 
       <th>Website</th>
+      <th>Archive Date</th>
       <th colspan="6"></th>
     </tr>
   </thead>
@@ -24,6 +25,7 @@
         <td><%= webpage.rdf_uri %></td>
 
         <td><%= webpage.website.seedurl %></td>
+        <td><%= webpage.archive_date %></td>
 
         <td><%= link_to 'statements', webpage_statements_path(url:webpage.url)  %></td>
         <td><%= link_to 'refresh', refresh_webpage_statements_path(url: webpage.url), method: :patch  %></td>

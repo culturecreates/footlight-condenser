@@ -233,6 +233,19 @@ class StatementsController < ApplicationController
         if source.next_step.nil?
           @next_step = nil #clear to break chain of scraping urls
           _data = helpers.format_datatype(_scraped_data, source.property, webpage)
+
+          #add startDate to ArchiveDate in Webpages Table to be able to sort by date and refresh event still to come.
+          if source.property.uri == "http://schema.org/startDate"
+             _data.class == Array ? last_show_date = _data.last : last_show_date = _data
+             if last_show_date.present?
+               webpage.archive_date = last_show_date.to_datetime
+               if webpage.save
+                 logger.debug("*** set archive date for #{webpage.url} to #{last_show_date}")
+               else
+                 logger.error("*** ERROR: could not save archive date for #{webpage.url} to  #{last_show_date}.")
+               end
+             end
+          end
           s = Statement.where(webpage_id: webpage.id, source_id: source.id)
           if s.count != 1  #create or update database entry
             Statement.create!(cache:_data, webpage_id: webpage.id, source_id: source.id, status: helpers.status_checker(_data, source.property) , status_origin: "condensor_refresh",cache_refreshed: Time.new)

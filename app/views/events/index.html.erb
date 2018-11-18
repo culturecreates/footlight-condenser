@@ -2,7 +2,6 @@
 
 <h1> Events <%= @total_events %> </h1>
 
-<%= will_paginate @events %>
 <br>
 <% @events.each do |event| %>
 <%= event[:rdf_uri] %><br>
