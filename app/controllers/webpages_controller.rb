@@ -15,7 +15,7 @@ class WebpagesController < ApplicationController
       end
     end
     if !website_id.nil?
-      @webpages = Webpage.where(website_id: website_id).paginate(page: params[:page], per_page:params[:per_page])
+      @webpages = Webpage.where(website_id: website_id).paginate(page: params[:page], per_page:params[:per_page]).order(:archive_date)
     else
       @webpages = Webpage.all.paginate(page: params[:page], per_page:params[:per_page])
     end
