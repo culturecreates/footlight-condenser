@@ -21,14 +21,16 @@ class WebpagesController < ApplicationController
     end
 
     @locations = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Location", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri,  :cache, :status)
-    @locations_hash = @locations.map{ |l| l = l[0],[helpers.attempt_json_parse_on_array(l[1]),l[2]] }.to_h
+    @locations_hash = @locations.map{ |l| l = l[0],[l[1],l[2]] }.to_h
+    ####### locaton data structures
+    # example 1: ["scraped name", "Place", ["name","uri"]]
+    # example 2 with multiple places: [["scraped name", "Place", ["name","uri"]],["scraped name 2", "Place", ["name","uri"]]]
 
     @startDates = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Dates", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri, :cache, :status)
-    @startDates_hash = @startDates.map{ |l| l = l[0],[helpers.attempt_json_parse_on_array(l[1]),l[2]] }.to_h
-    puts "startDates_hash: #{@startDates_hash}"
+    @startDates_hash = @startDates.map{ |l| l = l[0],[(l[1]),l[2]] }.to_h
 
-    # @titles = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Title", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri, :cache, :status, "Webpages.language")
-    # @titles_hash = @titles.map{ |l| l = l[0],[l[1],l[2],l[3]] }.to_h
+    @titles = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Title", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri, :cache, :status, "Webpages.language")
+    @titles_hash = @titles.map{ |l| l = l[0],[l[1],l[2],l[3]] }.to_h
 
     @publishable = {}
     @webpages.each do |wp|
@@ -36,9 +38,10 @@ class WebpagesController < ApplicationController
         begin
           @publishable[wp.id] =
                 (@locations_hash[wp.rdf_uri][1] == "ok" || @locations_hash[wp.rdf_uri][1] == "updated") &&
-                @locations_hash[wp.rdf_uri][0][2].present? &&
+                (@locations_hash[wp.rdf_uri].to_s.include?("adr:") || @locations_hash[wp.rdf_uri].to_s.include?("http:") ) &&
                 (@startDates_hash[wp.rdf_uri][1] == "ok" || @startDates_hash[wp.rdf_uri][1] == "updated") &&
-                @startDates_hash[wp.rdf_uri][0].present?  ? "Yes" : "No"
+                @startDates_hash[wp.rdf_uri][0].chars.count > 3 &&
+                (@titles_hash[wp.rdf_uri][1] == "ok" || @titles_hash[wp.rdf_uri][1] == "updated")  ? "Yes" : "No"
         rescue
             @publishable[wp.id] = "No"
         end
