@@ -6,6 +6,7 @@
       <th>Rdfs class</th>
       <th>Language</th>
       <th>Url</th>
+      <th>Publishable</th>
 
       <th>Rdf uri</th>
 
@@ -21,6 +22,7 @@
         <td><%= webpage.rdfs_class.name %></td>
         <td><%= webpage.language %></td>
         <td><%= webpage.url %></td>
+        <td><%= @publishable[webpage.id] %> </td>
 
         <td><%= webpage.rdf_uri %></td>
 

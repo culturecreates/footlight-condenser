@@ -19,6 +19,28 @@ class WebpagesController < ApplicationController
     else
       @webpages = Webpage.all.paginate(page: params[:page], per_page:params[:per_page])
     end
+
+    @locations = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Location", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri,  :cache, :status)
+    @locations_hash = @locations.map{ |l| l = l[0],[JSON.parse(l[1]),l[2]] }.to_h
+
+    @startDates = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Dates", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri, :cache, :status)
+    @startDates_hash = @startDates.map{ |l| l = l[0],[JSON.parse(l[1]),l[2]] }.to_h
+
+    # @titles = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Title", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri, :cache, :status, "Webpages.language")
+    # @titles_hash = @titles.map{ |l| l = l[0],[l[1],l[2],l[3]] }.to_h
+
+    @publishable = {}
+    @webpages.each do |wp|
+      if wp.rdfs_class_id == 1
+        @publishable[wp.id] =
+              @locations_hash[wp.rdf_uri][1] == "ok" &&
+              @locations_hash[wp.rdf_uri][0][2].present? &&
+              @startDates_hash[wp.rdf_uri][1] == "ok" &&
+              @startDates_hash[wp.rdf_uri][0].present?  ? "Yes" : "No"
+
+      end
+    end
+
   end
 
 
