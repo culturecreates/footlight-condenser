@@ -39,30 +39,33 @@ class ResourcesController < ApplicationController
   # DELETE /resources/:rdf_uri
   def destroy
     webpages = Webpage.where(rdf_uri: params[:rdf_uri])
-    seedurl = webpages.first.website.seedurl
     webpages.each do |webpage|
       webpage.destroy
     end
     respond_to do |format|
-      format.html { redirect_to "/websites/events?seedurl=#{seedurl}", notice: 'Event was successfully destroyed.' }
+      format.html { redirect_to "/websites/events", notice: 'Event was successfully destroyed.' }
       format.json { head :no_content }
     end
   end
 
+  # PATCH /resources/:rdf_uri/archive
+  def archive
+      review_all_statements params[:rdf_uri], params[:event][:status_origin]
+      webpages = Webpage.where(rdf_uri: params[:rdf_uri])
+
+      webpages.each do |webpage|
+        webpage.update(archive_date: Time.now - 1.day)
+      end
+
+      respond_to do |format|
+        format.html { redirect_to "/websites/events", notice: 'Event was successfully archived.' }
+        format.json { head :no_content }
+      end
+  end
 
   # PATCH /resources/:rdf_uri/reviewed_all
   def reviewed_all
-
-    @statements = []
-    _webpages = Webpage.where(rdf_uri: params[:rdf_uri])
-    _webpages.each do |webpage|
-      webpage.statements.each do |statement|
-        @statements << statement
-      end
-    end
-    @statements.each do |statement|
-      statement.update!(status: "ok", status_origin: params[:event][:status_origin]) if (statement.source.selected && !statement.is_problem?)
-    end
+    review_all_statements params[:rdf_uri], params[:event][:status_origin]
 
     uri_to_load = params[:rdf_uri]
     if params[:review_next] == "true"
@@ -77,5 +80,21 @@ class ResourcesController < ApplicationController
       format.json { redirect_to show_resources_path(rdf_uri: uri_to_load, format: :json)}
     end
   end
+
+  private
+
+    def review_all_statements rdf_uri, status_origin
+
+      @statements = []
+      _webpages = Webpage.where(rdf_uri: rdf_uri)
+      _webpages.each do |webpage|
+        webpage.statements.each do |statement|
+          @statements << statement
+        end
+      end
+      @statements.each do |statement|
+        statement.update!(status: "ok", status_origin: status_origin) if (statement.source.selected && !statement.is_problem?)
+      end
+    end
 
 end

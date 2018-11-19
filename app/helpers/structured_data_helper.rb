@@ -54,7 +54,7 @@ module StructuredDataHelper
 
     #creates seperate events per startDate each with location is there is a list of locations.
     ## MUST have startDate, location and name
-
+    puts "checking mandatory fields: startDate: #{_jsonld["startDate"]}. location: #{_jsonld["location"]}. name_en: #{_jsonld["name_en"]} "
     if (!_jsonld["startDate"].blank? && !_jsonld["location"].blank? && (!_jsonld["name"].blank? || !_jsonld["name_en"].blank? || !_jsonld["name_fr"].blank?))
       @events = build_events_per_startDate _jsonld
 
@@ -63,13 +63,14 @@ module StructuredDataHelper
         "@context":
           {
             "@vocab": "http://schema.org",
-            "name_fr":{"@id": "name", "@language": "fr"}
+            "name_fr": {"@id": "name", "@language": "fr"},
+            "name_en": {"@id": "name",	"@language": "en"}
           },
           "@type": "EventSeries",
            "@id": "#{rdf_uri}",
            "location":@events[0]["location"],
            "startDate": @events[0]["startDate"],
-           "name": _jsonld["name_fr"] ||= _jsonld["name_en"]
+           "name_#{_jsonld['name_fr'] ? 'fr' : 'en'}": _jsonld["name_fr"] ||= _jsonld["name_en"]
           }
       # REPLACE adr: with URI
       @events = eval(@events.to_s.gsub(/adr:/,"http://laval.footlight.io/resource/"))
@@ -87,7 +88,7 @@ module StructuredDataHelper
     locations = _jsonld["location"]
     durations = _jsonld["duration"]
     offer_urls = _jsonld[:offers]["url"]  if _jsonld[:offers]
-  
+
     dates.each_with_index do |date,index|
       event =  _jsonld.dup
       event["startDate"] = date

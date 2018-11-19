@@ -63,6 +63,10 @@ Rails.application.routes.draw do
       to: "resources#reviewed_all",
       as: :reviewed_all_resources
 
+  patch 'resources/:rdf_uri/archive',
+      to: "resources#archive",
+      as: :archive_resources
+
   delete 'resources/:rdf_uri',
       to: "resources#destroy",
       as: :destroy_resources

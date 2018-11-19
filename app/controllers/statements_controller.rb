@@ -238,7 +238,7 @@ class StatementsController < ApplicationController
           if source.property.uri == "http://schema.org/startDate"
              _data.class == Array ? last_show_date = _data.last : last_show_date = _data
              if last_show_date.present?
-               webpage.archive_date = last_show_date.to_datetime
+               webpage.archive_date = last_show_date.to_datetime - 1.day
                if webpage.save
                  logger.debug("*** set archive date for #{webpage.url} to #{last_show_date}")
                else

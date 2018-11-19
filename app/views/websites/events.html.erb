@@ -9,13 +9,20 @@
     <%= link_to "Refresh", refresh_rdf_uri_statements_path(rdf_uri: event[:rdf_uri]), method: :patch %> |
     <%= link_to "Destroy", destroy_resources_path(rdf_uri: event[:rdf_uri]), method: :delete, data: { confirm: 'Are you sure?' }   %>
 
-
     <%= form_for :event, options = {url: reviewed_all_resources_path(rdf_uri: event[:rdf_uri], format: :html), method: :patch } do |form| %>
       <%= form.hidden_field :status_origin, id: :status_origin, value: "admin"%>
       <div class="actions">
         <%= form.submit "Review ALL"%>
       </div>
     <% end %>
+
+
+        <%= form_for :event, options = {url: archive_resources_path(rdf_uri: event[:rdf_uri], format: :html), method: :patch } do |form| %>
+          <%= form.hidden_field :status_origin, id: :status_origin, value: "admin"%>
+          <div class="actions">
+            <%= form.submit "Archive Event"%>
+          </div>
+        <% end %>
 
 <% end %>
 </ul>
