@@ -238,11 +238,11 @@ class StatementsController < ApplicationController
           if source.property.uri == "http://schema.org/startDate"
              _data.class == Array ? last_show_date = _data.last : last_show_date = _data
              if last_show_date.present?
-               webpage.archive_date = last_show_date.to_datetime - 1.day
+               webpage.archive_date = last_show_date.to_datetime - 24.hours
                if webpage.save
-                 logger.debug("*** set archive date for #{webpage.url} to #{last_show_date}")
+                 logger.debug("*** set archive date for #{webpage.url} to #{webpage.archive_date}")
                else
-                 logger.error("*** ERROR: could not save archive date for #{webpage.url} to  #{last_show_date}.")
+                 logger.error("*** ERROR: could not save archive date for #{webpage.url} using  #{last_show_date}.")
                end
              end
           end

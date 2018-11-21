@@ -9,7 +9,6 @@ class EventsController < ApplicationController
     #remove blank titles which can happen with multiple languages
     titles_hash = titles.map {|title| [title[0],title[1]] if !title[1].blank? }.to_h
 
-
     photos = get_event_photos [Time.now.midnight..Time.now.next_year]
     photos_hash = photos.to_h
 
@@ -19,13 +18,16 @@ class EventsController < ApplicationController
     uris_updated = event_status.select{|event| event[1] == "updated"}.map{|event| event = event[0]}
 
     photos_hash.each do |photo|
-        @events << {rdf_uri: photo[0],
-                    statements_status:
-                          {to_review: uris_to_review.include?(photo[0]),
-                             updated: uris_updated.include?(photo[0]),
-                             problem: uris_with_problems.include?(photo[0])},
-                  photo: photo[1],
-                  title: titles_hash[photo[0]]}
+        uri = photo[0]
+        if !titles_hash[uri].include?("error:")  #prevent sending events that have failed being scrapped
+          @events << {rdf_uri: uri,
+                      statements_status:
+                            {to_review: uris_to_review.include?(uri),
+                               updated: uris_updated.include?(uri),
+                               problem: uris_with_problems.include?(uri)},
+                    photo: photo[1],
+                    title: titles_hash[uri]}
+        end
     end
     @total_events = @events.count
   end

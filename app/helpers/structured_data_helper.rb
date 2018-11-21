@@ -54,7 +54,6 @@ module StructuredDataHelper
 
     #creates seperate events per startDate each with location is there is a list of locations.
     ## MUST have startDate, location and name
-    puts "checking mandatory fields: startDate: #{_jsonld["startDate"]}. location: #{_jsonld["location"]}. name_en: #{_jsonld["name_en"]} "
     if (!_jsonld["startDate"].blank? && !_jsonld["location"].blank? && (!_jsonld["name"].blank? || !_jsonld["name_en"].blank? || !_jsonld["name_fr"].blank?))
       @events = build_events_per_startDate _jsonld
 
