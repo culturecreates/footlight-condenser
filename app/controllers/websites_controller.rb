@@ -3,10 +3,9 @@ class WebsitesController < ApplicationController
 
 
 
-def test_api
-  @websites =  Website.all
-
-end
+  def test_api
+    @websites =  Website.all
+  end
 
   # GET /webpages/events.json?seedurl=
   def events

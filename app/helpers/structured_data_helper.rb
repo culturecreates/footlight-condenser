@@ -1,7 +1,7 @@
 module StructuredDataHelper
   include CcKgHelper
 
-  def build_jsonld condensor_statements, language, rdf_uri
+  def build_jsonld condensor_statements, language, rdf_uri, adr_prefix
     _jsonld = {
       "@context":
         {
@@ -71,14 +71,17 @@ module StructuredDataHelper
            "startDate": @events[0]["startDate"],
            "name_#{_jsonld['name_fr'] ? 'fr' : 'en'}": _jsonld["name_fr"] ||= _jsonld["name_en"]
           }
-      # REPLACE adr: with URI
-      @events = eval(@events.to_s.gsub(/adr:/,"http://laval.footlight.io/resource/"))
+
+      # REPLACE adr: with complete URI
+      adr_prefix ||= "http://graph.footlight.io/resource/"
+      @events = eval(@events.to_s.gsub(/adr:/,adr_prefix))
     else
        @events = nil
     end
-
     return @events
   end
+
+
 
 
   def build_events_per_startDate _jsonld

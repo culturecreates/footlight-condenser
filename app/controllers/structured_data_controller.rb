@@ -8,6 +8,7 @@ class StructuredDataController < ApplicationController
   # GET /structured_data/event_markup?url=
   def event_markup
     params[:url]
+    params[:adr_prefix] ||= "http://artsdata.ca/resource/"
     webpage = Webpage.where(url: params[:url]).first
 
     if webpage.blank?
@@ -21,9 +22,8 @@ class StructuredDataController < ApplicationController
           condensor_statements << s
         end
       end
-    #  puts   condensor_statements.to_json
 
-      @events = helpers.build_jsonld  condensor_statements, lang, webpage.rdf_uri
+      @events = helpers.build_jsonld  condensor_statements, lang, webpage.rdf_uri,   params[:adr_prefix]
 
       if @events
         render :event_markup, formats: :json

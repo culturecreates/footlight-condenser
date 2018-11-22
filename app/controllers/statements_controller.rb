@@ -23,12 +23,15 @@ class StatementsController < ApplicationController
     end
   end
 
+
   #PATCH /statements/refresh_rdf_uri.json?rdf_uri=
+  #PATCH /statements/refresh_rdf_uri.json?rdf_uri=&force_scrape_every_hrs=24
   def refresh_rdf_uri
+    params[:force_scrape_every_hrs] ||= nil
     @html_cache = []
     webpages = Webpage.where(rdf_uri: params[:rdf_uri])
     webpages.each do |webpage|
-      refresh_webpage_statements(webpage)
+      refresh_webpage_statements(webpage, :force_scrape_every_hrs => params[:force_scrape_every_hrs])
     end
     redirect_to show_resources_path(rdf_uri: params[:rdf_uri]), notice: 'All statements were successfully refreshed.'
   end
@@ -201,7 +204,7 @@ class StatementsController < ApplicationController
       params.require(:statement).permit(:cache, :status, :status_origin, :cache_refreshed, :cache_changed, :source_id, :webpage_id)
     end
 
-    def refresh_webpage_statements(webpage)
+    def refresh_webpage_statements webpage, scrape_options={}
       @html_cache = []
       #get the properties for the rdfs_class of the webpage
       properties = webpage.rdfs_class.properties
@@ -213,7 +216,7 @@ class StatementsController < ApplicationController
         else
           sources = Source.where(website_id: webpage.website, language: webpage.language, property_id: property.id).order(:property_id, :next_step)
         end
-        scrape_sources sources, webpage
+        scrape_sources sources, webpage, scrape_options
       end
     end
 
@@ -225,10 +228,11 @@ class StatementsController < ApplicationController
       scrape_sources sources, webpage
     end
 
-    def scrape_sources sources, webpage
+    def scrape_sources sources, webpage, scrape_options={}
+
       logger.info("*** Starting scrape with sources:#{sources.inspect} for webpage: #{webpage.inspect}")
       sources.each do |source|
-        _scraped_data = helpers.scrape(source, @next_step.nil? ? webpage.url :  @next_step)
+        _scraped_data = helpers.scrape(source, @next_step.nil? ? webpage.url :  @next_step, scrape_options)
 
         if source.next_step.nil?
           @next_step = nil #clear to break chain of scraping urls

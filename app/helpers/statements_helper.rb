@@ -2,7 +2,10 @@ module StatementsHelper
 
   include CcKgHelper
 
-  def scrape(source, url)
+  def scrape(source, url, scrape_options={})
+    defaults = { :force_scrape_every_hrs => nil }
+    scrape_options = defaults.merge(scrape_options)
+
     algorithm = source.algorithm_value
     if algorithm.start_with?("manual=")
       results_list = [algorithm.delete_prefix("manual=")]
@@ -13,7 +16,7 @@ module StatementsHelper
         if @html_cache[0] == url &&  @html_cache[1] == source.render_js
           html = @html_cache[2]
         else
-          html = agent.get_file  use_wringer(url, source.render_js)
+          html = agent.get_file  use_wringer(url, source.render_js, options[:force_scrape_every_hrs])
           @html_cache = [url, source.render_js, html]
         end
 
@@ -29,7 +32,7 @@ module StatementsHelper
             new_url = new_url.gsub("$url","url")
             new_url = eval(new_url)
             logger.info ("*** New URL formed: #{new_url}")
-            html = agent.get_file  use_wringer(new_url, source.render_js)
+            html = agent.get_file  use_wringer(new_url, source.render_js, options[:force_scrape_every_hrs])
             page = Nokogiri::HTML html
           elsif a.start_with? 'api'
             new_url = a.delete_prefix("api=")
@@ -73,19 +76,35 @@ module StatementsHelper
   end
 
 
-  def use_wringer(url, render_js = false)
+  def use_wringer(url, render_js = false, options={})
+    defaults = { :force_scrape_every_hrs => nil }
+    options = defaults.merge(options)
+
     url = url.first if url.class == Array
     escaped_url = CGI.escape(url)
-    _base_url = "http://footlight-wringer.herokuapp.com"
+
     if render_js
       path = "/websites/wring?uri=#{escaped_url}&format=raw&include_fragment=true&use_phantomjs=true"
     else
       path = "/websites/wring?uri=#{escaped_url}&format=raw&include_fragment=true"
     end
-    logger.info("***  calling wringer with: #{_base_url + path} ")
-    return _base_url + path
+
+    if options[:force_scrape_every_hrs]
+      path += "&force_scrape_every_hrs=#{options[:force_scrape_every_hrs]}"
+    end
+
+    logger.info("***  calling wringer with: #{get_wringer_url_per_environment + path} ")
+    return get_wringer_url_per_environment + path
   end
 
+
+  def get_wringer_url_per_environment
+    if Rails.env.development?
+      _base_url = "http://localhost:3009"
+    else
+      _base_url = "http://footlight-wringer.herokuapp.com"
+    end
+  end
 
 
   def status_checker (scraped_data, property)
@@ -124,7 +143,7 @@ module StatementsHelper
   def search_for_uri uri_string, property_obj, webpage_obj
     #data structure of uri = ['name', 'rdfs_class', ['name', 'uri'], ['name','uri'],...]
     uri_string = uri_string.to_s
-    
+
     uris = [uri_string]
     #use property object to determine class
     rdfs_class = property_obj.expected_class
