@@ -71,8 +71,8 @@ Rails.application.routes.draw do
       to: "resources#destroy",
       as: :destroy_resources
 
-  get 'resources/:rdf_uri/event_webpage_urls',
-      to: "events#event_webpage_urls"
+  get 'resources/:rdf_uri/webpage_urls',
+      to: "resources#webpage_urls"
 
 
 

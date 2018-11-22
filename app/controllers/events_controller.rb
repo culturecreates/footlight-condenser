@@ -34,13 +34,7 @@ class EventsController < ApplicationController
   end
 
 
-  def event_webpage_urls
-    #this is used by Huginn to get the pages to rescrape based on upcoming event URIs
-    if params[:rdf_uri]
-      @urls = Webpage.where(rdf_uri: params[:rdf_uri])
-      render :event_webpage_urls, formats: :json
-    end
-  end
+
 
 
   private

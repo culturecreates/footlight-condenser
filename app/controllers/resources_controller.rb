@@ -36,6 +36,15 @@ class ResourcesController < ApplicationController
     end
   end
 
+  #GET /resources/:rdf_uri/webpage_urls
+  def webpage_urls
+    #this is used by Huginn to get the pages to rescrape based on upcoming event URIs
+    if params[:rdf_uri]
+      @urls = Webpage.where(rdf_uri: params[:rdf_uri])
+      render :webpage_urls, formats: :json
+    end
+  end
+
   # DELETE /resources/:rdf_uri
   def destroy
     webpages = Webpage.where(rdf_uri: params[:rdf_uri])
