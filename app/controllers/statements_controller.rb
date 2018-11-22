@@ -33,7 +33,10 @@ class StatementsController < ApplicationController
     webpages.each do |webpage|
       refresh_webpage_statements(webpage, :force_scrape_every_hrs => params[:force_scrape_every_hrs])
     end
-    redirect_to show_resources_path(rdf_uri: params[:rdf_uri]), notice: 'All statements were successfully refreshed.'
+    respond_to do |format|
+      format.html { redirect_to show_resources_path(rdf_uri: params[:rdf_uri]), notice: 'All statements were successfully refreshed.' }
+      format.json { render json: {message:"URIs refreshed"}.to_json }
+    end
   end
 
   # PATCH /statements/1/refresh
