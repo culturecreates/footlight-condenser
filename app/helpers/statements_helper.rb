@@ -3,8 +3,6 @@ module StatementsHelper
   include CcKgHelper
 
   def scrape(source, url, scrape_options={})
-    defaults = { :force_scrape_every_hrs => nil }
-    scrape_options = defaults.merge(scrape_options)
 
     algorithm = source.algorithm_value
     if algorithm.start_with?("manual=")
@@ -16,7 +14,7 @@ module StatementsHelper
         if @html_cache[0] == url &&  @html_cache[1] == source.render_js
           html = @html_cache[2]
         else
-          html = agent.get_file  use_wringer(url, source.render_js, options[:force_scrape_every_hrs])
+          html = agent.get_file  use_wringer(url, source.render_js, scrape_options)
           @html_cache = [url, source.render_js, html]
         end
 
@@ -32,7 +30,7 @@ module StatementsHelper
             new_url = new_url.gsub("$url","url")
             new_url = eval(new_url)
             logger.info ("*** New URL formed: #{new_url}")
-            html = agent.get_file  use_wringer(new_url, source.render_js, options[:force_scrape_every_hrs])
+            html = agent.get_file  use_wringer(new_url, source.render_js, scrape_options)
             page = Nokogiri::HTML html
           elsif a.start_with? 'api'
             new_url = a.delete_prefix("api=")
