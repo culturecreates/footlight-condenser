@@ -183,9 +183,9 @@ module StatementsHelper
 
   def search_cckg str, rdfs_class
     q = "PREFIX schema: <http://schema.org/>            \
-        select DISTINCT ?uri ?name where {              \
+        select DISTINCT ?uri (str(?name_lang) as ?name) where {              \
 	          ?uri a schema:#{rdfs_class} .                \
-            ?uri schema:name ?name .                    \
+            ?uri schema:name ?name_lang .                    \
             filter (!EXISTS {filter (isBlank(?uri)) })  \
         } limit 100 "
     results = cc_kg_query(q, rdfs_class)
