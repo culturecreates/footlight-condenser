@@ -229,10 +229,14 @@ module StructuredDataHelper
 
   def get_kg_place place_uri
 
-    place_uri = "<#{place_uri}>" if place_uri[0..3] == "http"
+    if place_uri[0..3] == "http"
+      place_uri = "<#{place_uri}>"
+    elsif place_uri[0..3] == "adr:"
+      place_uri = "<http://artsdata.ca/resource/#{place_uri[4..-1]}>"
+    end
 
-    q = "PREFIX  adr:  <http://corpo.culturecreates.com/#>  \
-        select ?pred ?obj where {    \
+
+    q = "SELECT ?pred ?obj where {    \
          #{place_uri} ?a ?b   .  \
          ?b  a  <http://schema.org/PostalAddress> .   \
          ?b  ?pred ?obj .    \

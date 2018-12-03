@@ -74,7 +74,16 @@ class ResourcesController < ApplicationController
 
   # PATCH /resources/:rdf_uri/reviewed_all
   def reviewed_all
-    review_all_statements params[:rdf_uri], params[:event][:status_origin]
+
+
+    statements = review_all_statements params[:rdf_uri], params[:event][:status_origin]
+    # 
+    # jsonld =
+    # if is_publishable?(jsonld)
+    #   #update condensed JSON-LD in wringer to update KG
+    # else
+    #   #delete condensed JSON-LD in wringe to delete triples in KG
+    # end
 
     uri_to_load = params[:rdf_uri]
     if params[:review_next] == "true"
@@ -93,17 +102,18 @@ class ResourcesController < ApplicationController
   private
 
     def review_all_statements rdf_uri, status_origin
-
-      @statements = []
+      statements = []
       _webpages = Webpage.where(rdf_uri: rdf_uri)
       _webpages.each do |webpage|
         webpage.statements.each do |statement|
-          @statements << statement
+          statements << statement
         end
       end
-      @statements.each do |statement|
+      statements.each do |statement|
         statement.update!(status: "ok", status_origin: status_origin) if (statement.source.selected && !statement.is_problem?)
       end
+      return statements
     end
+
 
 end

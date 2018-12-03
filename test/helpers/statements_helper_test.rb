@@ -57,13 +57,13 @@ class StatementsHelperTest < ActionView::TestCase
 
   #search_cckg
   test "search_cckg: should search cckg for uris that match 100%" do
-    expected = [["Southam Hall", "http://corpo.culturecreates.com/#place_southam_hall"]]
+    expected = [["Southam Hall", "http://artsdata.ca/resource/place/southam_hall"]]
     actual = search_cckg "Southam Hall", "Place"
     assert_equal expected, actual
   end
 
   test "search_cckg: should search cckg for uris by matching name in substring" do
-    expected =[["Berkeley Street Theatre", "http://corpo.culturecreates.com/#place_berkeley_street_theatre"], ["Southam Hall", "http://corpo.culturecreates.com/#place_southam_hall"]]
+    expected =[["Berkeley Street Theatre", "http://artsdata.ca/resource/place/berkeley_street_theatre"], ["Southam Hall", "http://artsdata.ca/resource/place/southam_hall"]]
     actual = search_cckg "The locations is in the lovely Southam Hall and Berkeley Street Theatre.", "Place"
     assert_equal expected, actual
   end
@@ -75,14 +75,14 @@ class StatementsHelperTest < ActionView::TestCase
   end
 
   test "search_cckg: remove duplicates" do
-    expected = [["Southam Hall", "http://corpo.culturecreates.com/#place_southam_hall"]]
+    expected = [["Southam Hall", "http://artsdata.ca/resource/place/southam_hall"]]
     actual = search_cckg "The locations is in the lovely Southam Hall and Southam Hall.", "Place"
     assert_equal expected, actual
   end
 
   test "search_cckg: find alternate names" do
-    expected = [["Gauthier Dance - Dance Company Theaterhaus Stuttgart", "http://corpo.culturecreates.com/#gauthier_dance"]]
-    actual = search_cckg "The dance group also known as Gauthier Dance is also known as Gauthier Dance - Dance Company Theaterhaus Stuttgart.", "Organization"
+    expected = [["Red Sky Performance", "http://artsdata.ca/resource/org/red_sky_performance"]]
+    actual = search_cckg "The dance group also known as Red Sky Performance is also known as Red Sky.", "Organization"
     assert_equal expected, actual
   end
 

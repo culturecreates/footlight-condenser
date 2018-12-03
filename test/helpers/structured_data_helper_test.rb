@@ -91,11 +91,11 @@ class StructuredDataHelperTest < ActionView::TestCase
 
 
 # get_kg_place
-  fass_place =   {"22-rdf-syntax-ns#type"=>"http://schema.org/PostalAddress", "addressCountry"=>"Canada", "addressLocality"=>"Saint-Sauveur", "addressRegion"=>"Québec", "postalCode"=>"J0R 1R0", "streetAddress"=>"167, rue Principale"}
+  fass_place =   {"22-rdf-syntax-ns#type"=>"http://schema.org/PostalAddress", "addressCountry"=>"CA", "addressLocality"=>"Saint-Sauveur", "addressRegion"=>"QC", "postalCode"=>"J0R 1R0", "streetAddress"=>"167, rue Principale"}
 
   test "get_kg_place: should get fass place from cc knowledge graph" do
     expected_output = fass_place
-    assert_equal expected_output, get_kg_place("http://corpo.culturecreates.com/#place_big_top_saint_sauveur")
+    assert_equal expected_output, get_kg_place("http://artsdata.ca/resource/place/big_top_fass")
   end
 
   test "get_kg_place: should get non-existant place" do
@@ -110,7 +110,7 @@ class StructuredDataHelperTest < ActionView::TestCase
 
   test "get_kg_place: should get fass place using PREFIX" do
     expected_output = fass_place
-    assert_equal expected_output, get_kg_place("adr:place_big_top_saint_sauveur")
+    assert_equal expected_output, get_kg_place("adr:place/big_top_fass")
   end
 
 #tests for make_into_array()
