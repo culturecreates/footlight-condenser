@@ -74,36 +74,6 @@ module StatementsHelper
   end
 
 
-  def use_wringer(url, render_js = false, options={})
-    defaults = { :force_scrape_every_hrs => nil }
-    options = defaults.merge(options)
-
-    url = url.first if url.class == Array
-    escaped_url = CGI.escape(url)
-
-    if render_js
-      path = "/websites/wring?uri=#{escaped_url}&format=raw&include_fragment=true&use_phantomjs=true"
-    else
-      path = "/websites/wring?uri=#{escaped_url}&format=raw&include_fragment=true"
-    end
-
-    if options[:force_scrape_every_hrs]
-      path += "&force_scrape_every_hrs=#{options[:force_scrape_every_hrs]}"
-    end
-
-    logger.info("***  calling wringer with: #{get_wringer_url_per_environment + path} ")
-    return get_wringer_url_per_environment + path
-  end
-
-
-  def get_wringer_url_per_environment
-    if Rails.env.development?
-      _base_url = "http://localhost:3009"
-    else
-      _base_url = "http://footlight-wringer.herokuapp.com"
-    end
-  end
-
 
   def status_checker (scraped_data, property)
     if property.value_datatype == "xsd:anyURI"
@@ -153,8 +123,13 @@ module StatementsHelper
     end
     if uris.count == 2 #then no matches found yet, keep looking
       #search Culture Creates KG
-      search_cckg(uri_string, rdfs_class).each do |uri|
-        uris << uri
+      cckg_results = search_cckg(uri_string, rdfs_class)
+      if cckg_results[:error]
+          uris << "abort_update"  #this forces the update to skip when the KG server is down and avoids setting everything to blank
+      else
+        cckg_results.each do |uri|
+          uris << uri
+        end
       end
     end
     return uris
@@ -190,12 +165,15 @@ module StatementsHelper
         } limit 100 "
     results = cc_kg_query(q, rdfs_class)
     hits = []
-
-    results.each {|entity|  hits << entity if str.downcase.include?(entity["name"]["value"].downcase)}
-    hits.count.times do |n|
-      hits[n] = [hits[n]["name"]["value"],hits[n]["uri"]["value"]]
+    if results[:error].blank?
+      results.each {|entity|  hits << entity if str.downcase.include?(entity["name"]["value"].downcase)}
+      hits.count.times do |n|
+        hits[n] = [hits[n]["name"]["value"],hits[n]["uri"]["value"]]
+      end
+      return hits.uniq {|hit| hit[1]}
+    else
+      return {error: results} #with error message
     end
-    return hits.uniq {|hit| hit[1]}
   end
 
 

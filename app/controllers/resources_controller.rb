@@ -34,6 +34,7 @@ class ResourcesController < ApplicationController
         end
       end
     end
+    @statement_keys = @resource[:statements].keys.sort
   end
 
   #GET /resources/:rdf_uri/webpage_urls
@@ -75,15 +76,9 @@ class ResourcesController < ApplicationController
   # PATCH /resources/:rdf_uri/reviewed_all
   def reviewed_all
 
+    review_all_statements params[:rdf_uri], params[:event][:status_origin]
 
-    statements = review_all_statements params[:rdf_uri], params[:event][:status_origin]
-    # 
-    # jsonld =
-    # if is_publishable?(jsonld)
-    #   #update condensed JSON-LD in wringer to update KG
-    # else
-    #   #delete condensed JSON-LD in wringe to delete triples in KG
-    # end
+  #  update_remote_jsonld  params[:rdf_uri] #stored in wringer and updated in clouddb by wringer
 
     uri_to_load = params[:rdf_uri]
     if params[:review_next] == "true"
@@ -110,9 +105,31 @@ class ResourcesController < ApplicationController
         end
       end
       statements.each do |statement|
-        statement.update!(status: "ok", status_origin: status_origin) if (statement.source.selected && !statement.is_problem?)
+        if (statement.source.selected && !statement.is_problem?)
+          statement.update!(status: "ok", status_origin: status_origin)
+        end
       end
-      return statements
+    end
+
+    def update_remote_jsonld rdf_uri
+      webpages = Webpage.where(rdf_uri: rdf_uri).preload(:website)
+
+      #get all statements for webpage in each language
+      condensor_statements = []
+      webpages.each do |w|
+        w.statements.each do |s|
+          condensor_statements << s
+        end
+      end
+
+      #generate jsonld per language BUT using statements from pages of all languages
+      webpages.each do |webpage|
+        adr_prefix = "#{webpage.website.graph_name}/resource/"
+        jsonld = helpers.build_jsonld condensor_statements, webpage.language, rdf_uri, adr_prefix
+        helpers.update_jsonld_on_wringer webpage.url, webpage.website.graph_name, jsonld
+      end
+
+
     end
 
 

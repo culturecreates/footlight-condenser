@@ -9,17 +9,6 @@ class StatementsHelperTest < ActionView::TestCase
   #   assert_equal expected_output, scrape(source, "http://culturecreates.com")
   # end
 
-  test "should covert url for wringer" do
-    expected_output = "http://footlight-wringer.herokuapp.com/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true"
-    assert_equal expected_output, use_wringer("http://culturecreates.com", false)
-  end
-
-  test "should covert url for wringer using phantomjs" do
-
-    expected_output = "http://footlight-wringer.herokuapp.com/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true&use_phantomjs=true"
-    assert_equal expected_output, use_wringer("http://culturecreates.com", true)
-  end
-
 
   # test "should scrape 2 items from html" do
   #   source = OpenStruct.new(algorithm_value: 'xpath=//title,xpath=//meta[@property="og:title"]/@content')
