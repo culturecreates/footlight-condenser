@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20181118184740) do
+ActiveRecord::Schema.define(version: 20181203150539) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
@@ -82,6 +82,7 @@ ActiveRecord::Schema.define(version: 20181118184740) do
     t.string "seedurl"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "graph_name", default: "http://artsdata.ca"
   end
 
   add_foreign_key "properties", "rdfs_classes"

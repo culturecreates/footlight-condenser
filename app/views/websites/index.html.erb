@@ -7,6 +7,7 @@
     <tr>
       <th>Name</th>
       <th>Seedurl</th>
+      <th>Graph Name</th>
       <th colspan="4"></th>
     </tr>
   </thead>
@@ -16,6 +17,7 @@
       <tr>
         <td><%= website.name %></td>
         <td><%= website.seedurl %></td>
+        <td><%= website.graph_name %></td>
         <td><%= link_to 'Webpages', webpages_path(seedurl: website[:seedurl])  %></td>
         <td><%= link_to 'Events', events_websites_path(seedurl: website[:seedurl])  %></td>
         <td><%= link_to 'Places', places_websites_path(seedurl: website[:seedurl])  %></td>
