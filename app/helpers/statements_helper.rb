@@ -166,7 +166,7 @@ module StatementsHelper
     results = cc_kg_query(q, rdfs_class)
     hits = []
     if results[:error].blank?
-      results.each {|entity|  hits << entity if str.downcase.include?(entity["name"]["value"].downcase)}
+      results[:data].each {|entity|  hits << entity if str.downcase.include?(entity["name"]["value"].downcase)}
       hits.count.times do |n|
         hits[n] = [hits[n]["name"]["value"],hits[n]["uri"]["value"]]
       end

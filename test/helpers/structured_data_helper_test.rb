@@ -104,7 +104,7 @@ class StructuredDataHelperTest < ActionView::TestCase
   end
 
   test "get_kg_place: should produce error with invalid URI" do
-    expected_output = {:error=>"#<Net::HTTPBadRequest 400 Bad Request readbody=true>"}
+    expected_output = {:error=>"Bad Request"}
     assert_equal expected_output, get_kg_place("invalid-uri")
   end
 

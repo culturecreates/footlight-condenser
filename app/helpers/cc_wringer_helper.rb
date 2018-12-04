@@ -1,33 +1,19 @@
 module CcWringerHelper
 
 
-  def get_wringer_url_per_environment
-    if Rails.env.development?  || Rails.env.test?
-      "http://localhost:3009"
-    else
-      "http://footlight-wringer.herokuapp.com"
-    end
-  end
 
   def use_wringer(url, render_js = false, options={})
     defaults = { :force_scrape_every_hrs => nil }
     options = defaults.merge(options)
-
     url = url.first if url.class == Array
+
     escaped_url = CGI.escape(url)
-
-    if render_js
-      path = "/websites/wring?uri=#{escaped_url}&format=raw&include_fragment=true&use_phantomjs=true"
-    else
-      path = "/websites/wring?uri=#{escaped_url}&format=raw&include_fragment=true"
-    end
-
-    if options[:force_scrape_every_hrs]
-      path += "&force_scrape_every_hrs=#{options[:force_scrape_every_hrs]}"
-    end
-
-    logger.info("***  calling wringer with: #{get_wringer_url_per_environment + path} ")
-    return get_wringer_url_per_environment + path
+    path = "/websites/wring?uri=#{escaped_url}&format=raw&include_fragment=true"
+    path += "&use_phantomjs=true" if render_js
+    path += "&force_scrape_every_hrs=#{options[:force_scrape_every_hrs]}" if options[:force_scrape_every_hrs]
+  
+    logger.info("***  calling wringer with: #{get_wringer_url_per_environment() + path} ")
+    return get_wringer_url_per_environment() + path
   end
 
 
@@ -55,7 +41,12 @@ module CcWringerHelper
   end
 
 
-
-
+  def get_wringer_url_per_environment
+    if Rails.env.development?  || Rails.env.test?
+      "http://localhost:3009"
+    else
+      "http://footlight-wringer.herokuapp.com"
+    end
+  end
 
 end

@@ -241,15 +241,15 @@ module StructuredDataHelper
          ?b  a  <http://schema.org/PostalAddress> .   \
          ?b  ?pred ?obj .    \
          }"
-    result = cc_kg_query(q, place_uri)
+    results = cc_kg_query(q, place_uri)
 
-    if result.class == Array
+    if results[:error].blank?
       place = {}
-      result.each do |statement|
+      results[:data].each do |statement|
         place[statement["pred"]["value"].to_s.split('/').last] =  statement["obj"]["value"]
       end
     else
-      place = {:error => result[:error]}
+      place = {:error => results[:error]}
     end
     return place
   end
