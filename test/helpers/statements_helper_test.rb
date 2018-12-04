@@ -25,19 +25,19 @@ class StatementsHelperTest < ActionView::TestCase
 
   # search_condenser
   test "search_condenser: should search condenser for uris that match 100%" do
-    expected = [["myPlaceName", "httpUri"]]
+    expected = {data:[["myPlaceName", "httpUri"]]}
     actual = search_condenser "myPlaceName", "Place"
     assert_equal expected, actual
   end
 
   test "search_condenser: should search condenser for uris by matching name in substring" do
-    expected = [["myPlaceName", "httpUri"]]
+    expected = {data:[["myPlaceName", "httpUri"]]}
     actual = search_condenser "Show is at myPlaceName", "Place"
     assert_equal expected, actual
   end
 
   test "search_condenser: should search condenser for nowhere" do
-    expected = []
+    expected = {data:[]}
     actual = search_condenser "Show is at nowhere", "Place"
     assert_equal expected, actual
   end
@@ -46,31 +46,31 @@ class StatementsHelperTest < ActionView::TestCase
 
   #search_cckg
   test "search_cckg: should search cckg for uris that match 100%" do
-    expected = [["Southam Hall", "http://artsdata.ca/resource/place/southam_hall"]]
+    expected = {data:[["Southam Hall", "http://artsdata.ca/resource/place/southam_hall"]]}
     actual = search_cckg "Southam Hall", "Place"
     assert_equal expected, actual
   end
 
   test "search_cckg: should search cckg for uris by matching name in substring" do
-    expected =[["Berkeley Street Theatre", "http://artsdata.ca/resource/place/berkeley_street_theatre"], ["Southam Hall", "http://artsdata.ca/resource/place/southam_hall"]]
+    expected = {data:[["Berkeley Street Theatre", "http://artsdata.ca/resource/place/berkeley_street_theatre"], ["Southam Hall", "http://artsdata.ca/resource/place/southam_hall"]]}
     actual = search_cckg "The locations is in the lovely Southam Hall and Berkeley Street Theatre.", "Place"
     assert_equal expected, actual
   end
 
   test "search_cckg: should search condenser for nowhere" do
-    expected = []
+    expected = {data:[]}
     actual = search_cckg "Show is at nowhere", "Place"
     assert_equal expected, actual
   end
 
   test "search_cckg: remove duplicates" do
-    expected = [["Southam Hall", "http://artsdata.ca/resource/place/southam_hall"]]
+    expected = {data:[["Southam Hall", "http://artsdata.ca/resource/place/southam_hall"]]}
     actual = search_cckg "The locations is in the lovely Southam Hall and Southam Hall.", "Place"
     assert_equal expected, actual
   end
 
   test "search_cckg: find alternate names" do
-    expected = [["Red Sky Performance", "http://artsdata.ca/resource/org/red_sky_performance"]]
+    expected = {data:[["Red Sky Performance", "http://artsdata.ca/resource/org/red_sky_performance"]]}
     actual = search_cckg "The dance group also known as Red Sky Performance is also known as Red Sky.", "Organization"
     assert_equal expected, actual
   end

@@ -1,6 +1,7 @@
 module CcKgHelper
 
   def cc_kg_query  q, cache_key
+    #If the KG server is down then return an error that will abort the update of the current property.
     result = {}
     @cckg_cache = {} if !defined? @cckg_cache
     if !@cckg_cache[cache_key]
@@ -19,13 +20,11 @@ module CcKgHelper
           result =  {error: data.response.message}
         end
       rescue => e
-        result = {error: "Error while searching in Knowledge Graph: #{e.inspect} "}
+        result = {error: "RESCUE while searching in Knowledge Graph: #{e.inspect} "}
       end
     else
       result = @cckg_cache[cache_key]
     end
-
-    logger.info ("*** Error in cc_kg_query: #{result.inspect}") if result["error"]
     return result
   end
 

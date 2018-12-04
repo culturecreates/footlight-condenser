@@ -118,29 +118,32 @@ module StatementsHelper
     uris << rdfs_class
 
     #search condenser database
-    search_condenser(uri_string, rdfs_class).each do |uri|
+    results = search_condenser(uri_string, rdfs_class)
+    results[:data].each do |uri|
       uris << uri
     end
+    logger.info("*** search condenser:  #{uris}")
+
     if uris.count == 2 #then no matches found yet, keep looking
       #search Culture Creates KG
       cckg_results = search_cckg(uri_string, rdfs_class)
       if cckg_results[:error]
           uris << "abort_update"  #this forces the update to skip when the KG server is down and avoids setting everything to blank
       else
-        cckg_results.each do |uri|
+        cckg_results[:data].each do |uri|
           uris << uri
         end
       end
     end
+    logger.info("*** search condenser and kg:  #{uris}")
     return uris
   end
 
-  def search_condenser uri_string, expected_class
+  def search_condenser uri_string, expected_class #returns a HASH
     # get names of all statements of expected_class
     hits = []
     #statements = Statement.where(cache: uri_string)
     entities = Statement.joins(source: :property).where({sources: { properties: {label: "Name", rdfs_class: RdfsClass.where(name: expected_class)}}}).pluck(:cache,:webpage_id)
-    logger.info("*** In search_condenser: found names of class #{expected_class}: #{entities.inspect}")
     entities.each {|entity| hits << entity if uri_string.downcase.include?(entity[0].downcase)}
 
 
@@ -151,18 +154,18 @@ module StatementsHelper
         hits[index][1] = webpage.rdf_uri
       end
     end
-    return hits.uniq
+    return {data: hits.uniq}
     ##TODO: ????also check (s.webpage.website == webpage.website)
   end
 
 
-  def search_cckg str, rdfs_class
+  def search_cckg str, rdfs_class #returns a HASH
     q = "PREFIX schema: <http://schema.org/>            \
         select DISTINCT ?uri (str(?name_lang) as ?name) where {              \
 	          ?uri a schema:#{rdfs_class} .                \
             ?uri schema:name ?name_lang .                    \
             filter (!EXISTS {filter (isBlank(?uri)) })  \
-        } limit 100 "
+        } "
     results = cc_kg_query(q, rdfs_class)
     hits = []
     if results[:error].blank?
@@ -170,7 +173,7 @@ module StatementsHelper
       hits.count.times do |n|
         hits[n] = [hits[n]["name"]["value"],hits[n]["uri"]["value"]]
       end
-      return hits.uniq {|hit| hit[1]}
+      return {data: hits.uniq {|hit| hit[1]}}
     else
       return {error: results} #with error message
     end
