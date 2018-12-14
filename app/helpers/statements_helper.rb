@@ -94,7 +94,7 @@ module StatementsHelper
     ##     So when Google changes their requirements, no code change is needed.
     ########################################################################
     if property.uri == "http://schema.org/name" ||  property.uri == "http://schema.org/startDate"  || property.uri == "http://schema.org/location"
-      if scraped_data.blank?
+      if scraped_data.blank?  || scraped_data&.to_s.downcase.include?('error')
         status = "problem"
       end
     end
