@@ -245,7 +245,7 @@ class StatementsController < ApplicationController
           if source.property.uri == "http://schema.org/startDate"
             logger.info("*** Setting Last Show Date:#{_data}")
             #TODO: improve error handling to use consistent {error:}
-            if !_data&.to_s.downcase.include?('error')
+            if !_data&.to_s&.downcase&.include?('error')
                _data.class == Array ? last_show_date = _data.last : last_show_date = _data
                if last_show_date.present?
                  webpage.archive_date = last_show_date.to_datetime - 24.hours
@@ -274,7 +274,7 @@ class StatementsController < ApplicationController
             end
             #update database. Model automatically sets cache changed
             logger.info("*** Last step cache: #{_data}")
-            s.first.update(cache:_data, cache_refreshed: Time.new) unless _data&.to_s.include?('abort_update')
+            s.first.update(cache:_data, cache_refreshed: Time.new) unless _data&.to_s&.include?('abort_update')
             ## check for mandatory fields and change status to 'problem' if one is Missing
             if helpers.mandatory_property_checker(_data, source.property) == "problem"
               s.first.status = "problem"
