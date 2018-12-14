@@ -97,6 +97,7 @@ module StatementsHelper
       if scraped_data.blank?
         status = "problem"
       end
+    end
     return status
   end
 
