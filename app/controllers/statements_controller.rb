@@ -243,6 +243,7 @@ class StatementsController < ApplicationController
 
           #add startDate to ArchiveDate in Webpages Table to be able to sort by date and refresh event still to come.
           if source.property.uri == "http://schema.org/startDate"
+              logger.info("*** Setting Last Show Date:#{_data}")
              _data.class == Array ? last_show_date = _data.last : last_show_date = _data
              if last_show_date.present?
                webpage.archive_date = last_show_date.to_datetime - 24.hours
