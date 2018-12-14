@@ -82,6 +82,12 @@ module StatementsHelper
     else
       !scraped_data.blank? ? status = "initial" : status = "missing"
     end
+
+    return status
+  end
+
+
+  def mandatory_property_checker (scraped_data, property)
     ########################################################################
     # TODO: Mandatory fields should be set in the Properties table.
     ##     As well as recommended fields.
@@ -96,8 +102,6 @@ module StatementsHelper
     if property.uri == "http://schema.org/location" && scraped_data.blank?
       status = "problem"
     end
-
-    return status
   end
 
   def format_datatype (scraped_data, property, webpage)
