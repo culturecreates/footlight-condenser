@@ -93,15 +93,11 @@ module StatementsHelper
     ##     As well as recommended fields.
     ##     So when Google changes their requirements, no code change is needed.
     ########################################################################
-    if property.uri == "http://schema.org/name" && scraped_data.blank?
-      status = "problem"
-    end
-    if property.uri == "http://schema.org/startDate" && scraped_data.blank?
-      status = "problem"
-    end
-    if property.uri == "http://schema.org/location" && scraped_data.blank?
-      status = "problem"
-    end
+    if property.uri == "http://schema.org/name" ||  property.uri == "http://schema.org/startDate"  || property.uri == "http://schema.org/location"
+      if scraped_data.blank?
+        status = "problem"
+      end
+    return status
   end
 
   def format_datatype (scraped_data, property, webpage)

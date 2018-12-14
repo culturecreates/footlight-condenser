@@ -270,7 +270,7 @@ class StatementsController < ApplicationController
             end
             #update database. Model automatically sets cache changed
             logger.info("*** Last step cache: #{_data}")
-            s.first.update(cache:_data, cache_refreshed: Time.new) unless _data.include?('abort_update')
+            s.first.update(cache:_data, cache_refreshed: Time.new) unless _data&.include?('abort_update')
             ## check for mandatory fields and change status to 'problem' if one is Missing
             if helpers.mandatory_property_checker(_data, source.property) == "problem"
               s.first.status = "problem"
