@@ -82,6 +82,21 @@ module StatementsHelper
     else
       !scraped_data.blank? ? status = "initial" : status = "missing"
     end
+    ########################################################################
+    # TODO: Mandatory fields should be set in the Properties table.
+    ##     As well as recommended fields.
+    ##     So when Google changes their requirements, no code change is needed.
+    ########################################################################
+    if property.uri == "http://schema.org/name" && scraped_data.blank?
+      status = "problem"
+    end
+    if property.uri == "http://schema.org/startDate" && scraped_data.blank?
+      status = "problem"
+    end
+    if property.uri == "http://schema.org/location" && scraped_data.blank?
+      status = "problem"
+    end
+
     return status
   end
 
