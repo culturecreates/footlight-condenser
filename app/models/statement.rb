@@ -20,8 +20,11 @@ class Statement < ApplicationRecord
   def save
     if !self.changed_attributes[:cache].nil?
       self.cache_changed = Time.new
-      self.status = "updated"
-      self.status_origin = "condensor_refresh"
+      if self.status != "initial" && self.status_origin != "condenser_refresh"
+        # condenser cannot update inself from initial to update state. Need a human to have seen it first.
+        self.status = "updated"
+      end
+      self.status_origin = "condenser_refresh"
     end
 
     super

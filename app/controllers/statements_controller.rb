@@ -261,7 +261,7 @@ class StatementsController < ApplicationController
           s = Statement.where(webpage_id: webpage.id, source_id: source.id)
           #decide to create or update database entry
           if s.count != 1
-            Statement.create!(cache:_data, webpage_id: webpage.id, source_id: source.id, status: helpers.status_checker(_data, source.property) , status_origin: "condensor_refresh",cache_refreshed: Time.new)
+            Statement.create!(cache:_data, webpage_id: webpage.id, source_id: source.id, status: helpers.status_checker(_data, source.property) , status_origin: "condenser_refresh",cache_refreshed: Time.new)
           else
             #check if manual entry and if yes then don't update
             if source.algorithm_value.start_with?("manual=")
