@@ -80,33 +80,12 @@ module StatementsHelper
       #check for 2 items in list
       scraped_data.count == 3 ? status = "initial" : status = "missing"
     else
-      !scraped_data.blank? ? status = "initial" : status = "missing"
+      !scraped_data.blank? && !scraped_data&.to_s&.downcase&.include?('error') ? status = "initial" : status = "missing"
     end
 
     return status
   end
 
-
-  def mandatory_property_checker (scraped_data, property)
-    ########################################################################
-    # TODO: Mandatory fields should be set in the Properties table.
-    ##     As well as recommended fields.
-    ##     So when Google changes their requirements, no code change is needed.
-    ########################################################################
-    if property.uri == "http://schema.org/name" ||  property.uri == "http://schema.org/startDate"
-      if scraped_data.blank?  || scraped_data&.to_s&.downcase&.include?('error')
-        status = "problem"
-      end
-    end
-
-    if property.uri == "http://schema.org/location"
-      if status_checker(scraped_data, property) ==  "missing"
-        status = "problem"
-      end
-    end
-
-    return status
-  end
 
   def format_datatype (scraped_data, property, webpage)
     data = []
