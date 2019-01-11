@@ -21,6 +21,9 @@ module StructuredDataHelper
         if prop != nil
           if statement.source.property.value_datatype == "xsd:anyURI"
             add_anyURI _jsonld, prop, statement.cache
+            if prop == "location"
+              add_location _jsonld
+            end
           elsif  statement.source.property.value_datatype == "xsd:dateTime"
             _jsonld[prop] = make_into_array statement.cache
           elsif prop == "duration"
@@ -191,7 +194,7 @@ module StructuredDataHelper
 
   def add_anyURI jsonld, prop, uri_statement
     begin
-      # Handle 2 possible data structres by making both into a list of arrays.
+      # Handle 2 possible data structures by making both into a list of arrays.
       #1: [["source 1","Place",["place name","adr:palce_uri"]],[]]
       #2: ["source 1","Place",["place name","adr:palce_uri"]]
       if !uri_statement.starts_with?("[[")
@@ -211,20 +214,21 @@ module StructuredDataHelper
 
 
 
-  def add_location
+  def add_location jsonld
 
-          #add location address
-          # location = helpers.get_kg_place _jsonld["location"][:@id]  if _jsonld["location"]
-          # if !location.blank?
-          #   _jsonld["location"]["address"] = {
-          #         "@type": "PostalAddress",
-          #         "streetAddress": location["streetAddress"],
-          #         "addressCountry": location["addressCountry"],
-          #         "addressLocality": location["addressLocality"],
-          #         "addressRegion": location["addressRegion"],
-          #         "postalCode": location["postalCode"]
-          #       }
-          # end
+      #add location address
+      location = get_kg_place jsonld["location"][0][:@id]  if jsonld["location"]
+      if !location.blank?
+        jsonld["location"][0]["address"] = {
+              "@type": "PostalAddress",
+              "streetAddress": location["streetAddress"],
+              "addressCountry": location["addressCountry"],
+              "addressLocality": location["addressLocality"],
+              "addressRegion": location["addressRegion"],
+              "postalCode": location["postalCode"]
+            }
+      end
+      return jsonld
   end
 
   def get_kg_place place_uri
