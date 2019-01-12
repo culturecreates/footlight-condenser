@@ -12,9 +12,10 @@ module StructuredDataHelper
           "name_fr":{"@id": "name", "@language": "fr"}
         },
       "@type": "Event",
-      "superEvent": { "@id": "#{rdf_uri}"}
+      "workFeatured": { "@type": "CreativeWork","@id": rdf_uri }
       }
 
+    locations_to_add = []
     condensor_statements.each do |statement|
       if statement.source.selected == true  && (statement.status == "ok" || statement.status == "updated")  && (statement.source.language == language || statement.source.language == "")
         prop = statement.source.property.uri.to_s.split("/").last
@@ -22,10 +23,11 @@ module StructuredDataHelper
           if statement.source.property.value_datatype == "xsd:anyURI"
             add_anyURI _jsonld, prop, statement.cache
             if prop == "location"
-              add_location _jsonld
+              locations_to_add << _jsonld["location"][0][:@id]
             end
           elsif  statement.source.property.value_datatype == "xsd:dateTime"
             _jsonld[prop] = make_into_array statement.cache
+            #add endDate here by adding duration or else removing the time and keeping only the date.
           elsif prop == "duration"
             duration_array = make_into_array statement.cache
             _jsonld["duration"] = []
@@ -55,25 +57,18 @@ module StructuredDataHelper
     end
 
 
-    #creates seperate events per startDate each with location is there is a list of locations.
+    #creates seperate events per startDate each with location if there is a list of locations.
     ## MUST have startDate, location and name
     if (!_jsonld["startDate"].blank? && !_jsonld["location"].blank? && (!_jsonld["name"].blank? || !_jsonld["name_en"].blank? || !_jsonld["name_fr"].blank?))
       @events = build_events_per_startDate _jsonld
 
-      # Add Event Series to include all events with the same CreativeWork (Name, description, event page)
-      @events << {
-        "@context":
-          {
-            "@vocab": "http://schema.org",
-            "name_fr": {"@id": "name", "@language": "fr"},
-            "name_en": {"@id": "name",	"@language": "en"}
-          },
-          "@type": "EventSeries",
-           "@id": "#{rdf_uri}",
-           "location":@events[0]["location"],
-           "startDate": @events[0]["startDate"],
-           "name_#{_jsonld['name_fr'] ? 'fr' : 'en'}": _jsonld["name_fr"] ||= _jsonld["name_en"]
-          }
+      #add a location entities
+      locations_to_add.each do |location_uri|
+        location = _jsonld["location"][0].clone
+        location["@context"] = "http://schema.org"
+        location["address"] = add_address(location_uri)
+        @events <<  location
+      end
 
       # REPLACE adr: with complete URI
       adr_prefix ||= "http://graph.footlight.io/resource/"
@@ -214,48 +209,50 @@ module StructuredDataHelper
 
 
 
-  def add_location jsonld
+  def add_address location_id
 
       #add location address
-      location = get_kg_place jsonld["location"][0][:@id]  if jsonld["location"]
-      if !location.blank?
-        jsonld["location"][0]["address"] = {
+
+      address = get_kg_place location_id
+      if !address.blank?
+         {
               "@type": "PostalAddress",
-              "streetAddress": location["streetAddress"],
-              "addressCountry": location["addressCountry"],
-              "addressLocality": location["addressLocality"],
-              "addressRegion": location["addressRegion"],
-              "postalCode": location["postalCode"]
+              "streetAddress": address["streetAddress"],
+              "addressCountry": address["addressCountry"],
+              "addressLocality": address["addressLocality"],
+              "addressRegion": address["addressRegion"],
+              "postalCode": address["postalCode"]
             }
       end
-      return jsonld
+
   end
 
   def get_kg_place place_uri
-
-    if place_uri[0..3] == "http"
-      place_uri = "<#{place_uri}>"
-    elsif place_uri[0..3] == "adr:"
-      place_uri = "<http://artsdata.ca/resource/#{place_uri[4..-1]}>"
-    end
-
-
-    q = "SELECT ?pred ?obj where {    \
-         #{place_uri} ?a ?b   .  \
-         ?b  a  <http://schema.org/PostalAddress> .   \
-         ?b  ?pred ?obj .    \
-         }"
-    results = cc_kg_query(q, place_uri)
-
-    if results[:error].blank?
-      place = {}
-      results[:data].each do |statement|
-        place[statement["pred"]["value"].to_s.split('/').last] =  statement["obj"]["value"]
+    if place_uri
+      if place_uri[0..3] == "http"
+        place_uri = "<#{place_uri}>"
+      elsif place_uri[0..3] == "adr:"
+        place_uri = "<http://artsdata.ca/resource/#{place_uri[4..-1]}>"
       end
-    else
-      place = {:error => results[:error]}
+
+
+      q = "SELECT ?pred ?obj where {    \
+           #{place_uri} ?a ?b   .  \
+           ?b  a  <http://schema.org/PostalAddress> .   \
+           ?b  ?pred ?obj .    \
+           }"
+      results = cc_kg_query(q, place_uri)
+
+      if results[:error].blank?
+        place = {}
+        results[:data].each do |statement|
+          place[statement["pred"]["value"].to_s.split('/').last] =  statement["obj"]["value"]
+        end
+      else
+        place = {:error => results[:error]}
+      end
+      return place
     end
-    return place
   end
 
   def make_into_array str
