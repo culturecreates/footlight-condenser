@@ -1,6 +1,114 @@
 module StructuredDataHelper
   include CcKgHelper
 
+  def build_jsonld_canadianstage condensor_statements, language, rdf_uri, adr_prefix
+    _jsonld = {
+      "@context": {
+        "@vocab": "http://schema.org",
+        "name_en":{"@id": "name",	"@language": "en"},
+        "description_en":{"@id": "description", "@language": "en"}
+        },
+      "@type": "Event",
+      "workFeatured": {
+        "@type": "CreativeWork",
+        "@id": rdf_uri
+      }
+      }
+
+
+
+    locations_to_add = []
+    condensor_statements.each do |statement|
+      if statement.source.selected == true  && (statement.status == "ok" || statement.status == "updated")  && (statement.source.language == language || statement.source.language == "")
+        prop = statement.source.property.uri.to_s.split("/").last
+        logger.info " ++++++++++++=Adding property #{prop}"
+        if prop != nil
+          if statement.source.property.value_datatype == "xsd:anyURI"
+            add_anyURI _jsonld, prop, statement.cache
+            if prop == "location"
+              locations_to_add << _jsonld["location"][0][:@id] if !_jsonld["location"].blank?
+            end
+            if prop == "CreativeWork:producer"
+              data = JSON.parse(statement.cache)
+              @creativework_producer = {"@type": "Organization","@id": data[2][1], "name":data[0]}
+
+            end
+          elsif  statement.source.property.value_datatype == "xsd:dateTime"
+            _jsonld[prop] = make_into_array statement.cache
+            #add endDate here by adding duration or else removing the time and keeping only the date.
+          elsif prop == "duration"
+            duration_array = make_into_array statement.cache
+            _jsonld["duration"] = []
+            duration_array.each do |d|
+              _jsonld["duration"] << d if d[0..1] == "PT" #needs to be in ISO8601 duration syntax to avoid adding "Duration not available"
+            end
+          elsif prop == "offer:url"
+            add_offer _jsonld, "url", statement.cache
+          elsif prop == "offer:price"
+            add_offer _jsonld, "price", statement.cache
+          elsif prop == "CreativeWork:keywords"
+            add_keywords _jsonld, statement.cache
+          elsif prop == "CreativeWork:video"
+            add_video _jsonld, statement.cache
+          elsif prop == "performer:url"
+            add_performer _jsonld, "url", statement.cache
+          else
+            if prop == "name"
+              @creativework_name = statement.cache
+              prop = "#{prop}_#{language}"
+            end
+            if prop == "description"
+              @creativework_description = statement.cache
+              prop = "#{prop}_#{language}"
+            end
+            if prop == "url"
+              @creativework_url = statement.cache
+            end
+
+            _jsonld[prop] = statement.cache
+          end
+        else
+          logger.error "ERROR making JSON-LD: missing property uri for: #{statement.source.property.label}"
+        end
+      end
+    end
+
+
+    #creates seperate events per startDate each with location if there is a list of locations.
+    ## MUST have startDate, location and name
+    if (!_jsonld["startDate"].blank? && !_jsonld["location"].blank? && (!_jsonld["name"].blank? || !_jsonld["name_en"].blank? || !_jsonld["name_fr"].blank?))
+      @events = build_events_per_startDate _jsonld
+
+      #add a location entities
+      locations_to_add.each do |location_uri|
+        location = _jsonld["location"][0].clone
+        location["@context"] = "http://schema.org"
+        location["address"] = add_address(location_uri)
+        @events <<  location
+      end
+
+      #add creative work
+      @events << {
+        "@context":  "http://schema.org",
+        "@type": "CreativeWork",
+        "@id": rdf_uri,
+        "name": @creativework_name,
+        "description": @creativework_description,
+        "mainEntityOfPage": @creativework_url,
+        "url": @creativework_url,
+        "genre": "http://sparql.cwrc.ca/ontologies/genre#performance",
+        "producer": @creativework_producer
+      }
+
+      # REPLACE adr: with complete URI
+      adr_prefix ||= "http://graph.footlight.io/resource/"
+      @events = eval(@events.to_s.gsub(/adr:/,adr_prefix))
+    else
+       @events = nil
+    end
+    return @events
+  end
+
   def build_jsonld condensor_statements, language, rdf_uri, adr_prefix
     _jsonld = {
       "@context":
@@ -23,7 +131,7 @@ module StructuredDataHelper
           if statement.source.property.value_datatype == "xsd:anyURI"
             add_anyURI _jsonld, prop, statement.cache
             if prop == "location"
-              locations_to_add << _jsonld["location"][0][:@id]
+              locations_to_add << _jsonld["location"][0][:@id] if !_jsonld["location"].blank?
             end
           elsif  statement.source.property.value_datatype == "xsd:dateTime"
             _jsonld[prop] = make_into_array statement.cache
@@ -51,7 +159,7 @@ module StructuredDataHelper
             _jsonld[prop] = statement.cache
           end
         else
-          puts "ERROR making JSON-LD: missing property uri for: #{statement.source.property.label}"
+          logger.error "ERROR making JSON-LD: missing property uri for: #{statement.source.property.label}"
         end
       end
     end
@@ -92,6 +200,7 @@ module StructuredDataHelper
     dates.each_with_index do |date,index|
       event =  _jsonld.dup
       event["startDate"] = date
+      event["endDate"] = Date.parse(date).to_s(:iso8601)
 
       ### handle single or multiple locations and durations per date. Must equal the count of dates.
       if !locations.blank?
@@ -122,6 +231,7 @@ module StructuredDataHelper
   end
 
   def add_offer jsonld, property, value
+
     if !jsonld[:offers]
       jsonld[:offers] = { "@type": "Offer" }
       jsonld[:offers]["validFrom"] =  Date.today.to_s(:iso8601)
@@ -137,8 +247,8 @@ module StructuredDataHelper
         end
       end
     elsif property == "price" && !value.blank?
-      jsonld[:offers]["price"] = value
-      jsonld[:offers]["priceCurrency"] = "CAD"
+        jsonld[:offers]["price"] = value
+        jsonld[:offers]["priceCurrency"] = "CAD"
     else
       logger.error ("*** Invalid property for schema.org/Offer: #{property} for JSON-LD: #{jsonld.inspect}")
     end
@@ -189,19 +299,22 @@ module StructuredDataHelper
 
   def add_anyURI jsonld, prop, uri_statement
     begin
-      # Handle 2 possible data structures by making both into a list of arrays.
-      #1: [["source 1","Place",["place name","adr:palce_uri"]],[]]
-      #2: ["source 1","Place",["place name","adr:palce_uri"]]
-      if !uri_statement.starts_with?("[[")
-        uri_statement = "[#{uri_statement}]"
-      end
-      uri_object = JSON.parse(uri_statement)
+      # Handle data structure
+      # ["source 1","Place",["place name","adr:place_uri"],[]]
+      #
+      # if !uri_statement.starts_with?("[[")
+      #   uri_statement = "[#{uri_statement}]"
+      # end
+      uri_objects = JSON.parse(uri_statement)
       jsonld[prop] = []
-      uri_object.each do |uri_object|
-        jsonld[prop] << {"@type": uri_object[1], "name": uri_object[2][0], "@id": uri_object[2][1]}
+      logger.info "***** #{uri_objects.inspect}"
+
+      uri_objects[2..-1].each do |uri_object|
+          logger.info "***** adding #{uri_object.inspect}"
+        jsonld[prop] << {"@type": uri_objects[1], "name": uri_object[0], "@id": uri_object[1]}
       end
     rescue
-      puts "ERROR making JSON-LD parsing property #{prop} statement.cache: #{uri_statement}"
+        logger.error "ERROR making JSON-LD parsing property #{prop} statement.cache: #{uri_statement}"
     end
     return jsonld
   end

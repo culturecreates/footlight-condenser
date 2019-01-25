@@ -266,10 +266,10 @@ class StatementsController < ApplicationController
             #check if manual entry and if yes then don't update
             if source.algorithm_value.start_with?("manual=")
               if s.first.status != "missing"
-                puts "Skipping update of manual entry"
+                logger.info "Skipping update of manual entry"
                 next
               else
-                puts "Retrying to process manual entry because status is MISSING"
+                logger.info "Retrying to process manual entry because status is MISSING"
               end
             end
             #update database. Model automatically sets cache changed
