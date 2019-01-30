@@ -3,19 +3,9 @@ module StructuredDataHelper
 
   def build_jsonld_canadianstage condensor_statements, language, rdf_uri, adr_prefix
     _jsonld = {
-      "@context": {
-        "@vocab": "http://schema.org",
-        "name_en":{"@id": "name",	"@language": "en"},
-        "description_en":{"@id": "description", "@language": "en"}
-        },
-      "@type": "Event",
-      "workFeatured": {
-        "@type": "CreativeWork",
-        "@id": rdf_uri
+      "@context": "http://schema.org",
+      "@type": "Event"
       }
-      }
-
-
 
     locations_to_add = []
     condensor_statements.each do |statement|
@@ -24,15 +14,18 @@ module StructuredDataHelper
         logger.info " ++++++++++++=Adding property #{prop}"
         if prop != nil
           if statement.source.property.value_datatype == "xsd:anyURI"
-            add_anyURI _jsonld, prop, statement.cache
+
             if prop == "location"
+                add_anyURI _jsonld, prop, statement.cache
               locations_to_add << _jsonld["location"][0][:@id] if !_jsonld["location"].blank?
+
             end
             if prop == "CreativeWork:producer"
               data = JSON.parse(statement.cache)
               @creativework_producer = {"@type": "Organization","@id": data[2][1], "name":data[0]}
-
-            end
+            else
+                add_anyURI _jsonld, prop, statement.cache
+              end
           elsif  statement.source.property.value_datatype == "xsd:dateTime"
             _jsonld[prop] = make_into_array statement.cache
             #add endDate here by adding duration or else removing the time and keeping only the date.
@@ -42,24 +35,25 @@ module StructuredDataHelper
             duration_array.each do |d|
               _jsonld["duration"] << d if d[0..1] == "PT" #needs to be in ISO8601 duration syntax to avoid adding "Duration not available"
             end
+
           elsif prop == "offer:url"
-            add_offer _jsonld, "url", statement.cache
+          #  add_offer _jsonld, "url", statement.cache
           elsif prop == "offer:price"
-            add_offer _jsonld, "price", statement.cache
+          #  add_offer _jsonld, "price", statement.cache
           elsif prop == "CreativeWork:keywords"
-            add_keywords _jsonld, statement.cache
+            #add_keywords _jsonld, statement.cache
           elsif prop == "CreativeWork:video"
-            add_video _jsonld, statement.cache
+          #  add_video _jsonld, statement.cache
           elsif prop == "performer:url"
             add_performer _jsonld, "url", statement.cache
           else
             if prop == "name"
               @creativework_name = statement.cache
-              prop = "#{prop}_#{language}"
+              prop = "#{prop}"
             end
             if prop == "description"
               @creativework_description = statement.cache
-              prop = "#{prop}_#{language}"
+              prop = "#{prop}"
             end
             if prop == "url"
               @creativework_url = statement.cache
@@ -81,24 +75,28 @@ module StructuredDataHelper
 
       #add a location entities
       locations_to_add.each do |location_uri|
-        location = _jsonld["location"][0].clone
-        location["@context"] = "http://schema.org"
-        location["address"] = add_address(location_uri)
-        @events <<  location
+
+        @events <<  {
+           "@context":  "http://schema.org",
+            "@type": "Place",
+            "@id": location_uri,
+           "address":  add_address(location_uri)
+        }
       end
 
-      #add creative work
-      @events << {
-        "@context":  "http://schema.org",
-        "@type": "CreativeWork",
-        "@id": rdf_uri,
-        "name": @creativework_name,
-        "description": @creativework_description,
-        "mainEntityOfPage": @creativework_url,
-        "url": @creativework_url,
-        "genre": "http://sparql.cwrc.ca/ontologies/genre#performance",
-        "producer": @creativework_producer
-      }
+
+
+      # #add creative work
+      # @events << {
+      #   "@context":  "http://schema.org",
+      #   "@type": "CreativeWork",
+      #   "@id": rdf_uri,
+      #   "name": @creativework_name,
+      #   "description": @creativework_description,
+      #   "url": @creativework_url,
+      #   "genre": "http://sparql.cwrc.ca/ontologies/genre#performance",
+      #   "producer": @creativework_producer
+      # }
 
       # REPLACE adr: with complete URI
       adr_prefix ||= "http://graph.footlight.io/resource/"
@@ -200,8 +198,8 @@ module StructuredDataHelper
 
     dates.each_with_index do |date,index|
       event =  _jsonld.dup
-      event["startDate"] = date
-      event["endDate"] = Date.parse(date).to_s(:iso8601)
+      event["startDate"] = DateTime.parse(date).to_s(:iso8601)
+      event["endDate"] = (DateTime.parse(date) + 2.hours).to_s(:iso8601)
 
       ### handle single or multiple locations and durations per date. Must equal the count of dates.
       if !locations.blank?
@@ -329,7 +327,7 @@ module StructuredDataHelper
 
       address = get_kg_place location_id
       if !address.blank?
-         {
+          {
               "@type": "PostalAddress",
               "streetAddress": address["streetAddress"],
               "addressCountry": address["addressCountry"],
