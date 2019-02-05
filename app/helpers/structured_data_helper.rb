@@ -3,19 +3,13 @@ module StructuredDataHelper
 
   def build_jsonld_canadianstage condensor_statements, language, rdf_uri, adr_prefix
     _jsonld = {
-      "@context": {
-        "@vocab": "http://schema.org",
-        "name_en":{"@id": "name",	"@language": "en"},
-        "description_en":{"@id": "description", "@language": "en"}
-        },
+      "@context": "http://schema.org",
       "@type": "Event",
       "workFeatured": {
         "@type": "CreativeWork",
         "@id": rdf_uri
       }
       }
-
-
 
     locations_to_add = []
     condensor_statements.each do |statement|
@@ -24,14 +18,15 @@ module StructuredDataHelper
         logger.info " ++++++++++++=Adding property #{prop}"
         if prop != nil
           if statement.source.property.value_datatype == "xsd:anyURI"
-            add_anyURI _jsonld, prop, statement.cache
+
             if prop == "location"
+              add_anyURI _jsonld, prop, statement.cache
               locations_to_add << _jsonld["location"][0][:@id] if !_jsonld["location"].blank?
-            end
-            if prop == "CreativeWork:producer"
+            elsif prop == "CreativeWork:producer"
               data = JSON.parse(statement.cache)
               @creativework_producer = {"@type": "Organization","@id": data[2][1], "name":data[0]}
-
+            else
+              add_anyURI _jsonld, prop, statement.cache
             end
           elsif  statement.source.property.value_datatype == "xsd:dateTime"
             _jsonld[prop] = make_into_array statement.cache
@@ -55,11 +50,11 @@ module StructuredDataHelper
           else
             if prop == "name"
               @creativework_name = statement.cache
-              prop = "#{prop}_#{language}"
+              prop = "#{prop}"
             end
             if prop == "description"
               @creativework_description = statement.cache
-              prop = "#{prop}_#{language}"
+              prop = "#{prop}"
             end
             if prop == "url"
               @creativework_url = statement.cache
@@ -202,6 +197,10 @@ module StructuredDataHelper
       event =  _jsonld.dup
       event["startDate"] = date
       event["endDate"] = Date.parse(date).to_s(:iso8601)
+
+      #event["startDate"] = DateTime.parse(date).to_s(:iso8601)
+     #event["endDate"] = (DateTime.parse(date) + 2.hours).to_s(:iso8601)
+
 
       ### handle single or multiple locations and durations per date. Must equal the count of dates.
       if !locations.blank?
