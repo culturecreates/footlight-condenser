@@ -156,8 +156,8 @@ module StructuredDataHelper
 
 
     #creates seperate events per startDate each with location is there is a list of locations.
-    ## MUST have startDate, location and name
-    if (!_jsonld["startDate"].blank? && !_jsonld["location"].blank? && (!_jsonld["name"].blank? || !_jsonld["name_en"].blank? || !_jsonld["name_fr"].blank?))
+    ## MUST have startDate, location, name and if multiple startDates the locations must be 1 or equal to the number of Locations.
+    if publishable?(_jsonld)
       @events = build_events_per_startDate _jsonld
 
       # Add Event Series to include all events with the same CreativeWork (Name, description, event page)
@@ -182,6 +182,22 @@ module StructuredDataHelper
        @events = nil
     end
     return @events
+  end
+
+
+
+  def publishable? data
+    return false if data["startDate"].blank?
+    return false if data["location"].blank?
+    return false if (data["name"].blank? && data["name_en"].blank? && data["name_fr"].blank?)
+
+    #if there is more than 1 location then the locations and startDates must be equal and we assume they are mapped one to one.
+
+    if data["location"].count > 1
+      return false if data["location"].count != data["startDate"].count
+    end
+
+    return true
   end
 
 

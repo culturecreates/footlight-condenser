@@ -46,34 +46,34 @@ class StatementsHelperTest < ActionView::TestCase
 
   #search_cckg
   test "search_cckg: should search cckg for uris that match 100%" do
-    expected = {data:[["Southam Hall", "http://artsdata.ca/resource/place/southam_hall"]]}
-    actual = search_cckg "Southam Hall", "Place"
+    expected = {data:[["Berkeley Street Theatre", "http://artsdata.ca/resource/place/berkeley_street_theatre"]]}
+    actual = search_cckg "Berkeley Street Theatre", "Place"
     assert_equal expected, actual
   end
 
   test "search_cckg: should search cckg for uris by matching name in substring" do
-    expected = {data:[["Berkeley Street Theatre", "http://artsdata.ca/resource/place/berkeley_street_theatre"], ["Southam Hall", "http://artsdata.ca/resource/place/southam_hall"]]}
-    actual = search_cckg "The locations is in the lovely Southam Hall and Berkeley Street Theatre.", "Place"
+    expected = {data:[["Berkeley Street Theatre", "http://artsdata.ca/resource/place/berkeley_street_theatre"], ["Bluma Appel Theatre", "http://artsdata.ca/resource/place/bluma_appel_theatre"]]}
+    actual = search_cckg "The locations is in the lovely Bluma Appel Theatre and Berkeley Street Theatre.", "Place"
     assert_equal expected, actual
   end
 
-  test "search_cckg: should search condenser for nowhere" do
+  test "search_cckg: should search cckg for nowhere" do
     expected = {data:[]}
     actual = search_cckg "Show is at nowhere", "Place"
     assert_equal expected, actual
   end
 
   test "search_cckg: remove duplicates" do
-    expected = {data:[["Southam Hall", "http://artsdata.ca/resource/place/southam_hall"]]}
-    actual = search_cckg "The locations is in the lovely Southam Hall and Southam Hall.", "Place"
+    expected = {data:[["Berkeley Street Theatre", "http://artsdata.ca/resource/place/berkeley_street_theatre"]]}
+    actual = search_cckg "The locations is in the lovely Berkeley Street Theatre and Berkeley Street.", "Place"
     assert_equal expected, actual
   end
 
-  test "search_cckg: find alternate names" do
-    expected = {data:[["Red Sky Performance", "http://artsdata.ca/resource/org/red_sky_performance"]]}
-    actual = search_cckg "The dance group also known as Red Sky Performance is also known as Red Sky.", "Organization"
-    assert_equal expected, actual
-  end
+  # test "search_cckg: find alternate names" do
+  #   expected = {data:[["Red Sky Performance", "http://artsdata.ca/resource/org/red_sky_performance"]]}
+  #   actual = search_cckg "The dance group also known as Red-Sky-Performance is also known as Red Sky.", "Organization"
+  #   assert_equal expected, actual
+  # end
 
 
 
