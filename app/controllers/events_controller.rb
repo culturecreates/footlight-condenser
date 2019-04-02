@@ -20,15 +20,14 @@ class EventsController < ApplicationController
 
     photos_hash.each do |photo|
         uri = photo[0]
-        if !titles_hash[uri].include?("error:")  #prevent sending events that have failed being scrapped
-          @events << {rdf_uri: uri,
-                      statements_status:
-                            {to_review: uris_to_review.include?(uri),
-                               updated: uris_updated.include?(uri),
-                               problem: uris_with_problems.include?(uri)},
-                    photo: photo[1],
-                    title: titles_hash[uri]}
-        end
+        titles_hash[uri] = "Error" if titles_hash[uri].include?("error:")  #prevent sending events that have failed being scrapped
+        @events << {rdf_uri: uri,
+                    statements_status:
+                          {to_review: uris_to_review.include?(uri),
+                             updated: uris_updated.include?(uri),
+                             problem: uris_with_problems.include?(uri)},
+                  photo: photo[1],
+                  title: titles_hash[uri]}
     end
     @total_events = @events.count
   end
