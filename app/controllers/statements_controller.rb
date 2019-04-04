@@ -245,7 +245,8 @@ class StatementsController < ApplicationController
           if source.property.uri == "http://schema.org/startDate"
             logger.info("*** Setting Last Show Date:#{_data}")
             #TODO: improve error handling to use consistent {error:}
-            if !_data&.to_s&.downcase&.include?('error')
+            _data_string = _data&.to_s&.downcase
+            if !_data_string.include?('error') && !_data_string.include?('bad')
                _data.class == Array ? last_show_date = _data.last : last_show_date = _data
                if last_show_date.present?
                  webpage.archive_date = last_show_date.to_datetime - 24.hours
