@@ -6,11 +6,13 @@ class EventsController < ApplicationController
     @events = []
     event_rdfs_class_id = RdfsClass.where(name:"Event")
 
-    titles = get_event_titles [Time.now..Time.now.next_year]
+    time_span = [Time.now..Time.now.next_year + 6.months]
+
+    titles = get_event_titles time_span
     #remove blank titles which can happen with multiple languages
     titles_hash = titles.map {|title| [title[0],title[1]] if !title[1].blank? }.to_h
 
-    photos = get_event_photos [Time.now..Time.now.next_year]
+    photos = get_event_photos time_span
     photos_hash = photos.to_h
 
     event_status = get_event_status
