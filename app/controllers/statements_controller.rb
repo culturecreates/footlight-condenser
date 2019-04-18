@@ -207,17 +207,29 @@ class StatementsController < ApplicationController
       params.require(:statement).permit(:cache, :status, :status_origin, :cache_refreshed, :cache_changed, :source_id, :webpage_id)
     end
 
+    def extract_property_ids rdfs_class_name, property_ids
+      # recursive function to traverse tree of properties and add properties of sub-classes with data type of Blank Node or "bnode"
+      rdfs_class = RdfsClass.where(name: rdfs_class_name).first
+      rdfs_class.properties.each do |property|
+        property_ids << property.id
+        if property.value_datatype == "bnode"
+          extract_property_ids property.expected_class, property_ids
+        end
+      end
+    end
+
     def refresh_webpage_statements webpage, scrape_options={}
       @html_cache = []
-      #get the properties for the rdfs_class of the webpage
-      properties = webpage.rdfs_class.properties
-      properties.each do |property|
-        #get the sources for each property (usually one by may have several steps)
+      #get the properties for the rdfs_class of the webpage recursively
+      property_ids = extract_property_ids webpage.rdfs_class.name, []
+
+      property_ids.each do |property_id|
+        #get the sources for each property (usually one but may have several steps)
         #if english add sources without a langauge
         if webpage.language == "en"
-          sources = Source.where(website_id: webpage.website, language: [webpage.language,''], property_id: property.id).order(:property_id, :next_step)
+          sources = Source.where(website_id: webpage.website, language: [webpage.language,''], property_id: property_id).order(:property_id, :next_step)
         else
-          sources = Source.where(website_id: webpage.website, language: webpage.language, property_id: property.id).order(:property_id, :next_step)
+          sources = Source.where(website_id: webpage.website, language: webpage.language, property_id: property_id).order(:property_id, :next_step)
         end
         scrape_sources sources, webpage, scrape_options
       end
