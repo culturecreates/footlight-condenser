@@ -216,6 +216,7 @@ class StatementsController < ApplicationController
           extract_property_ids property.expected_class, property_ids
         end
       end
+      return property_ids
     end
 
     def refresh_webpage_statements webpage, scrape_options={}

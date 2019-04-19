@@ -15,5 +15,13 @@
   <%= @website.graph_name %>
 </p>
 
+<p>
+  <ol>
+  <% @rdf_uris.each do |rdf_uri| %>
+  <li>  <%= rdf_uri %>
+    <% end %>
+  </ol>
+  </p>
+
 <%= link_to 'Edit', edit_website_path(@website) %> |
 <%= link_to 'Back', websites_path %>

@@ -44,6 +44,8 @@ class WebsitesController < ApplicationController
   # GET /websites/1
   # GET /websites/1.json
   def show
+    #show all unique webpage rdf_uris per rdfs_class
+    @rdf_uris = @website.webpages.pluck(:rdf_uri).uniq
   end
 
   # GET /websites/new

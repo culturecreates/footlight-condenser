@@ -4,7 +4,7 @@ class EventsController < ApplicationController
   # GET /websites/:seedurl/events
   def index
     @events = []
-    event_rdfs_class_id = RdfsClass.where(name:"Event")
+    event_rdfs_class_id = RdfsClass.where(name:"EventSeries")
 
     time_span = [Time.now..Time.now.next_year + 6.months]
 
@@ -41,11 +41,11 @@ class EventsController < ApplicationController
   private
 
     def get_event_titles archive_date_range = [time.now - 10.years..time.now + 10.years]
-      return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Title", rdfs_class: 1}, websites:  {seedurl: params[:seedurl]}, webpages: {archive_date: archive_date_range}  }  }  ).pluck(:rdf_uri, :cache, "sources.language", :url)
+      return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Title", rdfs_class: 5}, websites:  {seedurl: params[:seedurl]}, webpages: {archive_date: archive_date_range}  }  }  ).pluck(:rdf_uri, :cache, "sources.language", :url)
     end
 
     def get_event_photos archive_date_range = [time.now - 10.years..time.now + 10.years]
-      return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Photo", rdfs_class: 1},websites:  {seedurl:  params[:seedurl]},webpages: {archive_date: archive_date_range}   }  }  ).order(:created_at).pluck(:rdf_uri, :cache)
+      return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Photo", rdfs_class: 5},websites:  {seedurl:  params[:seedurl]},webpages: {archive_date: archive_date_range}   }  }  ).order(:created_at).pluck(:rdf_uri, :cache)
     end
 
     def get_event_status
