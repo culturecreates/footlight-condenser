@@ -1,6 +1,67 @@
 module StructuredDataHelper
   include CcKgHelper
 
+
+  def build_webpage_jsonld main_rdfs_class, condensor_statements, language, rdf_uri, adr_prefix
+
+
+    #
+    
+    _jsonld = {
+      "@context": "http://schema.org",
+      "@type": main_rdfs_class.name
+      }
+
+    subclasses = Hash.new {|h,k| h[k]=[]}
+    condensor_statements.each do |statement|
+      if statement.source.selected == true && prop = statement.source.property.uri.to_s.split("/").last
+        if statement.source.property.value_datatype == "xsd:anyURI"
+          add_anyURI _jsonld, prop, statement.cache
+        elsif statement.source.property.rdfs_class != main_rdfs_class
+          subclasses[statement.source.property.rdfs_class.name] << statement
+        else
+          _jsonld[prop] = statement.cache
+        end
+      end
+    end
+
+
+
+    subclasses.each do |subclass, statements_list|
+
+      #convert statements_list into lists of cache values
+      converted_statements = {}
+      statements_list.each do |statement|
+        converted_statements[statement.source.property.uri.to_s.split("/").last] = make_into_array statement.cache
+      end
+
+      #get length of array
+      number_instances = converted_statements.first[1].count
+
+      #merge entites of subclass
+       merged_entity = []
+       number_instances.times do |index|
+         merged_entity[index] = {"@type" => subclass}
+      #   merged_entity[index]["name"] = converted_statements.first[1][index]
+
+         converted_statements.each do |n,v|
+             merged_entity[index][n] = v[index]
+         end
+       end
+
+       #get the property to add the subclass
+       property_uri = Property.where(rdfs_class: main_rdfs_class, expected_class: subclass).first.uri
+
+       #add subclass to main class
+      _jsonld[property_uri.to_s.split("/").last] = merged_entity
+
+    end
+
+    return _jsonld
+  end
+
+
+
   def build_jsonld_canadianstage condensor_statements, language, rdf_uri, adr_prefix
     _jsonld = {
       "@context": "http://schema.org",

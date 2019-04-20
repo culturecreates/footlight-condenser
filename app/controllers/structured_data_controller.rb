@@ -1,5 +1,32 @@
 class StructuredDataController < ApplicationController
 
+  # GET /structured_data/markup?url=
+  def webpage
+    params[:url]
+    params[:adr_prefix] ||= "http://artsdata.ca/resource/"
+
+
+    webpage = Webpage.where(url: params[:url]).first
+    if webpage
+      main_rdfs_class = webpage.rdfs_class
+      condensor_statements = webpage.statements
+
+      @data = {
+        "webpage" => webpage,
+        "rdfs_class" => main_rdfs_class,
+        "adr_prefix" => params[:adr_prefix],
+
+        "json-ld" => helpers.build_webpage_jsonld(main_rdfs_class, condensor_statements, webpage.language, webpage.rdf_uri, params[:adr_prefix])
+      }
+    end
+
+    if @data
+      render :webpage, formats: :json
+    else
+      render json: {error: "Error generating json-ld for webpage #{params[:webpage]}."}, status: :unprocessable_entity
+    end
+  end
+
 
   def place_markup
     #TODO: add route and code to create JSON-LD for Places

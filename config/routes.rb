@@ -2,7 +2,12 @@ Rails.application.routes.draw do
 
   get 'custom/get_comotion_locations'
 
-  get 'structured_data/event_markup'
+
+  resources :structured_data do
+    collection do
+      get 'webpage', 'event_markup'
+    end
+  end
 
   root 'websites#index'
 
