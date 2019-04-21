@@ -1,7 +1,7 @@
 # Read about fixtures at http://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
 
 one:
-  cache: MyString
+  cache: StatementOne
   status: initial
   status_origin: MyString
   cache_refreshed: 2018-07-30 16:46:00 UTC
@@ -10,12 +10,12 @@ one:
   webpage: one
 
 two:
-  cache: MyString
+  cache: StatementTwo
   status: initial
   status_origin: MyString
   cache_refreshed: 2018-07-30 16:46:00 UTC
   cache_changed: 2018-07-30 16:46:00 UTC
-  source: one
+  source: two
   webpage: two
 
 three:
@@ -26,3 +26,23 @@ three:
   cache_changed: 2018-07-30 16:46:00 UTC
   source: two
   webpage: four
+
+
+four:
+  cache: "[\"date1\",\"date2\"]"
+  status: initial
+  status_origin: MyString
+  cache_refreshed: 2018-07-30 16:46:00 UTC
+  cache_changed: 2018-07-30 16:46:00 UTC
+  source:  six
+  webpage: one
+
+
+five:
+  cache: "[\"montreal\",\"toronto\"]"
+  status: initial
+  status_origin: MyString
+  cache_refreshed: 2018-07-30 16:46:00 UTC
+  cache_changed: 2018-07-30 16:46:00 UTC
+  source:  seven
+  webpage: one

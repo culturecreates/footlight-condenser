@@ -2,7 +2,7 @@
 
 one:
   algorithm_value: MyString
-  selected: false
+  selected: true
   selected_by: MyString
   language: En
   next_step:
@@ -12,12 +12,12 @@ one:
 
 two:
   algorithm_value: MyString
-  selected: false
+  selected: true
   selected_by: MyString
   language: En
   next_step:
   render_js: false
-  property: two
+  property: five
   website: two
 
 three:
@@ -29,3 +29,24 @@ three:
   render_js: false
   property: two
   website: two
+
+six:
+  algorithm_value: Dates
+  selected: true
+  selected_by: MyString
+  language: en
+  next_step:
+  render_js: false
+  property: six
+  website: one
+
+
+seven:
+  algorithm_value: Locations
+  selected: true
+  selected_by: MyString
+  language: en
+  next_step:
+  render_js: false
+  property: seven
+  website: one

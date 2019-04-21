@@ -2,52 +2,82 @@ module StructuredDataHelper
   include CcKgHelper
 
 
-  def build_webpage_jsonld main_rdfs_class, condensor_statements, language, rdf_uri, adr_prefix
-
-
+  def build_jsonld_for_class class_name, statements
+    # class_jsonld = {
+    #   "@context": "http://schema.org",
+    #   "@type": class_name
+    #   }
     #
-    
-    _jsonld = {
-      "@context": "http://schema.org",
-      "@type": main_rdfs_class.name
-      }
+    # condensor_statements.each do |statement|
+    #   if statement.source.selected == true && prop = statement.source.property.uri.to_s.split("/").last
+    #     if statement.source.property.value_datatype == "xsd:anyURI"
+    #       add_anyURI class_jsonld, prop, statement.cache
+    #     else
+    #       class_jsonld[prop] = statement.cache
+    #     end
+    #   end
+    # end
 
-    subclasses = Hash.new {|h,k| h[k]=[]}
-    condensor_statements.each do |statement|
+    #convert statements_list into lists of cache values
+    converted_statements = {}
+    statements.each do |statement|
       if statement.source.selected == true && prop = statement.source.property.uri.to_s.split("/").last
-        if statement.source.property.value_datatype == "xsd:anyURI"
-          add_anyURI _jsonld, prop, statement.cache
-        elsif statement.source.property.rdfs_class != main_rdfs_class
-          subclasses[statement.source.property.rdfs_class.name] << statement
-        else
-          _jsonld[prop] = statement.cache
-        end
+         if statement.source.property.value_datatype == "xsd:anyURI"
+           #todo: fill in. 
+         else
+           converted_statements[prop] = make_into_array statement.cache
+         end
       end
     end
 
+    #get length of array
+    number_instances = converted_statements.first[1].count
 
-
-    subclasses.each do |subclass, statements_list|
-
-      #convert statements_list into lists of cache values
-      converted_statements = {}
-      statements_list.each do |statement|
-        converted_statements[statement.source.property.uri.to_s.split("/").last] = make_into_array statement.cache
-      end
-
-      #get length of array
-      number_instances = converted_statements.first[1].count
-
-      #merge entites of subclass
-       merged_entity = []
-       number_instances.times do |index|
-         merged_entity[index] = {"@type" => subclass}
-      #   merged_entity[index]["name"] = converted_statements.first[1][index]
-
-         converted_statements.each do |n,v|
-             merged_entity[index][n] = v[index]
-         end
+    #merge entites of subclass
+     merged_entity = []
+     number_instances.times do |index|
+       merged_entity[index] = {"@type" => class_name}
+       converted_statements.each do |n,v|
+           merged_entity[index][n] = v[index]
        end
+     end
+
+
+
+    return merged_entity
+  end
+
+  def build_webpage_jsonld main_rdfs_class, condensor_statements, language, rdf_uri, adr_prefix
+
+
+    statements_grouped_by_class =  Hash.new {|h,k| h[k]=[]}
+    condensor_statements.each do |statement|
+      rdf_class = statement.source.property.rdfs_class
+      statements_grouped_by_class[rdf_class.name] << statement
+    end
+
+    #create json-ld of each class
+    jsonld_grouped_by_class =  Hash.new {|h,k| h[k]=[]}
+    statements_grouped_by_class.each do |class_name, statements|
+      jsonld_grouped_by_class[class_name] = build_jsonld_for_class class_name, statements
+    end
+
+    #link all classes by traversing the tree of classes in properties table
+
+    # 1. for each class starting with main class
+    # 2. look up subclases
+    # 3. link them
+
+    link_jsonld_subclass subject_class, predicate_property, object_class, entire_jsonld
+
+
+
+
+
+######  This is part of build_jsonld_for_class
+
+
+### this is part of linking subclases
 
        #get the property to add the subclass
        property_uri = Property.where(rdfs_class: main_rdfs_class, expected_class: subclass).first.uri
@@ -55,7 +85,7 @@ module StructuredDataHelper
        #add subclass to main class
       _jsonld[property_uri.to_s.split("/").last] = merged_entity
 
-    end
+
 
     return _jsonld
   end

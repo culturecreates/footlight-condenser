@@ -8,6 +8,25 @@ class StructuredDataHelperTest < ActionView::TestCase
   TESTDATE_TODAY = "2019-01-01"
   TESTDATE_TOMORROW = "2019-01-02"
 
+
+# build_jsonld_for_class main_rdfs_class, condensor_statements
+
+  setup do
+    @main_rdfs_class = rdfs_classes(:one)
+  end
+
+  test "build_jsonld_for_class: simple list" do
+    expected_output = [{"@type"=>"Event", "name"=>"StatementOne", "description"=>"StatementTwo"}]
+    assert_equal expected_output, build_jsonld_for_class(@main_rdfs_class.name, [statements(:one),statements(:two)])
+  end
+
+  test "build_jsonld_for_class: mulitple item list" do
+    expected_output = [{"@type"=>"Event", "dates"=>"date1", "location"=>"montreal"}, {"@type"=>"Event", "dates"=>"date2", "location"=>"toronto"}]
+    assert_equal expected_output, build_jsonld_for_class(@main_rdfs_class.name, [statements(:four),statements(:five)])
+  end
+
+
+
 # build_events_per_startDate _jsonld
   test "build_events_per_startDate: only a date" do
     expected_output = [{"startDate"=>TESTDATETIME_TODAY, "endDate"=>TESTDATE_TODAY}]
@@ -131,9 +150,11 @@ class StructuredDataHelperTest < ActionView::TestCase
   end
 
 
-  #tests for publishable
-    test "publishable? no date" do
-      assert_equal  true, publishable?(JSON.parse("{\"startDate\" : [\"startDate\"], \"location\" : [\"location\"], \"name\" : \"name\"}"))
-    end
+#tests for publishable
+  test "publishable? no date" do
+    assert_equal  true, publishable?(JSON.parse("{\"startDate\" : [\"startDate\"], \"location\" : [\"location\"], \"name\" : \"name\"}"))
+  end
+
+
 
 end

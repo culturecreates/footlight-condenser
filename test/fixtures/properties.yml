@@ -1,9 +1,9 @@
 # Read about fixtures at http://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
 
 one:
-  label: MyString
+  label: PropertyOne
   value_datatype: MyString
-  uri: MyString
+  uri: http://schema.org/name
   rdfs_class: one
 
 two:
@@ -22,4 +22,24 @@ four:
   label: Title
   value_datatype: MyString
   uri: MyString
+  rdfs_class: one
+
+five:
+  label: PropertyFive
+  value_datatype: MyString
+  uri: http://schema.org/description
+  rdfs_class: one
+
+
+six:
+  label: Dates
+  value_datatype: MyString
+  uri: http://schema.org/dates
+  rdfs_class: one
+
+
+seven:
+  label: Locations
+  value_datatype: MyString
+  uri: http://schema.org/location
   rdfs_class: one
