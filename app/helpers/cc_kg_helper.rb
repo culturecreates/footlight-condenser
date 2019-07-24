@@ -6,7 +6,7 @@ module CcKgHelper
     @cckg_cache = {} if !defined? @cckg_cache
     if !@cckg_cache[cache_key]
       begin
-        data = HTTParty.post("http://rdf.ontotext.com/4045483734/cc/repositories/footlight",
+        data = HTTParty.post("http://db.artsdata.ca/repositories/artsdata",
           body: {'query' => q},
           headers: { 'Content-Type' => 'application/x-www-form-urlencoded',
                     'Accept' => 'application/json',
