@@ -9,8 +9,7 @@ module CcKgHelper
         data = HTTParty.post("http://db.artsdata.ca/repositories/artsdata",
           body: {'query' => q},
           headers: { 'Content-Type' => 'application/x-www-form-urlencoded',
-                    'Accept' => 'application/json',
-                    'Authorization' => 'Basic czRkYWxsZGdnaDgxOjUwZjVnMXQ3OTI4OXFqdg=='},
+                    'Accept' => 'application/json'},
          timeout: 4 )
 
         if data.response.code[0] == '2'
