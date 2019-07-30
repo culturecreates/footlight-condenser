@@ -11,12 +11,11 @@ module CcKgHelper
           headers: { 'Content-Type' => 'application/x-www-form-urlencoded',
                     'Accept' => 'application/json'},
          timeout: 4 )
-
         if data.response.code[0] == '2'
             result[:data] = JSON.parse(data.body)["results"]["bindings"]
             @cckg_cache[cache_key] = result
         else
-          result =  {error: data.response.message}
+          result =  {error: data.response.message, response: data}
         end
       rescue => e
         result = {error: "RESCUE while searching in Knowledge Graph: #{e.inspect} "}

@@ -99,7 +99,7 @@ class StructuredDataHelperTest < ActionView::TestCase
 
   test "get_kg_place: should get fass place from cc knowledge graph" do
     expected_output = fass_place
-    assert_equal expected_output, get_kg_place("http://artsdata.ca/resource/place/big_top_fass")
+    assert_equal expected_output, get_kg_place("http://kg.artsdata.ca/resource/place/big_top_fass")
   end
 
   test "get_kg_place: should get non-existant place" do
@@ -108,7 +108,7 @@ class StructuredDataHelperTest < ActionView::TestCase
   end
 
   test "get_kg_place: should produce error with invalid URI" do
-    expected_output = {:error=>"Bad Request"}
+    expected_output = {:error=>""}
     assert_equal expected_output, get_kg_place("invalid-uri")
   end
 

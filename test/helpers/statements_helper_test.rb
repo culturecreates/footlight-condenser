@@ -46,25 +46,25 @@ class StatementsHelperTest < ActionView::TestCase
 
   #search_cckg
   test "search_cckg: should search cckg for uris that match 100%" do
-    expected = {data:[["Berkeley Street Theatre", "http://artsdata.ca/resource/place/berkeley_street_theatre"]]}
+    expected = {data:[["Berkeley Street Theatre", "http://kg.artsdata.ca/resource/place/berkeley_street_theatre"]]}
     actual = search_cckg "Berkeley Street Theatre", "Place"
     assert_equal expected, actual
   end
 
   test "search_cckg: should search cckg for uris by matching name in substring" do
-    expected = {data:[["Berkeley Street Theatre", "http://artsdata.ca/resource/place/berkeley_street_theatre"], ["Bluma Appel Theatre", "http://artsdata.ca/resource/place/bluma_appel_theatre"]]}
+    expected = {data:[["Berkeley Street Theatre", "http://kg.artsdata.ca/resource/place/berkeley_street_theatre"], ["Bluma Appel Theatre", "http://kg.artsdata.ca/resource/place/bluma_appel_theatre"]]}
     actual = search_cckg "The locations is in the lovely Bluma Appel Theatre and Berkeley Street Theatre.", "Place"
     assert_equal expected, actual
   end
 
   test "search_cckg: should search cckg for nowhere" do
-    expected = {data:[]}
+    expected = {:data=>[]}
     actual = search_cckg "Show is at nowhere", "Place"
     assert_equal expected, actual
   end
 
   test "search_cckg: remove duplicates" do
-    expected = {data:[["Berkeley Street Theatre", "http://artsdata.ca/resource/place/berkeley_street_theatre"]]}
+    expected = {data:[["Berkeley Street Theatre", "http://kg.artsdata.ca/resource/place/berkeley_street_theatre"]]}
     actual = search_cckg "The locations is in the lovely Berkeley Street Theatre and Berkeley Street.", "Place"
     assert_equal expected, actual
   end
