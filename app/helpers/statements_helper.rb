@@ -163,12 +163,11 @@ module StatementsHelper
 
   def search_cckg str, rdfs_class #returns a HASH
     q = "PREFIX schema: <http://schema.org/>            \
-        select  ?uri  ?name where {              \
+        select distinct ?uri  ?name where {              \
 	          ?uri a schema:#{rdfs_class} .                \
             ?uri schema:name ?name_lang .                    \
             filter  (isURI(?uri))   \
              bind (str(?name_lang) as ?name) \
-            filter (regex(\"#{str}\",?name,\"i\"))  \
          } "
     results = cc_kg_query(q, rdfs_class)
     hits = []
