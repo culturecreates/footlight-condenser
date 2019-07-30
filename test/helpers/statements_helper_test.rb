@@ -46,8 +46,8 @@ class StatementsHelperTest < ActionView::TestCase
 
   #search_cckg
   test "search_cckg: should search cckg for uris that match 100%" do
-    expected = {data:[["Berkeley Street Theatre", "http://kg.artsdata.ca/resource/place/berkeley_street_theatre"]]}
-    actual = search_cckg "Berkeley Street Theatre", "Place"
+    expected = {:data=>[["Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/place/theatre_maisonneuve"]]}
+    actual = search_cckg "Théâtre Maisonneuve", "Place"
     assert_equal expected, actual
   end
 
