@@ -9,7 +9,7 @@ class StatementsController < ApplicationController
     webpage.statements.each do |statement|
       @statements << statement
     end
-    @statements.sort
+    @statements.sort_by! { |statement| statement.source.property[:label] }
   end
 
   #PATCH /statements/refresh_webpage.json?url=http://

@@ -1,12 +1,14 @@
 <p id="notice"><%= notice %></p>
 <ul>
 <% @statements.each do |statement| %>
-  <%= statement.source.selected ? "<li>".html_safe : "<ul><li> Alternative".html_safe  %>
+<li>
+  <%= "<b>".html_safe if statement.source.selected   %>
   <%= statement.source.property[:label] %>
+    <%= "</b>".html_safe if statement.source.selected   %>
   <%= format_language statement.source[:language] %>
   -->
   <%= statement[:cache] %>
- <%= statement.source.selected ? "" : "</ul>".html_safe %>
+
 <% end %>
 </ul>
 <%= link_to 'Back', webpages_path %>
