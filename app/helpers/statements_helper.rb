@@ -163,21 +163,22 @@ module StatementsHelper
 
   def search_cckg str, rdfs_class #returns a HASH
     q = "PREFIX schema: <http://schema.org/>            \
-        select DISTINCT ?uri (str(?name_lang) as ?name) where {              \
+        select distinct ?uri  ?name where {              \
 	          ?uri a schema:#{rdfs_class} .                \
             ?uri schema:name ?name_lang .                    \
-            filter (!EXISTS {filter (isBlank(?uri)) })  \
-        } "
+            filter  (isURI(?uri))   \
+             bind (str(?name_lang) as ?name) \
+         } "
     results = cc_kg_query(q, rdfs_class)
     hits = []
-    if results[:error].blank?
+    if !results[:error]
       results[:data].each {|entity|  hits << entity if str.downcase.include?(entity["name"]["value"].downcase)}
       hits.count.times do |n|
         hits[n] = [hits[n]["name"]["value"],hits[n]["uri"]["value"]]
       end
       return {data: hits.uniq {|hit| hit[1]}}
     else
-      return {error: results} #with error message
+      return {error: results, method: "search_cckg"} #with error message
     end
   end
 

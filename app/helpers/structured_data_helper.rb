@@ -452,7 +452,7 @@ module StructuredDataHelper
       if place_uri[0..3] == "http"
         place_uri = "<#{place_uri}>"
       elsif place_uri[0..3] == "adr:"
-        place_uri = "<http://artsdata.ca/resource/#{place_uri[4..-1]}>"
+        place_uri = "<http://kg.artsdata.ca/resource/#{place_uri[4..-1]}>"
       end
 
 
@@ -462,8 +462,7 @@ module StructuredDataHelper
            ?b  ?pred ?obj .    \
            }"
       results = cc_kg_query(q, place_uri)
-
-      if results[:error].blank?
+      if !results[:error]
         place = {}
         results[:data].each do |statement|
           place[statement["pred"]["value"].to_s.split('/').last] =  statement["obj"]["value"]

@@ -6,18 +6,16 @@ module CcKgHelper
     @cckg_cache = {} if !defined? @cckg_cache
     if !@cckg_cache[cache_key]
       begin
-        data = HTTParty.post("http://rdf.ontotext.com/4045483734/cc/repositories/footlight",
+        data = HTTParty.post("http://db.artsdata.ca/repositories/artsdata",
           body: {'query' => q},
-          headers: { 'Content-Type' => 'application/x-www-form-urlencoded',
-                    'Accept' => 'application/json',
-                    'Authorization' => 'Basic czRkYWxsZGdnaDgxOjUwZjVnMXQ3OTI4OXFqdg=='},
+          headers: { 'Content-Type' => 'application/x-www-form-urlencoded; charset=UTF-8',
+                    'Accept' => 'application/json'},
          timeout: 4 )
-
         if data.response.code[0] == '2'
             result[:data] = JSON.parse(data.body)["results"]["bindings"]
             @cckg_cache[cache_key] = result
         else
-          result =  {error: data.response.message}
+          result =  {error: data.response.message, response: data}
         end
       rescue => e
         result = {error: "RESCUE while searching in Knowledge Graph: #{e.inspect} "}
