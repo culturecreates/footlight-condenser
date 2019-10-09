@@ -119,45 +119,18 @@ module StatementsHelper
     rdfs_class = property_obj.expected_class
     uris << rdfs_class
 
-    #search condenser database
-    results = search_condenser(uri_string, rdfs_class)
-    results[:data].each do |uri|
-      uris << uri
-    end
-    logger.info("*** search condenser:  #{uris}")
-
-    if uris.count == 2 #then no matches found yet, keep looking
-      #search Culture Creates KG
-      cckg_results = search_cckg(uri_string, rdfs_class)
-      if cckg_results[:error]
-          uris << "abort_update"  #this forces the update to skip when the KG server is down and avoids setting everything to blank
-      else
-        cckg_results[:data].each do |uri|
-          uris << uri
-        end
+    #search Culture Creates KG
+    cckg_results = search_cckg(uri_string, rdfs_class)
+    if cckg_results[:error]
+        uris << "abort_update"  #this forces the update to skip when the KG server is down and avoids setting everything to blank
+    else
+      cckg_results[:data].each do |uri|
+        uris << uri
       end
     end
+
     logger.info("*** search condenser and kg:  #{uris}")
     return uris
-  end
-
-  def search_condenser uri_string, expected_class #returns a HASH
-    # get names of all statements of expected_class
-    hits = []
-    #statements = Statement.where(cache: uri_string)
-    entities = Statement.joins(source: :property).where({sources: { properties: {label: "Name", rdfs_class: RdfsClass.where(name: expected_class)}}}).pluck(:cache,:webpage_id)
-    entities.each {|entity| hits << entity if uri_string.downcase.include?(entity[0].downcase)}
-
-
-    # get uris for found places
-    hits.each_with_index do |hit,index|
-      webpage = Webpage.find(hit[1])
-      if webpage
-        hits[index][1] = webpage.rdf_uri
-      end
-    end
-    return {data: hits.uniq}
-    ##TODO: ????also check (s.webpage.website == webpage.website)
   end
 
 

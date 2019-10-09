@@ -23,25 +23,6 @@ class StatementsHelperTest < ActionView::TestCase
   #   assert_equal expected_output, scrape(source, "http://culturecreates.com")
   # end
 
-  # search_condenser
-  test "search_condenser: should search condenser for uris that match 100%" do
-    expected = {data:[["myPlaceName", "httpUri"]]}
-    actual = search_condenser "myPlaceName", "Place"
-    assert_equal expected, actual
-  end
-
-  test "search_condenser: should search condenser for uris by matching name in substring" do
-    expected = {data:[["myPlaceName", "httpUri"]]}
-    actual = search_condenser "Show is at myPlaceName", "Place"
-    assert_equal expected, actual
-  end
-
-  test "search_condenser: should search condenser for nowhere" do
-    expected = {data:[]}
-    actual = search_condenser "Show is at nowhere", "Place"
-    assert_equal expected, actual
-  end
-
 
 
   #search_cckg
