@@ -23,3 +23,31 @@ four:
   value_datatype: MyString
   uri: MyString
   rdfs_class: one
+
+five:
+  label: Description
+  value_datatype: MyString
+  uri: http://schema.org/description
+  rdfs_class: one
+
+
+six:
+  label: Dates
+  value_datatype: MyString
+  uri: http://schema.org/dates
+  rdfs_class: one
+
+
+seven:
+  label: Locations
+  value_datatype: xsd:anyURI
+  uri: http://schema.org/location
+  rdfs_class: one
+  expected_class: Place
+
+eight:
+  label: subEvent
+  value_datatype: bnode
+  expected_class: Event
+  rdfs_class: eventseries
+
