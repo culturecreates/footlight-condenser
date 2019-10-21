@@ -235,11 +235,19 @@ class StatementsController < ApplicationController
 
       logger.info("*** Starting scrape with sources:#{sources.inspect} for webpage: #{webpage.inspect}")
       sources.each do |source|
+
+        #################################################
+        # MAIN SCRAPE ACTIVITY
         _scraped_data = helpers.scrape(source, @next_step.nil? ? webpage.url :  @next_step, scrape_options)
+        #################################################
 
         if source.next_step.nil?
           @next_step = nil #clear to break chain of scraping urls
+
+          #################################################
+          # SECONDARY SCRAPE ACTIVITY - post process
           _data = helpers.format_datatype(_scraped_data, source.property, webpage)
+          #################################################
 
           #add startDate to ArchiveDate in Webpages Table to be able to sort by date and refresh event still to come.
           if source.property.uri == "http://schema.org/startDate"

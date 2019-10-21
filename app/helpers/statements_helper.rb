@@ -24,7 +24,7 @@ module StatementsHelper
         algorithm.split(';').each do |a|
           logger.info ("*** Algorithm: #{a}")
           if a.start_with? 'url'
-            #replace current page by sraping new url
+            #replace current page by sraping new url using format url='http://example.com'
             new_url = a.delete_prefix("url=")
             new_url = new_url.gsub("$array","results_list")
             new_url = new_url.gsub("$url","url")
@@ -49,20 +49,22 @@ module StatementsHelper
           elsif a.start_with? 'xpath_sanitize'
             page_data = page.xpath(a.delete_prefix("xpath_sanitize="))
             page_data.each { |d| results_list << sanitize(d.to_s ,tags: %w(h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br), attributes: %w(href)) }
-            logger.info("***  algorithm: #{a} RESULT => #{page_data} ")
+
           elsif a.start_with? 'if_xpath'
             page_data = page.xpath(a.delete_prefix("if_xpath="))
             break if page_data.blank?
             page_data.each { |d| results_list << d.text}
-            logger.info("***  algorithm: #{a} RESULT => #{page_data} ")
+
           elsif a.start_with? 'xpath'
+            algo = a.delete_prefix("xpath=").gsub("$url",url)
+            logger.info ("---------!!!!!!!!!-------- algo: #{algo}")
             page_data = page.xpath(a.delete_prefix("xpath="))
             page_data.each { |d| results_list << d.text}
-            logger.info("***  algorithm: #{a} RESULT => #{page_data} ")
+
           elsif  a.start_with? 'css'
             page_data = page.css(a.delete_prefix("css="))
             page_data.each { |d| results_list << d.text}
-            logger.info("***  algorithm: #{a} RESULT => #{page_data} ")
+
           end
         end
       rescue => e
