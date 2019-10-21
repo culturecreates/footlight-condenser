@@ -3,58 +3,68 @@ module StructuredDataHelper
 
 
   def build_jsonld_for_class class_name, statements
-    # class_jsonld = {
-    #   "@context": "http://schema.org",
-    #   "@type": class_name
-    #   }
-    #
-    # condensor_statements.each do |statement|
-    #   if statement.source.selected == true && prop = statement.source.property.uri.to_s.split("/").last
-    #     if statement.source.property.value_datatype == "xsd:anyURI"
-    #       add_anyURI class_jsonld, prop, statement.cache
-    #     else
-    #       class_jsonld[prop] = statement.cache
-    #     end
-    #   end
-    # end
 
-    #convert statements_list into lists of cache values
+    #using only selected and valid Statements build a Hash {property1 => [cache], property2 => [cache1, cache2]}
     converted_statements = {}
     statements.each do |statement|
       if statement.source.selected == true && prop = statement.source.property.uri.to_s.split("/").last
          if statement.source.property.value_datatype == "xsd:anyURI"
-           #todo: fill in. 
+           #todo: case with multiple uris.["scrapped name","Class name", ["entity name","uri"],["entity name","uri"]]
+
+           # expected format: ["scrapped name","Class name", ["entity name","uri"]]
+           puts "statement.cache[2][1]: #{statement.cache[2][1]} from statement.cache: #{statement.cache} "
+           converted_statements[prop] = make_into_array statement.cache[2][1]
          else
            converted_statements[prop] = make_into_array statement.cache
          end
       end
     end
 
-    #get length of array
-    number_instances = converted_statements.first[1].count
+    #get MAX length of all arrays in the value position of the hash
+    max_instances = 1
+    converted_statements.each do |n,v|
+      max_instances = v.count if v.count > max_instances
+    end
 
-    #merge entites of subclass
-     merged_entity = []
-     number_instances.times do |index|
-       merged_entity[index] = {"@type" => class_name}
+    # Create max_instances of JSON-LD class_name entities.
+    # If a statement does not have multiple values, duplicate the first to match max_instances.
+     jsonld = []
+     max_instances.times do |index|
+       jsonld[index] = {"@type" => class_name}
        converted_statements.each do |n,v|
-           merged_entity[index][n] = v[index]
+           jsonld[index][n] = v[index] || v[0]
        end
      end
 
-
-
-    return merged_entity
+    return jsonld
   end
 
-  def build_webpage_jsonld main_rdfs_class, condensor_statements, language, rdf_uri, adr_prefix
-
+  def group_statements_by_class condensor_statements
 
     statements_grouped_by_class =  Hash.new {|h,k| h[k]=[]}
     condensor_statements.each do |statement|
       rdf_class = statement.source.property.rdfs_class
       statements_grouped_by_class[rdf_class.name] << statement
     end
+    return statements_grouped_by_class
+  end
+
+
+  def nest_jsonld main_json, insert_json, property
+    main_json_list = make_into_array main_json
+    insert_json_list =  make_into_array insert_json
+
+    main_json_list.each_with_index  do |j,index|
+          j[property] = insert_json_list[index]
+    end
+
+    return main_json_list
+  end
+
+  def build_webpage_jsonld main_rdfs_class, condensor_statements, language, rdf_uri, adr_prefix
+
+    # step 1: Group statements by Class
+    statements_grouped_by_class =   group_statements_by_class condensor_statements
 
     #create json-ld of each class
     jsonld_grouped_by_class =  Hash.new {|h,k| h[k]=[]}
@@ -63,32 +73,64 @@ module StructuredDataHelper
     end
 
     #link all classes by traversing the tree of classes in properties table
-
     # 1. for each class starting with main class
     # 2. look up subclases
     # 3. link them
-
-    link_jsonld_subclass subject_class, predicate_property, object_class, entire_jsonld
-
-
-
-
-
-######  This is part of build_jsonld_for_class
-
-
-### this is part of linking subclases
-
-       #get the property to add the subclass
-       property_uri = Property.where(rdfs_class: main_rdfs_class, expected_class: subclass).first.uri
-
-       #add subclass to main class
-      _jsonld[property_uri.to_s.split("/").last] = merged_entity
-
+     merge_classes main_rdfs_class, jsonld_grouped_by_class
 
 
     return _jsonld
   end
+
+  def get_rdfs_class_leaves rdfs_class_name
+    #checks if rdfs_class_name has nested classes: returns ActiveRecord::Relation array of properties
+    properties = []
+    classes = RdfsClass.where(name: rdfs_class_name)
+    if classes.present?
+      rdfs_class = classes.first
+      properties = Property.where(rdfs_class: rdfs_class, value_datatype: "bnode")
+    end
+    return properties
+  end
+
+
+  def merge_classes (rdfs_class_name, entity_list)
+    # find leaves which are classes linked through a property
+    # entity_list: [Class Name 1: [{statement1}, {statement2}], Class Name 2: [{statement}]]
+
+    leaves = get_rdfs_class_leaves rdfs_class_name # gets a list of properties linked to subClasses
+
+    leaves.each do |leaf|
+
+      leaf_uri_class = leaf.uri.to_s.split("/").last
+      #check if leaf exists in the entity_list with statements to merge
+      if entity_list[leaf_uri_class]
+
+        #check if leaf has linked classes and recursively call merge_classes
+        subleaves = get_rdfs_class_leaves leaf.expected_class
+        if subleaves.present?
+          merge_classes subleaves.expected_class, entity_list
+        end
+        entity_list[rdfs_class_name] = nest_jsonld entity_list[rdfs_class_name], entity_list[leaf.expected_class], leaf_uri_class
+      end
+    end
+    return entity_list[rdfs_class_name]
+  end
+
+
+  def make_into_array input
+    return input if input.class == Array
+    return [input] if  input.class == Hash
+    if input[0] != "["
+      array = [] << input
+    else
+      array = JSON.parse(input)
+    end
+    return array
+  end
+
+
+
 
 
 
@@ -474,13 +516,5 @@ module StructuredDataHelper
     end
   end
 
-  def make_into_array str
-    if str[0] != "["
-      array = [] << str
-    else
-      array = JSON.parse(str)
-    end
-    return array
-  end
 
 end

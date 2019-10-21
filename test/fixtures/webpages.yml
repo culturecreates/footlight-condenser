@@ -28,3 +28,10 @@ four:
   rdf_uri: httpUri
   rdfs_class: place
   website: two
+
+five:
+  url: Test page with linked Place
+  language: en
+  rdf_uri: httpUri2
+  rdfs_class:
+  website: two

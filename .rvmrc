@@ -1,1 +1,1 @@
-rvm use 2.5.1@footlight-condenser --create
+rvm use 2.5.7@footlight-condenser --create

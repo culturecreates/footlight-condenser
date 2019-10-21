@@ -39,10 +39,20 @@ four:
 
 
 five:
-  cache: "[\"montreal\",\"toronto\"]"
+  cache: "[\"Show on date 1\",\"Show on date 2\"]"
+  status: initial
+  status_origin: MyString
+  cache_refreshed: 2018-07-30 16:46:00 UTC
+  cache_changed: 2018-07-30 16:46:00 UTC
+  source:  eight
+  webpage: one
+
+six:
+  cache: "[\"scrapped name\",\"Place\",[\"place name\",\"http://place.com\"]]"
   status: initial
   status_origin: MyString
   cache_refreshed: 2018-07-30 16:46:00 UTC
   cache_changed: 2018-07-30 16:46:00 UTC
   source:  seven
-  webpage: one
+  webpage: two
+

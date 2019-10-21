@@ -70,7 +70,7 @@ ActiveRecord::Schema.define(version: 20181203150539) do
     t.bigint "website_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.datetime "archive_date", default: "2019-11-18 20:02:56"
+    t.datetime "archive_date", default: "2020-10-10 15:54:04"
     t.index ["rdfs_class_id"], name: "index_webpages_on_rdfs_class_id"
     t.index ["url", "website_id"], name: "index_webpages_on_url_and_website_id", unique: true
     t.index ["url"], name: "index_webpages_on_url"

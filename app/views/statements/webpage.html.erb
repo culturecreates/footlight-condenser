@@ -4,11 +4,16 @@
 <li>
   <%= "<b>".html_safe if statement.source.selected   %>
   <%= statement.source.property[:label] %>
-    <%= "</b>".html_safe if statement.source.selected   %>
+  <%= "</b>".html_safe if statement.source.selected   %>
   <%= format_language statement.source[:language] %>
   -->
   <%= statement[:cache] %>
+  <%= debug(statement.source.property.class) %>
 
 <% end %>
+
+
 </ul>
 <%= link_to 'Back', webpages_path %>
+
+

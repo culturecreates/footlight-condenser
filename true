@@ -1,2 +1,0 @@
-      invoke  active_record
-      create    db/migrate/20180927145330_add_index_to_webpages.rb

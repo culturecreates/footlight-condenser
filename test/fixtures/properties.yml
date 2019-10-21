@@ -25,7 +25,7 @@ four:
   rdfs_class: one
 
 five:
-  label: PropertyFive
+  label: Description
   value_datatype: MyString
   uri: http://schema.org/description
   rdfs_class: one
@@ -40,6 +40,13 @@ six:
 
 seven:
   label: Locations
-  value_datatype: MyString
+  value_datatype: xsd:anyURI
   uri: http://schema.org/location
   rdfs_class: one
+
+eight:
+  label: subEvent
+  value_datatype: bnode
+  expected_class: Event
+  rdfs_class: eventseries
+

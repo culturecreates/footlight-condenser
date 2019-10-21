@@ -79,6 +79,7 @@ class WebpagesController < ApplicationController
         format.html { redirect_to @webpage, notice: 'Webpage was successfully created.' }
         format.json { render :show, status: :created, location: @webpage }
       else
+        @rdfs_classes = RdfsClass.all
         format.html { render :new }
         format.json { render json: @webpage.errors, status: :unprocessable_entity }
       end

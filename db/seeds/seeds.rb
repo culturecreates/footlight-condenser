@@ -1,16 +1,13 @@
-# This file should contain all the record creation needed to seed the database with its default values.
-# The data can then be loaded with the rails db:seed command (or created alongside the database with db:setup).
-#
-# Examples:
-#
-#   movies = Movie.create([{ name: 'Star Wars' }, { name: 'Lord of the Rings' }])
-#   Character.create(name: 'Luke', movie: movies.first)
 
+# rails db:seed:base
+
+puts "starting class seeds..."
 
 RdfsClass.create!(name: "Event")
 RdfsClass.create!(name: "Organization")
 RdfsClass.create!(name: "Place")
 RdfsClass.create!(name: "Category")
+RdfsClass.create!(name: "EventSeries")
 
 
 Property.create!(label:  "Title", rdfs_class_id: 1, uri: "http://schema.org/name")
@@ -27,6 +24,8 @@ Property.create!(label:  "Produced by",  value_datatype: "xsd:anyURI",rdfs_class
 Property.create!(label:  "Performed by", value_datatype: "xsd:anyURI", rdfs_class_id: 1, expected_class: "Organization", uri: "http://schema.org/performer")
 Property.create!(label:  "Start date", value_datatype: "xsd:dateTime", rdfs_class_id: 1, uri: "http://schema.org/startDate")
 Property.create!(label:  "Event type", value_datatype: "xsd:anyURI", rdfs_class_id: 1, expected_class: "Category", uri: "")
+Property.create!(label:  "Title", rdfs_class_id: 5,  uri: "http://schema.org/name")
+Property.create!(label:  "subEvent", value_datatype: "bnode", rdfs_class_id: 5, expected_class: "Event")
 
 
 #Other Class properties
