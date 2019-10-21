@@ -24,6 +24,25 @@ class StatementsHelperTest < ActionView::TestCase
   # end
 
 
+#format_datatype (scraped_data, property, webpage)
+  test "prexisting array input for any:URI manual source" do
+   property = properties(:seven)
+   scraped_data = ["[\"name\",\"Class\",[\"remote name\",\"uri\"]]"]
+   webpage = webpages(:one)
+   actual = format_datatype(scraped_data, property, webpage)
+   expected = ["name", "Class", ["remote name", "uri"]]
+   assert_equal expected, actual
+  end
+
+  test "string input for any:URI manual source" do
+   property = properties(:seven)
+   scraped_data = ["Théâtre Maisonneuve"]
+   webpage = webpages(:one)
+   actual = format_datatype(scraped_data, property, webpage)
+   expected = ["Théâtre Maisonneuve", "Place", ["Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/place/theatre_maisonneuve"]]
+   assert_equal expected, actual
+  end
+
 
   #search_cckg
   test "search_cckg: should search cckg for uris that match 100%" do

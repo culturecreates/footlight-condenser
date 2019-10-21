@@ -43,6 +43,7 @@ seven:
   value_datatype: xsd:anyURI
   uri: http://schema.org/location
   rdfs_class: one
+  expected_class: Place
 
 eight:
   label: subEvent
