@@ -58,7 +58,7 @@ module StatementsHelper
           elsif a.start_with? 'xpath'
             algo = a.delete_prefix("xpath=").gsub("$url",url)
             logger.info ("---------!!!!!!!!!-------- algo: #{algo}")
-            page_data = page.xpath(a.delete_prefix("xpath="))
+            page_data = page.xpath(algo)
             page_data.each { |d| results_list << d.text}
 
           elsif  a.start_with? 'css'
