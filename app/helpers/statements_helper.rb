@@ -98,7 +98,7 @@ module StatementsHelper
     elsif property.value_datatype == "xsd:anyURI"
       # first check if scraped_data is already formated as an array, and then parse and skip search.
       if scraped_data[0][0] == "["
-        #parse
+        #parse URI set mannually
         data = JSON.parse(scraped_data[0])
       else
         scraped_data.each do |uri_string|
@@ -134,7 +134,7 @@ module StatementsHelper
                 end
                 logger.info("*** search condenser:  #{uris}")
 
-                if uris.count == 2 #then no matches found yet, keep looking
+             #   if uris.count == 2 #then no matches found yet, keep looking
       #search Culture Creates KG
       cckg_results = search_cckg(uri_string, rdfs_class)
       if cckg_results[:error]
@@ -145,7 +145,21 @@ module StatementsHelper
           uris << uri
         end
       end
-    end
+    
+      if rdfs_class == "Organization"
+       
+        cckg_results = search_cckg(uri_string, "Person")
+        if cckg_results[:error]
+          logger.error("*** search kg ERROR:  #{cckg_results}")
+           # uris << "abort_update"  #this forces the update to skip when the KG server is down and avoids setting everything to blank
+        else
+          cckg_results[:data].each do |uri|
+            uris << uri
+          end
+        end
+      end
+   # end
+
     logger.info("*** search condenser and kg:  #{uris}")
     return uris
   end

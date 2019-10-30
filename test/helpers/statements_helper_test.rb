@@ -101,6 +101,12 @@ class StatementsHelperTest < ActionView::TestCase
     assert_equal expected, actual
   end
 
+  test "search_cckg: using web url of a PERSON" do
+    expected = {data:[["Jason Cyrus", "http://kg.artsdata.ca/resource/4d17e9c3-db85-4e77-b619-f894fad562bf-5"]]}
+    actual = search_cckg "http://www.jasoncyrus.com", "Person"
+    assert_equal expected, actual
+  end
+
 
   # test "search_cckg: find alternate names" do
   #   expected = {data:[["Red Sky Performance", "http://artsdata.ca/resource/org/red_sky_performance"]]}
