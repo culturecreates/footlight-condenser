@@ -76,6 +76,13 @@ class StatementsHelperTest < ActionView::TestCase
     assert_equal expected, actual
   end
 
+  test "search_cckg: should search cckg for VaughnCo Entertainment presents" do
+    expected = {data:[["VaughnCo Entertainment", "http://kg.artsdata.ca/resource/c32cbefe-424a-48f9-bece-fc59cae40fe1-148"]]}
+    actual = search_cckg "VaughnCo Entertainment presents", "Organization"
+    assert_equal expected, actual
+  end
+  
+
   test "search_cckg: should search cckg for nowhere" do
     expected = {:data=>[]}
     actual = search_cckg "Show is at nowhere", "Place"
