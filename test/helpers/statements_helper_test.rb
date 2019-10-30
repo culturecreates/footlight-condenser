@@ -63,6 +63,16 @@ class StatementsHelperTest < ActionView::TestCase
   end
 
 
+  test "string input for any:URI scraped source" do
+    property = properties(:nine)
+    scraped_data = ["http://www.tnb.nb.ca/"]
+    webpage = webpages(:one)
+    actual = format_datatype(scraped_data, property, webpage)
+    expected = ["http://www.tnb.nb.ca/", "Organization", ["Theatre New Brunswick", "http://kg.artsdata.ca/resource/c32cbefe-424a-48f9-bece-fc59cae40fe1-154"], ["Theatre New Brunswick", "http://kg.artsdata.ca/resource/c32cbefe-424a-48f9-bece-fc59cae40fe1-168"]]
+    assert_equal expected, actual
+   end
+
+
   #search_cckg
   test "search_cckg: should search cckg for uris that match 100%" do
     expected = {:data=>[["Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/50ad9328-6caf-4844-ac07-981b042ad4e9-11"]]}
@@ -106,6 +116,9 @@ class StatementsHelperTest < ActionView::TestCase
     actual = search_cckg "http://www.jasoncyrus.com", "Person"
     assert_equal expected, actual
   end
+  
+
+
 
 
   # test "search_cckg: find alternate names" do

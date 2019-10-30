@@ -158,6 +158,7 @@ module StatementsHelper
           end
         end
       end
+      return uris.uniq
    # end
 
     logger.info("*** search condenser and kg:  #{uris}")

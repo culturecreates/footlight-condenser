@@ -51,3 +51,9 @@ eight:
   expected_class: Event
   rdfs_class: eventseries
 
+nine:
+  label: Performed by
+  value_datatype: xsd:anyURI
+  uri: http://schema.org/performer
+  rdfs_class: one
+  expected_class: Organization
