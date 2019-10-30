@@ -127,18 +127,19 @@ module StatementsHelper
     rdfs_class = property_obj.expected_class
     uris << rdfs_class
 
-    #search condenser database
-    results = search_condenser(uri_string, rdfs_class)
-    results[:data].each do |uri|
-      uris << uri
-    end
-    logger.info("*** search condenser:  #{uris}")
+        ######search condenser database
+                results = search_condenser(uri_string, rdfs_class)
+                results[:data].each do |uri|
+                  uris << uri
+                end
+                logger.info("*** search condenser:  #{uris}")
 
-    if uris.count == 2 #then no matches found yet, keep looking
+                if uris.count == 2 #then no matches found yet, keep looking
       #search Culture Creates KG
       cckg_results = search_cckg(uri_string, rdfs_class)
       if cckg_results[:error]
-          uris << "abort_update"  #this forces the update to skip when the KG server is down and avoids setting everything to blank
+        logger.error("*** search kg ERROR:  #{cckg_results}")
+         # uris << "abort_update"  #this forces the update to skip when the KG server is down and avoids setting everything to blank
       else
         cckg_results[:data].each do |uri|
           uris << uri
@@ -171,19 +172,22 @@ module StatementsHelper
 
   def search_cckg str, rdfs_class #returns a HASH
     q = "PREFIX schema: <http://schema.org/>            \
-        select distinct ?uri  ?name where {              \
+        select  ?uri  ?name ?url where {              \
 	          ?uri a schema:#{rdfs_class} .                \
-            ?uri schema:name ?name_lang .                    \
+            ?uri schema:name ?name .                    \
+            OPTIONAL {  ?uri schema:url ?url .    }               \
             filter  (isURI(?uri))   \
-             bind (str(?name_lang) as ?name) \
+            filter (regex(str(?name),'#{str}','i') || regex('#{str}',str(?name),'i')  || regex('#{str}',str(?url),'i')  ) \
          } "
     results = cc_kg_query(q, rdfs_class)
-    hits = []
+   
     if !results[:error]
-      results[:data].each {|entity|  hits << entity if str.downcase.include?(entity["name"]["value"].downcase)}
+      hits = results[:data]
+     
       hits.count.times do |n|
         hits[n] = [hits[n]["name"]["value"],hits[n]["uri"]["value"]]
       end
+      
       return {data: hits.uniq {|hit| hit[1]}}
     else
       return {error: results, method: "search_cckg"} #with error message

@@ -8,3 +8,6 @@ two:
 
 place:
   name: Place
+
+eventseries:
+  name: EventSeries

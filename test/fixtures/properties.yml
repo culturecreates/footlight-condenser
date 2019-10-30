@@ -5,7 +5,7 @@ one:
   value_datatype: MyString
   uri: MyString
   rdfs_class: one
-
+  
 two:
   label: Name
   value_datatype: MyString

@@ -58,20 +58,20 @@ class StatementsHelperTest < ActionView::TestCase
    scraped_data = ["Théâtre Maisonneuve"]
    webpage = webpages(:one)
    actual = format_datatype(scraped_data, property, webpage)
-   expected = ["Théâtre Maisonneuve", "Place", ["Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/place/theatre_maisonneuve"]]
+   expected = ["Théâtre Maisonneuve", "Place", ["Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/50ad9328-6caf-4844-ac07-981b042ad4e9-11"]]
    assert_equal expected, actual
   end
 
 
   #search_cckg
   test "search_cckg: should search cckg for uris that match 100%" do
-    expected = {:data=>[["Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/place/theatre_maisonneuve"]]}
+    expected = {:data=>[["Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/50ad9328-6caf-4844-ac07-981b042ad4e9-11"]]}
     actual = search_cckg "Théâtre Maisonneuve", "Place"
     assert_equal expected, actual
   end
 
   test "search_cckg: should search cckg for uris by matching name in substring" do
-    expected = {data:[["Berkeley Street Theatre", "http://kg.artsdata.ca/resource/place/berkeley_street_theatre"], ["Bluma Appel Theatre", "http://kg.artsdata.ca/resource/place/bluma_appel_theatre"]]}
+    expected = {data:[["Bluma Appel Theatre", "http://kg.artsdata.ca/resource/50ad9328-6caf-4844-ac07-981b042ad4e9-6"], ["Berkeley Street Theatre", "http://kg.artsdata.ca/resource/50ad9328-6caf-4844-ac07-981b042ad4e9-14"]]}
     actual = search_cckg "The locations is in the lovely Bluma Appel Theatre and Berkeley Street Theatre.", "Place"
     assert_equal expected, actual
   end
@@ -83,10 +83,17 @@ class StatementsHelperTest < ActionView::TestCase
   end
 
   test "search_cckg: remove duplicates" do
-    expected = {data:[["Berkeley Street Theatre", "http://kg.artsdata.ca/resource/place/berkeley_street_theatre"]]}
+    expected = {data:[["Berkeley Street Theatre", "http://kg.artsdata.ca/resource/50ad9328-6caf-4844-ac07-981b042ad4e9-14"]]}
     actual = search_cckg "The locations is in the lovely Berkeley Street Theatre and Berkeley Street.", "Place"
     assert_equal expected, actual
   end
+
+  test "search_cckg: using web url" do
+    expected = {data:[["Rumours Tribute Show", "http://kg.artsdata.ca/resource/c32cbefe-424a-48f9-bece-fc59cae40fe1-180"]]}
+    actual = search_cckg "https://www.rumourstributeshow.com/", "Organization"
+    assert_equal expected, actual
+  end
+
 
   # test "search_cckg: find alternate names" do
   #   expected = {data:[["Red Sky Performance", "http://artsdata.ca/resource/org/red_sky_performance"]]}
