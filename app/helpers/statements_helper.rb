@@ -207,7 +207,7 @@ module StatementsHelper
         end
       end
       
-      return {data: hits.uniq {|hit| hit[1]}}
+      return {data: hits.uniq {|hit| hit[0]}}  #only return hit if the name is unique #todo: find a way to remove owl:sameAS
     else
       return {error: results, method: "search_cckg"} #with error message
     end
