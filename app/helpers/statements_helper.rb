@@ -97,12 +97,14 @@ module StatementsHelper
       end
     elsif property.value_datatype == "xsd:anyURI"
       # first check if scraped_data is already formated as an array, and then parse and skip search.
-      if scraped_data[0][0] == "["
-        #parse URI set mannually
-        data = JSON.parse(scraped_data[0])
-      else
-        scraped_data.each do |uri_string|
-          data << search_for_uri(uri_string, property, webpage)
+      if  !scraped_data.empty?
+        if scraped_data[0][0] == "["
+          #parse URI set mannually
+          data = JSON.parse(scraped_data[0])
+        else
+          scraped_data.each do |uri_string|
+            data << search_for_uri(uri_string, property, webpage)
+          end
         end
       end
     elsif property.value_datatype == "xsd:duration"

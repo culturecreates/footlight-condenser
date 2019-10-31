@@ -62,7 +62,6 @@ class StatementsHelperTest < ActionView::TestCase
    assert_equal expected, actual
   end
 
-
   test "string input for any:URI scraped source" do
     property = properties(:nine)
     scraped_data = ["http://www.tnb.nb.ca/"]
@@ -71,6 +70,26 @@ class StatementsHelperTest < ActionView::TestCase
     expected = ["http://www.tnb.nb.ca/", "Organization", ["Theatre New Brunswick", "http://kg.artsdata.ca/resource/c32cbefe-424a-48f9-bece-fc59cae40fe1-154"], ["Theatre New Brunswick", "http://kg.artsdata.ca/resource/c32cbefe-424a-48f9-bece-fc59cae40fe1-168"]]
     assert_equal expected, actual
    end
+
+  test "string input for any:URI scraped LONG url source" do
+    property = properties(:nine)
+    scraped_data = ["http://www.taramacleanmusic.com/home"]
+    webpage = webpages(:one)
+    actual = format_datatype(scraped_data, property, webpage)
+    expected = ["http://www.taramacleanmusic.com/home", "Organization", ["Tara MacLean", "http://kg.artsdata.ca/resource/4d17e9c3-db85-4e77-b619-f894fad562bf-14"]]
+    assert_equal expected, actual
+   end
+
+  test "EMPTY string input for any:URI" do
+    property = properties(:nine)
+    scraped_data = []
+    webpage = webpages(:one)
+    actual = format_datatype(scraped_data, property, webpage)
+    expected = []
+    assert_equal expected, actual
+   end
+
+
 
 
   #search_cckg
