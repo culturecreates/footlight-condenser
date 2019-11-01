@@ -202,7 +202,7 @@ module StatementsHelper
    
     if !results[:error]
       hits = results[:data]
-     
+      logger.info " ++++++++++++=Results from CC KG: #{hits}"
       hits.count.times do |n|
         if !hits[n].empty?
           hits[n] = [hits[n]["name"]["value"],hits[n]["uri"]["value"]]
