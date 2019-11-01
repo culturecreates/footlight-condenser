@@ -203,7 +203,7 @@ module StatementsHelper
     logger.info " ++++++++++++=Results from cc_kg_query: #{results}"
    
     if !results[:error]
-      hits = results[:data]
+      hits = results[:data].clone
       logger.info " ++++++++++++=Hits from cc_kg_query: #{hits}"
       hits.count.times do |n|
         if !hits[n].empty?
