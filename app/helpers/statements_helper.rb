@@ -199,10 +199,12 @@ module StatementsHelper
             filter (regex(str(?name),'#{str}','i') || regex('#{str}',str(?name),'i')  || regex('#{str}',str(?url),'i')   || regex(str(?url),'#{str}','i') ) \
          } "
     results = cc_kg_query(q, rdfs_class)
+
+    logger.info " ++++++++++++=Results from cc_kg_query: #{results}"
    
     if !results[:error]
       hits = results[:data]
-      logger.info " ++++++++++++=Results from CC KG: #{hits}"
+      logger.info " ++++++++++++=Hits from cc_kg_query: #{hits}"
       hits.count.times do |n|
         if !hits[n].empty?
           hits[n] = [hits[n]["name"]["value"],hits[n]["uri"]["value"]]
