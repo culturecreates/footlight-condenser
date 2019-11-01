@@ -194,6 +194,8 @@ module StatementsHelper
             ?uri schema:name ?name .                    \
             OPTIONAL {  ?uri schema:url ?url .    }               \
             filter  (isURI(?uri))   \
+            filter (?url != '')  \
+            filter (str(?name) != '') \
             filter (regex(str(?name),'#{str}','i') || regex('#{str}',str(?name),'i')  || regex('#{str}',str(?url),'i')   || regex(str(?url),'#{str}','i') ) \
          } "
     results = cc_kg_query(q, rdfs_class)
@@ -202,7 +204,7 @@ module StatementsHelper
       hits = results[:data]
      
       hits.count.times do |n|
-        if hits[n]
+        if !hits[n].empty?
           hits[n] = [hits[n]["name"]["value"],hits[n]["uri"]["value"]]
         end
       end
