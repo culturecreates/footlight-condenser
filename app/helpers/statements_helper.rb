@@ -188,32 +188,41 @@ module StatementsHelper
 
 
   def search_cckg str, rdfs_class #returns a HASH
-    q = "PREFIX schema: <http://schema.org/>            \
-        select  ?uri  ?name ?url where {              \
-	          ?uri a schema:#{rdfs_class} .                \
-            ?uri schema:name ?name .                    \
-            OPTIONAL {  ?uri schema:url ?url .    }               \
-            filter  (isURI(?uri))   \
-            filter (?url != '')  \
-            filter (str(?name) != '') \
-            filter (regex(str(?name),'#{str}','i') || regex('#{str}',str(?name),'i')  || regex('#{str}',str(?url),'i')   || regex(str(?url),'#{str}','i') ) \
-         } "
-    results = cc_kg_query(q, rdfs_class)
+    if str.length > 2 
+      q = "PREFIX schema: <http://schema.org/>            \
+          select  ?uri  ?name ?url where {              \
+              ?uri a schema:#{rdfs_class} .                \
+              ?uri schema:name ?name .                    \
+              OPTIONAL {  ?uri schema:url ?url .    }               \
+              filter  (isURI(?uri))   \
+              filter (?url != '')  \
+              filter (str(?name) != '') \
+              filter (regex(str(?name),'#{str}','i') || regex('#{str}',str(?name),'i')  || regex('#{str}',str(?url),'i')   || regex(str(?url),'#{str}','i') ) \
+          } "
+      results = cc_kg_query(q, rdfs_class)
 
-    logger.info " ++++++++++++=Results from cc_kg_query: #{results}"
-   
-    if !results[:error]
-      hits = results[:data].clone
-      logger.info " ++++++++++++=Hits from cc_kg_query: #{hits}"
-      hits.count.times do |n|
-        if !hits[n].empty?
-          hits[n] = [hits[n]["name"]["value"],hits[n]["uri"]["value"]]
+      logger.info " ++++++++++++=Results from cc_kg_query: #{results}"
+    
+      if !results[:error]
+        hits = results[:data].clone
+        logger.info " ++++++++++++=Hits from cc_kg_query: #{hits}"
+        hits.count.times do |n|
+          if !hits[n].empty?
+            hits[n] = [hits[n]["name"]["value"],hits[n]["uri"]["value"]]
+          end
         end
+        ###only return hit if the name is unique #todo: find a way to remove owl:sameAS when the same entity has more than 1 URI
+        hits.uniq! {|hit| hit[0]}
+
+        ## remove duplicate URIs - needed to remove en/fr duplicates
+        hits.uniq! {|hit| hit[1]}
+
+        return {data: hits}
+      else
+        return {error: results, method: "search_cckg"} #with error message
       end
-      
-      return {data: hits.uniq {|hit| hit[0]}}  #only return hit if the name is unique #todo: find a way to remove owl:sameAS
     else
-      return {error: results, method: "search_cckg"} #with error message
+      return {error: "String '#{str} is too short. Needs to be londer than 2 characters", method: "search_cckg"} #with error message
     end
   end
 
