@@ -15,6 +15,11 @@ class EventsController < ApplicationController
     photos = get_event_photos time_span
     photos_hash = photos.to_h
 
+    dates = get_event_dates time_span
+    dates_hash = dates.to_h
+
+
+
     event_status = get_event_status
     uris_with_problems = event_status.select{|event| event[1] == "problem"}.map{|event| event = event[0]}
     uris_to_review = event_status.select{|event| event[1] == "initial"}.map{|event| event = event[0]}
@@ -29,8 +34,11 @@ class EventsController < ApplicationController
                              updated: uris_updated.include?(uri),
                              problem: uris_with_problems.include?(uri)},
                   photo: photo[1],
-                  title: titles_hash[uri]}
+                  title: titles_hash[uri],
+                  date: dates_hash[uri]}
     end
+
+    @events.sort_by {|item| item[:date]}.reverse
     @total_events = @events.count
   end
 
@@ -47,6 +55,13 @@ class EventsController < ApplicationController
     def get_event_photos archive_date_range = [time.now - 10.years..time.now + 10.years]
       return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Photo", rdfs_class: 1},websites:  {seedurl:  params[:seedurl]},webpages: {archive_date: archive_date_range}   }  }  ).order(:created_at).pluck(:rdf_uri, :cache)
     end
+
+    def get_event_dates archive_date_range = [time.now - 10.years..time.now + 10.years]
+      return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Dates", rdfs_class: 1},websites:  {seedurl:  params[:seedurl]},webpages: {archive_date: archive_date_range}   }  }  ).order(:created_at).pluck(:rdf_uri, :cache)
+    end
+
+
+
 
     def get_event_status
       return Statement.joins({webpage: :website},:source).where(webpages:{websites: {seedurl: params[:seedurl]}}).where(sources: {selected: true}).pluck(:rdf_uri, :status).uniq

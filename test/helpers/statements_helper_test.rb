@@ -67,7 +67,7 @@ class StatementsHelperTest < ActionView::TestCase
     scraped_data = ["http://www.tnb.nb.ca/"]
     webpage = webpages(:one)
     actual = format_datatype(scraped_data, property, webpage)
-    expected = ["http://www.tnb.nb.ca/", "Organization", ["Theatre New Brunswick", "http://kg.artsdata.ca/resource/10-154"]]
+    expected = ["http://www.tnb.nb.ca/", "Organization", ["Theatre New Brunswick", "http://kg.artsdata.ca/resource/K10-154"]]
     assert_equal expected, actual
    end
 
@@ -76,7 +76,7 @@ class StatementsHelperTest < ActionView::TestCase
     scraped_data = ["http://www.taramacleanmusic.com/home"]
     webpage = webpages(:one)
     actual = format_datatype(scraped_data, property, webpage)
-    expected = ["http://www.taramacleanmusic.com/home", "Organization", ["Tara MacLean", "http://kg.artsdata.ca/resource/12-14"]]
+    expected = ["http://www.taramacleanmusic.com/home", "Organization", ["Tara MacLean", "http://kg.artsdata.ca/resource/K12-14"]]
     assert_equal expected, actual
    end
 
@@ -100,13 +100,13 @@ class StatementsHelperTest < ActionView::TestCase
   end
 
   test "search_cckg: should search cckg for uris by matching name in substring" do
-    expected = {data:[["Bluma Appel Theatre", "http://kg.artsdata.ca/resource/11-6"], ["Berkeley Street Theatre", "http://kg.artsdata.ca/resource/11-14"]]}
+    expected = {data:[["Bluma Appel Theatre", "http://kg.artsdata.ca/resource/K11-6"], ["Berkeley Street Theatre", "http://kg.artsdata.ca/resource/K11-14"]]}
     actual = search_cckg "The locations is in the lovely Bluma Appel Theatre and Berkeley Street Theatre.", "Place"
     assert_equal expected, actual
   end
 
   test "search_cckg: should search cckg for VaughnCo Entertainment presents" do
-    expected = {data:[["VaughnCo Entertainment", "http://kg.artsdata.ca/resource/10-148"]]}
+    expected = {data:[["VaughnCo Entertainment", "http://kg.artsdata.ca/resource/K10-148"]]}
     actual = search_cckg "VaughnCo Entertainment presents", "Organization"
     assert_equal expected, actual
   end
@@ -119,19 +119,19 @@ class StatementsHelperTest < ActionView::TestCase
   end
 
   test "search_cckg: remove duplicates" do
-    expected = {data:[["Berkeley Street Theatre", "http://kg.artsdata.ca/resource/11-14"]]}
+    expected = {data:[["Berkeley Street Theatre", "http://kg.artsdata.ca/resource/K11-14"]]}
     actual = search_cckg "The locations is in the lovely Berkeley Street Theatre and Berkeley Street.", "Place"
     assert_equal expected, actual
   end
 
   test "search_cckg: using web url" do
-    expected = {data:[["Rumours Tribute Show", "http://kg.artsdata.ca/resource/10-180"]]}
+    expected = {data:[["Rumours Tribute Show", "http://kg.artsdata.ca/resource/K10-180"]]}
     actual = search_cckg "https://www.rumourstributeshow.com/", "Organization"
     assert_equal expected, actual
   end
 
   test "search_cckg: using web url of a PERSON" do
-    expected = {data:[["Jason Cyrus", "http://kg.artsdata.ca/resource/12-5"]]}
+    expected = {data:[["Jason Cyrus", "http://kg.artsdata.ca/resource/K12-5"]]}
     actual = search_cckg "http://www.jasoncyrus.com", "Person"
     assert_equal expected, actual
   end
