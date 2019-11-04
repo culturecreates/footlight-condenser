@@ -16,7 +16,7 @@ class EventsController < ApplicationController
     photos_hash = photos.to_h
 
     dates = get_event_dates time_span
-    dates.map! { |array| [array[0],helpers.parse_date_string_to_iso(array[1])]}
+    dates.map! { |array| [array[0],helpers.parse_date_string_array(array[1])]}
     dates_hash = dates.to_h
 
 
@@ -39,7 +39,7 @@ class EventsController < ApplicationController
                   date: dates_hash[uri]}
     end
 
-    @events.sort_by {|item| item[:date]}
+    @events.sort_by! {|item| item[:date]}
     @total_events = @events.count
   end
 
