@@ -13,7 +13,7 @@ module EventsHelper
         if date_str.present?
             date_time = DateTime.parse(date_str)
         else
-            date_time = DateTime.parse("2000-01-01")
+            date_time = DateTime.now + 1.year
         end
         return date_time
     end
