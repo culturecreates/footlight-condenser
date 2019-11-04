@@ -10,7 +10,12 @@ module EventsHelper
         end
   
         #step 2: convert to time
-        return DateTime.parse(date_str)
+        if date_str.present?
+            date_time = DateTime.parse(date_str)
+        else
+            date_time = DateTime.parse("2000-01-01")
+        end
+        return date_time
     end
 
       
