@@ -46,19 +46,41 @@
 <hr>
 <p>
 Change status:
-  <%= form_with(model: @statement, local: true) do |form| %>
-    <%= form.hidden_field :status, id: :statement_status, value: "OK"%>
-    <div class="actions">
-      <%= form.submit "Reviewed"%>
-    </div>
+
+
+  <%= form_with(model: @statement, local: true,  html: { style:'display:inline;' }) do |form| %>
+    <%= form.hidden_field :status, id: :statement_status, value: "initial"%>
+      <%= form.submit "Initial"%>
   <% end %>
 
-  <%= form_with(model: @statement, local: true) do |form| %>
-    <%= form.hidden_field :status, id: :statement_status, value: "Not reviewed"%>
-    <div class="actions">
-      <%= form.submit "Not Reviewed"%>
-    </div>
+  <%= form_with(model: @statement, local: true,  html: { style:'display:inline;' }) do |form| %>
+    <%= form.hidden_field :status, id: :statement_status, value: "missing"%>
+   
+      <%= form.submit "Missing"%>
+    
   <% end %>
+
+   <%= form_with(model: @statement, local: true,  html: { style:'display:inline;' }) do |form| %>
+    <%= form.hidden_field :status, id: :statement_status, value: "ok"%>
+   
+      <%= form.submit "Ok"%>
+   
+  <% end %>
+
+  <%= form_with(model: @statement, local: true,  html: { style:'display:inline;' }) do |form| %>
+    <%= form.hidden_field :status, id: :statement_status, value: "problem"%>
+  
+      <%= form.submit "Problem"%>
+   
+  <% end %>
+
+  <%= form_with(model: @statement, local: true,  html: { style:'display:inline;' }) do |form| %>
+    <%= form.hidden_field :status, id: :statement_status, value: "updated"%>
+   
+      <%= form.submit "Updated"%>
+    
+  <% end %>
+
 </p>
 
 <hr>
