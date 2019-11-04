@@ -16,7 +16,7 @@ class EventsController < ApplicationController
     photos_hash = photos.to_h
 
     dates = get_event_dates time_span
-    dates.map! { |array| [array[0], parse_date_string_to_iso(array[1])]}
+    dates.map! { |array| [array[0],helpers.parse_date_string_to_iso(array[1])]}
     dates_hash = dates.to_h
 
 
