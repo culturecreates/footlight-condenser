@@ -17,6 +17,9 @@ module ResourcesHelper
     json_statement["label"] = statement.source.property.label
     json_statement["language"] = statement.source.language
     json_statement["datatype"] = statement.source.property.value_datatype
+    json_statement["expected_class"] = statement.source.property.expected_class
+    json_statement["uri"] = statement.source.property.uri
+
     json_statement["manual"] = statement.source.algorithm_value.start_with?("manual=") ? true : false
     return json_statement
   end
