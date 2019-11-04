@@ -15,7 +15,8 @@ class EventsController < ApplicationController
     photos = get_event_photos time_span
     photos_hash = photos.to_h
 
-    dates = get_event_dates time_span
+    dates_str = get_event_dates time_span
+    dates = parse_date_string_to_seconds(dates_str)
     dates_hash = dates.to_h
 
 
@@ -38,7 +39,7 @@ class EventsController < ApplicationController
                   date: dates_hash[uri]}
     end
 
-    @events.sort_by {|item| item[:date]}.reverse
+    @events.sort_by {|item| item[:date]}
     @total_events = @events.count
   end
 
@@ -67,7 +68,17 @@ class EventsController < ApplicationController
       return Statement.joins({webpage: :website},:source).where(webpages:{websites: {seedurl: params[:seedurl]}}).where(sources: {selected: true}).pluck(:rdf_uri, :status).uniq
     end
 
+    def parse_date_string_to_seconds dates_array 
+      #dates_array can be in the form "2020-05-06T19:30:00-04:00" or "[\"2019-11-16T21:00:00-05:00\", \"2019-11-16T23:30:00-05:00\"]"
 
+      #step 1: convert each item to a singe date
+      dates_array.map! {|d| d[1][0] == "[" ?  [d[0], JSON.parse(d[1]).first]  : d }
+
+      #step 2: convert to time
+      dates_array.map! {|d| [d[0], DateTime.parse(d[1]).iso8601()] }
+
+      return dates_array
+    end
 
 
 end
