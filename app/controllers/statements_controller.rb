@@ -272,9 +272,9 @@ class StatementsController < ApplicationController
           if s.count != 1
             Statement.create!(cache:_data, webpage_id: webpage.id, source_id: source.id, status: helpers.status_checker(_data, source.property) , status_origin: "condenser_refresh",cache_refreshed: Time.new)
           else
-            #check if manual entry and if yes then don't update
-            if source.algorithm_value.start_with?("manual=")
-              if s.first.status != "missing"
+            #check if manual entry and ONLY update if  the cache has a status of missing
+            if source.algorithm_value.start_with?("manual=") 
+              if helpers.status_checker(s.first.cache, source.property) != "missing"
                 logger.info "Skipping update of manual entry"
                 next
               else

@@ -80,10 +80,16 @@ module StatementsHelper
   def status_checker (scraped_data, property)
     if property.value_datatype == "xsd:anyURI"
       #check for 2 items in list
+      begin
+        scraped_data =  JSON.parse(scraped_data) 
+      rescue
+        scraped_data = []
+      end
       scraped_data.count == 3 ? status = "initial" : status = "missing"
     else
       !scraped_data.blank? && !scraped_data&.to_s&.downcase&.include?('error') ? status = "initial" : status = "missing"
     end
+    logger.error(" status_checker for #{scraped_data}: #{status}")
 
     return status
   end
