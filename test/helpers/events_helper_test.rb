@@ -14,5 +14,9 @@ class EventsHelperTest < ActionView::TestCase
     assert_equal expected_output, parse_date_string_array("[\"2019-11-16T21:00:00-05:00\", \"2019-11-16T23:30:00-05:00\"]")
   end
 
+  test "Convert error string to future Date" do
+    expected_output = DateTime.now + 1.year
+    assert_equal expected_output.to_i, parse_date_string_array("[\"Error scrapping\"]").to_i
+  end
 
 end
