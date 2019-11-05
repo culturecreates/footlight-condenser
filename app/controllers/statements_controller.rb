@@ -115,7 +115,10 @@ class StatementsController < ApplicationController
     #  { "statement": {"cache": "[\"#{options[:name]}\",\"#{options[:rdfs_class]}\",\"#{options[:uri]}\"]", "status": "ok", "status_origin": user_name} }
 
     statement_cache = JSON.parse(@statement.cache)
-    statement_cache << [JSON.parse(s['cache'])[0], JSON.parse(s['cache'])[2]]
+    if statement_cache[0].class != Array
+      statement_cache = [statement_cache]
+    end
+    statement_cache << ["Manual edit",JSON.parse(s['cache'])[1],[JSON.parse(s['cache'])[0], JSON.parse(s['cache'])[2]]]
 
     s['cache'] = statement_cache.to_s
     respond_to do |format|
