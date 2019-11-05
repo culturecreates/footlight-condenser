@@ -13,7 +13,14 @@ module ResourcesHelper
   def adjust_labels_for_api statement
     json_statement = JSON.parse(statement.to_json)
     #replace "cache" with "value" for better API read-ability
-    json_statement["value"] = json_statement.delete("cache")
+    
+    if statement.source.property.value_datatype == "xsd:anyURI"
+      json_statement["value"] = build_json_from_anyURI statement.cache 
+    else
+      json_statement["value"] = statement.cache
+    end
+    json_statement.delete("cache")
+
     json_statement["label"] = statement.source.property.label
     json_statement["language"] = statement.source.language
     json_statement["datatype"] = statement.source.property.value_datatype
@@ -22,6 +29,32 @@ module ResourcesHelper
 
     json_statement["manual"] = statement.source.algorithm_value.start_with?("manual=") ? true : false
     return json_statement
+  end
+
+  def build_json_from_anyURI cache_str
+    value_array = JSON.parse(cache_str)
+  
+    if value_array[0].class == String
+      value_obj = [] << sub_build_json_from_anyURI(value_array)
+      
+    else
+      value_obj = []
+      value_array.each do |obj|
+        value_obj << sub_build_json_from_anyURI(obj)
+      end
+    end
+
+    return value_obj
+  end
+
+  def sub_build_json_from_anyURI value_array
+    value_obj = {search: value_array[0], class: value_array[1]}
+    hits = []
+    value_array[2..-1].each do |hit|
+     hits << { label: hit[0], uri: hit[1]}
+    end
+    value_obj[:links] = hits
+    return value_obj
   end
 
   def calculate_resource_status statements
