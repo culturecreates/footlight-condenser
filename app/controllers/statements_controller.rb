@@ -300,7 +300,7 @@ class StatementsController < ApplicationController
 
             #preserve manually added and deleted links of datatype xsd:anyURI
 
-             if source.property.value_datatype = "xsd:anyURI" 
+             if source.property.value_datatype == "xsd:anyURI" 
               _data = [ _data] if  _data[0].class != Array
               _old_cache = JSON.parse(s.first.cache)
               _old_cache = [ _old_cache] if  _old_cache[0].class != Array

@@ -33,17 +33,19 @@ module ResourcesHelper
 
   def build_json_from_anyURI cache_str
     value_array = JSON.parse(cache_str)
-  
-    if value_array[0].class == String
-      value_obj = [] << sub_build_json_from_anyURI(value_array)
-      
-    else
-      value_obj = []
-      value_array.each do |obj|
-        value_obj << sub_build_json_from_anyURI(obj)
+    value_obj = []
+    if !value_array.blank?
+      if value_array[0].class == String
+        value_obj << sub_build_json_from_anyURI(value_array)
+        
+      else
+        value_array.each do |obj|
+          if !obj.blank?
+            value_obj << sub_build_json_from_anyURI(obj)
+          end
+        end
       end
     end
-
     return value_obj
   end
 
