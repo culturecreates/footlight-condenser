@@ -58,7 +58,7 @@ class StatementsHelperTest < ActionView::TestCase
    scraped_data = ["Théâtre Maisonneuve"]
    webpage = webpages(:one)
    actual = format_datatype(scraped_data, property, webpage)
-   expected = ["Théâtre Maisonneuve", "Place", ["Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/50ad9328-6caf-4844-ac07-981b042ad4e9-11"]]
+   expected = ["Théâtre Maisonneuve", "Place", ["Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/place/theatre_maisonneuve"]]
    assert_equal expected, actual
   end
 
@@ -94,7 +94,7 @@ class StatementsHelperTest < ActionView::TestCase
 
   #search_cckg
   test "search_cckg: should search cckg for uris that match 100%" do
-    expected = {:data=>[["Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/50ad9328-6caf-4844-ac07-981b042ad4e9-11"]]}
+    expected = {:data=>[["Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/place/theatre_maisonneuve"]]}
     actual = search_cckg "Théâtre Maisonneuve", "Place"
     assert_equal expected, actual
   end

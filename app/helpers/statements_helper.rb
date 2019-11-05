@@ -135,19 +135,20 @@ module StatementsHelper
     rdfs_class = property_obj.expected_class
     uris << rdfs_class
 
-        ######search condenser database
-                results = search_condenser(uri_string, rdfs_class)
-                results[:data].each do |uri|
-                  uris << uri
-                end
-                logger.info("*** search condenser:  #{uris}")
+        # ######search condenser database
+        #         results = search_condenser(uri_string, rdfs_class)
+        #         results[:data].each do |uri|
+        #           uris << uri
+        #         end
+        #         logger.info("*** search condenser:  #{uris}")
 
-             #   if uris.count == 2 #then no matches found yet, keep looking
+  ## if uris.count == 2 #then no matches found yet, keep looking
+  if !uri_string.include?("error")
       #search Culture Creates KG
       cckg_results = search_cckg(uri_string, rdfs_class)
       if cckg_results[:error]
         logger.error("*** search kg ERROR:  #{cckg_results}")
-         # uris << "abort_update"  #this forces the update to skip when the KG server is down and avoids setting everything to blank
+        uris << "abort_update"  #this forces the update to skip when the KG server is down and avoids setting everything to blank
       else
         cckg_results[:data].each do |uri|
           uris << uri
@@ -159,15 +160,15 @@ module StatementsHelper
         cckg_results = search_cckg(uri_string, "Person")
         if cckg_results[:error]
           logger.error("*** search kg ERROR:  #{cckg_results}")
-           # uris << "abort_update"  #this forces the update to skip when the KG server is down and avoids setting everything to blank
+          uris << "abort_update"  #this forces the update to skip when the KG server is down and avoids setting everything to blank
         else
           cckg_results[:data].each do |uri|
             uris << uri
           end
         end
-      end
+     end
       return uris.uniq
-   # end
+   end
 
     logger.info("*** search condenser and kg:  #{uris}")
     return uris
