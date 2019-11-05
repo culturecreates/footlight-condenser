@@ -118,7 +118,17 @@ class StatementsController < ApplicationController
     if statement_cache[0].class != Array
       statement_cache = [statement_cache]
     end
-    statement_cache << ["Manual edit",JSON.parse(s['cache'])[1],[JSON.parse(s['cache'])[0], JSON.parse(s['cache'])[2]]]
+
+    link_added = false
+    statement_cache.each_with_index do |c,i|
+      if c[0] == "Manually added" 
+        statement_cache[i] << [JSON.parse(s['cache'])[0], JSON.parse(s['cache'])[2]]
+        link_added = true
+      end
+    end
+    if !link_added 
+      statement_cache << ["Manually added",JSON.parse(s['cache'])[1], [JSON.parse(s['cache'])[0], JSON.parse(s['cache'])[2]]]
+    end
 
     s['cache'] = statement_cache.to_s
     respond_to do |format|
@@ -142,7 +152,10 @@ class StatementsController < ApplicationController
 
     uri_to_delete =  JSON.parse(s['cache'])[2]
     statement_cache.select! {|linked_data| linked_data[1] != uri_to_delete}
+    
     puts "Delete: #{uri_to_delete} from #{statement_cache}"
+
+
     s['cache'] = statement_cache.to_s
     respond_to do |format|
       if @statement.update(s)
@@ -284,6 +297,22 @@ class StatementsController < ApplicationController
                 logger.info "Retrying to process manual entry because status is MISSING"
               end
             end
+
+            #preserve manually added and deleted links of datatype xsd:anyURI
+
+             if source.property.value_datatype = "xsd:anyURI" 
+              _data = [ _data] if  _data[0].class != Array
+              _old_cache = JSON.parse(s.first.cache)
+              _old_cache = [ _old_cache] if  _old_cache[0].class != Array
+              _old_cache.each do |c|
+                if c[0] == "Manually added"
+                  _data << c 
+                end
+              end
+            end
+
+           
+
             #update database. Model automatically sets cache changed
             logger.info("*** Last step cache: #{_data}")
             s.first.update(cache:_data, cache_refreshed: Time.new) unless _data&.to_s&.include?('abort_update')
