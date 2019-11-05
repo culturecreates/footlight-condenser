@@ -63,5 +63,21 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
   end
 
 
+  test "should update statements by adding link" do  
+    statement_params = { "statement": {"cache": "[\"name1\",\"class1\",\"uri1\"]", "status": "ok", "status_origin": "test_user"} }
+    patch add_linked_data_statement_url(statements(:four)),
+    params: statement_params
+    assert_redirected_to show_resources_path(rdf_uri: statements(:four).webpage.rdf_uri)
+  
+  end
+
+
+  test "should update statements with double array by adding link" do  
+    statement_params = { "statement": {"cache": "[\"name1\",\"class1\",\"uri1\"]", "status": "ok", "status_origin": "test_user"} }
+    patch add_linked_data_statement_url(statements(:five)),
+    params: statement_params
+    assert_redirected_to show_resources_path(rdf_uri: statements(:four).webpage.rdf_uri)
+  
+  end
 
 end

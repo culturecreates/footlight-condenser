@@ -26,3 +26,21 @@ three:
   cache_changed: 2018-07-30 16:46:00 UTC
   source: two
   webpage: four
+
+four:
+  cache: '["name","class",["graph name","uri"]]'
+  status: initial
+  status_origin: MyString
+  cache_refreshed: 2018-07-30 16:46:00 UTC
+  cache_changed: 2018-07-30 16:46:00 UTC
+  source: three
+  webpage: four
+
+five:
+  cache: '[["name","class",["graph name","uri"]],["name2","class2",["graph name2","uri2"]]]'
+  status: initial
+  status_origin: MyString
+  cache_refreshed: 2018-07-30 16:46:00 UTC
+  cache_changed: 2018-07-30 16:46:00 UTC
+  source: three
+  webpage: five

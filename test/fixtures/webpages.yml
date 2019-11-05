@@ -28,3 +28,10 @@ four:
   rdf_uri: httpUri
   rdfs_class: place
   website: two
+
+five:
+  url: MyPlaceUrlfive
+  language: en
+  rdf_uri: httpUri
+  rdfs_class: place
+  website: two
