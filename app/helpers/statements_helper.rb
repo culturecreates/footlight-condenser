@@ -143,7 +143,7 @@ module StatementsHelper
         #         logger.info("*** search condenser:  #{uris}")
 
   ## if uris.count == 2 #then no matches found yet, keep looking
-  if !uri_string.include?("error")
+  if !uri_string.downcase.include?("error")
       #search Culture Creates KG
       cckg_results = search_cckg(uri_string, rdfs_class)
       if cckg_results[:error]
