@@ -100,7 +100,7 @@ class StatementsHelperTest < ActionView::TestCase
   end
 
   test "search_cckg: should search cckg for uris by matching name in substring" do
-    expected = {data:[["Bluma Appel Theatre", "http://kg.artsdata.ca/resource/place/bluma_appel_theatre"], ["Berkeley Street Theatre", "http://kg.artsdata.ca/resource/K11-14"]]}
+    expected = {data:[["Bluma Appel Theatre", "http://kg.artsdata.ca/resource/K11-6"], ["Berkeley Street Theatre", "http://kg.artsdata.ca/resource/K11-14"]]}
     actual = search_cckg "The locations is in the lovely Bluma Appel Theatre and Berkeley Street Theatre.", "Place"
     assert_equal expected, actual
   end
@@ -265,8 +265,10 @@ class StatementsHelperTest < ActionView::TestCase
     assert_equal expected_output, process_linked_data_removal(statement_cache, "http://uri9.com","Place","Theatre9")
   end
 
+  test "process_linked_data_removal: delete when out of sync" do
+    expected_output = [["https://www.atlanticballet.ca/en/home/","Organization", ["Ballet Atlantique Canada", "http://kg.artsdata.ca/resource/K10-16"]], ["Manually deleted", "Organization", ["Against the Grain Theatre", "http://kg.artsdata.ca/resource/K10-280"]]]
+    statement_cache = [["https://www.atlanticballet.ca/en/home/","Organization", ["Ballet Atlantique Canada", "http://kg.artsdata.ca/resource/K10-16"]], ["Manually deleted", "Organization", ["Against the Grain Theatre", "http://kg.artsdata.ca/resource/K10-280"], ["Ballet Atlantique Canada", "http://kg.artsdata.ca/resource/K10-16"]]]
 
-
-
-
+    assert_equal expected_output, process_linked_data_removal(statement_cache, "http://kg.artsdata.ca/resource/K10-16","Organization","Ballet Atlantique Canada")
+  end
 end

@@ -283,19 +283,24 @@ module StatementsHelper
 
 
         statement_cache = [statement_cache] if statement_cache[0].class != Array
-        statement_cache_clone = statement_cache.clone
-      
+     
+        updated_cache = false
         statement_cache.each_with_index do |c,i|
          
             if (c[0] == "Manually deleted" || c[0] == "Manually added")
-              c.select! {|uri_pair| uri_pair[1] != uri_to_delete}
+              c.each_with_index do |uri_pair,x|
+               if uri_pair[1] == uri_to_delete
+                  statement_cache[i].delete_at(x) 
+                  updated_cache = true
+               end
+              end
               statement_cache.delete_at(i) if c.length < 3
             end
           
         end
 
         #if no change then store the link to delete
-        if statement_cache === statement_cache_clone
+        if !updated_cache
 
           link_added = false
           statement_cache.each_with_index do |c,i|
