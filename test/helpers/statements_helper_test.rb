@@ -226,4 +226,47 @@ class StatementsHelperTest < ActionView::TestCase
 
 
 
+  #process_linked_data_removal statement_cache, uri_to_delete, class_to_delete, label_to_delete
+  test "process_linked_data_removal: delete a link added manually" do
+    expected_output = []
+    statement_cache = ["Manually added","Place",["Theatre1","http://uri.com"]]
+    assert_equal expected_output, process_linked_data_removal(statement_cache, "http://uri.com","Place","Theatre1")
+  end
+
+  test "process_linked_data_removal: delete a link added automatically" do
+    expected_output = [["Auto","Place",["Theatre1","http://uri.com"]],["Manually deleted", "Place", ["Theatre1", "http://uri.com"]]]
+    statement_cache = ["Auto","Place",["Theatre1","http://uri.com"]]
+    assert_equal expected_output, process_linked_data_removal(statement_cache, "http://uri.com","Place","Theatre1")
+  end
+
+  test "process_linked_data_removal: delete a second link added automatically" do
+    expected_output =[["Auto", "Place", ["Theatre9", "http://uri9.com"], ["Theatre1", "http://uri.com"]], ["Manually deleted", "Place", ["Theatre1", "http://uri.com"]]]
+    statement_cache = ["Auto","Place",["Theatre9","http://uri9.com"],["Theatre1","http://uri.com"]]
+    assert_equal expected_output, process_linked_data_removal(statement_cache, "http://uri.com","Place","Theatre1")
+  end
+
+
+  test "process_linked_data_removal: delete a deleted link" do
+    expected_output = [["Auto", "Place", ["Theatre9", "http://uri9.com"]]]
+    statement_cache = [["Auto", "Place", ["Theatre9", "http://uri9.com"]], ["Manually deleted", "Place", ["Theatre1", "http://uri.com"]]]
+    assert_equal expected_output, process_linked_data_removal(statement_cache, "http://uri.com","Place","Theatre1")
+  end
+
+
+  test "process_linked_data_removal: delete a second manually added link" do
+    expected_output = [["Auto", "Place", ["Theatre9", "http://uri9.com"]],["Manually deleted", "Place", ["Theatre1", "http://uri.com"]]]
+    statement_cache = [["Auto", "Place", ["Theatre9", "http://uri9.com"]],["Manually added", "Place", ["Theatre2", "http://uri2.com"]],["Manually deleted", "Place", ["Theatre1", "http://uri.com"]]]
+    assert_equal expected_output, process_linked_data_removal(statement_cache, "http://uri2.com","Place","Theatre2")
+  end
+
+  test "process_linked_data_removal: delete a second auto added link" do
+    expected_output = [["Auto", "Place", ["Theatre9", "http://uri9.com"]],["Manually added", "Place", ["Theatre2", "http://uri2.com"]],["Manually deleted", "Place", ["Theatre1", "http://uri.com"],["Theatre9", "http://uri9.com"]]]
+    statement_cache = [["Auto", "Place", ["Theatre9", "http://uri9.com"]],["Manually added", "Place", ["Theatre2", "http://uri2.com"]],["Manually deleted", "Place", ["Theatre1", "http://uri.com"]]]
+    assert_equal expected_output, process_linked_data_removal(statement_cache, "http://uri9.com","Place","Theatre9")
+  end
+
+
+
+
+
 end

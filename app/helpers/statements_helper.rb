@@ -1,6 +1,7 @@
 module StatementsHelper
 
   include CcKgHelper
+  
 
   def scrape(source, url, scrape_options={})
 
@@ -276,5 +277,40 @@ module StatementsHelper
       new_key = "#{new_key}_#{statement.source.language}" if !statement.source.language.blank?
       return new_key
   end
+
+
+  def process_linked_data_removal statement_cache, uri_to_delete, class_to_delete, label_to_delete
+
+
+        statement_cache = [statement_cache] if statement_cache[0].class != Array
+        statement_cache_clone = statement_cache.clone
+      
+        statement_cache.each_with_index do |c,i|
+         
+            if (c[0] == "Manually deleted" || c[0] == "Manually added")
+              c.select! {|uri_pair| uri_pair[1] != uri_to_delete}
+              statement_cache.delete_at(i) if c.length < 3
+            end
+          
+        end
+
+        #if no change then store the link to delete
+        if statement_cache === statement_cache_clone
+
+          link_added = false
+          statement_cache.each_with_index do |c,i|
+            if c[0] == "Manually deleted" 
+              statement_cache[i] << [label_to_delete, uri_to_delete]
+              link_added = true
+            end
+          end
+          if !link_added 
+            statement_cache << ["Manually deleted",class_to_delete, [label_to_delete, uri_to_delete]]
+          end
+        
+        end
+
+        return statement_cache
+      end
 
 end

@@ -2,6 +2,8 @@ class StatementsController < ApplicationController
   before_action :set_statement, only: [:show, :edit, :update, :destroy, :add_linked_data, :remove_linked_data]
   skip_before_action :verify_authenticity_token
 
+  MANUALLY_ADDED = "Manually added"
+
   #GET /statements/webpage.json?url=http://
   def webpage
     @statements = []
@@ -119,15 +121,16 @@ class StatementsController < ApplicationController
       statement_cache = [statement_cache]
     end
 
+
     link_added = false
     statement_cache.each_with_index do |c,i|
-      if c[0] == "Manually added" 
+      if c[0] == MANUALLY_ADDED 
         statement_cache[i] << [JSON.parse(s['cache'])[0], JSON.parse(s['cache'])[2]]
         link_added = true
       end
     end
     if !link_added 
-      statement_cache << ["Manually added",JSON.parse(s['cache'])[1], [JSON.parse(s['cache'])[0], JSON.parse(s['cache'])[2]]]
+      statement_cache << [MANUALLY_ADDED,JSON.parse(s['cache'])[1], [JSON.parse(s['cache'])[0], JSON.parse(s['cache'])[2]]]
     end
 
     s['cache'] = statement_cache.to_s
@@ -149,12 +152,11 @@ class StatementsController < ApplicationController
     #  { "statement": {"cache": "[\"#{options[:name]}\",\"#{options[:rdfs_class]}\",\"#{options[:uri]}\"]", "status": "ok", "status_origin": user_name} }
 
     statement_cache = JSON.parse(@statement.cache)
-
     uri_to_delete =  JSON.parse(s['cache'])[2]
-    statement_cache.select! {|linked_data| linked_data[1] != uri_to_delete}
-    
-    puts "Delete: #{uri_to_delete} from #{statement_cache}"
+    class_to_delete = JSON.parse(s['cache'])[1]
+    label_to_delete = JSON.parse(s['cache'])[0]
 
+    statement_cache = helpers.process_linked_data_removal(statement_cache, uri_to_delete, class_to_delete, label_to_delete)
 
     s['cache'] = statement_cache.to_s
     respond_to do |format|
