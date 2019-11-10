@@ -2,6 +2,9 @@ require 'test_helper'
 
 class StatementsHelperTest < ActionView::TestCase
 
+
+
+
   # test "should scrape title from html" do
   #   source = sources(:one)
   #   source.algorithm_value = "xpath=//title"

@@ -60,13 +60,11 @@ module StatementsHelper
             _old_cache = JSON.parse(s.first.cache)
             _old_cache = [ _old_cache] if  _old_cache[0].class != Array
             _old_cache.each do |c|
-              if c[0] == "Manually added"
+              if c[0] == "Manually added" || c[0] == "Manually deleted" 
                 _data << c 
               end
             end
           end
-
-
           #update database. Model automatically sets cache changed
           logger.info("*** Last step cache: #{_data}")
           s.first.update(cache:_data, cache_refreshed: Time.new) unless _data&.to_s&.include?('abort_update')
@@ -79,8 +77,8 @@ module StatementsHelper
     end
   end
 
-  def scrape(source, url, scrape_options={})
 
+  def scrape(source, url, scrape_options={})
     algorithm = source.algorithm_value
     if algorithm.start_with?("manual=")
       results_list = [algorithm.delete_prefix("manual=")]
