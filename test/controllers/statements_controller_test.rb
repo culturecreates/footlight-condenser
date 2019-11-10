@@ -54,6 +54,11 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to show_resources_path(rdf_uri: @statement.webpage.rdf_uri)
   end
 
+  test "should REFRESH webpage" do
+    patch refresh_webpage_statements_path(url: webpages(:six).url)
+    assert_redirected_to webpage_statements_path(url: webpages(:six).url)
+  end
+
   test "should destroy statement" do
     assert_difference('Statement.count', -1) do
       delete statement_url(@statement)

@@ -2,6 +2,82 @@ module StatementsHelper
 
   include CcKgHelper
   
+  def scrape_sources sources, webpage, scrape_options={}
+
+    logger.info("*** Starting scrape with sources:#{sources.inspect} for webpage: #{webpage.inspect}")
+    sources.each do |source|
+
+      #################################################
+      # MAIN SCRAPE ACTIVITY
+      _scraped_data = scrape(source, @next_step.nil? ? webpage.url :  @next_step, scrape_options)
+      #################################################
+
+      if source.next_step.nil?
+        @next_step = nil #clear to break chain of scraping urls
+
+        #################################################
+        # SECONDARY SCRAPE ACTIVITY - post process
+        _data = format_datatype(_scraped_data, source.property, webpage)
+        #################################################
+
+        #add startDate to ArchiveDate in Webpages Table to be able to sort by date and refresh event still to come.
+        if source.property.uri == "http://schema.org/startDate"
+          logger.info("*** Setting Last Show Date:#{_data}")
+          #TODO: improve error handling to use consistent {error:}
+          _data_string = _data&.to_s&.downcase
+          if !_data_string.include?('error') && !_data_string.include?('bad')
+             _data.class == Array ? last_show_date = _data.last : last_show_date = _data
+             if last_show_date.present?
+               webpage.archive_date = last_show_date.to_datetime - 24.hours
+               if webpage.save
+                 logger.debug("*** set archive date for #{webpage.url} to #{webpage.archive_date}")
+               else
+                 logger.error("*** ERROR: could not save archive date for #{webpage.url} using  #{last_show_date}.")
+               end
+             end
+           end
+        end
+
+        s = Statement.where(webpage_id: webpage.id, source_id: source.id)
+        #decide to create or update database entry
+        if s.count != 1
+          Statement.create!(cache:_data, webpage_id: webpage.id, source_id: source.id, status: status_checker(_data, source.property) , status_origin: "condenser_refresh",cache_refreshed: Time.new)
+        else
+          #check if manual entry and ONLY update if  the cache has a status of missing
+          if source.algorithm_value.start_with?("manual=") 
+            if status_checker(s.first.cache, source.property) != "missing"
+              logger.info "Skipping update of manual entry"
+              next
+            else
+              logger.info "Retrying to process manual entry because status is MISSING"
+            end
+          end
+
+          #preserve manually added and deleted links of datatype xsd:anyURI
+
+           if source.property.value_datatype == "xsd:anyURI" 
+            _data = [ _data] if  _data[0].class != Array
+            _old_cache = JSON.parse(s.first.cache)
+            _old_cache = [ _old_cache] if  _old_cache[0].class != Array
+            _old_cache.each do |c|
+              if c[0] == "Manually added"
+                _data << c 
+              end
+            end
+          end
+
+
+          #update database. Model automatically sets cache changed
+          logger.info("*** Last step cache: #{_data}")
+          s.first.update(cache:_data, cache_refreshed: Time.new) unless _data&.to_s&.include?('abort_update')
+        end
+      else
+        #there is another step
+        logger.info("*** First step cache: #{_scraped_data}")
+        @next_step = _scraped_data.count == 1 ? _scraped_data : _scraped_data.first
+      end
+    end
+  end
 
   def scrape(source, url, scrape_options={})
 

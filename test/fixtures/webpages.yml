@@ -35,3 +35,10 @@ five:
   rdf_uri: httpUri
   rdfs_class: place
   website: two
+
+six:
+  url: myUrl
+  language: en
+  rdf_uri: oneUrl
+  rdfs_class: place
+  website: two
