@@ -119,18 +119,23 @@ module StructuredDataHelper
       }
 
     condensor_statements.each do |statement|
+      logger.info("_jsonld #{_jsonld}")
       if statement.source.selected == true  && (statement.status == "ok" || statement.status == "updated")  && (statement.source.language == language || statement.source.language == "")
         prop = statement.source.property.uri.to_s.split("/").last
+        logger.info("Adding #{prop} in #{statement.inspect}")
         if prop != nil
           if statement.source.property.value_datatype == "xsd:anyURI"
             add_anyURI _jsonld, prop, statement.cache
           elsif  statement.source.property.value_datatype == "xsd:dateTime"
             _jsonld[prop] = make_into_array statement.cache
+            logger.info("Adding time to _jsonld #{_jsonld}")
           elsif prop == "duration"
             duration_array = make_into_array statement.cache
             _jsonld["duration"] = []
             duration_array.each do |d|
-              _jsonld["duration"] << d if d[0..1] == "PT" #needs to be in ISO8601 duration syntax to avoid adding "Duration not available"
+              if d[0..1] == "PT" #needs to be in ISO8601 duration syntax to avoid adding 'Duration not available'
+                _jsonld["duration"] << d 
+              end
             end
           elsif prop == "offer:url"
             add_offer _jsonld, "url", statement.cache
@@ -149,7 +154,7 @@ module StructuredDataHelper
             _jsonld[prop] = statement.cache
           end
         else
-          puts "ERROR making JSON-LD: missing property uri for: #{statement.source.property.label}"
+          logger.error "ERROR making JSON-LD: missing property uri: #{statement.source.property.label}"
         end
       end
     end
@@ -323,15 +328,22 @@ module StructuredDataHelper
       # end
       uri_objects = JSON.parse(uri_statement)
       jsonld[prop] = []
-      logger.info "***** #{uri_objects.inspect}"
+      if uri_objects[0].class != Array
+        uri_objects = [uri_objects] 
+      end
+      logger.info "**  #{uri_objects[0].length} *** #{uri_objects.inspect}"
+     
 
-      uri_objects[2..-1].each do |uri_object|
-          logger.info "***** adding #{uri_object.inspect}"
-        jsonld[prop] << {"@type": uri_objects[1], "name": uri_object[0], "@id": uri_object[1]}
+      if uri_objects[0].length > 2
+        uri_objects[0][2..-1].each do |uri_object|
+            logger.info "***** adding #{uri_object.inspect}"
+          jsonld[prop] << {"@type": uri_objects[0][1], "name": uri_object[0], "@id": uri_object[1]}
+        end
       end
     rescue
         logger.error "ERROR making JSON-LD parsing property #{prop} statement.cache: #{uri_statement}"
     end
+    logger.info("Returning from anyURI with jsonld: #{jsonld}")
     return jsonld
   end
 
