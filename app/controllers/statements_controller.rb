@@ -246,7 +246,7 @@ class StatementsController < ApplicationController
       #get the webpage and sources (check if more than one sounce with steps)
       webpage = statement.webpage
       sources = Source.where(id: statement.source_id).or(Source.where(next_step: statement.source_id)).order(:next_step)
-      herlpers.scrape_sources sources, webpage
+      helpers.scrape_sources sources, webpage
     end
 
     
