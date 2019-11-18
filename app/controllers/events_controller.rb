@@ -39,6 +39,7 @@ class EventsController < ApplicationController
                   date: dates_hash[uri]}
     end
 
+    logger.info("events hash: #{@events.inspect}")
     @events.sort_by! {|item| item[:date]}
     @total_events = @events.count
   end
