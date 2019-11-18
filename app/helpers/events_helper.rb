@@ -10,17 +10,19 @@ module EventsHelper
         end
   
         #step 2: convert to time
-        date_time = DateTime.now + 1.year
-        if date_str.present?
-            begin
-                date_time = DateTime.parse(date_str)
-            rescue => exception
-                logger.error("Invalid Event Date: #{exception}")
-            end
+
+        begin
+            date_time = DateTime.parse(date_str)
+        rescue => exception
+            logger.error("Invalid Event Date: #{exception}")
+            date_time = patch_invalid_date
         end
+
         return date_time
     end
 
       
-
+    def patch_invalid_date
+        return  DateTime.now + 1.year
+    end
 end
