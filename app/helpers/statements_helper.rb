@@ -84,17 +84,10 @@ module StatementsHelper
     if algorithm.start_with?("manual=")
       results_list = [algorithm.delete_prefix("manual=")]
     else
-    #  begin
+      begin
         agent = Mechanize.new
         agent.user_agent_alias = 'Mac Safari'
-        # @html_cache |= []
-        # if @html_cache[0] == url &&  @html_cache[1] == source.render_js
-        #   html = @html_cache[2]
-        # else
-          html = agent.get_file  use_wringer(url, source.render_js, scrape_options)
-        #   @html_cache = [url, source.render_js, html]
-        # end
-
+        html = agent.get_file  use_wringer(url, source.render_js, scrape_options)
         page = Nokogiri::HTML html
         results_list = []
         logger.info ("*** Algorithm split: #{algorithm.split(';')}")
@@ -144,10 +137,10 @@ module StatementsHelper
 
           end
         end
-      # rescue => e
-      #   logger.error(" ****************** Error in scrape: #{e.inspect}")
-      #   results_list = [["Error scrapping"],["error: #{e.inspect}"]]
-      # end
+      rescue => e
+        logger.error(" ****************** Error in scrape: #{e.inspect}")
+        results_list = [["Error scrapping"],["error: #{e.inspect}"]]
+      end
     end
     return results_list
   end
