@@ -92,6 +92,15 @@ class StatementsHelperTest < ActionView::TestCase
     assert_equal expected, actual
    end
 
+   test "array string input for any:URI" do
+    property = properties(:nine)
+    scraped_data = ["CompanyKaha:wi Dance Theatre","ArtistsSantee Smith"]
+    webpage = webpages(:one)
+    actual = format_datatype(scraped_data, property, webpage)
+    expected = [["CompanyKaha:wi Dance Theatre", "Organization", ["Kaha:wi Dance Theatre", "http://kg.artsdata.ca/resource/K10-206"]], ["ArtistsSantee Smith", "Organization"]]
+    assert_equal expected, actual
+   end
+
 
 
 
@@ -139,6 +148,19 @@ class StatementsHelperTest < ActionView::TestCase
     assert_equal expected, actual
   end
   
+
+  test "search_cckg: should not match names with common words" do
+    expected = {data:[]}
+    actual = search_cckg "The word will contains part of a first name.", "Person"
+    assert_equal expected, actual
+  end
+
+
+  test "search_cckg: should match name WiL" do
+    expected = {data:[["wiL", "http://kg.artsdata.ca/resource/K12-32"]]}
+    actual = search_cckg "WiL is the first name of a person", "Person"
+    assert_equal expected, actual
+  end
 
 
 

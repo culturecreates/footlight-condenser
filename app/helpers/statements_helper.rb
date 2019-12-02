@@ -209,17 +209,10 @@ module StatementsHelper
     #use property object to determine class
     rdfs_class = property_obj.expected_class
     uris << rdfs_class
-
-        # ######search condenser database
-        #         results = search_condenser(uri_string, rdfs_class)
-        #         results[:data].each do |uri|
-        #           uris << uri
-        #         end
-        #         logger.info("*** search condenser:  #{uris}")
-
-  ## if uris.count == 2 #then no matches found yet, keep looking
+    
   if !uri_string.downcase.include?("error")
       #search Culture Creates KG
+
       cckg_results = search_cckg(uri_string, rdfs_class)
       if cckg_results[:error]
         logger.error("*** search kg ERROR:  #{cckg_results}")
@@ -270,7 +263,10 @@ module StatementsHelper
 
 
   def search_cckg str, rdfs_class #returns a HASH
-    if str.length > 2 
+    if str.length > 3 
+      #remove common words in string that could be names
+      str.gsub!( /will|Will/ , "")   #see tests for artist name WiL
+ 
       q = "PREFIX schema: <http://schema.org/>            \
           select  ?uri  ?name ?url where {              \
               ?uri a schema:#{rdfs_class} .                \
@@ -279,7 +275,7 @@ module StatementsHelper
               filter  (isURI(?uri))   \
               filter (?url != '')  \
               filter (str(?name) != '') \
-              filter (regex(str(?name),'#{str}','i') || regex('#{str}',str(?name),'i')  || regex('#{str}',str(?url),'i')   || regex(str(?url),'#{str}','i') ) \
+              filter (regex(str(?name),'#{str}','i') || regex('#{str}', str(?name),'i')  || regex('#{str}',str(?url),'i')   || regex(str(?url),'#{str}','i') ) \
           } "
       results = cc_kg_query(q, rdfs_class)
 
