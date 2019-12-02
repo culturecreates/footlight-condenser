@@ -15,7 +15,7 @@ module CcKgHelper
             result[:data] = JSON.parse(data.body)["results"]["bindings"]
             @cckg_cache[cache_key] = result
         else
-          result =  {error: data.response.message, response: data}
+          result =  {error: data.response.code, response: data}
         end
       rescue => e
         result = {error: "RESCUE while searching in Knowledge Graph: #{e.inspect} "}

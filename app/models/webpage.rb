@@ -8,4 +8,10 @@ class Webpage < ApplicationRecord
   # for pagination
   self.per_page = 18
 
+  after_initialize :init
+
+  def init
+    self.archive_date  ||=  Time.now.next_year          #will set the default value only if it's nil
+  end
+
 end

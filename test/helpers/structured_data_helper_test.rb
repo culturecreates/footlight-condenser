@@ -108,7 +108,7 @@ class StructuredDataHelperTest < ActionView::TestCase
   end
 
   test "get_kg_place: should produce error with invalid URI" do
-    expected_output = {:error=>""}
+    expected_output = {:error=>"400"}  #Bad request
     assert_equal expected_output, get_kg_place("invalid-uri")
   end
 
