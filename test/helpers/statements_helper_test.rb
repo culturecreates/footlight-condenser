@@ -4,13 +4,37 @@ class StatementsHelperTest < ActionView::TestCase
 
 
 
+#scrape
+  test "should scrape title from html" do
+    source = sources(:one)
+    source.algorithm_value = "xpath=//title"
+    expected_output = ['Culture Creates | Digital knowledge management for the arts']
+    assert_equal expected_output, scrape(source, "http://culturecreates.com")
+  end
 
-  # test "should scrape title from html" do
-  #   source = sources(:one)
-  #   source.algorithm_value = "xpath=//title"
-  #   expected_output = ['Culture Creates | Digital knowledge management for the arts']
-  #   assert_equal expected_output, scrape(source, "http://culturecreates.com")
-  # end
+
+  #status_checker (scraped_data, property)
+  test "should have missing status" do
+    property = properties(:nine)
+    scraped_data = "a string without auto-links"
+    expected_output = "missing"
+    assert_equal expected_output, status_checker(scraped_data, property)
+  end
+
+  test "should have ok status" do
+    property = properties(:nine)
+    scraped_data = "[\"source\",\"class\",[\"name\",\"uri\"]]"
+    expected_output = "initial"
+    assert_equal expected_output, status_checker(scraped_data, property)
+  end
+
+  test "should have initial status for array of scraped data" do
+    property = properties(:nine)
+    scraped_data = "[[\"source\",\"class\",[\"name\",\"uri\"]],[\"source\",\"class\",[\"name\",\"uri\"]]]"
+    expected_output = "initial"
+    assert_equal expected_output, status_checker(scraped_data, property)
+  end
+
 
 
   # test "should scrape 2 items from html" do
@@ -237,7 +261,7 @@ class StatementsHelperTest < ActionView::TestCase
 
 
 
-  #
+  
   # test "ISO_duration: should convert messy string to ISO duration" do
   #   expected_output = "PT3600S"
   #   assert_equal expected_output, ISO_duration(" samedi 20 octobre 2018, de 10 h à 11 h ")

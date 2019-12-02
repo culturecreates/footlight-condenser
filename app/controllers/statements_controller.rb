@@ -226,7 +226,6 @@ class StatementsController < ApplicationController
     end
 
     def refresh_webpage_statements webpage, scrape_options={}
-      @html_cache = []
       #get the properties for the rdfs_class of the webpage
       properties = webpage.rdfs_class.properties
       properties.each do |property|
@@ -242,7 +241,6 @@ class StatementsController < ApplicationController
     end
 
     def refresh_statement statement
-      @html_cache = []
       #get the webpage and sources (check if more than one sounce with steps)
       webpage = statement.webpage
       sources = Source.where(id: statement.source_id).or(Source.where(next_step: statement.source_id)).order(:next_step)

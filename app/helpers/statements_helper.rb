@@ -1,9 +1,9 @@
 module StatementsHelper
 
   include CcKgHelper
+  include CcWringerHelper
   
   def scrape_sources sources, webpage, scrape_options={}
-
     logger.info("*** Starting scrape with sources:#{sources.inspect} for webpage: #{webpage.inspect}")
     sources.each do |source|
 
@@ -79,19 +79,21 @@ module StatementsHelper
 
 
   def scrape(source, url, scrape_options={})
+   
     algorithm = source.algorithm_value
     if algorithm.start_with?("manual=")
       results_list = [algorithm.delete_prefix("manual=")]
     else
-      begin
+    #  begin
         agent = Mechanize.new
         agent.user_agent_alias = 'Mac Safari'
-        if @html_cache[0] == url &&  @html_cache[1] == source.render_js
-          html = @html_cache[2]
-        else
+        # @html_cache |= []
+        # if @html_cache[0] == url &&  @html_cache[1] == source.render_js
+        #   html = @html_cache[2]
+        # else
           html = agent.get_file  use_wringer(url, source.render_js, scrape_options)
-          @html_cache = [url, source.render_js, html]
-        end
+        #   @html_cache = [url, source.render_js, html]
+        # end
 
         page = Nokogiri::HTML html
         results_list = []
@@ -142,10 +144,10 @@ module StatementsHelper
 
           end
         end
-      rescue => e
-        logger.error(" ****************** Error in scrape: #{e.inspect}")
-        results_list = [["Error scrapping"],["error: #{e.inspect}"]]
-      end
+      # rescue => e
+      #   logger.error(" ****************** Error in scrape: #{e.inspect}")
+      #   results_list = [["Error scrapping"],["error: #{e.inspect}"]]
+      # end
     end
     return results_list
   end
@@ -154,17 +156,21 @@ module StatementsHelper
 
   def status_checker (scraped_data, property)
     if property.value_datatype == "xsd:anyURI"
-      #check for 2 items in list
-      begin
-        scraped_data =  JSON.parse(scraped_data) 
-      rescue
-        scraped_data = []
+      if scraped_data.is_a? String  
+        begin
+          scraped_data =  JSON.parse(scraped_data) 
+        rescue
+         scraped_data = []
+        end
       end
-      scraped_data.count == 3 ? status = "initial" : status = "missing"
+      if scraped_data[0].is_a? Array
+        scraped_data[0].count == 3 ? status = "initial" : status = "missing"
+      else
+        scraped_data.count == 3 ? status = "initial" : status = "missing"
+      end
     else
       !scraped_data.blank? && !scraped_data&.to_s&.downcase&.include?('error') ? status = "initial" : status = "missing"
     end
-    logger.error(" status_checker for #{scraped_data}: #{status}")
 
     return status
   end
@@ -209,7 +215,7 @@ module StatementsHelper
     #use property object to determine class
     rdfs_class = property_obj.expected_class
     uris << rdfs_class
-    
+
   if !uri_string.downcase.include?("error")
       #search Culture Creates KG
 
