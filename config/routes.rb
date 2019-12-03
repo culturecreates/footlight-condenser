@@ -54,6 +54,9 @@ Rails.application.routes.draw do
       to: "events#index",
       as: :website_events
 
+  get 'websites/:seedurl/export',
+      to: "export#export",
+      as: :export
 
   get 'resources/:rdf_uri',
       to: "resources#show",
@@ -73,6 +76,7 @@ Rails.application.routes.draw do
 
   get 'resources/:rdf_uri/webpage_urls',
       to: "resources#webpage_urls"
+
 
 
 
