@@ -22,3 +22,5 @@
 # heroku pg:backups:capture
 # heroku pg:backups:download
 latest.dump
+
+.DS_Store

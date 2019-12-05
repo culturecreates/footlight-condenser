@@ -265,6 +265,11 @@ module StatementsHelper
     if str.length > 3 
       #remove common words in string that could be names
       str.gsub!( /will|Will/ , "")   #see tests for artist name WiL
+
+      # TODO: ADD alternateName to SPARQL
+      # OPTIONAL {   ?uri  schema:alternateName ?alt .   filter (lang(?alt) = '')   }              
+      # filter (lang(?name) = '')  
+      # filter (  regex("Dow Centennial Centre in Shell Theatre",str(?name),'i')  ||  regex("Dow Centennial Centre in Shell Theatre",str(?alt),'i')  ) 
  
       q = "PREFIX schema: <http://schema.org/>            \
           select  ?uri  ?name ?url where {              \
