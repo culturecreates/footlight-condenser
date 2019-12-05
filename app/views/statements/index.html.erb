@@ -1,6 +1,9 @@
 <p id="notice"><%= notice %></p>
 
 <h1>Statements</h1>
+<% if params[:rdf_uri] %>
+<p> Showing statements for <%= params[:rdf_uri]%> </p>
+<% end %>
 
 <%= will_paginate @statements %>
 

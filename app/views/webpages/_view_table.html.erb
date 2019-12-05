@@ -29,7 +29,7 @@
         <td><%= webpage.website.seedurl %></td>
         <td><%= webpage.archive_date %></td>
 
-        <td><%= link_to 'statements', webpage_statements_path(url:webpage.url)  %></td>
+        <td><%= link_to 'statements', statements_path(rdf_uri:webpage.rdf_uri)  %></td>
         <td><%= link_to 'refresh', refresh_webpage_statements_path(url: webpage.url), method: :patch  %></td>
         <td> <%= link_to "JSON-LD", structured_data_event_markup_path(url: webpage.url, format: :json) %></td>
         <td><%= link_to 'Show', webpage %></td>

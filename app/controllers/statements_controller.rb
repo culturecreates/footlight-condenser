@@ -57,10 +57,15 @@ class StatementsController < ApplicationController
   # GET /statements
   # GET /statements.json
   def index
-    if cookies[:seedurl]
-      @statements = Statement.joins(webpage: :website).where(webpages: { websites: {seedurl:  cookies[:seedurl]}}).order(:id).paginate(page: params[:page], per_page: params[:per_page])
+    if params[:rdf_uri]
+      webpage_id = Webpage.where(rdf_uri:params[:rdf_uri] )
+      @statements = Statement.where(webpage_id: webpage_id).order(:id).paginate(page: params[:page], per_page: params[:per_page])
     else
-      @statements = Statement.all.order(:id).paginate(page: params[:page], per_page: params[:per_page])
+      if cookies[:seedurl]
+        @statements = Statement.joins(webpage: :website).where(webpages: { websites: {seedurl:  cookies[:seedurl]}}).order(:id).paginate(page: params[:page], per_page: params[:per_page])
+      else
+        @statements = Statement.all.order(:id).paginate(page: params[:page], per_page: params[:per_page])
+      end
     end
   end
 
