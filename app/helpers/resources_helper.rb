@@ -53,7 +53,9 @@ module ResourcesHelper
     value_obj = {search: value_array[0], class: value_array[1]}
     hits = []
     value_array[2..-1].each do |hit|
-     hits << { label: hit[0], uri: hit[1]}
+      if !hit.include?("abort")
+         hits << { label: hit[0], uri: hit[1]}
+      end
     end
     value_obj[:links] = hits
     return value_obj

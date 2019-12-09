@@ -31,5 +31,13 @@ class ResourcesHelperTest < ActionView::TestCase
 
 
 
+  test "build_json_from_anyURI array with abort" do
+    expected_output = [{:search=>"", :class=>"Organization", :links=>[]}, {:search=>"", :class=>"Organization", :links=>[]}]
+    input = "[[\"\", \"Organization\", \"abort_update\"], [\"\", \"Organization\", \"abort_update\"]]"
+    assert_equal expected_output, build_json_from_anyURI(input)
+  end
+
+
+
 
 end
