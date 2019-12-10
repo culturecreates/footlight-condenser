@@ -85,7 +85,7 @@ class StatementsHelperTest < ActionView::TestCase
    scraped_data = ["Théâtre Maisonneuve"]
    webpage = webpages(:one)
    actual = format_datatype(scraped_data, property, webpage)
-   expected = ["Théâtre Maisonneuve", "Place", ["Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/place/theatre_maisonneuve"]]
+   expected = ["Théâtre Maisonneuve", "Place", ["Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/K11-11"]]
    assert_equal expected, actual
   end
 
@@ -130,7 +130,7 @@ class StatementsHelperTest < ActionView::TestCase
 
   #search_cckg
   test "search_cckg: should search cckg for uris that match 100%" do
-    expected = {:data=>[["Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/place/theatre_maisonneuve"]]}
+    expected = {:data=>[["Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/K11-11"]]}
     actual = search_cckg "Théâtre Maisonneuve", "Place"
     assert_equal expected, actual
   end
@@ -156,7 +156,7 @@ class StatementsHelperTest < ActionView::TestCase
 
   test "search_cckg: remove duplicates" do
     expected = {data:[["Berkeley Street Theatre", "http://kg.artsdata.ca/resource/K11-14"]]}
-    actual = search_cckg "The locations is in the lovely Berkeley Street Theatre and Berkeley Street.", "Place"
+    actual = search_cckg "The locations is in the lovely Berkeley Street Theatre and Canadian Stage - Berkeley Street Theatre.", "Place"
     assert_equal expected, actual
   end
 
