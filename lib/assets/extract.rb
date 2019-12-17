@@ -4,7 +4,7 @@ seedurl = ARGV[0] || 'theplayhouse-ca'
 
 result = {}
 
-webpages = HTTParty.get("https://footlight-condenser.herokuapp.com/webpages.json?seedurl=#{seedurl}")
+webpages = HTTParty.get("https://footlight-condenser.herokuapp.com/webpages.json?seedurl=#{seedurl}&per_page=1000")
 sources = HTTParty.get("http://localhost:3000/sources.json?seedurl=#{seedurl}")
 
 
@@ -50,5 +50,5 @@ File.open("dump_#{seedurl}.json","w") do |f|
     f.write(result.to_json)
 end
 
-  puts "done writing #{result.count} objects"
+  puts "done writing #{result.count} objects by loading #{webpages.count} webpages"
 
