@@ -19,5 +19,4 @@ module CcKgHelper
       end
     return result
   end
-
 end

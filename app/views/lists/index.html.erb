@@ -1,0 +1,9 @@
+<p id="notice"><%= notice %></p>
+
+<h1> Lists  </h1>
+
+<br>
+<% @uris.each do |uri| %>
+    <%= uri %> 
+    <%= link_to "Add webpages",  add_webpages_lists_path(rdf_uri: uri) %>
+<% end %>

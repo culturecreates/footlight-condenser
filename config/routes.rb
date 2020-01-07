@@ -25,6 +25,13 @@ Rails.application.routes.draw do
 
   resources :properties
   resources :rdfs_classes
+
+  resources :lists do
+    collection do
+      get 'add_webpages'
+    end
+  end
+
   resources :webpages do
     collection do
       post 'create_api'
