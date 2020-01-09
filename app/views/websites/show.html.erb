@@ -26,7 +26,7 @@
 <hr>
 <h3> REFRESH </h3>
 <%= link_to 'Refresh UPCOMING events', edit_website_path(@website) %> |
-<%= link_to 'Refresh all past and future events', edit_website_path(@website) %> 
+<%= link_to 'Refresh all past and future events', refresh_webpages_batch_jobs_path(seedurl: @website.seedurl) %> 
 
 <hr>
 <h3> CRAWL & REFRESH</h3>

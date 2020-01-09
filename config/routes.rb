@@ -47,6 +47,12 @@ Rails.application.routes.draw do
     end
   end
 
+  resources :batch_jobs do
+    collection do
+      get 'add_webpages', 'refresh_webpages'
+    end
+  end
+
 
 ### eventually replace these with resouces websites, param: :seedurl
 
