@@ -47,7 +47,9 @@ class BatchJobsController < ApplicationController
 
     def refresh_webpages
         # GET /batch_jobs/refresh_webpages?seedurl=
-        webpages = Website.where(seedurl: params[:seedurl]).first.webpages
+
+        website = Website.where(seedurl: params[:seedurl]).first
+        webpages = website.webpages
 
         urls = []
         webpages.each do |wp|
@@ -56,7 +58,6 @@ class BatchJobsController < ApplicationController
         puts urls
 
         result = helpers.huginn_webhook  "urls", urls, 250
-
-        redirect_to website_path(seedurl: params[:seedurl]), notice: "Creating batch job for #{urls.count} webpages... response: #{result} " 
+        redirect_to website_path(website), notice: "Creating batch job for #{urls.count} webpages... response: #{result} " 
     end
 end
