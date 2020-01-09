@@ -18,16 +18,13 @@
         <td><%= website.name %></td>
         <td><%= website.seedurl %></td>
         <td><%= website.graph_name %></td>
-        <td><%= link_to 'Webpages', webpages_path(seedurl: website[:seedurl])  %></td>
-        <td><%= link_to 'Events', events_websites_path(seedurl: website[:seedurl])  %></td>
+       
         <td><%= link_to 'Places', places_websites_path(seedurl: website[:seedurl])  %></td>
-        <td><%= link_to 'Sources', website_sources_path(id: website[:id])  %></td>
+       
         <td><%= link_to 'Show', website %></td>
         <td><%= link_to 'Edit', edit_website_path(website) %></td>
         <td><%= link_to 'Destroy', website, method: :delete, data: { confirm: 'Are you sure?' } %></td>
-        <td><%= link_to 'Destroy all statements', delete_all_statements_websites_path(id: website[:id]), method: :delete, data: { confirm: "Are you sure to delete all #{website.seedurl} statements ?" } %></td>
-        <td><%= link_to 'Destroy all webpages', delete_all_webpages_websites_path(id: website[:id]), method: :delete, data: { confirm: "Are you sure to delete all webpages for #{website.seedurl} ?" } %></td>
-      </tr>
+        </tr>
     <% end %>
   </tbody>
 </table>

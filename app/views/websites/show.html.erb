@@ -15,5 +15,36 @@
   <%= @website.graph_name %>
 </p>
 
+
+<%= link_to 'Add webpages from Resource', lists_path(seedurl: @website.seedurl) %> | 
 <%= link_to 'Edit', edit_website_path(@website) %> |
 <%= link_to 'Back', websites_path %>
+
+
+<h2>Events</h2>
+<div style="margin-left: 30px">
+<hr>
+<h3> REFRESH </h3>
+<%= link_to 'Refresh UPCOMING events', edit_website_path(@website) %> |
+<%= link_to 'Refresh all past and future events', edit_website_path(@website) %> 
+
+<hr>
+<h3> CRAWL & REFRESH</h3>
+<%= link_to 'Crawl (24 hr cache) and refresh UPCOMING events', edit_website_path(@website) %> |
+<%= link_to 'FORCE new Crawl and refresh UPCOMING events', edit_website_path(@website) %>
+
+
+<hr>
+<h3> PUBLISH</h3>
+<%= link_to 'PUSH to artsdata.ca', edit_website_path(@website) %>
+<hr>
+</div>
+
+
+<h3 style="color:red">  DESTROY </h3>
+<div style="display:block;float: left">
+<%=  button_to 'Destroy all statements', delete_all_statements_websites_path(id: @website.id), method: :delete, data: { confirm: "Are you sure to delete all #{@website.seedurl} statements ?" } %> 
+
+ <%= button_to 'Destroy all webpages', delete_all_webpages_websites_path(id: @website.id), method: :delete, data: { confirm: "Are you sure to delete all webpages for #{@website.seedurl} ?" } %> 
+    
+

@@ -12,6 +12,18 @@ class StatementsHelperTest < ActionView::TestCase
     assert_equal expected_output, scrape(source, "http://culturecreates.com")
   end
 
+  # test "should scrape 2 items from html" do
+  #   source = OpenStruct.new(algorithm_value: 'xpath=//title,xpath=//meta[@property="og:title"]/@content')
+  #   expected_output = ['Culture Creates | Digital knowledge management for the arts', "Culture Creates Inc"]
+  #   assert_equal expected_output, scrape(source, "http://culturecreates.com")
+  # end
+
+
+  # test "should concatenate 2 items from html" do
+  #   source = OpenStruct.new(algorithm_value: 'xpath=//title,xpath=//meta[@property="og:title"]/@content,ruby=$array[0]+ " | " + $array[1]')
+  #   expected_output = "Culture Creates | Digital knowledge management for the artsCulture | Creates Inc"
+  #   assert_equal expected_output, scrape(source, "http://culturecreates.com")
+  # end
 
   #status_checker (scraped_data, property)
   test "should have missing status" do
@@ -36,19 +48,6 @@ class StatementsHelperTest < ActionView::TestCase
   end
 
 
-
-  # test "should scrape 2 items from html" do
-  #   source = OpenStruct.new(algorithm_value: 'xpath=//title,xpath=//meta[@property="og:title"]/@content')
-  #   expected_output = ['Culture Creates | Digital knowledge management for the arts', "Culture Creates Inc"]
-  #   assert_equal expected_output, scrape(source, "http://culturecreates.com")
-  # end
-
-
-  # test "should concatenate 2 items from html" do
-  #   source = OpenStruct.new(algorithm_value: 'xpath=//title,xpath=//meta[@property="og:title"]/@content,ruby=$array[0]+ " | " + $array[1]')
-  #   expected_output = "Culture Creates | Digital knowledge management for the artsCulture | Creates Inc"
-  #   assert_equal expected_output, scrape(source, "http://culturecreates.com")
-  # end
 
   # search_condenser
   test "search_condenser: should search condenser for uris that match 100%" do
