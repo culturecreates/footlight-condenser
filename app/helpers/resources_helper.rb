@@ -32,7 +32,13 @@ module ResourcesHelper
   end
 
   def build_json_from_anyURI cache_str
-    value_array = JSON.parse(cache_str)
+    begin
+      value_array = JSON.parse(cache_str)
+    rescue => exception
+      logger.error(exception)
+      value_array = []
+    end
+    
     value_obj = []
     if !value_array.blank?
       if value_array[0].class == String
