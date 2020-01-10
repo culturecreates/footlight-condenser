@@ -40,7 +40,7 @@ class BatchJobsController < ApplicationController
         #call batch processor with array of webpages json
         result = helpers.huginn_webhook  "webpages", webpages, 249
 
-        redirect_to lists_path(seedurl: seedurl), notice: "Creating batch job for #{urls.count} webpages... response: #{result} " 
+        redirect_to lists_path(seedurl: seedurl), notice: "Created batch job for #{urls.count} webpages... response: #{result} " 
 
     end
 
@@ -58,6 +58,6 @@ class BatchJobsController < ApplicationController
         puts urls
 
         result = helpers.huginn_webhook  "urls", urls, 250
-        redirect_to website_path(website), notice: "Creating batch job for #{urls.count} webpages... response: #{result} " 
+        redirect_to website_path(website), notice: "Created batch job for #{urls.count} webpages... response: #{result} " 
     end
 end
