@@ -9,7 +9,7 @@
    <% place[1].each do |p| %>
    <tr>
    <td>
-        <%= place[0] %>
+        <%=link_to place[0], statements_path(rdf_uri: place[0] ) %>
     </td>  
     <% if p.class == Array %>
         <td>

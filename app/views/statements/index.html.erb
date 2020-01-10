@@ -2,7 +2,8 @@
 
 <h1>Statements</h1>
 <% if params[:rdf_uri] %>
-<p> Showing statements for <%= params[:rdf_uri]%> </p>
+  <p> Showing statements for <%= params[:rdf_uri] %> <%=  link_to "Refresh", refresh_rdf_uri_statements_path(rdf_uri: params[:rdf_uri]), method: :patch %> 
+      </p>
 <% end %>
 
 <%= will_paginate @statements %>
@@ -26,12 +27,12 @@
 
   <tbody>
     <% @statements.each do |statement| %>
-      <tr>
+      <tr  <%= "style=background-color:pink;" if !statement.source.selected %> >
         <td><%= statement.id %></td>
         <td><%= statement.source.property.label %> <%= format_language statement.source.language%></td>
         <td><%= statement.cache %></td>
         <td><%= statement.status %></td>
-        <td><%= statement.source.selected %></td>
+        <td <%= "style=color:red;" if !statement.source.selected %>><%= statement.source.selected %></td>
         <td><%= statement.status_origin %></td>
         <td><%= statement.cache_refreshed %></td>
         <td><%= statement.cache_changed %></td>

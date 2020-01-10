@@ -15,12 +15,12 @@
 
   <tbody>
     <% @sources.each do |source| %>
-      <tr>
+      <tr <%= "style=background-color:pink;" if !source.selected %>>
         <td><%= source.id %></td>
         <td><%= source.next_step %></td>
         <td><%= source.property.rdfs_class.name %> <%= source.property.label  + "(#{source.property_id})" %> <%= "@" + source.language if !source.language.blank?%></td>
         <td><%= source.algorithm_value %></td>
-        <td><%= source.selected %></td>
+        <td <%= "style=color:red;" if !source.selected %>><%= source.selected %></td>
         <td><%= source.selected_by %></td>
         <td><%= source.render_js %></td>
         <td><%= source.website.seedurl + "(#{source.website_id})" %></td>
