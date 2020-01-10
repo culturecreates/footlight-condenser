@@ -7,7 +7,7 @@ class SourcesController < ApplicationController
 
     seedurl = params[:seedurl] ||  cookies[:seedurl]
     if seedurl
-      @sources = Source.where(website_id: Website.where(seedurl: seedurl).first.id).order(:property_id, :language, selected: :desc)
+      @sources = Source.where(website_id: Website.where(seedurl: seedurl).first.id).order(selected: :desc).order(:property_id, :language)
     else
       @sources = Source.all
     end

@@ -60,7 +60,7 @@ class StatementsController < ApplicationController
   def index
     if params[:rdf_uri]
       webpage_id = Webpage.where(rdf_uri:params[:rdf_uri] )
-      @statements = Statement.where(webpage_id: webpage_id).order(:id).paginate(page: params[:page], per_page: params[:per_page])
+      @statements = Statement.joins(:source).where(webpage_id: webpage_id).order( "sources.selected DESC" , "sources.property_id" ).paginate(page: params[:page], per_page: params[:per_page])
     else
       if cookies[:seedurl]
         @statements = Statement.joins(webpage: :website).where(webpages: { websites: {seedurl:  cookies[:seedurl]}}).order(:id).paginate(page: params[:page], per_page: params[:per_page])

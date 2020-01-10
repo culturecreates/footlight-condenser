@@ -27,12 +27,12 @@
 
   <tbody>
     <% @statements.each do |statement| %>
-      <tr  <%= "style=background-color:pink;" if !statement.source.selected %> >
+      <tr  <%= "style=color:red;" if !statement.source.selected %> >
         <td><%= statement.id %></td>
         <td><%= statement.source.property.label %> <%= format_language statement.source.language%></td>
         <td><%= statement.cache %></td>
         <td><%= statement.status %></td>
-        <td <%= "style=color:red;" if !statement.source.selected %>><%= statement.source.selected %></td>
+        <td <%= "style=background-color:pink;" if !statement.source.selected %>><%= statement.source.selected %></td>
         <td><%= statement.status_origin %></td>
         <td><%= statement.cache_refreshed %></td>
         <td><%= statement.cache_changed %></td>
