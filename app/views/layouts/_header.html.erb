@@ -1,4 +1,6 @@
-<%= link_to "websites", websites_path %> |
+<%= link_to "all websites", websites_path %> |
+<%= select_tag "filter", options_from_collection_for_select(@websites, "seedurl", "seedurl", cookies[:seedurl]) %> |
+<%= link_to "website", website_path(Website.where(seedurl:  cookies[:seedurl]).first.id) %> |
 <%= link_to "events", events_websites_path(seedurl:  cookies[:seedurl]) %> |
 <%= link_to "places", places_path(seedurl:  cookies[:seedurl]) %> |
 <%= link_to "webpages", webpages_path %> |
@@ -10,9 +12,6 @@
 
 
 <br>
-Filter:
-<%= select_tag "filter", options_from_collection_for_select(@websites, "seedurl", "seedurl", cookies[:seedurl]) %>
-
 
 <script>
     $(function(){
