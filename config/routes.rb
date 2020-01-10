@@ -25,6 +25,7 @@ Rails.application.routes.draw do
 
   resources :properties
   resources :rdfs_classes
+  resources :places
 
   resources :lists do
     collection do
