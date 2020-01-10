@@ -35,6 +35,7 @@
 <p>
   <strong>Webpage:</strong>
   <%= @statement.webpage.url %>
+  <a href="<%= get_wringer_url_per_environment %>/websites?term=<%= CGI.escape(CGI.escape(@statement.webpage.url)) %>"> View on Wringer</a> 
 </p>
 
 <p>
