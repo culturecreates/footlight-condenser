@@ -33,6 +33,12 @@ Rails.application.routes.draw do
     end
   end
 
+  resources :reports do
+    collection do
+      get 'source'
+    end
+  end
+
   resources :webpages do
     collection do
       post 'create_api'

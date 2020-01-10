@@ -1,0 +1,15 @@
+<p id="notice"><%= notice %></p>
+
+<h1> <%=  @title %> </h1>
+<table>
+<% @data.each do |d| %>
+
+<tr>
+<td><%= link_to d[0], statements_path(rdf_uri: d[0]) %></td>
+<td><%= d[1] %></td>
+
+</tr>
+
+
+<% end %>
+</table>

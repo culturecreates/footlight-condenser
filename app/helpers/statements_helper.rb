@@ -57,7 +57,11 @@ module StatementsHelper
 
            if source.property.value_datatype == "xsd:anyURI" 
             _data = [ _data] if  _data[0].class != Array
-            _old_cache = JSON.parse(s.first.cache)
+            begin
+              _old_cache = JSON.parse(s.first.cache)
+            rescue => exception
+              _old_cache = s.first.cache
+            end
             _old_cache = [ _old_cache] if  _old_cache[0].class != Array
             _old_cache.each do |c|
               if c[0] == "Manually added" || c[0] == "Manually deleted" 
