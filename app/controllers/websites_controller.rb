@@ -44,6 +44,7 @@ class WebsitesController < ApplicationController
   # GET /websites/1
   # GET /websites/1.json
   def show
+    cookies[:seedurl] = @website.seedurl
   end
 
   # GET /websites/new

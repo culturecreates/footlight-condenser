@@ -1,12 +1,12 @@
 <%= link_to "all websites", websites_path %> |
-<%= select_tag "filter", options_from_collection_for_select(@websites, "seedurl", "seedurl", cookies[:seedurl]) %> |
-<%= link_to "website", website_path(Website.where(seedurl:  cookies[:seedurl]).first.id) %> |
-<%= link_to "events", events_websites_path(seedurl:  cookies[:seedurl]) %> |
-<%= link_to "places", places_path(seedurl:  cookies[:seedurl]) %> |
+<%= select_tag "filter", options_from_collection_for_select(@selectable_websites, "id", "seedurl", @website.id) %> 
+<%= link_to "website", website_path(@website) %> |
+<%= link_to "events", events_websites_path(seedurl:  @website.seedurl) %> |
+<%= link_to "places", places_path(seedurl:  @website.seedurl) %> |
 <%= link_to "webpages", webpages_path %> |
-<%= link_to "sources", sources_path %> |
-<%= link_to "properties", properties_path %> |
 <%= link_to "statements", statements_path %> |
+<%= link_to "sources", sources_path %> ||
+<%= link_to "properties", properties_path %> |
 <%= link_to "classes", rdfs_classes_path %> |
 <%= link_to "test api", test_api_websites_path %>
 
@@ -17,10 +17,8 @@
     $(function(){
       // bind change event to select
       $('#filter').on('change', function () {
-          var seedurl = $(this).val(); // get selected value
-
-          window.location = "/websites/events?seedurl=" + seedurl
-
+          var webpage_id = $(this).val(); // get selected value
+          window.location = "/websites/" + webpage_id 
           return false;
       });
     });
