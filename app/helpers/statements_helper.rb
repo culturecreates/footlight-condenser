@@ -270,6 +270,8 @@ module StatementsHelper
       #remove common words in string that could be names
       str.gsub!( /will|Will/ , "")   #see tests for artist name WiL
 
+      str.gsub!( /'/, "\\\\'")  #escape single quote so it does not interfere with SPARQL 
+     
       # TODO: ADD alternateName to SPARQL
       # OPTIONAL {   ?uri  schema:alternateName ?alt .   filter (lang(?alt) = '')   }              
       # filter (lang(?name) = '')  
@@ -283,8 +285,9 @@ module StatementsHelper
               filter  (isURI(?uri))   \
               filter (?url != '')  \
               filter (str(?name) != '') \
-              filter (regex(str(?name),'#{str}','i') || regex('#{str}', str(?name),'i')  || regex('#{str}',str(?url),'i')   || regex(str(?url),'#{str}','i') ) \
+              filter (contains(str(?name),'#{str}') || contains('#{str}', str(?name))  || contains('#{str}',str(?url))   || contains(str(?url),'#{str}') ) \
           } "
+
       results = cc_kg_query(q, rdfs_class)
 
       logger.info " ++++++++++++=Results from cc_kg_query: #{results}"
@@ -328,7 +331,7 @@ module StatementsHelper
   end
 
   def french_to_english_month(date_time)
-    date_time.downcase.gsub(/ h /, 'h').gsub(/janvier|février|fév|mars|avr|mai|juin|juillet|août|aou|aoû|septembre|octobre|novembre|décembre|déc/, 'janvier'=> 'JAN', 'février'=> 'FEB', 'fév'=> 'FEB', 'mars'=> 'MAR', 'avril'=> 'APR', 'avr'=> 'APR', 'mai'=>'MAY', 'juin' => 'JUN', 'juillet' => 'JUL','aou'=>'AUG', 'août'=>'AUG', 'aoû'=>'AUG','septembre'=> 'SEP','octobre'=> 'OCT','novembre'=> 'NOV','décembre'=>'DEC', 'déc'=>'DEC')
+    date_time.downcase.gsub(/ h /, 'h').gsub(/janvier|février|fév|mars|avr|mai|juin|juillet|juil|août|aou|aoû|septembre|octobre|novembre|décembre|déc/, 'janvier'=> 'JAN', 'février'=> 'FEB', 'fév'=> 'FEB', 'mars'=> 'MAR', 'avril'=> 'APR', 'avr'=> 'APR', 'mai'=>'MAY', 'juin' => 'JUN', 'juillet' => 'JUL','juil' => 'JUL','aou'=>'AUG', 'août'=>'AUG', 'aoû'=>'AUG','septembre'=> 'SEP','octobre'=> 'OCT','novembre'=> 'NOV','décembre'=>'DEC', 'déc'=>'DEC')
   end
 
   def ISO_dateTime(date_time)
