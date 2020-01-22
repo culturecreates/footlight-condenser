@@ -268,9 +268,9 @@ module StatementsHelper
   def search_cckg str, rdfs_class #returns a HASH
     if str.length > 3 
       #remove common words in string that could be names
-      str.gsub!( /will|Will/ , "")   #see tests for artist name WiL
-
-      str.gsub!( /'/, "\\\\'")  #escape single quote so it does not interfere with SPARQL 
+      sparql_str = str
+        .gsub( /will|Will/ , "")   #see tests for artist name WiL
+        .gsub( /'|’/, "\\\\'")    #escape single quote so it does not interfere with SPARQL 
      
       # TODO: ADD alternateName to SPARQL
       # OPTIONAL {   ?uri  schema:alternateName ?alt .   filter (lang(?alt) = '')   }              
@@ -285,9 +285,10 @@ module StatementsHelper
               filter  (isURI(?uri))   \
               filter (?url != '')  \
               filter (str(?name) != '') \
-              filter (contains(str(?name),'#{str}') || contains('#{str}', str(?name))  || contains('#{str}',str(?url))   || contains(str(?url),'#{str}') ) \
+              filter (contains(str(?name),'#{sparql_str}') || contains('#{sparql_str}', str(?name))  || contains('#{sparql_str}',str(?url))   || contains(str(?url),'#{sparql_str}') ) \
           } "
 
+      puts "SPARQL:#{q}"
       results = cc_kg_query(q, rdfs_class)
     
       if !results[:error]
