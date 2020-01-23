@@ -285,10 +285,10 @@ module StatementsHelper
               filter  (isURI(?uri))   \
               filter (?url != '')  \
               filter (str(?name) != '') \
-              filter (contains(str(?name),'#{sparql_str}') || contains('#{sparql_str}', str(?name))  || contains('#{sparql_str}',str(?url))   || contains(str(?url),'#{sparql_str}') ) \
+              filter (contains(lcase(str(?name)),lcase('#{sparql_str}')) || contains(lcase('#{sparql_str}'), lcase(str(?name)))  || contains('#{sparql_str}',str(?url))   || contains(str(?url),'#{sparql_str}') ) \
           } "
 
-      puts "SPARQL:#{q}"
+      logger.info "SPARQL: #{q}"
       results = cc_kg_query(q, rdfs_class)
     
       if !results[:error]
