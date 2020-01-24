@@ -267,9 +267,8 @@ module StatementsHelper
 
   def search_cckg str, rdfs_class #returns a HASH
     if str.length > 3 
-      #remove common words in string that could be names
-      sparql_str = str
-        .gsub( /'|’/, "\\\\'")    #escape single quote so it does not interfere with SPARQL 
+     
+      sparql_str = str.gsub( /'|’/, "\\\\'")    #escape single quote so it does not interfere with SPARQL 
      
       # TODO: ADD alternateName to SPARQL
       # OPTIONAL {   ?uri  schema:alternateName ?alt .   filter (lang(?alt) = '')   }              
@@ -306,7 +305,8 @@ module StatementsHelper
 
         #################################################
         # REMOVE NAMES THAT CREATE MANY FALSE POSITIVES - until better analysis with NLP is available 
-        hits.select! { |hit| !["wiL", "Stars", "Ones"].include? hit[0] }
+        names_to_remove = SearchException.where(rdfs_class: RdfsClass.where(name: rdfs_class)).pluck(:name)
+        hits.select! { |hit| !names_to_remove.include? hit[0] }
         #################################################
 
         return {data: hits}

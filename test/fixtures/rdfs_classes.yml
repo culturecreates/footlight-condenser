@@ -11,3 +11,6 @@ place:
 
 eventseries:
   name: EventSeries
+
+person:
+  name: Person
