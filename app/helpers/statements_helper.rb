@@ -269,7 +269,6 @@ module StatementsHelper
     if str.length > 3 
       #remove common words in string that could be names
       sparql_str = str
-        .gsub( /will|Will|Ones|ones|ONES|stars|Stars/ , "")   #see tests for artist name WiL
         .gsub( /'|’/, "\\\\'")    #escape single quote so it does not interfere with SPARQL 
      
       # TODO: ADD alternateName to SPARQL
@@ -304,6 +303,11 @@ module StatementsHelper
 
         ## remove duplicate URIs - needed to remove en/fr duplicates and alternte names of same entity
         hits.uniq! {|hit| hit[1]}
+
+        #################################################
+        # REMOVE NAMES THAT CREATE MANY FALSE POSITIVES - until better analysis with NLP is available 
+        hits.select! { |hit| !["wiL", "Stars", "Ones"].include? hit[0] }
+        #################################################
 
         return {data: hits}
       else

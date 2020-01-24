@@ -172,16 +172,9 @@ class StatementsHelperTest < ActionView::TestCase
   end
   
 
-  test "search_cckg: should not match names with common words" do
+  test "search_cckg: should not match names with common words" do  # Example Person name that is removed "wiL", "http://kg.artsdata.ca/resource/K12-32"
     expected = {data:[]}
     actual = search_cckg "The word will contains part of a first name.", "Person"
-    assert_equal expected, actual
-  end
-
-
-  test "search_cckg: should match name WiL" do
-    expected = {data:[["wiL", "http://kg.artsdata.ca/resource/K12-32"]]}
-    actual = search_cckg "WiL is the first name of a person", "Person"
     assert_equal expected, actual
   end
 
