@@ -269,7 +269,7 @@ module StatementsHelper
     if str.length > 3 
       #remove common words in string that could be names
       sparql_str = str
-        .gsub( /will|Will/ , "")   #see tests for artist name WiL
+        .gsub( /will|Will|Ones/ , "")   #see tests for artist name WiL
         .gsub( /'|’/, "\\\\'")    #escape single quote so it does not interfere with SPARQL 
      
       # TODO: ADD alternateName to SPARQL
