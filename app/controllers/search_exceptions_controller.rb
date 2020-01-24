@@ -69,6 +69,6 @@ class SearchExceptionsController < ApplicationController
 
     # Never trust parameters from the scary internet, only allow the white list through.
     def search_exception_params
-      params.require(:search_exception).permit(:name, :rdfs_class_id)
+      params.require(:search_exception).permit(:name, :rdfs_class_id, :uri)
     end
 end

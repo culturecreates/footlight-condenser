@@ -10,5 +10,10 @@
   <%= @search_exception.rdfs_class.name %>
 </p>
 
+<p>
+  <strong>URI:</strong>
+  <%= @search_exception.uri %>
+</p>
+
 <%= link_to 'Edit', edit_search_exception_path(@search_exception) %> |
 <%= link_to 'Back', search_exceptions_path %>

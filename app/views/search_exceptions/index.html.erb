@@ -9,6 +9,7 @@
     <tr>
       <th>Name</th>
       <th>Rdfs class</th>
+      <th>URI</th>
       <th colspan="3"></th>
     </tr>
   </thead>
@@ -18,6 +19,7 @@
       <tr>
         <td><%= search_exception.name %></td>
         <td><%= search_exception.rdfs_class.name %></td>
+        <td><a href="<%= search_exception.uri %>"><%= search_exception.uri %></a></td>
         <td><%= link_to 'Show', search_exception %></td>
         <td><%= link_to 'Edit', edit_search_exception_path(search_exception) %></td>
         <td><%= link_to 'Destroy', search_exception, method: :delete, data: { confirm: 'Are you sure?' } %></td>

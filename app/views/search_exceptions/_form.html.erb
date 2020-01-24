@@ -16,12 +16,15 @@
     <%= form.text_field :name, id: :search_exception_name %>
   </div>
 
-  <div class="field" style="display:float !important">
-    <%= form.label :rdfs_class_id %>
-   
-      <%= form.collection_select :rdfs_class_id, RdfsClass.all, :id, :name %>
-    
-    </div>
+  <div class="field">
+    <%= form.label :rdfs_class_id %> 
+    <%= form.collection_select :rdfs_class_id, RdfsClass.all, :id, :name %>
+  </div>
+
+  <div class="field">
+    <%= form.label :uri %>
+    <%= form.text_field :uri, id: :search_exception_uri, size: 60 %>
+  </div>
 
   <div class="actions">
     <%= form.submit %>
