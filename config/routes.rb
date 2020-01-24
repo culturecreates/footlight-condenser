@@ -1,5 +1,6 @@
 Rails.application.routes.draw do
 
+  resources :search_exceptions
   get 'custom/get_comotion_locations'
 
   get 'structured_data/event_markup'

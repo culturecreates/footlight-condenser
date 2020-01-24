@@ -1,0 +1,14 @@
+<p id="notice"><%= notice %></p>
+
+<p>
+  <strong>Name:</strong>
+  <%= @search_exception.name %>
+</p>
+
+<p>
+  <strong>Rdfs class:</strong>
+  <%= @search_exception.rdfs_class.name %>
+</p>
+
+<%= link_to 'Edit', edit_search_exception_path(@search_exception) %> |
+<%= link_to 'Back', search_exceptions_path %>

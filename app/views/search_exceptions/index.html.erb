@@ -1,0 +1,29 @@
+<p id="notice"><%= notice %></p>
+
+<h1>Search Exceptions</h1>
+
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Rdfs class</th>
+      <th colspan="3"></th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <% @search_exceptions.each do |search_exception| %>
+      <tr>
+        <td><%= search_exception.name %></td>
+        <td><%= search_exception.rdfs_class.name %></td>
+        <td><%= link_to 'Show', search_exception %></td>
+        <td><%= link_to 'Edit', edit_search_exception_path(search_exception) %></td>
+        <td><%= link_to 'Destroy', search_exception, method: :delete, data: { confirm: 'Are you sure?' } %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+
+<br>
+
+<%= link_to 'New Search Exception', new_search_exception_path %>

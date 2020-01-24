@@ -1,0 +1,2 @@
+module SearchExceptionsHelper
+end
