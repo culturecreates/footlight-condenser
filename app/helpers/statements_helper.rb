@@ -305,8 +305,7 @@ module StatementsHelper
 
         #################################################
         # REMOVE NAMES THAT CREATE MANY FALSE POSITIVES - until better analysis with NLP is available 
-        #names_to_remove = SearchException.where(rdfs_class: RdfsClass.where(name: rdfs_class)).pluck(:name)
-        names_to_remove = ["wiL", "Stars","Ones"]
+        names_to_remove = SearchException.where(rdfs_class: RdfsClass.where(name: rdfs_class)).pluck(:name)
         hits.select! { |hit| !names_to_remove.include? hit[0] }
         #################################################
 
