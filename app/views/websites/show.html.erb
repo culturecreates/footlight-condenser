@@ -25,18 +25,18 @@
 <div style="margin-left: 30px">
 <hr>
 <h3> REFRESH </h3>
-<%= link_to 'Refresh UPCOMING events', edit_website_path(@website) %> |
+<%= link_to 'Refresh UPCOMING events', nil %> |
 <%= link_to 'Refresh all past and future events', refresh_webpages_batch_jobs_path(seedurl: @website.seedurl) %> 
 
 <hr>
 <h3> CRAWL & REFRESH</h3>
-<%= link_to 'Crawl (24 hr cache) and refresh UPCOMING events', edit_website_path(@website) %> |
-<%= link_to 'FORCE new Crawl and refresh UPCOMING events', edit_website_path(@website) %>
+<%= link_to 'Crawl (24 hr cache) and refresh UPCOMING events',  nil %> |
+<%= link_to 'FORCE new Crawl and refresh UPCOMING events',  nil %>
 
 
 <hr>
 <h3> PUBLISH</h3>
-<%= link_to 'PUSH to artsdata.ca', edit_website_path(@website) %>
+<%= link_to 'PUSH to artsdata.ca', nil %>
 <hr>
 </div>
 
