@@ -270,21 +270,20 @@ module StatementsHelper
      
       sparql_str = str.gsub( /'|’/, "\\\\'")    #escape single quote so it does not interfere with SPARQL 
      
-      # TODO: ADD alternateName to SPARQL
-      # OPTIONAL {   ?uri  schema:alternateName ?alt .   filter (lang(?alt) = '')   }              
-      # filter (lang(?name) = '')  
-      # filter (  regex("Dow Centennial Centre in Shell Theatre",str(?name),'i')  ||  regex("Dow Centennial Centre in Shell Theatre",str(?alt),'i')  ) 
- 
-      q = "PREFIX schema: <http://schema.org/>            \
-          select  ?uri  ?name ?url where {              \
-              ?uri a schema:#{rdfs_class} .                \
-              ?uri schema:name ?name .                    \
-              OPTIONAL {  ?uri schema:url ?url .    }               \
-              filter  (isURI(?uri))   \
-              filter (?url != '')  \
-              filter (str(?name) != '') \
-              filter (contains(lcase(str(?name)),lcase('#{sparql_str}')) || contains(lcase('#{sparql_str}'), lcase(str(?name)))  || contains('#{sparql_str}',str(?url))   || contains(str(?url),'#{sparql_str}') ) \
-          } "
+    
+      q = "PREFIX schema: <http://schema.org/>       \
+      select  ?uri  ?name      \
+      where {        \
+          { ?uri a schema:#{rdfs_class}; schema:alternateName ?search_str ; schema:name ?name . }           \    
+          UNION   \
+           { ?uri a schema:#{rdfs_class}; schema:name ?search_str, ?name .  }      \
+           UNION   \
+           { ?uri a schema:#{rdfs_class}; schema:url ?search_str ; schema:name ?name .  }    \
+          filter  (isURI(?uri))   \
+           filter (str(?search_str) != '')    \
+          values ?web_str {'#{str}'}   \
+          filter (contains(lcase(str(?search_str)),lcase(?web_str)) || contains(lcase(?web_str), lcase(str(?search_str)))  )    \
+        }  "
 
       logger.info "SPARQL: #{q}"
       results = cc_kg_query(q, rdfs_class)

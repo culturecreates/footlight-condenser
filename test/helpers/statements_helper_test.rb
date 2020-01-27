@@ -93,7 +93,7 @@ class StatementsHelperTest < ActionView::TestCase
     scraped_data = ["http://www.tnb.nb.ca/"]
     webpage = webpages(:one)
     actual = format_datatype(scraped_data, property, webpage)
-    expected = ["http://www.tnb.nb.ca/", "Organization", ["Theatre New Brunswick", "http://kg.artsdata.ca/resource/K10-154"]]
+    expected = ["http://www.tnb.nb.ca/", "Organization", ["Theatre New Brunswick", "http://kg.artsdata.ca/resource/K10-168"]]
     assert_equal expected, actual
    end
 
