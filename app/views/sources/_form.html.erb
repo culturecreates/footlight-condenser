@@ -11,14 +11,21 @@
     </div>
   <% end %>
 
+  <div class="field">
+    <%= @rdfs_class_name %> <%= form.label :property_id %>
+    <%= form.collection_select(:property_id, @properties.where(rdfs_class_id: @rdfs_class_id), :id, :label, {:prompt => false}) %>
+  </div>
+
   <div class="field" >
     <%= form.label :algorithm_value %>
-    <%= form.text_field :algorithm_value, id: :source_algorithm_value, size: 180%>
+    <%= form.text_field :algorithm_value, id: :source_algorithm_value, size: 160 %>
   </div>
 
   <div class="field">
     <%= form.label :language %>
     <%= form.text_field :language, id: :source_language %>
+    Set a language for properties that could be translated. Leave blank for linking URIs and photos that are language independant.
+  
   </div>
 
   <div class="field">
@@ -41,15 +48,13 @@
     <%= form.check_box :render_js, id: :source_render_js %>
   </div>
 
-  <div class="field">
-    <%= @rdfs_class_name %> <%= form.label :property_id %>
-    <%= form.collection_select(:property_id, @properties.where(rdfs_class_id: @rdfs_class_id), :id, :label, {:prompt => false}) %>
-  </div>
 
   <div class="field">
     <%= form.label :website_id %>
-    <%= form.collection_select(:website_id, @websites, :id, :seedurl, {:prompt => false}) %>
+    <%= form.collection_select(:website_id, @websites, :id, :seedurl, {selected: @website.id }) %>
   </div>
+
+  
 
   <div class="actions">
     <%= form.submit %>
