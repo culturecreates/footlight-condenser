@@ -10,23 +10,10 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20200124204348) do
+ActiveRecord::Schema.define(version: 20200128210208) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
-
-  create_table "microposts", id: :serial, force: :cascade do |t|
-    t.text "content"
-    t.integer "user_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "picture"
-    t.integer "related_statement_id"
-    t.string "related_statement_property"
-    t.string "related_statement_language"
-    t.string "related_subject_uri"
-    t.index ["user_id"], name: "index_microposts_on_user_id"
-  end
 
   create_table "properties", force: :cascade do |t|
     t.string "label"
@@ -43,16 +30,6 @@ ActiveRecord::Schema.define(version: 20200124204348) do
     t.string "name"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-  end
-
-  create_table "relationships", id: :serial, force: :cascade do |t|
-    t.integer "follower_id"
-    t.integer "followed_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["followed_id"], name: "index_relationships_on_followed_id"
-    t.index ["follower_id", "followed_id"], name: "index_relationships_on_follower_id_and_followed_id", unique: true
-    t.index ["follower_id"], name: "index_relationships_on_follower_id"
   end
 
   create_table "search_exceptions", force: :cascade do |t|
@@ -75,6 +52,7 @@ ActiveRecord::Schema.define(version: 20200124204348) do
     t.bigint "website_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "label"
     t.index ["property_id"], name: "index_sources_on_property_id"
     t.index ["website_id"], name: "index_sources_on_website_id"
   end
@@ -92,22 +70,6 @@ ActiveRecord::Schema.define(version: 20200124204348) do
     t.index ["source_id", "webpage_id"], name: "index_statements_on_source_id_and_webpage_id", unique: true
     t.index ["source_id"], name: "index_statements_on_source_id"
     t.index ["webpage_id"], name: "index_statements_on_webpage_id"
-  end
-
-  create_table "users", id: :serial, force: :cascade do |t|
-    t.string "name"
-    t.string "email"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "password_digest"
-    t.string "remember_digest"
-    t.boolean "admin", default: false
-    t.string "activation_digest"
-    t.boolean "activated", default: false
-    t.datetime "activated_at"
-    t.string "reset_digest"
-    t.datetime "reset_sent_at"
-    t.index ["email"], name: "index_users_on_email", unique: true
   end
 
   create_table "webpages", force: :cascade do |t|
@@ -133,7 +95,6 @@ ActiveRecord::Schema.define(version: 20200124204348) do
     t.string "graph_name", default: "http://artsdata.ca"
   end
 
-  add_foreign_key "microposts", "users"
   add_foreign_key "properties", "rdfs_classes"
   add_foreign_key "search_exceptions", "rdfs_classes"
   add_foreign_key "sources", "properties"
