@@ -41,6 +41,10 @@
   <%= @webpage.website.seedurl %>
 </p>
 
+<%= link_to 'statements', statements_path(rdf_uri:@webpage.rdf_uri)  %> |
+<%= link_to 'refresh', refresh_webpage_statements_path(url: @webpage.url), method: :patch  %> |
+
+ <%= link_to "JSON-LD", structured_data_event_markup_path(url: @webpage.url, format: :json) %> |
 
 
 <%= link_to 'Edit', edit_webpage_path(@webpage) %> |

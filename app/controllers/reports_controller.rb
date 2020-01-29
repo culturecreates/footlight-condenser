@@ -10,6 +10,6 @@ class ReportsController < ApplicationController
    private
 
    def get_label_data source_id
-       return Statement.joins({source: [:property, :website]},:webpage).where(source_id: source_id).pluck(:rdf_uri, :cache)
+       return Statement.joins({source: [:property, :website]},:webpage).where(source_id: source_id).order(:cache).pluck(:rdf_uri, :cache)
    end
 end

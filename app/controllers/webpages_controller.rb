@@ -15,9 +15,9 @@ class WebpagesController < ApplicationController
       end
     end
     if !website_id.nil?
-      @webpages = Webpage.where(website_id: website_id).paginate(page: params[:page], per_page:params[:per_page]).order(:archive_date)
+      @webpages = Webpage.where(website_id: website_id).order(:archive_date)
     else
-      @webpages = Webpage.all.paginate(page: params[:page], per_page:params[:per_page])
+      @webpages = Webpage.all
     end
 
     @locations = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Location", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri,  :cache, :status)

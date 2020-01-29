@@ -3,14 +3,15 @@
 <table>
   <thead>
     <tr>
+      <th>Id</th>
       <th>Rdfs class</th>
-      <th>Language</th>
+      <th>Lang</th>
       <th>Url</th>
       <th>Publishable</th>
 
       <th>Rdf uri</th>
 
-      <th>Website</th>
+      
       <th>Archive Date</th>
       <th colspan="6"></th>
     </tr>
@@ -19,6 +20,7 @@
   <tbody>
     <% @webpages.each do |webpage| %>
       <tr>
+        <td><%= webpage.id %></td>
         <td><%= webpage.rdfs_class.name %></td>
         <td><%= webpage.language %></td>
         <td><%= webpage.url %></td>
@@ -26,12 +28,12 @@
 
         <td><%= webpage.rdf_uri %></td>
 
-        <td><%= webpage.website.seedurl %></td>
+       
         <td><%= webpage.archive_date %></td>
 
         <td><%= link_to 'statements', statements_path(rdf_uri:webpage.rdf_uri)  %></td>
-        <td><%= link_to 'refresh', refresh_webpage_statements_path(url: webpage.url), method: :patch  %></td>
-        <td> <%= link_to "JSON-LD", structured_data_event_markup_path(url: webpage.url, format: :json) %></td>
+      
+       
         <td><%= link_to 'Show', webpage %></td>
         <td><%= link_to 'Edit', edit_webpage_path(webpage) %></td>
         <td><%= link_to 'Destroy', webpage, method: :delete, data: { confirm: 'Are you sure?' } %></td>
