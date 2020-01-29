@@ -18,35 +18,44 @@
 
   <div class="field" >
     <%= form.label :algorithm_value %>
-    <%= form.text_field :algorithm_value, id: :source_algorithm_value, size: 160 %>
+    <%= form.text_area :algorithm_value, id: :source_algorithm_value, cols: 60, rows:4, style:"font-size: 18pt"%>
   </div>
+
+ <div class="field">
+    <%= form.label :label %>
+    <%= form.text_field :label, id: :source_label, size: 60 %>
+    User friendly description of where the data is coming from.
+  </div>
+
 
   <div class="field">
     <%= form.label :language %>
-    <%= form.text_field :language, id: :source_language %>
-    Set a language for properties that could be translated. Leave blank for linking URIs and photos that are language independant.
-  
+    <%= form.text_field :language, id: :source_language, size: 10%>
+    Leave blank for linking URIs and photos that are language independant.
   </div>
 
-  <div class="field">
+
+  <div class="field" style="margin: 0 5px 0 5px;display:block; float:left;">
     <%= form.label :selected %>
     <%= form.check_box :selected, id: :source_selected %>
   </div>
 
-  <div class="field">
+  <div class="field" style="margin: 0 5px 0 5px;display:block; float:clear;">
     <%= form.label :selected_by %>
     <%= form.text_field :selected_by, id: :source_selected_by %>
   </div>
 
-  <div class="field">
+<div class="field"  style="margin: 0 5px 0 5px;display:block; float:left;">
+    <%= form.label :render_js %>
+    <%= form.check_box :render_js, id: :source_render_js %>
+  </div>
+  <div class="field"  style="margin: 0 5px 0 5px;display:block; float:clear;">
     <%= form.label :next_step %>
     <%= form.text_field :next_step, id: :source_next_step %>
   </div>
 
-  <div class="field">
-    <%= form.label :render_js %>
-    <%= form.check_box :render_js, id: :source_render_js %>
-  </div>
+  <div style="display:block; float:clear;"></div>
+  
 
 
   <div class="field">
