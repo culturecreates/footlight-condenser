@@ -23,6 +23,7 @@ module ResourcesHelper
 
     json_statement["label"] = statement.source.property.label
     json_statement["language"] = statement.source.language
+    json_statement["source_label"] = statement.source.label
     json_statement["datatype"] = statement.source.property.value_datatype
     json_statement["expected_class"] = statement.source.property.expected_class
     json_statement["uri"] = statement.source.property.uri
