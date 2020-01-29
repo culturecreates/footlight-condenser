@@ -2,44 +2,69 @@
 
 
 <h1>  Places for <%= params[:seedurl] %> <%= @places.count %> Event Series</h1>
-
-
+ 
 <table>
+<tr>
+<th> Event Series URI </th>
+<th> Based on </th>
+<th> Class </th>
+<th> Linked Name </th>
+<th> Linked URI </th>
+</tr>
 <% @places.each do |place| %>
-   <% place[1].each do |p| %>
-   <tr>
-   <td>
-        <%=link_to place[0], statements_path(rdf_uri: place[0] ) %>
-    </td>  
-    <% if p.class == Array %>
+
+    <% if place[1][0].class == Array %>
+        <% place[1].each do |subcache| %>
+            <tr>
+            <td>
+                <%=link_to place[0], statements_path(rdf_uri: place[0] ) %>
+            </td>  
+            <% subcache.each do |item| %>
+                <% if item.class == Array %>
+                    <%  item.each do |link| %>
+                        <td>
+                            <%= link %>
+                        </td>
+                      
+                    <% end %>
+                <% else %>
+                    <td>
+                        <%= item %>
+                    </td>
+                <% end %>
+            <% end %>
+            </tr>
+        <% end %>
+    <% else %>
+        
+        <tr>
         <td>
-            <%= p[0] %>
-        </td>
-        <td>
-            <%= p[1] %>
-        </td>
-        <td>
-            <%= p[2] %>
-        </td>
-        <td>
-            <%= p[3] %>
-        </td>
-        <td>
-            <%= p[4] %>
-        </td>
-         <td>
-            <%= p[5] %>
-        </td>
-         <td>
-            <%= p[6] %>
-        </td>
-    <% else %> 
-        <td>
-            <%= p %>
-        </td>
+            <%=link_to place[0], statements_path(rdf_uri: place[0] ) %>
+        </td>  
+        <% if place[1].class == Array %>
+            <% place[1].each do |item| %>
+                <% if item.class == Array %>
+                <% puts "item.class for #{item}" %>
+                    <%  item.each do |link| %>
+                        
+                        <td>
+                            <%= link %>
+                        </td>
+                       
+                    <% end %>
+                <% else %>
+                    <td>
+                        <%= item %>
+                    </td>
+                <% end %>
+            <% end %>
+        <% else %>
+            <td>
+                place[1]
+            </td>
+        <% end %>
+        </tr>
     <% end %>
-    </tr>
-    <% end %>
-    
+   
 <% end %>
 </table>

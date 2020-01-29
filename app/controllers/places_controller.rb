@@ -2,6 +2,14 @@ class PlacesController < ApplicationController
 
     def index
         # GET /places.json?seedurl=
+
+        # data structures:
+        # 1. one place with one link:  "["Wednesday @ Salle André-Mathieu", "Place", ["Salle André-Mathieu", "adr:salle-andre-mathieu"]]"
+        # 2. one place with two links: "["Wednesday @ Salle André-Mathieu", "Place", ["Salle André-Mathieu", "adr:salle-andre-mathieu","Annexe André-Mathieu", "adr:annexe-mathieu"]]"
+        # 3. no place:  "[]"
+        # 4. two places each with one link:  "[["Saturday @ Théâtre des Muses", "Place", ["Théâtre des Muses", "http://laval.footlight.io/resource/theatre-des-muses"]], ["Monday @ Théâtre des Muses", "Place", ["Théâtre des Muses", "http://laval.footlight.io/resource/theatre-des-muses"]]]"
+        
+ 
         @places = get_places
         @places.each_with_index do |place,index|
             begin
