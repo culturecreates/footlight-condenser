@@ -125,8 +125,6 @@ class StatementsHelperTest < ActionView::TestCase
    end
 
 
-
-
   #search_cckg
   test "search_cckg: should search cckg for uris that match 100%" do
     expected = {:data=>[["Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/K11-11"]]}
@@ -171,14 +169,24 @@ class StatementsHelperTest < ActionView::TestCase
     assert_equal expected, actual
   end
   
-
   test "search_cckg: should not match names with common words" do  # Example Person name that is removed "wiL", "http://kg.artsdata.ca/resource/K12-32"
     expected = {data:[]}
     actual = search_cckg "The word will contains part of a first name.", "Person"
     assert_equal expected, actual
   end
 
+  test "search_cckg: should match names with single neutral quote" do  
+    expected = {:data=>[["La P'tite Église (Shippagan)", "http://kg.artsdata.ca/resource/K11-131"]]}
+    actual = search_cckg "Shippagan 20 h 00 La P'tite Église (Shippagan)", "Place"
+    assert_equal expected, actual
+  end
 
+  "Edmundston 20 h 00 Centre des arts d’Edmundston"
+  test "search_cckg: should match names with single curved quote" do  
+    expected = {:data=>[["Centre des arts d’Edmundston", "http://kg.artsdata.ca/resource/K11-175"]]}
+    actual = search_cckg "Edmundston 20 h 00 Centre des arts d’Edmundston", "Place"
+    assert_equal expected, actual
+  end
 
 
   # test "search_cckg: find alternate names" do
