@@ -271,6 +271,8 @@ module StatementsHelper
       sparql_str = str.gsub( /'/, "\\\\'") #escape single quote so it does not interfere with SPARQL 
                       .gsub(/\u00A0/i," ")  #remove &nbsp;
      
+      sparql_str = CGI::unescapeHTML(sparql_str) #get rid of things like &amp; in the text string
+      
       q = "PREFIX schema: <http://schema.org/>       \
       select  ?uri  ?name      \
       where {        \

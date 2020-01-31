@@ -186,7 +186,13 @@ class StatementsHelperTest < ActionView::TestCase
     actual = search_cckg "Emily D’Angelo", "Person"
     assert_equal expected, actual
   end
+  
 
+  test "search_cckg: should match names with &" do  
+    expected = {:data=>[["meagan&amy", "http://kg.artsdata.ca/resource/K10-376"]]}
+    actual = search_cckg "meagan&amp;amy", "Organization"
+    assert_equal expected, actual
+  end
 
   # test "search_cckg: find alternate names" do
   #   expected = {data:[["Red Sky Performance", "http://artsdata.ca/resource/org/red_sky_performance"]]}
