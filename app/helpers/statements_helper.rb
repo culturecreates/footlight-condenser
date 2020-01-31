@@ -268,7 +268,8 @@ module StatementsHelper
   def search_cckg str, rdfs_class #returns a HASH
     if str.length > 3 
      
-      sparql_str = str.gsub( /'/, "\\\\'")  #escape single quote so it does not interfere with SPARQL 
+      sparql_str = str.gsub( /'/, "\\\\'") #escape single quote so it does not interfere with SPARQL 
+                      .gsub(/\u00A0/i," ")  #remove &nbsp;
      
       q = "PREFIX schema: <http://schema.org/>       \
       select  ?uri  ?name      \
