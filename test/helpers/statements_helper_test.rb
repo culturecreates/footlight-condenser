@@ -183,8 +183,8 @@ class StatementsHelperTest < ActionView::TestCase
 
   "Edmundston 20 h 00 Centre des arts d’Edmundston"
   test "search_cckg: should match names with single curved quote" do  
-    expected = {:data=>[["Centre des arts d’Edmundston", "http://kg.artsdata.ca/resource/K11-175"]]}
-    actual = search_cckg "Edmundston 20 h 00 Centre des arts d’Edmundston", "Place"
+    expected = {:data=>[["Emily D’Angelo", "http://kg.artsdata.ca/resource/K12-150"]]}
+    actual = search_cckg "Emily D’Angelo", "Person"
     assert_equal expected, actual
   end
 
