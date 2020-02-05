@@ -6,20 +6,29 @@ module EventsHelper
   
         #step 1: convert stringified array to a singe date 
         if date_str[0] == "[" 
-            date_str = JSON.parse(date_str)[0]
+            date_array = JSON.parse(date_str)
+        else
+            date_array = [date_str]
         end
   
         #step 2: convert to time
+        date_array.map! do |date_time|
 
-        begin
-            date_time = DateTime.parse(date_str)
-        rescue => exception
-            logger.error("Invalid Event Date: #{exception}")
-            date_time = patch_invalid_date
+            begin
+                date_time = DateTime.parse(date_str)
+            rescue => exception
+                logger.info("Invalid Event Date: #{exception}")
+                date_time = nil
+            end
         end
-
-        return date_time
+        puts "date_array: #{date_array}"
+        first_valid_date_time = date_array.first
+        if first_valid_date_time.blank?
+            first_valid_date_time = patch_invalid_date
+        end
+        return first_valid_date_time
     end
+
 
       
     def patch_invalid_date

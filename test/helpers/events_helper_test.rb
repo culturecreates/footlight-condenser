@@ -19,4 +19,11 @@ class EventsHelperTest < ActionView::TestCase
     assert_equal expected_output.to_i, parse_date_string_array("[\"Error scrapping\"]").to_i
   end
 
+
+  test "Choose non-error string to get valid date" do
+    expected_output = DateTime.parse("Sat, 16 Nov 2019 21:00:00 -0500")
+    assert_equal expected_output.to_i, parse_date_string_array("[\"Error scrapping\",\"2019-11-16T21:00:00-05:00\"]").to_i
+  end
+  
+
 end
