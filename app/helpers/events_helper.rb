@@ -21,7 +21,6 @@ module EventsHelper
                 date_time = nil
             end
         end
-        puts "date_array: #{date_array}"
         first_valid_date_time = date_array.first
         if first_valid_date_time.blank?
             first_valid_date_time = patch_invalid_date
