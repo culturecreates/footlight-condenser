@@ -152,7 +152,7 @@ class StatementsHelperTest < ActionView::TestCase
   end
 
   test "search_cckg: remove duplicates" do
-    expected = {data:[["Berkeley Street Theatre", "http://kg.artsdata.ca/resource/K11-14"]]}
+    expected = {data:[["Canadian Stage - Berkeley Street Theatre", "http://kg.artsdata.ca/resource/K11-14"]]}
     actual = search_cckg "The locations is in the lovely Berkeley Street Theatre and Canadian Stage - Berkeley Street Theatre.", "Place"
     assert_equal expected, actual
   end

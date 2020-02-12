@@ -272,20 +272,39 @@ module StatementsHelper
                       .gsub(/\u00A0/i," ")  #remove &nbsp;
      
       sparql_str = CGI::unescapeHTML(sparql_str) #get rid of things like &amp; in the text string
+
+      if rdfs_class == "Place"
+        q = "PREFIX schema: <http://schema.org/>       \
+        select  ?uri ?name   \
+        { { select ?uri ?name where {   \
+                  ?uri a schema:Place ; schema:name ?name .
+                  OPTIONAL { ?uri schema:alternateName ?alternateName .}     \
+                  values ?web_str {'#{sparql_str}'}   \
+                  filter (contains(lcase(?web_str), lcase(str(?name))) || contains(lcase(?web_str), lcase(str(?alternateName)))  )  \
+                  filter(lang(?name) = 'en' || lang(?name) = '')  }}  \
+            MINUS   \
+            {select ?uri  where { \
+                   ?smallPlace a schema:Place ; schema:name ?name ; schema:alternateName ?alternateName; schema:containedIn ?uri  . \
+                   values ?web_str {'#{sparql_str}'}   \
+                   filter (contains(lcase(?web_str), lcase(str(?name))) || contains(lcase(?web_str), lcase(str(?alternateName)))  ) \
+                 }   }}"
+      else
       
-      q = "PREFIX schema: <http://schema.org/>       \
-      select  ?uri  ?name      \
-      where {        \
-          { ?uri a schema:#{rdfs_class}; schema:alternateName ?search_str ; schema:name ?name . }           \    
-          UNION   \
-           { ?uri a schema:#{rdfs_class}; schema:name ?search_str, ?name .  }      \
-           UNION   \
-           { ?uri a schema:#{rdfs_class}; schema:url ?search_str ; schema:name ?name .  }    \
-          filter  (isURI(?uri))   \
-           filter (str(?search_str) != '')    \
-          values ?web_str {'#{sparql_str}'}   \
-          filter (contains(lcase(str(?search_str)),lcase(?web_str)) || contains(lcase(?web_str), lcase(str(?search_str)))  )    \
-        }  "
+        q = "PREFIX schema: <http://schema.org/>       \
+        select  ?uri  ?name      \
+        where {        \
+            { ?uri a schema:#{rdfs_class}; schema:alternateName ?search_str ; schema:name ?name . }           \    
+            UNION   \
+            { ?uri a schema:#{rdfs_class}; schema:name ?search_str, ?name .  }      \
+            UNION   \
+            { ?uri a schema:#{rdfs_class}; schema:url ?search_str ; schema:name ?name .  }    \
+            filter  (isURI(?uri))   \
+            filter (str(?search_str) != '')    \
+            values ?web_str {'#{sparql_str}'}   \
+            filter (contains(lcase(str(?search_str)),lcase(?web_str)) || contains(lcase(?web_str), lcase(str(?search_str)))  )    \
+          }  "
+
+      end
 
       logger.info "SPARQL: #{q}"
       results = cc_kg_query(q, rdfs_class)
