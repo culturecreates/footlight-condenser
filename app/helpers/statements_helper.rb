@@ -365,6 +365,11 @@ module StatementsHelper
       Time.zone = "Eastern Time (US & Canada)"
 
       d = Time.zone.parse(self.french_to_english_month(date_time))
+      # if the dateTime is midnight then assume that there is no known time and conver to a Date Object instead of Time object.
+      if d == d.midnight
+        d = d.to_date
+      end
+      
       Time.zone = current_timezone
 
       iso_date_time =  d.iso8601

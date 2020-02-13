@@ -241,6 +241,11 @@ class StatementsHelperTest < ActionView::TestCase
    assert_equal expected_output, ISO_dateTime(" samedi 20 octobre 2018, de 10 h à 11 h ")
   end
 
+  test "ISO_dateTime: should convert a date without time to Date instead of dateTime" do
+    expected_output = "2020-05-31"
+    assert_equal expected_output, ISO_dateTime("2020-05-31")
+   end
+
 
 
   #ISO_duration(duration_str)
