@@ -200,11 +200,11 @@ class StatementsHelperTest < ActionView::TestCase
     assert_equal expected, actual
   end
 
-  # test "search_cckg: find alternate names" do
-  #   expected = {data:[["Red Sky Performance", "http://artsdata.ca/resource/org/red_sky_performance"]]}
-  #   actual = search_cckg "The dance group also known as Red-Sky-Performance is also known as Red Sky.", "Organization"
-  #   assert_equal expected, actual
-  # end
+  test "search_cckg: find alternate names" do
+    expected = {data:[["Dow Centennial Centre - Shell Theatre", "http://kg.artsdata.ca/resource/K11-64"]]}
+    actual = search_cckg "Shell Theatre", "Place"
+    assert_equal expected, actual
+  end
 
 
 
