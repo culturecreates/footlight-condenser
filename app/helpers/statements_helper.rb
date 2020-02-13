@@ -281,7 +281,7 @@ module StatementsHelper
                   OPTIONAL { ?uri schema:alternateName ?alternateName .}     \
                   values ?web_str {'#{sparql_str}'}   \
                   filter (contains(lcase(?web_str), lcase(str(?name))) || contains(lcase(?web_str), lcase(str(?alternateName)))  )  \
-                  filter(lang(?name) = 'en' || lang(?name) = '')  }}  \
+                   }}  \
             MINUS   \
             {select ?uri  where { \
                    ?smallPlace a schema:Place ; schema:name ?name ; schema:alternateName ?alternateName; schema:containedIn ?uri  . \
