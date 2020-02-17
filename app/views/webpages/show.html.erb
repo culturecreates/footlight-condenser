@@ -45,7 +45,7 @@
 <%= link_to 'refresh', refresh_webpage_statements_path(url: @webpage.url), method: :patch  %> |
 
  <%= link_to "JSON-LD", structured_data_event_markup_path(url: @webpage.url, format: :json) %> |
-
+ <%= link_to "JSON-LD V2", graphs_webpage_event_path(url: @webpage.url, format: :html) %> |
 
 <%= link_to 'Edit', edit_webpage_path(@webpage) %> |
 <%= link_to 'Back', webpages_path %>
