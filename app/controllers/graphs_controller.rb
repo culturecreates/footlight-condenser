@@ -4,34 +4,66 @@ class GraphsController < ApplicationController
     require 'rdf/nquads'  #needed to load statements from graphDB
 
     require 'json/ld'  
+    #use class graph with artsdata places, people and organizations
     @@base_graph = RDF::Graph.load("https://db.artsdata.ca/repositories/artsdata/statements?context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FPlace%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FOrganization%3E", format: :nquads)
    
     puts "loading base graph"
     #GET /graphs/:rdf_uri
     def show
         webpages = Webpage.where(rdf_uri:params[:rdf_uri] )
-        @statements = Statement.joins({source: :property}).where(webpage_id: webpages, sources: {selected: true} ).map { |s| {predicate: s.source.property.uri, object: s.cache, language: s.source.language, value_datatype: s.source.property.value_datatype, label: s.source.property.label} } 
-        @statements.map {|s|  s[:object] = extract_uri(s[:object]) if s[:value_datatype] == "xsd:anyURI"  }
-        @statements.select! {|s| s[:object].present? && s[:object] != "[]"}
+        statements = transform_statements_for_graph(webpages)
 
-        #use class graph with artsdata places, people and organizations
-        @graph = @@base_graph
-        #add to graph using triples with rdf_uri subject
-        @graph << build_graph(params[:rdf_uri], @statements)
+        @local_graph =  build_graph(params[:rdf_uri], statements)
+        graph = @@base_graph
+        graph <<  @local_graph
           
         #frame JSON-LD
-        json_graph = JSON.parse(@graph.dump(:jsonld))
+        json_graph = JSON.parse(graph.dump(:jsonld))
         @jsonld = JSON::LD::API.frame(json_graph, frame())
 
-        @google_jsonld = @jsonld["@graph"][0].merge("@context" => "http://schema.org").to_json
-   
+        # remove context because Google doesn't like extra types
+        @google_jsonld = make_google_jsonld(@jsonld)
     end
+
+    #GET /graphs/webpage/event?url=
+    def webpage_event
+        webpage = Webpage.where(url: CGI.unescape(params[:url] ))
+        rdf_uri = webpage.first.rdf_uri
+        statements = transform_statements_for_graph(webpage)
+
+        @local_graph =  build_graph(rdf_uri, statements)
+        graph = @@base_graph
+        #add to graph using triples with rdf_uri subject
+        graph <<  @local_graph << @@base_graph
+          
+        #frame JSON-LD
+        json_graph = JSON.parse(graph.dump(:jsonld))
+        @jsonld = JSON::LD::API.frame(json_graph, frame())
+
+        # remove context because Google doesn't like extra types
+        @google_jsonld = make_google_jsonld(@jsonld)
+    end
+
+
 
     private
         def extract_uri cache
             cache_obj =  helpers.build_json_from_anyURI(cache)
             return cache_obj.pluck(:links).flatten.pluck(:uri)
         end
+
+        def transform_statements_for_graph webpages
+            statements = Statement.joins({source: :property}).where(webpage_id: webpages, sources: {selected: true} ).map { |s| {predicate: s.source.property.uri, object: s.cache, language: s.source.language, value_datatype: s.source.property.value_datatype, label: s.source.property.label} } 
+            statements.map {|s|  s[:object] = extract_uri(s[:object]) if s[:value_datatype] == "xsd:anyURI"  }
+            statements.select! {|s| s[:object].present? && s[:object] != "[]"}
+            return statements
+        end
+
+        def make_google_jsonld jsonld
+            return jsonld["@graph"][0].merge("@context" => "http://schema.org").to_json
+        end
+
+
 
 
         def build_graph rdf_uri, statements
@@ -48,7 +80,11 @@ class GraphsController < ApplicationController
                         #add decribe URI to graph  
                     end
                 elsif  s[:value_datatype] == "xsd:dateTime"
-                    dateTimeArray = JSON.parse(s[:object]) if  s[:object][0] == "["
+                    if  s[:object][0] == "["
+                        dateTimeArray = JSON.parse(s[:object]) 
+                    else
+                        dateTimeArray = [s[:object]] 
+                    end
                     if dateTimeArray
                         dateTimeArray.each do |dateTime|
                             if RDF::Literal::DateTime.new(dateTime).valid?
