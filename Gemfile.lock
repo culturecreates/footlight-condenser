@@ -161,8 +161,6 @@ GEM
     rdf (3.1.1)
       hamster (~> 3.0)
       link_header (~> 0.0, >= 0.0.8)
-    rdf-trix (3.1.0)
-      rdf (~> 3.1)
     ruby_dep (1.5.0)
     rubyzip (1.2.1)
     sass (3.5.7)
@@ -235,7 +233,6 @@ DEPENDENCIES
   puma (~> 3.7)
   rails (~> 5.1)
   rdf (~> 3.1.1)
-  rdf-trix (~> 3.1.0)
   sass-rails (~> 5.0)
   selenium-webdriver
   spring
