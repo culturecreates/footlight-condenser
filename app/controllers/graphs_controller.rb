@@ -1,9 +1,9 @@
 class GraphsController < ApplicationController
+    before_action :preload_context, only: [:webpage_event]
 
-  #  require 'rdf/ntriples'
     require 'rdf/nquads'  #needed to load statements from graphDB
-
     require 'json/ld'  
+
     #use class graph with artsdata places, people and organizations
     @@base_graph = RDF::Graph.load("https://db.artsdata.ca/repositories/artsdata/statements?context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FPlace%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FOrganization%3E", format: :nquads)
    
@@ -42,6 +42,11 @@ class GraphsController < ApplicationController
 
         # remove context because Google doesn't like extra types
         @google_jsonld = make_google_jsonld(@jsonld)
+
+        respond_to do |format|
+            format.html {  }
+            format.jsonld { render inline: @google_jsonld, content_type: 'application/ld+json' }
+        end
     end
 
 
@@ -121,7 +126,7 @@ class GraphsController < ApplicationController
                 "name": {"@value":{},"@language": "en"} ,
                 "startDate" :{},
                 "description" :{"@value":{},"@language": "en"},
-                "duration": {},
+                "duration": {"@value":{}},
                 "url":{"@value":{},"@language": "en"},
                 "location": {
                     "@type":"Place", 
