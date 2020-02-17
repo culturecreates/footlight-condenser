@@ -63,3 +63,6 @@ gem 'tzinfo-data', platforms: [:mingw, :mswin, :x64_mingw, :jruby]
 
 
 gem 'will_paginate', '~> 3.1.6'
+
+gem 'rdf', '~> 3.1.1'
+gem  'json-ld', '~> 3.0.2'

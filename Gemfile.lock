@@ -72,6 +72,8 @@ GEM
     ffi (1.9.25)
     globalid (0.4.1)
       activesupport (>= 4.2.0)
+    hamster (3.0.0)
+      concurrent-ruby (~> 1.0)
     http-cookie (1.0.3)
       domain_name (~> 0.5)
     httparty (0.16.2)
@@ -81,6 +83,10 @@ GEM
     jbuilder (2.7.0)
       activesupport (>= 4.2.0)
       multi_json (>= 1.2)
+    json-ld (3.0.2)
+      multi_json (~> 1.12)
+      rdf (>= 2.2.8, < 4.0)
+    link_header (0.0.8)
     listen (3.1.5)
       rb-fsevent (~> 0.9, >= 0.9.4)
       rb-inotify (~> 0.9, >= 0.9.7)
@@ -152,6 +158,11 @@ GEM
     rb-fsevent (0.10.3)
     rb-inotify (0.9.10)
       ffi (>= 0.5.0, < 2)
+    rdf (3.1.1)
+      hamster (~> 3.0)
+      link_header (~> 0.0, >= 0.0.8)
+    rdf-trix (3.1.0)
+      rdf (~> 3.1)
     ruby_dep (1.5.0)
     rubyzip (1.2.1)
     sass (3.5.7)
@@ -216,12 +227,15 @@ DEPENDENCIES
   coffee-rails (~> 4.2)
   httparty
   jbuilder (~> 2.5)
+  json-ld (~> 3.0.2)
   listen (>= 3.0.5, < 3.2)
   mechanize
   mocha
   pg (~> 0.18)
   puma (~> 3.7)
   rails (~> 5.1)
+  rdf (~> 3.1.1)
+  rdf-trix (~> 3.1.0)
   sass-rails (~> 5.0)
   selenium-webdriver
   spring

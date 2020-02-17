@@ -61,6 +61,7 @@ Rails.application.routes.draw do
     end
   end
 
+  resources :graphs, param: :rdf_uri 
 
 ### eventually replace these with resouces websites, param: :seedurl
 
