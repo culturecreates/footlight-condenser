@@ -46,6 +46,9 @@
 
  <%= link_to "JSON-LD", structured_data_event_markup_path(url: @webpage.url, format: :json) %> |
  <%= link_to "JSON-LD V2", graphs_webpage_event_path(url: @webpage.url, format: :html) %> |
+ <%= link_to "JSON-LD V2 JSON-LD", graphs_webpage_event_path(url: @webpage.url, format: :jsonld) %> |
+<%= link_to "Test Condenser on SDTT", "https://search.google.com/structured-data/testing-tool/u/0/#url=https://footlight-condenser.herokuapp.com/graphs/webpage/event.jsonld?url=#{CGI.escape(@webpage.url)}" %> |
+<%= link_to "Test Code Snippet API on SDTT", "https://search.google.com/structured-data/testing-tool/u/0/#url=https://graph.culturecreates.com/semantic/v2/webpage?url=#{CGI.escape(@webpage.url)}" %> |
 
 <%= link_to 'Edit', edit_webpage_path(@webpage) %> |
 <%= link_to 'Back', webpages_path %>
