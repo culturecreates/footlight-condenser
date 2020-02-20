@@ -6,7 +6,7 @@ class GraphsController < ApplicationController
 
     @@schema = RDF::Vocabulary.new("http://schema.org/")
     #use class graph with artsdata places, people and organizations
-    @@base_graph = RDF::Graph.load("https://db.artsdata.ca/repositories/artsdata/statements?context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FPlace%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FOrganization%3E", format: :nquads)
+    @@artsdata_graph = RDF::Graph.load("https://db.artsdata.ca/repositories/artsdata/statements?context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FPlace%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FOrganization%3E", format: :nquads)
    
     puts "loading base graph"
     #GET /graphs/:rdf_uri
@@ -15,7 +15,7 @@ class GraphsController < ApplicationController
         statements = transform_statements_for_graph(webpages)
 
         @local_graph =  build_graph_from_condenser_statements(params[:rdf_uri], statements)
-        graph = @@base_graph
+        graph = @@artsdata_graph
         graph <<  @local_graph
           
         #frame JSON-LD
@@ -128,7 +128,7 @@ class GraphsController < ApplicationController
             end
             ## todo: Add blank nodes in object position to expand describe for location which contains a blank node for address.
              
-             result = query.execute(@@base_graph)
+             result = query.execute(@@artsdata_graph)
              g = RDF::Graph.new
              result.each {|s| g << [uri, s.to_h[:p], s.to_h[:o]]}
              return g
