@@ -4,6 +4,7 @@ class GraphsController < ApplicationController
     require 'rdf/nquads'  #needed to load statements from graphDB
     require 'json/ld'  
 
+    @@schema = RDF::Vocabulary.new("http://schema.org/")
     #use class graph with artsdata places, people and organizations
     @@base_graph = RDF::Graph.load("https://db.artsdata.ca/repositories/artsdata/statements?context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FPlace%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FOrganization%3E", format: :nquads)
    
@@ -13,7 +14,7 @@ class GraphsController < ApplicationController
         webpages = Webpage.where(rdf_uri:params[:rdf_uri] )
         statements = transform_statements_for_graph(webpages)
 
-        @local_graph =  build_graph(params[:rdf_uri], statements)
+        @local_graph =  build_graph_from_condenser_statements(params[:rdf_uri], statements)
         graph = @@base_graph
         graph <<  @local_graph
           
@@ -31,14 +32,17 @@ class GraphsController < ApplicationController
         rdf_uri = webpage.first.rdf_uri
         statements = transform_statements_for_graph(webpage)
 
-        @local_graph =  build_graph(rdf_uri, statements)
-        graph = @@base_graph
+        @local_graph =  build_graph_from_condenser_statements(rdf_uri, statements)
+     
         #add to graph using triples with rdf_uri subject
-        graph <<  @local_graph << @@base_graph
+        uris = extract_object_uris(@local_graph)
+        uris.each do |uri|
+            @local_graph << describe_uri(uri)
+        end
           
         #frame JSON-LD
-        json_graph = JSON.parse(graph.dump(:jsonld))
-        @jsonld = JSON::LD::API.frame(json_graph, frame())
+        json_graph = JSON.parse(@local_graph.dump(:jsonld))
+        @jsonld = JSON::LD::API.frame(json_graph, frame()) 
 
         # remove context because Google doesn't like extra types
         @google_jsonld = make_google_jsonld(@jsonld)
@@ -68,11 +72,7 @@ class GraphsController < ApplicationController
             return jsonld["@graph"][0].merge("@context" => "http://schema.org").to_json
         end
 
-
-
-
-        def build_graph rdf_uri, statements
-            #schema = RDF::Vocabulary.new("http://schema.org/")
+        def build_graph_from_condenser_statements rdf_uri, statements
             graph = RDF::Graph.new
 
             subject = rdf_uri.sub("adr:", "http://kg.artsdata.ca/resource/" )
@@ -107,6 +107,32 @@ class GraphsController < ApplicationController
                 end
             end
             return graph
+        end
+
+        def extract_object_uris graph
+            query = RDF::Query.new do
+                pattern [:s, :p,  :object]
+            end
+            solutions = query.execute(graph)
+            solutions.filter! { |solution| solution.object.uri? }
+
+            uri_list = []
+            solutions.each{|s| uri_list  << s.to_h[:object]}
+            return uri_list
+        end
+
+        def describe_uri uri
+        
+            query = RDF::Query.new do
+                pattern [uri, :p,  :o]
+            end
+            ## todo: Add blank nodes in object position to expand describe for location which contains a blank node for address.
+             
+             result = query.execute(@@base_graph)
+             g = RDF::Graph.new
+             result.each {|s| g << [uri, s.to_h[:p], s.to_h[:o]]}
+             return g
+
         end
 
 
