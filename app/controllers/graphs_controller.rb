@@ -1,21 +1,20 @@
 class GraphsController < ApplicationController
     before_action :preload_context, only: [:webpage_event]
 
-    require 'rdf/nquads'  #needed to load statements from graphDB
     require 'json/ld'  
 
     @@schema = RDF::Vocabulary.new("http://schema.org/")
     
     if Rails.env.test?
-        puts "loading base graph from test/fixtures/files"
+        puts "loading artsdata graph from test/fixtures/files"
         @@artsdata_graph = RDF::Graph.load("test/fixtures/files/artsdata-dump.nt", format: :nquads)
     else
         #use class graph with artsdata places, people and organizations
-        puts "loading base graph from live server"
         @@artsdata_graph = 
         RDF::Graph.load("https://db.artsdata.ca/repositories/artsdata/statements?context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FPlace%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FOrganization%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FPerson%3E", format: :nquads)
         #File.open("artsdata-dump.nt", "w") {|f| f << @@artsdata_graph.dump(:ntriples)}
     end
+
     #GET /graphs/:rdf_uri
     def show
         webpages = Webpage.where(rdf_uri:params[:rdf_uri] )
@@ -39,12 +38,11 @@ class GraphsController < ApplicationController
         rdf_uri = webpage.first.rdf_uri
         statements = transform_statements_for_graph(webpage)
 
-        @local_graph =  build_graph_from_condenser_statements(rdf_uri, statements)
+        @local_graph =  build_graph_from_condenser_statements(rdf_uri, statements, {1 => {5 => "http://schema.org/offers"}})
      
         #add to graph using triples with rdf_uri subject
         uris = extract_object_uris(@local_graph)
         uris.each do |uri|
-            puts "expanding graph #{uri}"
             @local_graph << describe_uri(uri)
         end
           
@@ -71,7 +69,7 @@ class GraphsController < ApplicationController
 
         def transform_statements_for_graph webpages
             #get statements linked to the webpage(s) that have selected sources.
-            statements = Statement.joins({source: :property}).where(webpage_id: webpages, sources: {selected: true} ).map { |s| {predicate: s.source.property.uri, object: s.cache, language: s.source.language, value_datatype: s.source.property.value_datatype, label: s.source.property.label} } 
+            statements = Statement.joins({source: :property}).where(webpage_id: webpages, sources: {selected: true} ).map { |s| {rdfs_class: s.source.property.rdfs_class_id, predicate: s.source.property.uri, object: s.cache, language: s.source.language, value_datatype: s.source.property.value_datatype, label: s.source.property.label} } 
             #map statements that have a datatype xsd:anyURI to a list of URIs
             statements.map {|s|  s[:object] = extract_uri(s[:object]) if s[:value_datatype] == "xsd:anyURI"  }
             #remove any blank statements
@@ -83,17 +81,26 @@ class GraphsController < ApplicationController
             return jsonld["@graph"][0].merge("@context" => "http://schema.org").to_json
         end
 
-        def build_graph_from_condenser_statements rdf_uri, statements
+        def build_graph_from_condenser_statements rdf_uri, statements, nesting_options
             graph = RDF::Graph.new
 
             subject = rdf_uri.sub("adr:", "http://kg.artsdata.ca/resource/" )
-            #TODO: Make generic - not only Event Class. Group by Class and preocess each class group.
+            #TODO: Make generic - not only Event Class. 
+            # Interpret the nesting_options, 
+            # create main Class and blank nodes for each nested class 
+            # and set subject first thing inside loop.
             graph << [RDF::URI(subject), RDF.type, RDF::URI("http://schema.org/Event")]
             statements.each do |s|
-                if  s[:value_datatype] == "xsd:anyURI"
+                ## TEMPORARY PATCH START #########
+                if s[:rdfs_class] == 5 
+                    graph << [RDF::URI(subject), RDF::URI("http://schema.org/offers"), :bn ]
+                    graph << [ :bn,  RDF.type,  RDF::URI("http://schema.org/Offer")]
+                    graph << [ :bn, RDF::URI(s[:predicate]), RDF::Literal(s[:object], language: s[:language])]
+                 ## TEMPORARY PATCH  END #########
+                elsif  s[:value_datatype] == "xsd:anyURI"
                     s[:object].each do |uri|
                         graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::URI(uri)] 
-                        #add decribe URI to graph  
+                        #add describe URI to graph  
                     end
                 elsif  s[:value_datatype] == "xsd:dateTime"
                     if  s[:object][0] == "["
@@ -143,7 +150,6 @@ class GraphsController < ApplicationController
                 g << [uri, s.to_h[:p], s.to_h[:o]]
                 if s.to_h[:o].node?
                     ## Add blank nodes in object position to expand describe for location which contains a blank node for address.
-                    puts "blank node for #{s.to_h[:p]}"
                     query2 = RDF::Query.new do
                         pattern [s.to_h[:o], :bnp,  :bno]
                     end
@@ -152,7 +158,6 @@ class GraphsController < ApplicationController
                 end
                 
              end 
-             puts "expansion results graph: #{g.dump(:ntriples)}"
              return g
 
         end
@@ -222,7 +227,10 @@ class GraphsController < ApplicationController
                         "sameAs":{},
                         "url":{}
                     },
-                "image":{}
+                "image":{},
+                "offers": {
+                    "@type": "Offer"
+                }
             }
             )
         end
