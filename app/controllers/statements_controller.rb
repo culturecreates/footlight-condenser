@@ -16,7 +16,7 @@ class StatementsController < ApplicationController
 
   #PATCH /statements/refresh_webpage.json?url=http://
   def refresh_webpage
-    @html_cache = []
+    
     webpage = Webpage.where(url: params[:url]).first
     refresh_webpage_statements(webpage)
     respond_to do |format|
@@ -30,7 +30,7 @@ class StatementsController < ApplicationController
   #PATCH /statements/refresh_rdf_uri.json?rdf_uri=&force_scrape_every_hrs=24
   def refresh_rdf_uri
     params[:force_scrape_every_hrs] ||= nil
-    @html_cache = []
+   
     webpages = Webpage.where(rdf_uri: params[:rdf_uri])
     webpages.each do |webpage|
       refresh_webpage_statements(webpage, :force_scrape_every_hrs => params[:force_scrape_every_hrs])
@@ -45,7 +45,7 @@ class StatementsController < ApplicationController
   # PATCH /statements/1/refresh
   # PATCH /statements/1/refresh.json
   def refresh
-    @html_cache = []
+   
     @statement = Statement.where(id: params[:id]).first
     refresh_statement @statement
     respond_to do |format|
