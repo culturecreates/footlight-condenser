@@ -27,10 +27,14 @@ class GraphsControllerTest < ActionDispatch::IntegrationTest
   test "should return graph" do
    
     uri = RDF::URI.new("http://kg.artsdata.ca/resource/K10-344")
-    expected_output = []
-    assert_equal expected_output, @controller.instance_eval{describe_uri(uri)}.dump(:ntriples)
+    expected_output = 18
+    assert_equal expected_output, @controller.instance_eval{describe_uri(uri)}.count
   end
 
-
+  test "should return graph for K12-170" do
+    uri = RDF::URI.new("http://kg.artsdata.ca/resource/K12-170")
+    expected_output = 9
+    assert_equal expected_output, @controller.instance_eval{describe_uri(uri)}.count
+  end
 
 end

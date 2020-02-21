@@ -5,10 +5,17 @@ class GraphsController < ApplicationController
     require 'json/ld'  
 
     @@schema = RDF::Vocabulary.new("http://schema.org/")
-    #use class graph with artsdata places, people and organizations
-    @@artsdata_graph = RDF::Graph.load("https://db.artsdata.ca/repositories/artsdata/statements?context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FPlace%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FOrganization%3E", format: :nquads)
-   
-    puts "loading base graph"
+    
+    if Rails.env.test?
+        puts "loading base graph from test/fixtures/files"
+        @@artsdata_graph = RDF::Graph.load("test/fixtures/files/artsdata-dump.nt", format: :nquads)
+    else
+        #use class graph with artsdata places, people and organizations
+        puts "loading base graph from live server"
+        @@artsdata_graph = 
+        RDF::Graph.load("https://db.artsdata.ca/repositories/artsdata/statements?context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FPlace%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FOrganization%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FPerson%3E", format: :nquads)
+        #File.open("artsdata-dump.nt", "w") {|f| f << @@artsdata_graph.dump(:ntriples)}
+    end
     #GET /graphs/:rdf_uri
     def show
         webpages = Webpage.where(rdf_uri:params[:rdf_uri] )
@@ -37,6 +44,7 @@ class GraphsController < ApplicationController
         #add to graph using triples with rdf_uri subject
         uris = extract_object_uris(@local_graph)
         uris.each do |uri|
+            puts "expanding graph #{uri}"
             @local_graph << describe_uri(uri)
         end
           
@@ -62,8 +70,11 @@ class GraphsController < ApplicationController
         end
 
         def transform_statements_for_graph webpages
+            #get statements linked to the webpage(s) that have selected sources.
             statements = Statement.joins({source: :property}).where(webpage_id: webpages, sources: {selected: true} ).map { |s| {predicate: s.source.property.uri, object: s.cache, language: s.source.language, value_datatype: s.source.property.value_datatype, label: s.source.property.label} } 
+            #map statements that have a datatype xsd:anyURI to a list of URIs
             statements.map {|s|  s[:object] = extract_uri(s[:object]) if s[:value_datatype] == "xsd:anyURI"  }
+            #remove any blank statements
             statements.select! {|s| s[:object].present? && s[:object] != "[]"}
             return statements
         end
@@ -126,12 +137,53 @@ class GraphsController < ApplicationController
             query = RDF::Query.new do
                 pattern [uri, :p,  :o]
             end
-            ## todo: Add blank nodes in object position to expand describe for location which contains a blank node for address.
-             
-             result = query.execute(@@artsdata_graph)
-             g = RDF::Graph.new
-             result.each {|s| g << [uri, s.to_h[:p], s.to_h[:o]]}
+            result = query.execute(@@artsdata_graph)
+            g = RDF::Graph.new
+            result.each do |s|
+                g << [uri, s.to_h[:p], s.to_h[:o]]
+                if s.to_h[:o].node?
+                    ## Add blank nodes in object position to expand describe for location which contains a blank node for address.
+                    puts "blank node for #{s.to_h[:p]}"
+                    query2 = RDF::Query.new do
+                        pattern [s.to_h[:o], :bnp,  :bno]
+                    end
+                    result2 = query2.execute(@@artsdata_graph)
+                    result2.each {|bns|  g << [s.to_h[:o], bns.to_h[:bnp], bns.to_h[:bno]]}
+                end
+                
+             end 
+             puts "expansion results graph: #{g.dump(:ntriples)}"
              return g
+
+        end
+
+
+
+        def sparql_multiple_dates uri_string
+            return
+            <<~EOS
+            PREFIX schema: <http://schema.org/>
+
+            construct {
+                ?uri schema:subEvent
+                    [ a schema:Event  ; 
+                    schema:name ?name ; 
+                    schema:description ?description ;
+                    schema:startDate ?dates ;
+                    schema:location ?location ]
+            }
+            where { 
+                ?uri schema:description ?description ; 
+                schema:location ?location ;
+                schema:name ?name .
+                    { select ?dates where {
+                        values ?uri { <#{uri_string}> }
+                        ?uri  schema:startDate ?dates
+                    }
+                } 
+            }
+            EOS
+
 
         end
 
@@ -159,16 +211,17 @@ class GraphsController < ApplicationController
                     "@explicit": true,
                     "name": {"@value":{},"@language": "en"} ,
                     "address": {
-                        "@type":"PostalAddress"
+                        "@type":"PostalAddress",
+                        "@explicit": false
                     }
                 },
                 "performer":{
-                    "@type": "Organization",
-                    "@explicit": true,
-                    "@type":"Organization",
-                    "name": {"@value":{},"@language": "en"} ,
-                    "sameAs":{}
-                },
+                        "@type": ["Organization","Person"],
+                        "@explicit": false,
+                        "name": [{"@value":{}},{"@value":{},"@language": "en"}] ,
+                        "sameAs":{},
+                        "url":{}
+                    },
                 "image":{}
             }
             )
