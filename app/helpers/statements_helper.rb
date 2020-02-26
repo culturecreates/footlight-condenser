@@ -172,6 +172,20 @@ module StatementsHelper
     return status
   end
 
+  def is_condenser_formated_array scraped_data
+    #check if scraped_data is already formated for condenser as an array in the case of hard coding (like event category).
+    # example: scraped_data = ["[\"Manually added\",\"Category\",[\"Performance\" , \"http://ontology.artsdata.ca/Performance\"]]"]
+    begin
+      if scraped_data[0][0] == "["
+        return true
+      else
+        return false
+      end
+    rescue => exception
+      return false
+    end
+  end
+
 
   def format_datatype (scraped_data, property, webpage)
     data = []
@@ -180,9 +194,9 @@ module StatementsHelper
         data << ISO_dateTime(t)
       end
     elsif property.value_datatype == "xsd:anyURI"
-      # first check if scraped_data is already formated as an array, and then parse and skip search.
       if  !scraped_data.blank?
-        if scraped_data[0][0] == "["
+        # first check if scraped_data is already formated as an array, and then parse and skip search.
+        if is_condenser_formated_array(scraped_data) 
           #parse URI set mannually
           data = JSON.parse(scraped_data[0])
         else
