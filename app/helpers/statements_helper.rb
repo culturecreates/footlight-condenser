@@ -181,7 +181,7 @@ module StatementsHelper
       end
     elsif property.value_datatype == "xsd:anyURI"
       # first check if scraped_data is already formated as an array, and then parse and skip search.
-      if  !scraped_data.empty?
+      if  !scraped_data.blank?
         if scraped_data[0][0] == "["
           #parse URI set mannually
           data = JSON.parse(scraped_data[0])
@@ -320,7 +320,7 @@ module StatementsHelper
         hits = results[:data].clone
         logger.info " ++++++++++++=Hits from cc_kg_query: #{hits}"
         hits.count.times do |n|
-          if !hits[n].empty?
+          if !hits[n].blank?
             hits[n] = [hits[n]["name"]["value"],hits[n]["uri"]["value"]]
           end
         end

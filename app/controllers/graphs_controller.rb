@@ -202,7 +202,8 @@ class GraphsController < ApplicationController
                         "startDate": {"@type":  "http://www.w3.org/2001/XMLSchema#dateTime"},
                         "description" : {"@id":"description","@language":"en"},
                         "url":  {"@id":"url","@language":"en"},
-                        "name": {"@id":"name","@language":"en"}
+                        "name": {"@id":"name","@language":"en"},
+                        "alternateName": {"@id":"alternateName","@language":"en"}
                     },
                 "@type": "Event",
                 "@explicit": true,
@@ -225,7 +226,8 @@ class GraphsController < ApplicationController
                         "@explicit": false,
                         "name": [{"@value":{}},{"@value":{},"@language": "en"}] ,
                         "sameAs":{},
-                        "url":{}
+                        "url":{},
+                        "alternateName":{}
                     },
                 "image":{},
                 "offers": {
