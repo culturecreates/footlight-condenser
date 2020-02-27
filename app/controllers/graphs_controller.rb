@@ -35,23 +35,34 @@ class GraphsController < ApplicationController
     #GET /graphs/webpage/event?url=
     def webpage_event
         webpage = Webpage.where(url: CGI.unescape(params[:url] ))
-        rdf_uri = webpage.first.rdf_uri
-        statements = transform_statements_for_graph(webpage)
+        if webpage.present?
+            #get statements linked to the webpage that have selected sources.
+            statements = Statement.joins({source: :property}).where(webpage_id: webpage, sources: {selected: true} )
+            problem_statements = helpers.missing_required_properties(statements)
+            if problem_statements.blank?
+                rdf_uri = webpage.first.rdf_uri
+                statements_for_graph =  transform_statements_for_graph(statements)
+                @local_graph =  build_graph_from_condenser_statements(rdf_uri, statements_for_graph, {1 => {5 => "http://schema.org/offers"}})
 
-        @local_graph =  build_graph_from_condenser_statements(rdf_uri, statements, {1 => {5 => "http://schema.org/offers"}})
-     
-        #add to graph using triples with rdf_uri subject
-        uris = extract_object_uris(@local_graph)
-        uris.each do |uri|
-            @local_graph << describe_uri(uri)
+                #add to graph using triples with rdf_uri subject
+                uris = extract_object_uris(@local_graph)
+                uris.each do |uri|
+                    @local_graph << describe_uri(uri)
+                end
+                
+                #frame JSON-LD
+                json_graph = JSON.parse(@local_graph.dump(:jsonld))
+                @jsonld = JSON::LD::API.frame(json_graph, frame()) 
+
+                # remove context because Google doesn't like extra types
+                @google_jsonld = make_google_jsonld(@jsonld)
+            else
+                problems_summary = problem_statements.map{|s| s.source.property.label}.join(", ")
+                @google_jsonld = {"messsage" => "Event needs review in Footlight console. Issues with #{problems_summary}."}.to_json
+            end
+        else
+            @google_jsonld = {"messsage" => "Webpage fits URL pattern but is missing from Footlight console."}.to_json
         end
-          
-        #frame JSON-LD
-        json_graph = JSON.parse(@local_graph.dump(:jsonld))
-        @jsonld = JSON::LD::API.frame(json_graph, frame()) 
-
-        # remove context because Google doesn't like extra types
-        @google_jsonld = make_google_jsonld(@jsonld)
 
         respond_to do |format|
             format.html {  }
@@ -62,19 +73,21 @@ class GraphsController < ApplicationController
 
 
     private
+   
+
+        def transform_statements_for_graph statements
+            #create a HASH for each statements {status:,rdfs_class:,predicate:,object:,language:,value_datatype:,label:}
+            statements_hash = statements.map { |s| {status: s.status, rdfs_class: s.source.property.rdfs_class_id, predicate: s.source.property.uri, object: s.cache, language: s.source.language, value_datatype: s.source.property.value_datatype, label: s.source.property.label} } 
+            #map statements that have a datatype xsd:anyURI to a list of URIs
+            statements_hash.map {|s|  s[:object] = extract_uri(s[:object]) if s[:value_datatype] == "xsd:anyURI"  }
+            #remove any blank statements
+            statements_hash.select! {|s| s[:object].present? && s[:object] != "[]"}
+            return statements_hash
+        end
+
         def extract_uri cache
             cache_obj =  helpers.build_json_from_anyURI(cache)
             return cache_obj.pluck(:links).flatten.pluck(:uri)
-        end
-
-        def transform_statements_for_graph webpages
-            #get statements linked to the webpage(s) that have selected sources.
-            statements = Statement.joins({source: :property}).where(webpage_id: webpages, sources: {selected: true} ).map { |s| {rdfs_class: s.source.property.rdfs_class_id, predicate: s.source.property.uri, object: s.cache, language: s.source.language, value_datatype: s.source.property.value_datatype, label: s.source.property.label} } 
-            #map statements that have a datatype xsd:anyURI to a list of URIs
-            statements.map {|s|  s[:object] = extract_uri(s[:object]) if s[:value_datatype] == "xsd:anyURI"  }
-            #remove any blank statements
-            statements.select! {|s| s[:object].present? && s[:object] != "[]"}
-            return statements
         end
 
         def make_google_jsonld jsonld
