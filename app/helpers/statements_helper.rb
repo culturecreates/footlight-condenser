@@ -43,7 +43,7 @@ module StatementsHelper
         if s.count != 1
           Statement.create!(cache:_data, webpage_id: webpage.id, source_id: source.id, status: status_checker(_data, source.property) , status_origin: "condenser_refresh",cache_refreshed: Time.new)
         else
-          #check if manual entry and ONLY update if  the cache has a status of missing
+          #check if manual entry and ONLY update if the cache has a status of missing
           if source.algorithm_value.start_with?("manual=") 
             if status_checker(s.first.cache, source.property) != "missing"
               logger.info "Skipping update of manual entry"
@@ -71,7 +71,13 @@ module StatementsHelper
           end
           #update database. Model automatically sets cache changed
           logger.info("*** Last step cache: #{_data}")
-          s.first.update(cache:_data, cache_refreshed: Time.new) unless _data&.to_s&.include?('abort_update')
+          first_statement =  s.first
+          if _data&.to_s&.include?('abort_update')
+            #set errors
+            logger.error "###ERROR IN SCRAPE: Received 'abort_update' during scraping. #{_data}"
+          else
+            first_statement.update(cache:_data, cache_refreshed: Time.new) 
+          end
         end
       else
         #there is another step
@@ -143,7 +149,7 @@ module StatementsHelper
         end
       rescue => e
         logger.error(" ****************** Error in scrape: #{e.inspect}")
-        results_list = [["Error scrapping"],["error: #{e.inspect}"]]
+        results_list = [["abort_update"],["error: #{e.inspect}"]]
       end
     end
     return results_list

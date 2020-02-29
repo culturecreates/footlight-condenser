@@ -36,8 +36,7 @@ class StatementsController < ApplicationController
       refresh_webpage_statements(webpage, :force_scrape_every_hrs => params[:force_scrape_every_hrs])
     end
     respond_to do |format|
-      #format.html { redirect_to show_resources_path(rdf_uri: params[:rdf_uri]), notice: 'All statements were successfully refreshed.' }
-      format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri]), notice: 'All statements were successfully refreshed.' }
+      format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri]), notice: 'Refresh requested on all statements. Check individual statements for success.' }
       format.json { render json: {message:"URIs refreshed"}.to_json }
     end
   end
@@ -47,10 +46,20 @@ class StatementsController < ApplicationController
   def refresh
    
     @statement = Statement.where(id: params[:id]).first
+    prior_refresh = @statement.cache_refreshed
     refresh_statement @statement
+    post_refresh = @statement.cache_refreshed
+    if prior_refresh == post_refresh 
+      @statement.errors[:base] << "Error scrapping. Refresh was aborted!."
+    end
     respond_to do |format|
-      format.html { redirect_to @statement, notice: 'Statement was successfully refreshed.' }
-      format.json { render :show, status: :refreshed, location: @statement }
+      if @statement.errors
+        format.html { redirect_to @statement, notice: 'Statement errors' + @statement.errors.messages.inspect }
+        format.json { render json: @statement.errors, status: :unprocessable_entity }
+      else
+        format.html { redirect_to @statement, notice: 'Statement was successfully refreshed.' }
+        format.json { render :show, status: :refreshed, location: @statement }
+      end
     end
   end
 
