@@ -64,6 +64,7 @@ class GraphsController < ApplicationController
             @google_jsonld = {"messsage" => "Webpage fits URL pattern but is missing from Footlight console."}.to_json
         end
 
+        logger.info("### Code Snippet Call /graphs/webpage/event?url=#{params[:url]}")
         respond_to do |format|
             format.html {  }
             format.jsonld { render inline: @google_jsonld, content_type: 'application/ld+json' }
