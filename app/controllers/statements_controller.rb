@@ -48,12 +48,13 @@ class StatementsController < ApplicationController
     @statement = Statement.where(id: params[:id]).first
     prior_refresh = @statement.cache_refreshed
     refresh_statement @statement
+    @statement = Statement.where(id: params[:id]).first
     post_refresh = @statement.cache_refreshed
     if prior_refresh == post_refresh 
-      @statement.errors[:base] << "Error scrapping. Refresh was aborted!."
+      @statement.errors[:base] << "Error scrapping. Refresh was aborted! Checks logs."
     end
     respond_to do |format|
-      if @statement.errors
+      if @statement.errors.any?
         format.html { redirect_to @statement, notice: 'Statement errors' + @statement.errors.messages.inspect }
         format.json { render json: @statement.errors, status: :unprocessable_entity }
       else
