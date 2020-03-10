@@ -4,7 +4,6 @@ class SourcesController < ApplicationController
   # GET /sources
   # GET /sources.json
   def index
-
     seedurl = params[:seedurl] ||  cookies[:seedurl]
     if seedurl
       @sources = Source.where(website_id: Website.where(seedurl: seedurl).first.id).order(selected: :desc).order(:property_id, :language)
@@ -22,7 +21,7 @@ class SourcesController < ApplicationController
 
   # GET /sources/1
   # GET /sources/1.json
-  def show
+  def show 
   end
 
 
@@ -84,13 +83,14 @@ class SourcesController < ApplicationController
   end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
-    def set_source
-      @source = Source.find(params[:id])
-    end
 
-    # Never trust parameters from the scary internet, only allow the white list through.
-    def source_params
-      params.require(:source).permit(:algorithm_value, :label, :language, :selected, :selected_by, :next_step, :render_js, :property_id, :website_id)
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def set_source
+    @source = Source.find(params[:id])
+  end
+
+  # Never trust parameters from the scary internet, only allow the white list through.
+  def source_params
+    params.require(:source).permit(:algorithm_value, :label, :language, :selected, :selected_by, :next_step, :render_js, :property_id, :website_id)
+  end
 end

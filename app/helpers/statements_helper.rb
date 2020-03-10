@@ -100,9 +100,7 @@ module StatementsHelper
         html = agent.get_file  use_wringer(url, source.render_js, scrape_options)
         page = Nokogiri::HTML html
         results_list = []
-        logger.info ("*** Algorithm split: #{algorithm.split(';')}")
         algorithm.split(';').each do |a|
-          logger.info ("*** Algorithm: #{a}")
           if a.start_with? 'url'
             #replace current page by sraping new url using format url='http://example.com'
             new_url = a.delete_prefix("url=")
