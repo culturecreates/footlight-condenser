@@ -57,3 +57,9 @@ nine:
   uri: http://schema.org/performer
   rdfs_class: one
   expected_class: Organization
+
+ten:
+  label: Dates
+  value_datatype: xsd:dateTime
+  uri: http://schema.org/startDate
+  rdfs_class: one

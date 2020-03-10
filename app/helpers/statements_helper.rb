@@ -135,14 +135,15 @@ module StatementsHelper
 
           elsif a.start_with? 'xpath'
             algo = a.delete_prefix("xpath=").gsub("$url",url)
-            logger.info ("---------!!!!!!!!!-------- algo: #{algo}")
             page_data = page.xpath(algo)
             page_data.each { |d| results_list << d.text}
 
           elsif  a.start_with? 'css'
             page_data = page.css(a.delete_prefix("css="))
             page_data.each { |d| results_list << d.text}
-
+          elsif  a.start_with? 'time_zone'
+            results_list << "time_zone: #{a.delete_prefix('time_zone=')}"
+            logger.info ("*** Adding time_zone: #{results_list}")
           end
         end
       rescue => e
@@ -194,8 +195,23 @@ module StatementsHelper
   def format_datatype (scraped_data, property, webpage)
     data = []
     if property.value_datatype == "xsd:dateTime"
+      logger.info("Formatting dateTime with: #{scraped_data}")
+      #check for time_zone
+      time_zone = nil
       scraped_data.each do |t|
-        data << ISO_dateTime(t)
+        if t.class == String
+          if t.start_with?('time_zone:')
+            time_zone = t.split(':')[1].strip
+            scraped_data.delete(t)
+          end
+        end
+      end
+      scraped_data.each do |t|
+        if time_zone
+          data << ISO_dateTime(t,time_zone)
+        else
+          data << ISO_dateTime(t)
+        end
       end
     elsif property.value_datatype == "xsd:anyURI"
       if  !scraped_data.blank?
@@ -384,10 +400,10 @@ module StatementsHelper
     .gsub(/janvier|février|fév|mars|avr|mai|juin|juillet|juil|août|aou|aoû|septembre|octobre|novembre|décembre|déc/, 'janvier'=> 'JAN', 'février'=> 'FEB', 'fév'=> 'FEB', 'mars'=> 'MAR', 'avril'=> 'APR', 'avr'=> 'APR', 'mai'=>'MAY', 'juin' => 'JUN', 'juillet' => 'JUL','juil' => 'JUL','aou'=>'AUG', 'août'=>'AUG', 'aoû'=>'AUG','septembre'=> 'SEP','octobre'=> 'OCT','novembre'=> 'NOV','décembre'=>'DEC', 'déc'=>'DEC')
   end
 
-  def ISO_dateTime(date_time)
+  def ISO_dateTime(date_time, time_zone = "Eastern Time (US & Canada)" )
     begin
       current_timezone = Time.zone
-      Time.zone = "Eastern Time (US & Canada)"
+      Time.zone = time_zone
 
       d = Time.zone.parse(self.french_to_english_month(date_time))
       # if the dateTime is midnight then assume that there is no known time and conver to a Date Object instead of Time object.
@@ -398,8 +414,8 @@ module StatementsHelper
       Time.zone = current_timezone
 
       iso_date_time =  d.iso8601
-    rescue
-      iso_date_time = "Bad input date_time: #{date_time}"
+    rescue => e
+      iso_date_time = "Bad input date_time: #{date_time} with error: #{e.inspect}"
     end
     return iso_date_time
   end

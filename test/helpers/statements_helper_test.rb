@@ -124,6 +124,33 @@ class StatementsHelperTest < ActionView::TestCase
     assert_equal expected, actual
    end
 
+   test "format_datatype with time_zone" do
+    property = properties(:ten)
+    scraped_data = ["time_zone:  Eastern Time (US & Canada) ","2020-05-28T22:00:00-00:00", "2020-05-31T22:00:00-00:00"]
+    webpage = webpages(:one)
+    actual = format_datatype(scraped_data, property, webpage)
+    expected = ["2020-05-28T18:00:00-04:00", "2020-05-31T18:00:00-04:00"]
+    assert_equal expected, actual
+   end
+
+   test "format_datatype with NO time_zone" do
+    property = properties(:ten)
+    scraped_data = ["2020-05-28T22:00:00-01:00", "2020-05-31T22:00:00-01:00"]
+    webpage = webpages(:one)
+    actual = format_datatype(scraped_data, property, webpage)
+    expected = ["2020-05-28T19:00:00-04:00", "2020-05-31T19:00:00-04:00"]
+    assert_equal expected, actual
+   end
+
+   test "format_datatype with INVALID time_zone" do
+    property = properties(:ten)
+    scraped_data = ["time_zone:  Nowhere Time (US & Canada) ","2020-05-28T22:00:00-01:00", "2020-05-31T22:00:00-01:00"]
+    webpage = webpages(:one)
+    actual = format_datatype(scraped_data, property, webpage)
+    expected = ["Bad input date_time: 2020-05-28T22:00:00-01:00 with error: #<ArgumentError: Invalid Timezone: Nowhere Time (US & Canada)>", "Bad input date_time: 2020-05-31T22:00:00-01:00 with error: #<ArgumentError: Invalid Timezone: Nowhere Time (US & Canada)>"]
+    assert_equal expected, actual
+   end
+
 
   #search_cckg
   test "search_cckg: should search cckg for uris that match 100%" do
@@ -252,6 +279,15 @@ class StatementsHelperTest < ActionView::TestCase
     assert_equal expected_output, ISO_dateTime("2020-05-31")
    end
 
+  test "ISO_dateTime: should set timezone" do
+    expected_output = "2020-05-31T18:00:00-04:00"
+    assert_equal expected_output, ISO_dateTime("2020-05-31T22:00:00-00:00","Eastern Time (US & Canada)")
+  end
+
+  test "ISO_dateTime: should set timezone traversing day boundary" do
+    expected_output = "2020-05-30T22:00:00-04:00"
+    assert_equal expected_output, ISO_dateTime("2020-05-31T02:00:00-00:00","Eastern Time (US & Canada)")
+  end
 
 
   #ISO_duration(duration_str)
