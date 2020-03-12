@@ -290,6 +290,14 @@ class StatementsHelperTest < ActionView::TestCase
   end
 
 
+  test "ISO_dateTime: should convert text containing 'Halifax' to dateTime" do
+    expected_output = "2020-03-06T19:00:00-05:00"
+    assert_equal expected_output, ISO_dateTime("06 mar 2020   Halifax   19 h 00 ")
+  end
+
+  
+  
+
   #ISO_duration(duration_str)
   test "ISO_duration: should convert to ISO duration" do
    expected_output = "PT8400S"

@@ -396,7 +396,6 @@ module StatementsHelper
 
   def french_to_english_month(date_time)
     date_time.downcase
-    .gsub(/ h /, 'h')
     .gsub(/janvier|février|fév|mars|avr|mai|juin|juillet|juil|août|aou|aoû|septembre|octobre|novembre|décembre|déc/, 'janvier'=> 'JAN', 'février'=> 'FEB', 'fév'=> 'FEB', 'mars'=> 'MAR', 'avril'=> 'APR', 'avr'=> 'APR', 'mai'=>'MAY', 'juin' => 'JUN', 'juillet' => 'JUL','juil' => 'JUL','aou'=>'AUG', 'août'=>'AUG', 'aoû'=>'AUG','septembre'=> 'SEP','octobre'=> 'OCT','novembre'=> 'NOV','décembre'=>'DEC', 'déc'=>'DEC')
   end
 
@@ -404,8 +403,9 @@ module StatementsHelper
     begin
       current_timezone = Time.zone
       Time.zone = time_zone
-
-      d = Time.zone.parse(self.french_to_english_month(date_time))
+      d = Time.zone.parse(self.french_to_english_month(date_time)
+                               .gsub(/ h /, 'h')  # French times usually have spaces around the 'H'
+                               .gsub(/halifax/i, '')) # Halifax is used in timezone names. Remove it to avoid confusion.
       # if the dateTime is midnight then assume that there is no known time and conver to a Date Object instead of Time object.
       if d == d.midnight
         d = d.to_date
