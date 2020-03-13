@@ -406,7 +406,8 @@ module StatementsHelper
       d = Time.zone.parse(self.french_to_english_month(date_time)
                                .gsub(/ h /, 'h')  # French times usually have spaces around the 'H'
                                .gsub(/halifax/i, '')) # Halifax is used in timezone names. Remove it to avoid confusion.
-      # if the dateTime is midnight then assume that there is no known time and conver to a Date Object instead of Time object.
+      
+      # if the dateTime is midnight then assume that there is no known time and convert to a Date Object instead of Time object.
       if d == d.midnight
         d = d.to_date
       end
