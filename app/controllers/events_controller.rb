@@ -26,6 +26,10 @@ class EventsController < ApplicationController
     uris_to_review = event_status.select{|event| event[1] == "initial"}.map{|event| event = event[0]}
     uris_updated = event_status.select{|event| event[1] == "updated"}.map{|event| event = event[0]}
 
+    uris_title_publishable = get_uris_publishable "Title"
+    uris_dates_publishable = get_uris_publishable "Dates"
+    uris_location_publishable = get_uris_publishable "Location"
+
     photos_hash.each do |photo|
         uri = photo[0]
         titles_hash[uri] = "Error" if titles_hash[uri].include?("error:")  #prevent sending events that have failed being scrapped
@@ -33,7 +37,8 @@ class EventsController < ApplicationController
                     statements_status:
                           {to_review: uris_to_review.include?(uri),
                              updated: uris_updated.include?(uri),
-                             problem: uris_with_problems.include?(uri)},
+                             problem: uris_with_problems.include?(uri),
+                             publishable: uris_title_publishable.include?(uri) && uris_dates_publishable.include?(uri) && uris_location_publishable.include?(uri) },
                   photo: photo[1],
                   title: titles_hash[uri],
                   date: dates_hash[uri] || helpers.patch_invalid_date}
@@ -68,6 +73,11 @@ class EventsController < ApplicationController
       return Statement.joins({webpage: :website},:source).where(webpages:{websites: {seedurl: params[:seedurl]}}).where(sources: {selected: true}).pluck(:rdf_uri, :status).uniq
     end
 
+    def get_uris_publishable property
+      #must have OK || update status 
+      #TODO: This is misleading for bilingual sites which will have a publishable title if either en or fr meets the conditions of ok || updated
+      publishable_title_uris = Statement.joins({source: [:property, :website]},:webpage).where(webpages:{websites: {seedurl: params[:seedurl]}}).where(sources: {selected: true}).where(sources: {properties:{label: property,rdfs_class: 1}}).where(status: "ok").or(Statement.joins({source: [:property, :website]},:webpage).where(webpages:{websites: {seedurl: params[:seedurl]}}).where(sources: {selected: true}).where(sources: {properties:{label: property,rdfs_class: 1}}).where(status: "updated")).pluck(:rdf_uri).uniq
+    end
   
 
 end
