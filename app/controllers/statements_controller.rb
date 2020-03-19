@@ -37,7 +37,7 @@ class StatementsController < ApplicationController
     end
     respond_to do |format|
       format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri]), notice: 'Refresh requested on all statements. Check individual statements for success.' }
-      format.json { render json: {message:"URIs refreshed"}.to_json }
+      format.json { render json: {message:"URI refreshed. Check individual statements for success."}.to_json }
     end
   end
 
@@ -68,9 +68,10 @@ class StatementsController < ApplicationController
   # GET /statements
   # GET /statements.json
   def index
+    cookies[:seedurl] = params[:seedrul] if !params[:seedrul].blank?
     if params[:rdf_uri]
-      webpage_id = Webpage.where(rdf_uri:params[:rdf_uri] )
-      @statements = Statement.joins(:source).where(webpage_id: webpage_id).order( "sources.selected DESC" , "sources.property_id" ).paginate(page: params[:page], per_page: params[:per_page])
+      webpage = Webpage.where(rdf_uri:params[:rdf_uri] )
+      @statements = Statement.joins(:source).where(webpage_id: webpage).order( "sources.selected DESC" , "sources.property_id" ).paginate(page: params[:page], per_page: params[:per_page])
     else
       if cookies[:seedurl]
         @statements = Statement.joins(webpage: :website).where(webpages: { websites: {seedurl:  cookies[:seedurl]}}).order(:id).paginate(page: params[:page], per_page: params[:per_page])
