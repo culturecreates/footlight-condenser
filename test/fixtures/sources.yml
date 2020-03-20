@@ -2,9 +2,9 @@
 
 one:
   algorithm_value: MyString
-  selected: false
+  selected: true
   selected_by: MyString
-  language: En
+  language: en
   next_step:
   render_js: false
   property: one
@@ -14,7 +14,7 @@ two:
   algorithm_value: MyString
   selected: false
   selected_by: MyString
-  language: En
+  language: en
   next_step:
   render_js: false
   property: two
@@ -24,8 +24,18 @@ three:
   algorithm_value: MyString
   selected: false
   selected_by: MyString
-  language: En
+  language: en
   next_step:
   render_js: false
   property: two
   website: two
+
+eleven:
+  algorithm_value: MyString
+  selected: true
+  selected_by: MyString
+  language: en
+  next_step:
+  render_js: false
+  property: eleven
+  website: one

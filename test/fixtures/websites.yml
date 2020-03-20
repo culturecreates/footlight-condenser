@@ -2,7 +2,7 @@
 
 one:
   name: MyString
-  seedurl: MyString
+  seedurl: one
 
 two:
   name: MyString

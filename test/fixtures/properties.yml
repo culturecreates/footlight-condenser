@@ -63,3 +63,9 @@ ten:
   value_datatype: xsd:dateTime
   uri: http://schema.org/startDate
   rdfs_class: one
+
+eleven:
+  label: Photo
+  value_datatype: 
+  uri: http://schema.org/photo
+  rdfs_class: one

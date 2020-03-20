@@ -2,10 +2,11 @@
 
 one:
   url: MyString
-  language: MyString
+  language: en
   rdf_uri: MyString
   rdfs_class: one
   website: one
+  archive_date: <%= Time.now + 10.days %>
 
 two:
   url: MyString
