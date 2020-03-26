@@ -52,8 +52,8 @@ class GraphsController < ApplicationController
                 
                 #frame JSON-LD
                 json_graph = JSON.parse(@local_graph.dump(:jsonld))
-                @jsonld = JSON::LD::API.frame(json_graph, frame()) 
-
+                @jsonld = JSON::LD::API.frame(json_graph, frame(webpage.first.language)) 
+              
                 # remove context because Google doesn't like extra types
                 @google_jsonld = make_google_jsonld(@jsonld)
             else
@@ -207,47 +207,52 @@ class GraphsController < ApplicationController
         end
 
 
-        def frame
-            return  JSON.parse %(
-                {
-                "@context":
+        def frame lang
+            if lang == "en" || lang == "fr"
+                frame_string = 
+                <<~EOS
                     {
-                        "@vocab": "http://schema.org/",
-                        "startDate": {"@type":  "http://www.w3.org/2001/XMLSchema#dateTime"},
-                        "description" : {"@id":"description","@language":"en"},
-                        "url":  {"@id":"url","@language":"en"},
-                        "name": {"@id":"name","@language":"en"},
-                        "alternateName": {"@id":"alternateName","@language":"en"}
-                    },
-                "@type": "Event",
-                "@explicit": true,
-                "name": {"@value":{},"@language": "en"} ,
-                "startDate" :{},
-                "description" :{"@value":{},"@language": "en"},
-                "duration": {"@value":{}},
-                "url":{"@value":{},"@language": "en"},
-                "location": {
-                    "@type":"Place", 
+                    "@context":
+                        {
+                            "@vocab": "http://schema.org/",
+                            "startDate": {"@type":  "http://www.w3.org/2001/XMLSchema#dateTime"},
+                            "description" : {"@id":"description","@language": "#{lang}" },
+                            "url":  {"@id":"url","@language": "#{lang}" },
+                            "name": {"@id":"name","@language": "#{lang}"},
+                            "alternateName": {"@id":"alternateName","@language": "#{lang}"},
+                            "image": {"@id":"image","@language": "#{lang}"}
+                        },
+                    "@type": "Event",
                     "@explicit": true,
-                    "name": {"@value":{},"@language": "en"} ,
-                    "address": {
-                        "@type":"PostalAddress",
-                        "@explicit": false
-                    }
-                },
-                "performer":{
-                        "@type": ["Organization","Person"],
-                        "@explicit": false,
-                        "name": [{"@value":{}},{"@value":{},"@language": "en"}] ,
-                        "sameAs":{},
-                        "url":{},
-                        "alternateName":{}
+                    "name": {"@value":{},"@language": "#{lang}"} ,
+                    "startDate" :{},
+                    "description" :{"@value":{},"@language": "#{lang}"},
+                    "duration": {"@value":{}},
+                    "url":{"@value":{},"@language": "#{lang}"},
+                    "location": {
+                        "@type":"Place", 
+                        "@explicit": true,
+                        "name": {"@value":{},"@language": "#{lang}"} ,
+                        "address": {
+                            "@type":"PostalAddress",
+                            "@explicit": false
+                        }
                     },
-                "image":{},
-                "offers": {
-                    "@type": "Offer"
+                    "performer":{
+                            "@type": ["Organization","Person"],
+                            "@explicit": false,
+                            "name": [{"@value":{}},{"@value":{},"@language": "#{lang}"}] ,
+                            "sameAs":{},
+                            "url":{},
+                            "alternateName":[{"@value":{},"@language": "#{lang}"}]
+                        },
+                    "image":{},
+                    "offers": {
+                        "@type": "Offer"
+                    }
                 }
-            }
-            )
+                EOS
+                return JSON.parse(frame_string)
+            end
         end
 end
