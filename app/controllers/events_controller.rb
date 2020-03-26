@@ -3,10 +3,33 @@ class EventsController < ApplicationController
   # Main API call for portal to get the index of events
   # GET /websites/:seedurl/events
   def index
+    params[:startDate]  # "2018-01-01"
+    params[:endDate]   # "2021-01-01"
+
+    
     @events = []
     event_rdfs_class_id = RdfsClass.where(name:"Event")
 
-    time_span = [Time.now..Time.now.next_year + 6.months]
+    start_date = Time.now
+    end_date = Time.now.next_year + 6.months
+
+    if params[:startDate] 
+      begin
+        start_date = Date.parse(params[:startDate])
+      rescue => exception
+        logger.error("Invalid start_date parameter", exception.inspect)
+      end
+    end
+
+    if params[:endDate] 
+      begin
+        end_date = Date.parse(params[:endDate])
+      rescue => exception
+        logger.error("Invalid end_date parameter", exception.inspect)
+      end
+    end
+
+    time_span = [start_date..end_date]
 
     titles = get_event_titles time_span
     #remove blank titles which can happen with multiple languages

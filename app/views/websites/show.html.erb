@@ -23,7 +23,8 @@
 
 <h2>Events</h2>
 <div style="margin-left: 30px">
-<%= link_to 'Upcoming events json', website_events_path(@website.seedurl, format: :json) %>
+<%= link_to 'Upcoming events json', website_events_path(@website.seedurl, format: :json) %> | 
+<%= link_to 'All events json', website_events_path(@website.seedurl, startDate: "2018-01-01", format: :json) %>
 <hr>
 <h3> REFRESH USING WEBPAGE CACHE</h3>
 <%= link_to 'Refresh UPCOMING events', nil %> |
