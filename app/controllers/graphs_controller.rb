@@ -35,12 +35,14 @@ class GraphsController < ApplicationController
     #GET /graphs/webpage/event?url=
     def webpage_event
         webpage = Webpage.where(url: CGI.unescape(params[:url] ))
-        if webpage.present?
+        rdf_uri = webpage.first.rdf_uri
+        webpages = Webpage.where(rdf_uri: rdf_uri)
+        if webpages.present?
             #get statements linked to the webpage that have selected sources.
-            statements = Statement.joins({source: :property}).where(webpage_id: webpage, sources: {selected: true} )
+            statements = Statement.joins({source: :property}).where(webpage_id: webpages, sources: {selected: true} )
             problem_statements = helpers.missing_required_properties(statements)
             if problem_statements.blank?
-                rdf_uri = webpage.first.rdf_uri
+              
                 statements_for_graph =  transform_statements_for_graph(statements)
                 @local_graph =  build_graph_from_condenser_statements(rdf_uri, statements_for_graph, {1 => {5 => "http://schema.org/offers"}})
 
