@@ -21,7 +21,7 @@ class ResourcesController < ApplicationController
     webpages = Webpage.where(rdf_uri: params[:rdf_uri])
     @resource[:rdfs_class] = webpages.first.rdfs_class.name if !webpages.empty?
    @resource[:seedurl] = webpages.first.website.seedurl if !webpages.empty?
-   @resource[:archive_date] = webpages.first.archive_date if !webpages.empty?
+   @resource[:archive_date] = webpages.last.archive_date if !webpages.empty?
 
     webpages.each do |webpage|
       webpage.statements.each do |statement|

@@ -94,7 +94,7 @@ class EventsController < ApplicationController
     end
 
     def get_archive_dates
-      return Webpage.joins(:website).where(rdfs_class: 1, websites: {seedurl: params[:seedurl]}).pluck(:rdf_uri, :archive_date)
+      return Webpage.joins(:website).where(rdfs_class: 1, websites: {seedurl: params[:seedurl]}).order(:archive_date).pluck(:rdf_uri, :archive_date)
     end
 
 
