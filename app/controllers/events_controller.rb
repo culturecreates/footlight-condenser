@@ -42,6 +42,8 @@ class EventsController < ApplicationController
     dates.map! { |array| [array[0],helpers.parse_date_string_array(array[1])]}
     dates_hash = dates.to_h
 
+    archive_dates = get_archive_dates 
+    archive_dates_hash = archive_dates.to_h
 
 
     event_status = get_event_status
@@ -64,10 +66,12 @@ class EventsController < ApplicationController
                              publishable: uris_title_publishable.include?(uri) && uris_dates_publishable.include?(uri) && uris_location_publishable.include?(uri) },
                   photo: photo[1],
                   title: titles_hash[uri],
-                  date: dates_hash[uri] || helpers.patch_invalid_date}
+                  date: dates_hash[uri] || helpers.patch_invalid_date,
+                  archive_date: archive_dates_hash[uri]
+                }
     end
 
-    @events.sort_by! {|item| item[:date]}
+    @events.sort_by! {|item| item[:archive_date]}
     @total_events = @events.count
   end
 
@@ -89,6 +93,9 @@ class EventsController < ApplicationController
       return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Dates", rdfs_class: 1},websites:  {seedurl:  params[:seedurl]},webpages: {archive_date: archive_date_range}   }  }  ).order(:created_at).pluck(:rdf_uri, :cache)
     end
 
+    def get_archive_dates
+      return Webpage.joins(:website).where(rdfs_class: 1, websites: {seedurl: params[:seedurl]}).pluck(:rdf_uri, :archive_date)
+    end
 
 
 
