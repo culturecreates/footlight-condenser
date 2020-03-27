@@ -18,10 +18,10 @@ class ResourcesController < ApplicationController
                   archive_date: "",
                   statements: {}}
 
-    webpages = Webpage.where(rdf_uri: params[:rdf_uri])
+    webpages = Webpage.where(rdf_uri: params[:rdf_uri]).order(:archive_date) 
     @resource[:rdfs_class] = webpages.first.rdfs_class.name if !webpages.empty?
-   @resource[:seedurl] = webpages.first.website.seedurl if !webpages.empty?
-   @resource[:archive_date] = webpages.last.archive_date if !webpages.empty?
+    @resource[:seedurl] = webpages.first.website.seedurl if !webpages.empty?
+    @resource[:archive_date] = webpages.last.archive_date if !webpages.empty?  #get the lastest date for bilingual sites that have 2 archive_dates
 
     webpages.each do |webpage|
       webpage.statements.each do |statement|
