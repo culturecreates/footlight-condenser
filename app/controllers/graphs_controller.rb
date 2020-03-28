@@ -14,8 +14,20 @@ class GraphsController < ApplicationController
         RDF::Graph.load("https://db.artsdata.ca/repositories/artsdata/statements?context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FPlace%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FOrganization%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FPerson%3E", format: :nquads)
         #File.open("artsdata-dump.nt", "w") {|f| f << @@artsdata_graph.dump(:ntriples)}
     end
-    
+
+    ## replace this with loading schema.org ontology in the future
+    ## Instances of EventStatusType
     @@artsdata_graph  << [RDF::URI("https://schema.org/EventScheduled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
+    @@artsdata_graph  << [RDF::URI("https://schema.org/EventRescheduled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
+    @@artsdata_graph  << [RDF::URI("https://schema.org/EventPostponed"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
+    @@artsdata_graph  << [RDF::URI("https://schema.org/EventMovedOnline"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
+    @@artsdata_graph  << [RDF::URI("https://schema.org/EventCancelled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
+
+    ## Instances of EventAttendanceModeEnumeration 
+    @@artsdata_graph  << [RDF::URI("https://schema.org/OfflineEventAttendanceMode"), RDF.type, RDF::URI("http://schema.org/EventAttendanceModeEnumeration")] 
+    @@artsdata_graph  << [RDF::URI("https://schema.org/OnlineEventAttendanceMode"), RDF.type, RDF::URI("http://schema.org/EventAttendanceModeEnumeration")] 
+    @@artsdata_graph  << [RDF::URI("https://schema.org/MixedEventAttendanceMode"), RDF.type, RDF::URI("http://schema.org/EventAttendanceModeEnumeration")] 
+
 
     #GET /graphs/:rdf_uri
     def show
