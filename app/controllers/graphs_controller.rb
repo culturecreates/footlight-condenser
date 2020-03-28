@@ -17,16 +17,16 @@ class GraphsController < ApplicationController
 
     ## replace this with loading schema.org ontology in the future
     ## Instances of EventStatusType
-    @@artsdata_graph  << [RDF::URI("https://schema.org/EventScheduled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
-    @@artsdata_graph  << [RDF::URI("https://schema.org/EventRescheduled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
-    @@artsdata_graph  << [RDF::URI("https://schema.org/EventPostponed"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
-    @@artsdata_graph  << [RDF::URI("https://schema.org/EventMovedOnline"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
-    @@artsdata_graph  << [RDF::URI("https://schema.org/EventCancelled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
+    @@artsdata_graph  << [RDF::URI("http://schema.org/EventScheduled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
+    @@artsdata_graph  << [RDF::URI("http://schema.org/EventRescheduled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
+    @@artsdata_graph  << [RDF::URI("http://schema.org/EventPostponed"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
+    @@artsdata_graph  << [RDF::URI("http://schema.org/EventMovedOnline"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
+    @@artsdata_graph  << [RDF::URI("http://schema.org/EventCancelled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
 
     ## Instances of EventAttendanceModeEnumeration 
-    @@artsdata_graph  << [RDF::URI("https://schema.org/OfflineEventAttendanceMode"), RDF.type, RDF::URI("http://schema.org/EventAttendanceModeEnumeration")] 
-    @@artsdata_graph  << [RDF::URI("https://schema.org/OnlineEventAttendanceMode"), RDF.type, RDF::URI("http://schema.org/EventAttendanceModeEnumeration")] 
-    @@artsdata_graph  << [RDF::URI("https://schema.org/MixedEventAttendanceMode"), RDF.type, RDF::URI("http://schema.org/EventAttendanceModeEnumeration")] 
+    @@artsdata_graph  << [RDF::URI("http://schema.org/OfflineEventAttendanceMode"), RDF.type, RDF::URI("http://schema.org/EventAttendanceModeEnumeration")] 
+    @@artsdata_graph  << [RDF::URI("http://schema.org/OnlineEventAttendanceMode"), RDF.type, RDF::URI("http://schema.org/EventAttendanceModeEnumeration")] 
+    @@artsdata_graph  << [RDF::URI("http://schema.org/MixedEventAttendanceMode"), RDF.type, RDF::URI("http://schema.org/EventAttendanceModeEnumeration")] 
 
 
     #GET /graphs/:rdf_uri
