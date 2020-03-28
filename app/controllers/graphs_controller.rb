@@ -231,6 +231,8 @@ class GraphsController < ApplicationController
                     "description" :{"@value":{},"@language": "#{lang}"},
                     "duration": {"@value":{}},
                     "url":{"@value":{},"@language": "#{lang}"},
+                    "eventStatus":{},
+                    "eventAttendanceMode":{},
                     "location": {
                         "@type":"Place", 
                         "@explicit": true,
