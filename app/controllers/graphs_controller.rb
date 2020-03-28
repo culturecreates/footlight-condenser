@@ -14,6 +14,8 @@ class GraphsController < ApplicationController
         RDF::Graph.load("https://db.artsdata.ca/repositories/artsdata/statements?context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FPlace%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FOrganization%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FPerson%3E", format: :nquads)
         #File.open("artsdata-dump.nt", "w") {|f| f << @@artsdata_graph.dump(:ntriples)}
     end
+    
+    @@artsdata_graph  << [RDF::URI("https://schema.org/EventScheduled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
 
     #GET /graphs/:rdf_uri
     def show
