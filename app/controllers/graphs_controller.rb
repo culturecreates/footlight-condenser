@@ -112,7 +112,11 @@ class GraphsController < ApplicationController
                     graph << [RDF::URI(subject), RDF::URI("http://schema.org/offers"), :bn ]
                     graph << [ :bn,  RDF.type,  RDF::URI("http://schema.org/Offer")]
                     graph << [ :bn, RDF::URI(s[:predicate]), RDF::Literal(s[:object], language: s[:language])]
-                 ## TEMPORARY PATCH  END #########
+                elsif s[:rdfs_class] == 41 
+                    graph << [RDF::URI(subject), RDF::URI("http://schema.org/eventStatus"), :bn ]
+                    graph << [ :bn,  RDF.type,  RDF::URI("http://schema.org/EventStatusType")]
+                    graph << [ :bn, RDF::URI(s[:predicate]), RDF::URI(s[:object])]
+                ## TEMPORARY PATCH  END #########
                 elsif  s[:value_datatype] == "xsd:anyURI"
                     s[:object].each do |uri|
                         graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::URI(uri)] 
