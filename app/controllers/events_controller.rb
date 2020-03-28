@@ -17,7 +17,7 @@ class EventsController < ApplicationController
       begin
         start_date = Date.parse(params[:startDate])
       rescue => exception
-        logger.error("Invalid start_date parameter", exception.inspect)
+        logger.error("Invalid start_date parameter: #{exception.inspect}")
       end
     end
 
@@ -25,7 +25,7 @@ class EventsController < ApplicationController
       begin
         end_date = Date.parse(params[:endDate])
       rescue => exception
-        logger.error("Invalid end_date parameter", exception.inspect)
+        logger.error("Invalid end_date parameter: #{exception.inspect}")
       end
     end
 
