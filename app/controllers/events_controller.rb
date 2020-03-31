@@ -88,18 +88,15 @@ class EventsController < ApplicationController
 
     def get_event_titles events_relation
       return events_relation.select { |s| s.source.property.label == "Title"}.map{|s| [s.webpage.rdf_uri, s.cache, s.source.language, s.webpage.url]}
-     # return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Title", rdfs_class: 1}, websites:  {seedurl: params[:seedurl]}, webpages: {archive_date: archive_date_range}  }  }  ).pluck(:rdf_uri, :cache, "sources.language", :url)
     end
 
     def get_event_photos events_relation
       return events_relation.select { |s| s.source.property.label == "Photo"}.map{|s| [s.webpage.rdf_uri, s.cache]}
-      #return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Photo", rdfs_class: 1},websites:  {seedurl:  params[:seedurl]},webpages: {archive_date: archive_date_range}   }  }  ).order(:created_at).pluck(:rdf_uri, :cache)
-    end
+     end
 
     def get_event_dates events_relation
       return events_relation.select { |s| s.source.property.label == "Dates"}.map{|s| [s.webpage.rdf_uri, s.cache]}
-      #return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Dates", rdfs_class: 1},websites:  {seedurl:  params[:seedurl]},webpages: {archive_date: archive_date_range}   }  }  ).order(:created_at).pluck(:rdf_uri, :cache)
-    end
+     end
 
     def get_archive_dates
       return Webpage.joins(:website).where(rdfs_class: 1, websites: {seedurl: params[:seedurl]}).order(:archive_date).pluck(:rdf_uri, :archive_date)
