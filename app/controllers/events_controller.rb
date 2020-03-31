@@ -31,29 +31,30 @@ class EventsController < ApplicationController
 
     time_span = [start_date..end_date]
 
-    titles = get_event_titles time_span
+
+    website_events = get_events(time_span)
+
+    titles = get_event_titles(website_events)
     #remove blank titles which can happen with multiple languages
     titles_hash = titles.map {|title| [title[0],title[1]] if !title[1].blank? }.to_h
 
-    photos = get_event_photos time_span
+    photos = get_event_photos(website_events)
     photos_hash = photos.to_h
 
-    dates = get_event_dates time_span
+    dates = get_event_dates(website_events)
     dates.map! { |array| [array[0],helpers.parse_date_string_array(array[1])]}
     dates_hash = dates.to_h
 
     archive_dates = get_archive_dates 
     archive_dates_hash = archive_dates.to_h
 
+    uris_with_problems = website_events.select{|s| s.status == "problem"}.map{|s| s = s.webpage.rdf_uri}
+    uris_to_review =  website_events.select{|s| s.status == "initial"}.map{|s| s = s.webpage.rdf_uri}
+    uris_updated = website_events.select{|s| s.status == "updated"}.map{|s| s = s.webpage.rdf_uri}
 
-    event_status = get_event_status
-    uris_with_problems = event_status.select{|event| event[1] == "problem"}.map{|event| event = event[0]}
-    uris_to_review = event_status.select{|event| event[1] == "initial"}.map{|event| event = event[0]}
-    uris_updated = event_status.select{|event| event[1] == "updated"}.map{|event| event = event[0]}
-
-    uris_title_publishable = get_uris_publishable "Title"
-    uris_dates_publishable = get_uris_publishable "Dates"
-    uris_location_publishable = get_uris_publishable "Location"
+    uris_title_publishable = get_uris_publishable "Title", website_events
+    uris_dates_publishable = get_uris_publishable "Dates", website_events
+    uris_location_publishable = get_uris_publishable "Location", website_events
 
     photos_hash.each do |photo|
         uri = photo[0]
@@ -81,16 +82,23 @@ class EventsController < ApplicationController
 
   private
 
-    def get_event_titles archive_date_range = [time.now - 10.years..time.now + 10.years]
-      return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Title", rdfs_class: 1}, websites:  {seedurl: params[:seedurl]}, webpages: {archive_date: archive_date_range}  }  }  ).pluck(:rdf_uri, :cache, "sources.language", :url)
+    def get_events archive_date_range = [Time.now - 10.years..Time.now + 10.years]
+      return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{rdfs_class: 1}, websites:  {seedurl: params[:seedurl]}, webpages: {archive_date: archive_date_range}  }  }  )
     end
 
-    def get_event_photos archive_date_range = [time.now - 10.years..time.now + 10.years]
-      return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Photo", rdfs_class: 1},websites:  {seedurl:  params[:seedurl]},webpages: {archive_date: archive_date_range}   }  }  ).order(:created_at).pluck(:rdf_uri, :cache)
+    def get_event_titles events_relation
+      return events_relation.select { |s| s.source.property.label == "Title"}.map{|s| [s.webpage.rdf_uri, s.cache, s.source.language, s.webpage.url]}
+     # return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Title", rdfs_class: 1}, websites:  {seedurl: params[:seedurl]}, webpages: {archive_date: archive_date_range}  }  }  ).pluck(:rdf_uri, :cache, "sources.language", :url)
     end
 
-    def get_event_dates archive_date_range = [time.now - 10.years..time.now + 10.years]
-      return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Dates", rdfs_class: 1},websites:  {seedurl:  params[:seedurl]},webpages: {archive_date: archive_date_range}   }  }  ).order(:created_at).pluck(:rdf_uri, :cache)
+    def get_event_photos events_relation
+      return events_relation.select { |s| s.source.property.label == "Photo"}.map{|s| [s.webpage.rdf_uri, s.cache]}
+      #return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Photo", rdfs_class: 1},websites:  {seedurl:  params[:seedurl]},webpages: {archive_date: archive_date_range}   }  }  ).order(:created_at).pluck(:rdf_uri, :cache)
+    end
+
+    def get_event_dates events_relation
+      return events_relation.select { |s| s.source.property.label == "Dates"}.map{|s| [s.webpage.rdf_uri, s.cache]}
+      #return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Dates", rdfs_class: 1},websites:  {seedurl:  params[:seedurl]},webpages: {archive_date: archive_date_range}   }  }  ).order(:created_at).pluck(:rdf_uri, :cache)
     end
 
     def get_archive_dates
@@ -99,16 +107,10 @@ class EventsController < ApplicationController
 
 
 
-    def get_event_status
-      return Statement.joins({webpage: :website},:source).where(webpages:{websites: {seedurl: params[:seedurl]}}).where(sources: {selected: true}).pluck(:rdf_uri, :status).uniq
-    end
-
-    def get_uris_publishable property
-      #get property across all events in the website 
+    def get_uris_publishable property, events_relation
       #TODO: This is misleading for bilingual sites which will have a publishable title if either en or fr meets the conditions of ok || updated
-      publishable_uris = Statement.joins({source: [:property, :website]},:webpage).where(webpages:{websites: {seedurl: params[:seedurl]}}).where(sources: {selected: true}).where(sources: {properties:{label: property,rdfs_class: 1}})
       #keep only those with status  OK || updated
-      return publishable_uris.select { |s| (s.status == "ok" || s.status == "updated") && (!s.cache.blank? && s.cache != "[[]]" && !s.cache.include?("error") )}.map{|s| s.webpage.rdf_uri}.uniq
+      return events_relation.select { |s| s.source.property == property}.select { |s| (s.status == "ok" || s.status == "updated") && (!s.cache.blank? && s.cache != "[[]]" && !s.cache.include?("error") )}.map{|s| s.webpage.rdf_uri}.uniq
     end
   
 
