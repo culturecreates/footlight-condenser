@@ -83,7 +83,7 @@ class EventsController < ApplicationController
   private
 
     def get_events archive_date_range = [Time.now - 10.years..Time.now + 10.years]
-      return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{rdfs_class: 1}, websites:  {seedurl: params[:seedurl]}, webpages: {archive_date: archive_date_range}  }  }  )
+      return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{rdfs_class: 1}, websites:  {seedurl: params[:seedurl]}, webpages: {archive_date: archive_date_range}  }  }  ).includes([{source: [:property, :website]},:webpage])
     end
 
     def get_event_titles events_relation
