@@ -108,7 +108,7 @@ class EventsController < ApplicationController
       #TODO: This is misleading for bilingual sites which will have a publishable title if either en or fr meets the conditions of ok || updated
       publishable_uris = Statement.joins({source: [:property, :website]},:webpage).where(webpages:{websites: {seedurl: params[:seedurl]}}).where(sources: {selected: true}).where(sources: {properties:{label: property,rdfs_class: 1}})
       #keep only those with status  OK || updated
-      return publishable_uris.select { |s| (s.status == "ok" || s.status == "updated") && (!s.cache.blank? && s.cache != "[[]]" && !s.cache.include?("error") )}.map{|s| s.webpage.rdf_uri}.uniq
+      return publishable_uris.select { |s| (s.status == "ok" || s.status == "updated") && (!s.cache.blank? && s.cache != "[]" && s.cache != "[[]]" && !s.cache.include?("error") )}.map{|s| s.webpage.rdf_uri}.uniq
     end
   
 
