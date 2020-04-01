@@ -40,6 +40,13 @@ class StatementsHelperTest < ActionView::TestCase
     assert_equal expected_output, status_checker(scraped_data, property)
   end
 
+  test "should have initial status for manually added array of scraped data" do
+    property = properties(:nine)
+    scraped_data = "[[\"source\",\"class\"],[\"source\",\"class\",[\"name\",\"uri\"]]]"
+    expected_output = "initial"
+    assert_equal expected_output, status_checker(scraped_data, property)
+  end
+
   test "should have initial status for array of scraped data" do
     property = properties(:nine)
     scraped_data = "[[\"source\",\"class\",[\"name\",\"uri\"]],[\"source\",\"class\",[\"name\",\"uri\"]]]"

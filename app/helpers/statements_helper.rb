@@ -165,8 +165,10 @@ module StatementsHelper
          scraped_data = []
         end
       end
-      if scraped_data[0].is_a? Array
-        scraped_data[0].count >= 3 ? status = "initial" : status = "missing"
+      if scraped_data[1].is_a? Array
+        scraped_data[1].count >= 3 ? status = "initial" : status = "missing"
+      elsif scraped_data[0].is_a? Array
+          scraped_data[0].count >= 3 ? status = "initial" : status = "missing"
       else
         scraped_data.count >= 3 ? status = "initial" : status = "missing"
       end
