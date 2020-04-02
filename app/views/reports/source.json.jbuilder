@@ -1,2 +1,3 @@
-json.property @title_property
-json.uri  @data_for_json
+json.array! @statements do | statement |
+    json.partial! 'statements/statement', statement: statement
+end

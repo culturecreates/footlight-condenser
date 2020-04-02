@@ -1,15 +1,16 @@
 <p id="notice"><%= notice %></p>
 
-<h1> <%=  @title %> </h1>
+<h1> <%=  @page_title %> </h1>
 <table>
-<% @data.each do |d| %>
+<% @statements.each do |s| %>
 
 <tr>
-<td><%= link_to @event_titles[d[0]], statements_path(rdf_uri: d[0]) %></td>
-<td><%= d[1] %></td>
+<td><%# <%= link_to @event_titles[d[0]], statements_path(rdf_uri: d[0]) %></td>
+<td><%= sanitize(s['cache']) %></td>
 
 </tr>
 
 
 <% end %>
 </table>
+<% console %>
