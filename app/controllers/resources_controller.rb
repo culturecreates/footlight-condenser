@@ -30,6 +30,7 @@ class ResourcesController < ApplicationController
         #add statements that are 'not selected' as an alternative inside the selected statement
         if statement.source.selected
           @resource[:statements][property].merge!(helpers.adjust_labels_for_api(statement))
+          @resource[:statements][property].merge!({rdf_uri:params[:rdf_uri] })
         else
           @resource[:statements][property].merge!({alternatives: []}) if @resource[:statements][property][:alternatives].nil?
           @resource[:statements][property][:alternatives] << helpers.adjust_labels_for_api(statement)
