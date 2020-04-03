@@ -1,14 +1,20 @@
 <p id="notice"><%= notice %></p>
 
 <h1> <%=  @page_title %> </h1>
+
 <table>
-<% @statements.each do |s| %>
+<% @statements.each do |statement| %>
 
-<tr>
-<td><%# <%= link_to @event_titles[d[0]], statements_path(rdf_uri: d[0]) %></td>
-<td><%= sanitize(s['cache']) %></td>
+    <tr>
+    <td><%# <%= link_to @event_titles[d[0]], statements_path(rdf_uri: d[0]) %></td>
+    <td> <%= @filtered_event_titles[statement["webpage_id"]] %></td>
+    <td><%= sanitize(statement['cache']) %></td>
+    <td><%= statement["webpage_id"] %></td>
+    <td><%= @filtered_archive_dates[statement["webpage_id"]] %></td>
+    <td><%= @filtered_event_uris[statement["webpage_id"]] %></td>
 
-</tr>
+
+    </tr>
 
 
 <% end %>

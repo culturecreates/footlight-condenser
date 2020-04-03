@@ -1,5 +1,6 @@
 json.array! @statements do | statement |
     json.merge! adjust_labels_for_api(statement)
-    json.event_title @event_titles.select{ |t| t["webpage_id"] == statement["webpage_id"] }.first.cache
-    json.event_archive_date @archive_dates.select{ |t| t.id == statement["webpage_id"] }.first.archive_date
+    json.event_title  @filtered_event_titles[statement["webpage_id"]]
+    json.event_archive_date @filtered_archive_dates[statement["webpage_id"]]
+    json.rdf_uri @filtered_event_uris[statement["webpage_id"]]
 end
