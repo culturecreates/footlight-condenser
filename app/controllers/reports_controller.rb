@@ -2,11 +2,34 @@ class ReportsController < ApplicationController
 
     def source
         # GET /report/source.json?source_id=
-       
+        params[:startDate]  # "2018-01-01"
+        params[:endDate]   # "2021-01-01"
+    
+        start_date = Time.now
+        end_date = Time.now.next_year + 6.months
+    
+        if params[:startDate] 
+          begin
+            start_date = Date.parse(params[:startDate])
+          rescue => exception
+            logger.error("Invalid start_date parameter: #{exception.inspect}")
+          end
+        end
+    
+        if params[:endDate] 
+          begin
+            end_date = Date.parse(params[:endDate])
+          rescue => exception
+            logger.error("Invalid end_date parameter: #{exception.inspect}")
+          end
+        end
+    
+        time_span = [start_date..end_date]
 
         source = Source.where(id: params[:source_id]).first
-        @statements = get_statements_by_source(source)
 
+
+        @statements = get_statements_by_source(source, time_span)
 
         @page_title = "Report for #{source.property.label} (source #{source.id})"
 
@@ -15,6 +38,7 @@ class ReportsController < ApplicationController
         title_source = Source.joins(:property).where(property: title_property, website: source.website, selected: true)
    
         @event_titles = get_statements_by_source(title_source)
+
         @filtered_event_titles = {}
         @statements.each do |statement|
             title = @event_titles.select{ |t| t["webpage_id"] == statement["webpage_id"] }.first
@@ -38,8 +62,8 @@ class ReportsController < ApplicationController
 
    private
 
-   def get_statements_by_source source
-        return Statement.joins({source: [:property, :website]},:webpage).where(source_id: source).order(:cache)
+   def get_statements_by_source source, archive_date_range = [Time.now - 10.years..Time.now + 10.years]
+        return Statement.joins({source: [:property, :website]},:webpage).where(source_id: source, sources: {webpages: {archive_date: archive_date_range} }).order(:cache)
    end
 
    def get_webpages seedurl

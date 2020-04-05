@@ -81,15 +81,15 @@ class EventsController < ApplicationController
 
   private
 
-    def get_event_titles archive_date_range = [time.now - 10.years..time.now + 10.years]
+    def get_event_titles archive_date_range = [Time.now - 10.years..Time.now + 10.years]
       return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Title", rdfs_class: 1}, websites:  {seedurl: params[:seedurl]}, webpages: {archive_date: archive_date_range}  }  }  ).pluck(:rdf_uri, :cache, "sources.language", :url)
     end
 
-    def get_event_photos archive_date_range = [time.now - 10.years..time.now + 10.years]
+    def get_event_photos archive_date_range = [Time.now - 10.years..Time.now + 10.years]
       return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Photo", rdfs_class: 1},websites:  {seedurl:  params[:seedurl]},webpages: {archive_date: archive_date_range}   }  }  ).order(:created_at).pluck(:rdf_uri, :cache)
     end
 
-    def get_event_dates archive_date_range = [time.now - 10.years..time.now + 10.years]
+    def get_event_dates archive_date_range = [Time.now - 10.years..Time.now + 10.years]
       return Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Dates", rdfs_class: 1},websites:  {seedurl:  params[:seedurl]},webpages: {archive_date: archive_date_range}   }  }  ).order(:created_at).pluck(:rdf_uri, :cache)
     end
 
