@@ -35,6 +35,8 @@ class StatementsController < ApplicationController
     webpages.each do |webpage|
       refresh_webpage_statements(webpage, :force_scrape_every_hrs => params[:force_scrape_every_hrs])
     end
+
+
     respond_to do |format|
       format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri]), notice: 'Refresh requested on all statements. Check individual statements for success.' }
       format.json { render json: {message:"URI refreshed. Check individual statements for success."}.to_json }
@@ -187,8 +189,6 @@ class StatementsController < ApplicationController
     end
   end
 
-
-
   # PATCH/PUT /statements/1/activate
   # PATCH/PUT /statements/1/activate.json
   def activate
@@ -218,9 +218,6 @@ class StatementsController < ApplicationController
     end
   end
 
-
-
-
   # DELETE /statements/1
   # DELETE /statements/1.json
   def destroy
@@ -242,8 +239,6 @@ class StatementsController < ApplicationController
       params.require(:statement).permit(:cache, :status, :status_origin, :cache_refreshed, :cache_changed, :source_id, :webpage_id)
     end
 
-
-
     def extract_property_ids rdfs_class_name, property_ids
       # recursive function to traverse tree of properties and add properties of sub-classes with data type of Blank Node or "bnode"
       rdfs_class = RdfsClass.where(name: rdfs_class_name).first
@@ -257,10 +252,8 @@ class StatementsController < ApplicationController
     end
 
     def refresh_webpage_statements webpage, scrape_options={}
-     
       #get the properties for the rdfs_class of the webpage recursively
       property_ids = extract_property_ids webpage.rdfs_class.name, []
-
       property_ids.each do |property_id|
         #get the sources for each property (usually one by may have several steps)
         #if english add sources without a langauge
@@ -279,7 +272,5 @@ class StatementsController < ApplicationController
       sources = Source.where(id: statement.source_id).or(Source.where(next_step: statement.source_id)).order(:next_step)
       helpers.scrape_sources sources, webpage
     end
-
-    
 
 end
