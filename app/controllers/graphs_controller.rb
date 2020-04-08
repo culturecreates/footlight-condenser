@@ -74,10 +74,10 @@ class GraphsController < ApplicationController
                 @google_jsonld = make_google_jsonld(@jsonld)
             else
                 problems_summary = problem_statements.map{|s| s.source.property.label}.join(", ")
-                @google_jsonld = {"messsage" => "Event needs review in Footlight console. Issues with #{problems_summary}."}.to_json
+                @google_jsonld = {"message" => "Event needs review in Footlight console. Issues with #{problems_summary}."}.to_json
             end
         else
-            @google_jsonld = {"messsage" => "Webpage fits URL pattern but is missing from Footlight console."}.to_json
+            @google_jsonld = {"message" => "Webpage fits URL pattern but has no events in the Footlight console."}.to_json
         end
 
         logger.info("### Code Snippet Call /graphs/webpage/event?url=#{params[:url]}")
