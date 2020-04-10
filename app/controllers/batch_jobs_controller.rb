@@ -6,23 +6,24 @@ class BatchJobsController < ApplicationController
     def add_webpages 
         # GET /batch_jobs/add_webpages?rdf_uri=
 
-        webpage = Webpage.where(rdf_uri:params[:rdf_uri])
-        statements = Statement.where(webpage_id: webpage)
+        webpage = Webpage.where(rdf_uri: params[:rdf_uri])
+        statements = Statement.where(webpage_id: webpage).order(:webpage_id)
 
         #collect the data to send to the batch job
         rdfs_class = ""
-        rdf_uris = ""
-        urls = ""
+        rdf_uris = []
+        urls = []
         language = webpage[0].language
         seedurl = webpage[0].website["seedurl"]
+
         statements.each do |s|
             data_label = s.source.property.label
             if data_label == RDF_CLASS_LABEL
                 rdfs_class = s["cache"]
             elsif  data_label == URI_LIST_LABEL
-                rdf_uris = JSON.parse(s["cache"])
+                rdf_uris += JSON.parse(s["cache"])
             elsif  data_label == WEBPAGE_URL_LIST_LABEL
-                urls = JSON.parse(s["cache"])
+                urls += JSON.parse(s["cache"])
             end
         end
       
@@ -39,7 +40,7 @@ class BatchJobsController < ApplicationController
 
         #call batch processor with array of webpages json
         result = helpers.huginn_webhook  "webpages", webpages, 249
-
+        
         redirect_to lists_path(seedurl: seedurl), notice: "Created batch job for #{urls.count} webpages... response: #{result} " 
 
     end
