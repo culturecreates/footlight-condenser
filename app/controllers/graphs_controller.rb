@@ -49,8 +49,10 @@ class GraphsController < ApplicationController
     #GET /graphs/webpage/event?url=
     def webpage_event
         webpage = Webpage.where(url: CGI.unescape(params[:url] ))
-        rdf_uri = webpage.first.rdf_uri
-        webpages = Webpage.where(rdf_uri: rdf_uri)
+        if webpage.count > 0
+            rdf_uri = webpage.first.rdf_uri
+            webpages = Webpage.where(rdf_uri: rdf_uri)
+        end
         if webpages.present?
             #get statements linked to the webpage that have selected sources.
             statements = Statement.joins({source: :property}).where(webpage_id: webpages, sources: {selected: true} )
