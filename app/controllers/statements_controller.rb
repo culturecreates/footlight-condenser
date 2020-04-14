@@ -16,9 +16,8 @@ class StatementsController < ApplicationController
 
   #PATCH /statements/refresh_webpage.json?url=http://
   def refresh_webpage
-    
-    webpage = Webpage.where(url: params[:url]).first
-    refresh_webpage_statements(webpage)
+    webpage = Webpage.includes(:website).where(url: params[:url]).first
+    refresh_webpage_statements(webpage,  webpage.website.default_language)
     respond_to do |format|
         format.html {redirect_to webpage_statements_path(url: params[:url]), notice: 'All statements were successfully refreshed.'}
         format.json {render json: {message:"statements refreshed"}.to_json }
@@ -30,10 +29,9 @@ class StatementsController < ApplicationController
   #PATCH /statements/refresh_rdf_uri.json?rdf_uri=&force_scrape_every_hrs=24
   def refresh_rdf_uri
     params[:force_scrape_every_hrs] ||= nil
-   
-    webpages = Webpage.where(rdf_uri: params[:rdf_uri])
+    webpages = Webpage.includes(:website).where(rdf_uri: params[:rdf_uri])
     webpages.each do |webpage|
-      refresh_webpage_statements(webpage, :force_scrape_every_hrs => params[:force_scrape_every_hrs])
+      refresh_webpage_statements(webpage, webpage.website.default_language, :force_scrape_every_hrs => params[:force_scrape_every_hrs])
     end
 
 
@@ -251,17 +249,15 @@ class StatementsController < ApplicationController
       return property_ids
     end
 
-    def refresh_webpage_statements webpage, default_language, scrape_options={}
+    def refresh_webpage_statements webpage, default_language = "en", scrape_options={}
+      languages = [webpage.language]
+      #if webpage is default_language then add sources with no language to list of languages [webpage.language,'']
+      if webpage.language == default_language
+        languages << ''
+      end
       #get the properties for the rdfs_class of the webpage recursively
       property_ids = extract_property_ids webpage.rdfs_class.name, []
       property_ids.each do |property_id|
-
-      
-        languages = [webpage.language]
-        #if webpage is default_language then add sources with no language to list of languages [webpage.language,'']
-        if webpage.language == default_language
-          languages << ''
-        end
         #get the sources for each property (usually one by may have several steps)
         sources = Source.where(website_id: webpage.website, language: languages, property_id: property_id).order(:property_id, :next_step)
         helpers.scrape_sources sources, webpage, scrape_options
