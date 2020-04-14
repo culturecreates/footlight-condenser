@@ -251,17 +251,19 @@ class StatementsController < ApplicationController
       return property_ids
     end
 
-    def refresh_webpage_statements webpage, scrape_options={}
+    def refresh_webpage_statements webpage, default_language, scrape_options={}
       #get the properties for the rdfs_class of the webpage recursively
       property_ids = extract_property_ids webpage.rdfs_class.name, []
       property_ids.each do |property_id|
-        #get the sources for each property (usually one by may have several steps)
-        #if english add sources without a langauge
-        if webpage.language == "en"
-          sources = Source.where(website_id: webpage.website, language: [webpage.language,''], property_id: property_id).order(:property_id, :next_step)
-        else
-          sources = Source.where(website_id: webpage.website, language: webpage.language, property_id: property_id).order(:property_id, :next_step)
+
+      
+        languages = [webpage.language]
+        #if default_language then add sources with no language to list of languages [webpage.language,'']
+        if webpage.language == default_language
+          languages << ''
         end
+        #get the sources for each property (usually one by may have several steps)
+        sources = Source.where(website_id: webpage.website, language: languages, property_id: property_id).order(:property_id, :next_step)
         helpers.scrape_sources sources, webpage, scrape_options
       end
     end
