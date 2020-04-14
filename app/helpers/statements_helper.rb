@@ -249,7 +249,7 @@ module StatementsHelper
     rdfs_class = property_obj.expected_class
     uris << rdfs_class
 
-  if !uri_string.downcase.include?("error")
+    if !uri_string.downcase.include?("error")
       #search Culture Creates KG
 
       cckg_results = search_cckg(uri_string, rdfs_class)
@@ -273,9 +273,9 @@ module StatementsHelper
             uris << uri
           end
         end
-     end
+      end
       return uris.uniq
-   end
+    end
 
     logger.info("*** search condenser and kg:  #{uris}")
     return uris
