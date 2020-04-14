@@ -258,7 +258,7 @@ class StatementsController < ApplicationController
 
       
         languages = [webpage.language]
-        #if default_language then add sources with no language to list of languages [webpage.language,'']
+        #if webpage is default_language then add sources with no language to list of languages [webpage.language,'']
         if webpage.language == default_language
           languages << ''
         end
