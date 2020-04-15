@@ -226,7 +226,7 @@ module StatementsHelper
           # Note: this code requires the following triple
           # { rdfs:label owl:equivalentProperty schema:name . }
           if property.uri == "http://schema.org/eventStatus" 
-            str = scraped_data.join(" - ").gsub("\\"," ").squish()
+            str = scraped_data.join(" - ")
             if str.scan(/\b(Cancelled|Annulé|Annule)/i).present?
               str = "EventCancelled: #{str}"
             elsif str.scan(/\b(Postponed|Suspendu)/i).present?
@@ -239,6 +239,7 @@ module StatementsHelper
             data << search_for_uri(str, property, webpage)
           else
             scraped_data.each do |uri_string|
+
               data << search_for_uri(uri_string, property, webpage)
             end
           end
@@ -321,8 +322,10 @@ module StatementsHelper
   def search_cckg str, rdfs_class #returns a HASH
     if str.length > 3 
      
-      sparql_str = str.gsub( /'/, "\\\\'") #escape single quote so it does not interfere with SPARQL 
+      sparql_str = str.gsub("\\"," ")  #remove double backslash for SPARQL
+                      .gsub( /'/, "\\\\'") #escape single quote so it does not interfere with SPARQL 
                       .gsub(/\u00A0/i," ")  #remove &nbsp;
+                      .squish() 
      
       sparql_str = CGI::unescapeHTML(sparql_str) #get rid of things like &amp; in the text string
 
