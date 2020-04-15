@@ -44,6 +44,9 @@ class SourcesController < ApplicationController
 
   # POST /sources
   # POST /sources.json
+  # manually create sources for all websites using:
+  #   > website_hash = Website.all.map {|w| {website_id: w.id}}
+  #   > Source.create(website_hash) {|s| s.algorithm_value = ''; s.selected = true; s.property_id=XX; s.render_js = false ; s.language = ''}
   def create
     @source = Source.new(source_params)
 
@@ -74,6 +77,8 @@ class SourcesController < ApplicationController
 
   # DELETE /sources/1
   # DELETE /sources/1.json
+  # Manually delete on Heroku using:
+  #    > Source.where(algorithm_value: ' ', created_at: [Time.now - 1.hour..Time.now + 10.years]).delete_all
   def destroy
     @source.destroy
     respond_to do |format|
