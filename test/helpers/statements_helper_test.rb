@@ -160,10 +160,10 @@ class StatementsHelperTest < ActionView::TestCase
 
   test "format_datatype EventStatus with cancelled" do
     property = properties(:twelve)
-    scraped_data = ["Bob Marley live cancelled"]
+    scraped_data = ["Cancelled - Bob Marley live"]
     webpage = webpages(:one)
     actual = format_datatype(scraped_data, property, webpage)
-    expected = ["EventCancelled: Bob Marley live cancelled", "EventStatusType", ["EventCancelled", "http://schema.org/EventCancelled"]]
+    expected = ["EventCancelled: Cancelled - Bob Marley live", "EventStatusType", ["EventCancelled", "http://schema.org/EventCancelled"]]
     assert_equal expected, actual
    end
 
@@ -191,6 +191,15 @@ class StatementsHelperTest < ActionView::TestCase
     webpage = webpages(:one)
     actual = format_datatype(scraped_data, property, webpage)
     expected = ["EventScheduled: No mention of cancelled, postponed or rescheduled in: Bob Marley live.", "EventStatusType", ["EventScheduled", "http://schema.org/EventScheduled"]]
+    assert_equal expected, actual
+   end
+
+   test "format_datatype EventStatus with hidden rescheduled" do
+    property = properties(:twelve)
+    scraped_data = ["Bob Marley live with the amazing derescheduled"]
+    webpage = webpages(:one)
+    actual = format_datatype(scraped_data, property, webpage)
+    expected = ["EventScheduled: No mention of cancelled, postponed or rescheduled in: Bob Marley live with the amazing derescheduled.", "EventStatusType", ["EventScheduled", "http://schema.org/EventScheduled"]]
     assert_equal expected, actual
    end
 
