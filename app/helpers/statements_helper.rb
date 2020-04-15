@@ -226,7 +226,7 @@ module StatementsHelper
           # Note: this code requires the following triple
           # { rdfs:label owl:equivalentProperty schema:name . }
           if property.uri == "http://schema.org/eventStatus" 
-            str = scraped_data.join(" - ")
+            str = scraped_data.join(" - ").gsub("\\"," ").squish()
             if str.scan(/\b(Cancelled|Annulé|Annule)/i).present?
               str = "EventCancelled: #{str}"
             elsif str.scan(/\b(Postponed|Suspendu)/i).present?
