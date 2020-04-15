@@ -158,6 +158,42 @@ class StatementsHelperTest < ActionView::TestCase
     assert_equal expected, actual
    end
 
+  test "format_datatype EventStatus with cancelled" do
+    property = properties(:twelve)
+    scraped_data = ["Bob Marley live cancelled"]
+    webpage = webpages(:one)
+    actual = format_datatype(scraped_data, property, webpage)
+    expected = ["EventCancelled: Bob Marley live cancelled", "EventStatusType", ["EventCancelled", "http://schema.org/EventCancelled"]]
+    assert_equal expected, actual
+   end
+
+   test "format_datatype EventStatus with postponed" do
+    property = properties(:twelve)
+    scraped_data = ["Bob Marley live postponed"]
+    webpage = webpages(:one)
+    actual = format_datatype(scraped_data, property, webpage)
+    expected = ["EventPostponed: Bob Marley live postponed", "EventStatusType", ["EventPostponed", "http://schema.org/EventPostponed"]]
+    assert_equal expected, actual
+   end
+
+   test "format_datatype EventStatus with rescheduled" do
+    property = properties(:twelve)
+    scraped_data = ["Bob Marley live Rescheduled"]
+    webpage = webpages(:one)
+    actual = format_datatype(scraped_data, property, webpage)
+    expected = ["EventRescheduled: Bob Marley live Rescheduled", "EventStatusType", ["EventRescheduled", "http://schema.org/EventRescheduled"]]
+    assert_equal expected, actual
+   end
+
+   test "format_datatype EventStatus with scheduled" do
+    property = properties(:twelve)
+    scraped_data = ["Bob Marley live"]
+    webpage = webpages(:one)
+    actual = format_datatype(scraped_data, property, webpage)
+    expected = ["EventScheduled: No mention of cancelled, postponed or rescheduled in: Bob Marley live.", "EventStatusType", ["EventScheduled", "http://schema.org/EventScheduled"]]
+    assert_equal expected, actual
+   end
+
 
   #search_cckg
   test "search_cckg: should search cckg for uris that match 100%" do

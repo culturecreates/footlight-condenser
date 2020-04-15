@@ -69,3 +69,10 @@ eleven:
   value_datatype: 
   uri: http://schema.org/photo
   rdfs_class: one
+
+twelve:
+  label: Event Status
+  value_datatype: xsd:anyURI
+  uri: http://schema.org/eventStatus
+  rdfs_class: one
+  expected_class: EventStatusType

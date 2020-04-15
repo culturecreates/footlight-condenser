@@ -222,8 +222,25 @@ module StatementsHelper
           #parse URI set mannually
           data = JSON.parse(scraped_data[0])
         else
-          scraped_data.each do |uri_string|
-            data << search_for_uri(uri_string, property, webpage)
+          # check for eventStatus
+          # Note: this code requires the following triple
+          # { rdfs:label owl:equivalentProperty schema:name . }
+          if property.uri == "http://schema.org/eventStatus" 
+            str = scraped_data.join(" - ")
+            if str.scan(/\WCancelled/i).present?
+              str = "EventCancelled: #{str}"
+            elsif str.scan(/\WPostponed/i).present?
+              str = "EventPostponed: #{str}"
+            elsif str.scan(/\WRescheduled/i).present?
+              str = "EventRescheduled: #{str}"
+            else
+              str = "EventScheduled: No mention of cancelled, postponed or rescheduled in: #{str}."
+            end
+            data << search_for_uri(str, property, webpage)
+          else
+            scraped_data.each do |uri_string|
+              data << search_for_uri(uri_string, property, webpage)
+            end
           end
         end
       end
