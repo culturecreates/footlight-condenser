@@ -227,11 +227,11 @@ module StatementsHelper
           # { rdfs:label owl:equivalentProperty schema:name . }
           if property.uri == "http://schema.org/eventStatus" 
             str = scraped_data.join(" - ")
-            if str.scan(/\bCancelled/i).present?
+            if str.scan(/\b(Cancelled|Annulé|Annule)/i).present?
               str = "EventCancelled: #{str}"
-            elsif str.scan(/\bPostponed/i).present?
+            elsif str.scan(/\b(Postponed|Suspendu)/i).present?
               str = "EventPostponed: #{str}"
-            elsif str.scan(/\bRescheduled/i).present?
+            elsif str.scan(/\b(Rescheduled|reporté|reporte)/i).present?
               str = "EventRescheduled: #{str}"
             else
               str = "EventScheduled: No mention of cancelled, postponed or rescheduled in: #{str}."
