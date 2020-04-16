@@ -22,6 +22,7 @@ module StatementsHelper
 
         #add startDate to ArchiveDate in Webpages Table to be able to sort by date and refresh event still to come.
         if source.property.uri == "http://schema.org/startDate" && source.selected
+          ## TODO: need to also check EventStatus is Postponed and set archive date to 1 year in the future.
           logger.info("*** Setting Last Show Date:#{_data}")
           #TODO: improve error handling to use consistent {error:}
           _data_string = _data&.to_s&.downcase
