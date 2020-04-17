@@ -3,9 +3,20 @@
 <h1> Lists for <%= params[:seedurl] %></h1>
 
 <br>
+<table>
+
 <% @uris.each do |uri| %>
+<tr>
+<td>
     <%= uri %> 
+</td>
+<td>
      <%= link_to "Statements",  statements_path(rdf_uri: uri) %> | 
-    <%= link_to "Batch add webpages",  add_webpages_batch_jobs_path(rdf_uri: uri) %>
-    <br>
+     Batch job on Huginn: 
+    <%= link_to "add list of webpages",  add_webpages_batch_jobs_path(rdf_uri: uri) %> |
+     <%= link_to "add updated list only",  add_webpages_batch_jobs_path(rdf_uri: uri, only_statements_with_cache_changed: true ) %>
+ </td>
+ </tr>  
+   
 <% end %>
+</table>

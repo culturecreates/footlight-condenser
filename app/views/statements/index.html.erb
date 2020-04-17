@@ -2,7 +2,7 @@
 
 <h1>Statements</h1>
 <% if params[:rdf_uri] %>
-  <p> Showing statements for <%= params[:rdf_uri] %> <%=  link_to "Refresh", refresh_rdf_uri_statements_path(rdf_uri: params[:rdf_uri]), method: :patch %> <%= link_to "Console", "#{get_console_url_per_environment}/events/#{params[:rdf_uri]}" %>
+  <p> Showing statements for <%= params[:rdf_uri] %> <%=  link_to "Refresh", refresh_rdf_uri_statements_path(rdf_uri: params[:rdf_uri]), method: :patch %> | <%=  link_to "Crawl (1 hr cache)", refresh_rdf_uri_statements_path(rdf_uri: params[:rdf_uri], force_scrape_every_hrs: 1), method: :patch %> | <%= link_to "Console", "#{get_console_url_per_environment}/events/#{params[:rdf_uri]}" %>
       </p>
 <% end %>
 
