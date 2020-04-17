@@ -8,6 +8,7 @@ class BatchJobsController < ApplicationController
 
   def add_webpages
     # GET /batch_jobs/add_webpages?rdf_uri=
+    # GET /batch_jobs/add_webpages.json?rdf_uri=
     params[:only_statements_with_cache_changed]
 
     webpages = Webpage.where(rdf_uri: params[:rdf_uri])
@@ -59,9 +60,15 @@ class BatchJobsController < ApplicationController
     # call a webhook on Huginn to add new webpages to a website
     if webpages.count.positive?
       result = helpers.huginn_webhook 'webpages', webpages, 249
-      redirect_to lists_path(seedurl: seedurl), notice: "Created batch job for #{urls.count} webpages... response: #{result} "
+      respond_to do |format|
+        format.html { redirect_to lists_path(seedurl: seedurl), notice: "Created batch job for #{urls.count} webpages... response: #{result} " }
+        format.json { render json: { message: "Created batch job for #{urls.count} webpages... response: #{result} " }.to_json }
+      end
     else
-      redirect_to lists_path(seedurl: seedurl), notice: 'Nothing to update '
+      respond_to do |format|
+        format.html { redirect_to lists_path(seedurl: seedurl), notice: 'Nothing to update.' }
+        format.json { render json: { message: 'Nothing to update.' }.to_json }
+      end
     end
   end
 
