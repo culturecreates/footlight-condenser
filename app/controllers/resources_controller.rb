@@ -7,6 +7,7 @@ class ResourcesController < ApplicationController
     @resources["event"] = helpers.get_uris params[:seedurl], "Event"
     @resources["place"] =  helpers.get_uris params[:seedurl], "Place"
     @resources["organization"] =  helpers.get_uris params[:seedurl], "Organisation"
+    @resources["resource_list"] =  helpers.get_uris params[:seedurl], "ResourceList"
   end
 
   #GET /resources/:rdf_uri
