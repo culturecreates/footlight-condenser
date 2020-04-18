@@ -99,7 +99,7 @@ class WebpagesController < ApplicationController
 
     @webpage = Webpage.new(url: url, rdfs_class_id: rdfs_class_id, rdf_uri: rdf_uri, language: language, website_id: website_id)
     if @webpage.save
-      render :show, status: :created, location: @webpage
+      render :show_api, status: :created, location: @webpage
     else
       render json: @webpage.errors, status: :unprocessable_entity
     end
