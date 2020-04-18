@@ -60,6 +60,7 @@ class WebpagesController < ApplicationController
   def new
     @webpage = Webpage.new
     @websites = Website.all
+    @website = @websites.select {|w| w.seedurl == cookies[:seedurl]}.first
     @rdfs_classes = RdfsClass.all
   end
 
