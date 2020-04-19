@@ -39,6 +39,16 @@ class WebsitesController < ApplicationController
     else
       @websites = Website.all
     end
+  
+    @total_statements = Statement.all.count
+    @statements_errors = Statement.where("cache LIKE ?", "%error%")
+                                   .where(cache_refreshed: [(Time.now - 24.hours)..(Time.now)])
+                                   .count
+
+    @statements_grouped = Statement.joins(source: :website).group(:seedurl).count
+    @statements_refreshed_24hr = Statement.joins(source: :website).where(cache_refreshed: [(Time.now - 24.hours)..(Time.now)]).group(:seedurl).count
+    @statements_updated_24hr = Statement.joins(source: :website).where(cache_changed: [(Time.now - 24.hours)..(Time.now)]).group(:seedurl).count
+
   end
 
   # GET /websites/1

@@ -1,6 +1,9 @@
 <p id="notice"><%= notice %></p>
 
 <h1>Websites</h1>
+Total Statements: <%= number_to_human(@total_statements) %>
+<br>
+Last 24 hrs:  <%= @statements_errors %> errors
 
 <table>
   <thead>
@@ -9,6 +12,9 @@
       <th>Seedurl</th>
       <th>Default Language</th>
       <th>Graph Name</th>
+      <th>Statements</th>
+      <th>24 hr refreshed</th>
+       <th>24 hr updated</th>
       <th colspan="4"></th>
     </tr>
   </thead>
@@ -20,6 +26,10 @@
         <td><%= website.seedurl %></td>
          <td><%= website.default_language %></td>
         <td><%= website.graph_name %></td>
+        <td><%=  @statements_grouped[website.seedurl] %>
+         <td><%=  @statements_refreshed_24hr[website.seedurl] %>
+          <td><%=  @statements_updated_24hr[website.seedurl] %>
+
        
         <td><%= link_to 'Show', website %></td>
         <td><%= link_to 'Edit', edit_website_path(website) %></td>
