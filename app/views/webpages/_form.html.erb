@@ -12,6 +12,11 @@
   <% end %>
 
   <div class="field">
+    <%= form.label :website_id %>
+    <%= form.collection_select(:website_id, @websites, :id, :seedurl,  {selected: @website.id }) %>
+  </div>
+
+  <div class="field">
     <%= form.label :url %>
     <%= form.text_field :url, id: :webpage_url, size: 80%>
   </div>
@@ -21,10 +26,7 @@
     <%= form.text_field :language, id: :webpage_language %>
   </div>
 
-  <div class="field">
-    <%= form.label :rdf_uri %>
-    <%= form.text_field :rdf_uri, id: :webpage_rdf_uri, size: 80%>
-  </div>
+  <h2> Main Entity on webpage</h2>
 
   <div class="field">
     <%= form.label :rdfs_class_id %>
@@ -32,14 +34,17 @@
   </div>
 
   <div class="field">
+    <%= form.label "URI of main entity" %>
+    <%= form.text_field :rdf_uri, id: :webpage_rdf_uri, size: 80%>
+  </div>
+
+
+  <div class="field">
     <%= form.label :archive_date %>
     <%= form.datetime_select :archive_date,  id: :webpage_archive_date %>
   </div>
 
-  <div class="field">
-    <%= form.label :website_id %>
-    <%= form.collection_select(:website_id, @websites, :id, :seedurl,  {selected: @website.id }) %>
-  </div>
+
 
   <div class="actions">
     <%= form.submit %>
