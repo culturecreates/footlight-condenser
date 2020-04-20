@@ -2,7 +2,7 @@
 
 <p>
   <strong>Name:</strong>
-  <%= @website.name %>
+  <%= @website.name %> <%= link_to "Console", "#{get_console_url_per_environment}/events?seedurl=#{cookies[:seedurl]}" %>
 </p>
 
 <p>
