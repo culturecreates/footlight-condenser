@@ -59,14 +59,11 @@ class WebpagesController < ApplicationController
   # GET /webpages/new
   def new
     @webpage = Webpage.new
-    @websites = Website.all
-    @website = @websites.select {|w| w.seedurl == cookies[:seedurl]}.first
     @rdfs_classes = RdfsClass.all
   end
 
   # GET /webpages/1/edit
   def edit
-    @websites = Website.all
     @rdfs_classes = RdfsClass.all
   end
 

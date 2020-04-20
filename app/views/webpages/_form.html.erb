@@ -13,7 +13,7 @@
 
   <div class="field">
     <%= form.label :website_id %>
-    <%= form.collection_select(:website_id, @websites, :id, :seedurl,  {selected: @website.id }) %>
+    <%= form.collection_select(:website_id,  @selectable_websites, :id, :seedurl,  {selected: @website.id}) %>
   </div>
 
   <div class="field">
