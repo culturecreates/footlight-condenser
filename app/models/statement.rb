@@ -9,7 +9,7 @@ class Statement < ApplicationRecord
 
  
 
-  STATUSES = { initial: 'Initial', missing: 'Missing', ok: 'Ok', problem: 'Problem',updated: 'Upated' }
+  STATUSES = { initial: 'Initial', missing: 'Missing', ok: 'Ok', problem: 'Problem',updated: 'Updated' }
   validates :status, inclusion: { in: STATUSES.keys.map(&:to_s) }
 
   STATUSES.keys.each do |type|
