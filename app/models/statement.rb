@@ -7,8 +7,6 @@ class Statement < ApplicationRecord
   # for pagination
   self.per_page = 100
 
- 
-
   STATUSES = { initial: 'Initial', missing: 'Missing', ok: 'Ok', problem: 'Problem',updated: 'Updated' }
   validates :status, inclusion: { in: STATUSES.keys.map(&:to_s) }
 
@@ -17,17 +15,6 @@ class Statement < ApplicationRecord
     scope type, -> { where(status: type) }
     self.const_set(type.upcase, type)
   end
-
-
-    # def update 
-    #   if self.source.property.label == "Location"
-    #     if !self.cache.include?('http') &&  self.status != "problem"
-    #       self.status = "missing"
-    #     end
-    #   end
-
-    #   super
-    # end
 
   def save
     if !self.changed_attributes[:cache].nil?
@@ -38,15 +25,18 @@ class Statement < ApplicationRecord
       end
       self.status_origin = "condenser_refresh"
     end
-
-    
-    if self.source.property.label == "Location"
+    property_label = self.source.property.label
+    if property_label == "Location"
       if !self.cache.include?('http') &&  self.status != "problem"
+        self.status = "missing"
+      end
+    elsif property_label == "Dates"
+      if self.cache == "[]" &&  self.status != "problem"
         self.status = "missing"
       end
     end
 
+
     super
   end
-
 end
