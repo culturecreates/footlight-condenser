@@ -42,11 +42,11 @@ module StatementsHelper
         s = Statement.where(webpage_id: webpage.id, source_id: source.id)
         #decide to create or update database entry
         if s.count != 1
-          Statement.create!(cache:_data, webpage_id: webpage.id, source_id: source.id, status: status_checker(_data, source.property) , status_origin: "condenser_refresh",cache_refreshed: Time.new)
+          Statement.create!(cache:_data, webpage_id: webpage.id, source_id: source.id, status: 'initial' , status_origin: "condenser_refresh",cache_refreshed: Time.new)
         else
           #check if manual entry and ONLY update if the cache has a status of missing
           if source.algorithm_value.start_with?("manual=") 
-            if status_checker(s.first.cache, source.property) != "missing"
+            if s.first.status != "missing" &&  s.first.status != "initial"
               logger.info "Skipping update of manual entry"
               next
             else
@@ -153,31 +153,6 @@ module StatementsHelper
       end
     end
     return results_list
-  end
-
-
-
-  def status_checker (scraped_data, property)
-    if property.value_datatype == "xsd:anyURI"
-      if scraped_data.is_a? String  
-        begin
-          scraped_data =  JSON.parse(scraped_data) 
-        rescue
-         scraped_data = []
-        end
-      end
-      if scraped_data[1].is_a? Array
-        scraped_data[1].count >= 3 ? status = "initial" : status = "missing"
-      elsif scraped_data[0].is_a? Array
-          scraped_data[0].count >= 3 ? status = "initial" : status = "missing"
-      else
-        scraped_data.count >= 3 ? status = "initial" : status = "missing"
-      end
-    else
-      !scraped_data.blank? && !scraped_data&.to_s&.downcase&.include?('error') ? status = "initial" : status = "missing"
-    end
-
-    return status
   end
 
   def is_condenser_formated_array scraped_data

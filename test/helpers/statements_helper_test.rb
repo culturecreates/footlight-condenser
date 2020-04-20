@@ -25,36 +25,6 @@ class StatementsHelperTest < ActionView::TestCase
   #   assert_equal expected_output, scrape(source, "http://culturecreates.com")
   # end
 
-  #status_checker (scraped_data, property)
-  test "should have missing status" do
-    property = properties(:nine)
-    scraped_data = "a string without auto-links"
-    expected_output = "missing"
-    assert_equal expected_output, status_checker(scraped_data, property)
-  end
-
-  test "should have ok status" do
-    property = properties(:nine)
-    scraped_data = "[\"source\",\"class\",[\"name\",\"uri\"]]"
-    expected_output = "initial"
-    assert_equal expected_output, status_checker(scraped_data, property)
-  end
-
-  test "should have initial status for manually added array of scraped data" do
-    property = properties(:nine)
-    scraped_data = "[[\"source\",\"class\"],[\"source\",\"class\",[\"name\",\"uri\"]]]"
-    expected_output = "initial"
-    assert_equal expected_output, status_checker(scraped_data, property)
-  end
-
-  test "should have initial status for array of scraped data" do
-    property = properties(:nine)
-    scraped_data = "[[\"source\",\"class\",[\"name\",\"uri\"]],[\"source\",\"class\",[\"name\",\"uri\"]]]"
-    expected_output = "initial"
-    assert_equal expected_output, status_checker(scraped_data, property)
-  end
-
-
 
   # search_condenser
   test "search_condenser: should search condenser for uris that match 100%" do
