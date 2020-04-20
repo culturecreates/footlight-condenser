@@ -48,6 +48,7 @@ class WebsitesController < ApplicationController
     @statements_grouped = Statement.joins(source: :website).group(:seedurl).count
     @statements_refreshed_24hr = Statement.joins(source: :website).where(cache_refreshed: [(Time.now - 24.hours)..(Time.now)]).group(:seedurl).count
     @statements_updated_24hr = Statement.joins(source: :website).where(cache_changed: [(Time.now - 24.hours)..(Time.now)]).group(:seedurl).count
+    @webpages = Webpage.group(:website).count
 
   end
 

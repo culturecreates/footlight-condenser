@@ -12,6 +12,7 @@ Last 24 hrs:  <%= @statements_errors %> errors
       <th>Seedurl</th>
       <th>Default Language</th>
       <th>Graph Name</th>
+      <th> Webpages</th>
       <th>Statements</th>
       <th>24 hr refreshed</th>
        <th>24 hr updated</th>
@@ -26,6 +27,7 @@ Last 24 hrs:  <%= @statements_errors %> errors
         <td><%= website.seedurl %></td>
          <td><%= website.default_language %></td>
         <td><%= website.graph_name %></td>
+        <td><%=  @webpages[website] %></td>
         <td><%=  @statements_grouped[website.seedurl] %>
          <td><%=  @statements_refreshed_24hr[website.seedurl] %>
           <td><%=  @statements_updated_24hr[website.seedurl] %>
