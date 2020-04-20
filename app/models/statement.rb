@@ -18,6 +18,17 @@ class Statement < ApplicationRecord
     self.const_set(type.upcase, type)
   end
 
+
+    # def update 
+    #   if self.source.property.label == "Location"
+    #     if !self.cache.include?('http') &&  self.status != "problem"
+    #       self.status = "missing"
+    #     end
+    #   end
+
+    #   super
+    # end
+
   def save
     if !self.changed_attributes[:cache].nil?
       self.cache_changed = Time.new
@@ -28,8 +39,14 @@ class Statement < ApplicationRecord
       self.status_origin = "condenser_refresh"
     end
 
+    
+    if self.source.property.label == "Location"
+      if !self.cache.include?('http') &&  self.status != "problem"
+        self.status = "missing"
+      end
+    end
+
     super
   end
-
 
 end

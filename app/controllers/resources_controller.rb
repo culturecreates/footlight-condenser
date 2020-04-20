@@ -109,8 +109,10 @@ class ResourcesController < ApplicationController
         end
       end
       statements.each do |statement|
-        if (statement.source.selected && !statement.is_problem?)
-          statement.update!(status: "ok", status_origin: status_origin)
+        if statement.source.selected && !statement.is_problem?
+          statement.status = "ok"
+          statement.status_origin = status_origin
+          statement.save
         end
       end
     end
