@@ -50,7 +50,7 @@ class StatementsController < ApplicationController
     refresh_statement @statement
     @statement = Statement.where(id: params[:id]).first
     post_refresh = @statement.cache_refreshed
-    if prior_refresh == post_refresh 
+    if prior_refresh == post_refresh && !@statement.source.algorithm_value.starts_with?("manual")
       @statement.errors[:base] << "Error scrapping. Refresh was aborted! Checks logs."
     end
     respond_to do |format|

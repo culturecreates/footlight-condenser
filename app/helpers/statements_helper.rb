@@ -57,11 +57,8 @@ module StatementsHelper
           # preserve manually added and deleted links of datatype xsd:anyURI
           unless source.algorithm_value.start_with?("manual=")
             if source.property.value_datatype == 'xsd:anyURI'
-            
                 _data = preserve_manual_links _data, s.first.cache
-              
             end
-
             # update database. Model automatically sets cache changed
             logger.info("*** Last step cache: #{_data}")
             first_statement =  s.first
