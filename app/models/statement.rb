@@ -35,8 +35,6 @@ class Statement < ApplicationRecord
         self.status = "missing"
       end
     end
-
-
     super
   end
 end
