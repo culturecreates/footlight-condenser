@@ -236,15 +236,15 @@ module StatementsHelper
 
   def search_for_uri uri_string, property_obj, webpage_obj
     #data structure of uri = ['name', 'rdfs_class', ['name', 'uri'], ['name','uri'],...]
-    uri_string = uri_string.to_s
+    uri_string = uri_string.to_s.squish
 
     uris = [uri_string]
     #use property object to determine class
     rdfs_class = property_obj.expected_class
     uris << rdfs_class
 
-    if !uri_string.downcase.include?("error")
-      #search Culture Creates KG
+   ## if !uri_string.include?("Error")
+      #search KG
 
       cckg_results = search_cckg(uri_string, rdfs_class)
       if cckg_results[:error]
@@ -268,10 +268,9 @@ module StatementsHelper
           end
         end
       end
-      return uris.uniq
-    end
+     uris.uniq!
+   ## end
 
-    logger.info("*** search condenser and kg:  #{uris}")
     return uris
   end
 
@@ -281,7 +280,6 @@ module StatementsHelper
     #statements = Statement.where(cache: uri_string)
     entities = Statement.joins(source: :property).where({sources: { properties: {label: "Name", rdfs_class: RdfsClass.where(name: expected_class)}}}).pluck(:cache,:webpage_id)
     entities.each {|entity| hits << entity if uri_string.downcase.include?(entity[0].downcase)}
-
 
     # get uris for found places
     hits.each_with_index do |hit,index|
