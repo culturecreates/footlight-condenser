@@ -71,12 +71,13 @@ class WebpagesController < ApplicationController
   # POST /webpages.json
   def create
     @webpage = Webpage.new(webpage_params)
-
+   
     respond_to do |format|
       if @webpage.save
         format.html { redirect_to @webpage, notice: 'Webpage was successfully created.' }
         format.json { render :show, status: :created, location: @webpage }
       else
+        @rdfs_classes = RdfsClass.all
         format.html { render :new }
         format.json { render json: @webpage.errors, status: :unprocessable_entity }
       end
