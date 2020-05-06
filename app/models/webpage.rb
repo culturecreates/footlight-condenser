@@ -10,8 +10,16 @@ class Webpage < ApplicationRecord
 
   after_initialize :init
 
+  before_save :prevent_distant_archive_dates
+
   def init
-    self.archive_date  ||=  Time.now.next_year          #will set the default value only if it's nil
+    self.archive_date ||= Time.now.next_year
   end
 
+  def prevent_distant_archive_dates
+    if self.archive_date < Time.now - 10.years ||
+       self.archive_date > Time.now + 10.years
+      self.archive_date = Time.now.next_year
+    end
+  end
 end
