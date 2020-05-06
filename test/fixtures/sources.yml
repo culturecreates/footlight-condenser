@@ -39,3 +39,13 @@ eleven:
   render_js: false
   property: eleven
   website: one
+
+twelve:
+  algorithm_value: MyString
+  selected: true
+  selected_by: MyString
+  language: en
+  next_step:
+  render_js: false
+  property: six
+  website: one
