@@ -61,10 +61,8 @@ Rails.application.routes.draw do
     end
   end
 
-  resources :graphs, param: :rdf_uri 
-
   get 'graphs/webpage/event',
-      to: "graphs#webpage_event",
+      to: 'graphs#webpage_event',
       as: :graphs_webpage_event
 
 ### eventually replace these with resouces websites, param: :seedurl
