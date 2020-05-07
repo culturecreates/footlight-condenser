@@ -1,0 +1,42 @@
+{
+    "@context":
+        {
+            "@vocab": "http://schema.org/",
+            "startDate": {"@type":  "http://www.w3.org/2001/XMLSchema#dateTime"},
+            "description" : {"@id":"description","@language": "en" },
+            "url":  {"@id":"url","@language": "en" },
+            "name": {"@id":"name","@language": "en"},
+            "alternateName": {"@id":"alternateName","@language": "en"},
+            "image": {"@id":"image","@language": "en"}
+        },
+    "@type": "Event",
+    "@explicit": true,
+    "name": {"@value":{}, "@language": "en"},
+    "startDate" :{},
+    "description" :{"@value":{},"@language": "en"},
+    "duration": {"@value":{}},
+    "url":{"@value":{},"@language": "en"},
+    "eventStatus":{},
+    "eventAttendanceMode":{},
+    "location": {
+        "@type":"Place", 
+        "@explicit": true,
+        "name": {"@value":{},"@language": "en"} ,
+        "address": {
+            "@type":"PostalAddress",
+            "@explicit": false
+        }
+    },
+    "performer":{
+            "@type": ["Organization","Person"],
+            "@explicit": false,
+            "name": [{"@value":{}},{"@value":{},"@language": "en"}] ,
+            "sameAs":{},
+            "url":{},
+            "alternateName":[{"@value":{},"@language": "en"}]
+        },
+    "image":{},
+    "offers": {
+        "@type": "Offer"
+    }
+}

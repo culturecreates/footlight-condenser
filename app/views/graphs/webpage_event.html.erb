@@ -1,11 +1,6 @@
 <p id="notice"><%= notice %></p>
- @local_graph
 
- <%= debug  @local_graph.dump(:jsonld)%>
-@jsonld
-<%= debug @jsonld %>
+<%= debug JSON.parse(@google_jsonld) %>
 
 <hr>
 
-<hr>
-<%=  @google_jsonld %>

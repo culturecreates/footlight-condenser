@@ -1,0 +1,20 @@
+PREFIX schema: <http://schema.org/>
+
+construct {
+    ?uri schema:subEvent
+        [ a schema:Event  ; 
+        schema:name ?name ; 
+        schema:description ?description ;
+        schema:startDate ?dates ;
+        schema:location ?location ]
+}
+where { 
+    ?uri schema:description ?description ; 
+    schema:location ?location ;
+    schema:name ?name .
+        { select ?dates where {
+            values ?uri { <#{uri_string}> }
+            ?uri  schema:startDate ?dates
+        }
+    } 
+}

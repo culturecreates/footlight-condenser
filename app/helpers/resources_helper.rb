@@ -76,5 +76,4 @@ module ResourcesHelper
     end
     return resource_status
   end
-
 end

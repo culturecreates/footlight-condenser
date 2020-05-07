@@ -1,3 +1,4 @@
+# Ruby code to extract data for websites into JSON for analysis by AI
 require 'httparty'
 
 seedurl = ARGV[0] || 'theplayhouse-ca'
