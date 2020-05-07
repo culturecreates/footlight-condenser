@@ -2,11 +2,6 @@ class Statement < ApplicationRecord
   belongs_to :source
   belongs_to :webpage
 
-  validates :source, uniqueness: { scope: :webpage }
-
-  # for pagination
-  self.per_page = 100
-
   STATUSES = {
     initial: 'Initial',
     missing: 'Missing',
@@ -15,37 +10,47 @@ class Statement < ApplicationRecord
     updated: 'Updated'
   }.freeze
 
-  validates :status, inclusion: { in: STATUSES.keys.map(&:to_s) }
-
   STATUSES.keys.each do |type|
-    define_method("is_#{type}?") { self.status == type.to_s }
+    define_method("is_#{type}?") { status == type.to_s }
     scope type, -> { where(status: type) }
-    self.const_set(type.upcase, type)
+    const_set(type.upcase, type)
   end
 
-  before_save :set_cache_changed
+  validates :source, uniqueness: { scope: :webpage }
+  validates :status, inclusion: { in: STATUSES.keys.map(&:to_s) }
+  before_save :check_if_cache_changed
   before_save :check_mandatory_properties
 
-  def set_cache_changed
-    return unless self.changed_attributes[:cache].present?
+    # For pagination
+    self.per_page = 100
+
+
+
+  def check_if_cache_changed
+    return unless changed_attributes[:cache].present?
 
     self.cache_changed = Time.new
-    unless self.status == "initial" && self.status_origin == "condenser_refresh"
-      # condenser cannot update inself from initial to update state. Need a human to have seen it first.
-      self.status = "updated"
+
+    # Set status to updated unless in intial state.
+    # because status cannot update inself from initial state. Need a human to see it first.
+    unless status == 'initial' && status_origin == 'condenser_refresh'
+      self.status = 'updated'
     end
-    self.status_origin = "condenser_refresh"
+    self.status_origin = 'condenser_refresh'
   end
 
-  # check for mandatory properties unless status is already a problem
+  # update status of mandatory properties unless status is already a problem
   def check_mandatory_properties
-    return if status == 'problem'
+    return if status == 'problem' || status == 'intial'
 
     property_label = source.property.label
+
     if property_label == 'Location'
       self.status = 'missing' unless cache.include?('http')
     elsif property_label == 'Dates'
       self.status = 'missing' unless valid_date?
+    elsif property_label == 'Title'
+      self.status = 'missing' unless cache.present?
     end
   end
 
@@ -57,7 +62,7 @@ class Statement < ApplicationRecord
       date_array = Array(cache)
     end
     # look for valid dates in array
-    if date_array.select { |d| d if valid_iso_date?(d) }.count > 0
+    if date_array.select { |d| d if valid_iso_date?(d) }.count.positive?
       true
     else
       false
