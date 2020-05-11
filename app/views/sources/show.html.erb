@@ -45,10 +45,10 @@
   <%= @source.website.seedurl %>
 </p>
 
-<% if !@source.statements.first.nil? %>
-  <%= link_to 'Test scrape', refresh_statement_path(@source.statements.first), method: :patch %> |
+<% if @source.statements.first.present? %>
+  <%= link_to 'Test', refresh_statement_path(@source.statements.first), method: :patch %> |
 <% else %>
-  Test scrape (to test a new source first refresh a webpage) |
+ <%= link_to 'Create',refresh_rdf_uri_statements_path(rdf_uri: @source.website.webpages.where(website: @source.website, rdfs_class_id:1).first.rdf_uri), method: :patch %> | 
 <% end %>
 <%= link_to 'Edit', edit_source_path(@source) %> |
 <%= link_to 'Back', sources_path %>
