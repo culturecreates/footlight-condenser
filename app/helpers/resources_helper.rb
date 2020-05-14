@@ -36,7 +36,6 @@ module ResourcesHelper
     begin
       value_array = JSON.parse(cache_str)
     rescue => exception
-      logger.error(exception)
       value_array = []
     end
     

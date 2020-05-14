@@ -26,4 +26,28 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     assert_equal expected_output, JsonldGenerator.describe_uri(uri).count
   end
 
+  test "should extract one uri" do
+    cache = '["source text", "Expected Class", [ "Entity label", "http://example.com" ]]'
+    expected_output = ["http://example.com"]
+    assert_equal expected_output, JsonldGenerator.extract_uris_from_cache(cache)
+  end
+
+  test "should extract two uris" do
+    cache = '["source text", "Expected Class", [ "Entity 1", "http://example.com#1" ], [ "Entity 2", "http://example.com#2" ] ]'
+    expected_output = ["http://example.com#1", "http://example.com#2"]
+    assert_equal expected_output, JsonldGenerator.extract_uris_from_cache(cache)
+  end
+
+  test "should extract uri 3 and not the deleted uri 1" do
+    cache = '[["text", "Class", [ "Entity 1", "http://example.com#1" ]],["text 3", "Class 3", [ "Entity 3", "http://example.com#3" ] ],["Manually deleted", "Class",["Label","http://example.com#1"]]]'
+    expected_output = ["http://example.com#3"]
+    assert_equal expected_output, JsonldGenerator.extract_uris_from_cache(cache)
+  end
+
+  test "should extract  uri 2 from double link and not the deleted uri 1" do
+    cache = '[["source text", "Expected Class", [ "Entity 1", "http://example.com#1" ], [ "Entity 2", "http://example.com#2" ] ],["Manually deleted", "Class",["Label","http://example.com#1"]]]'
+    expected_output = ["http://example.com#2"]
+    assert_equal expected_output, JsonldGenerator.extract_uris_from_cache(cache)
+  end
+
 end

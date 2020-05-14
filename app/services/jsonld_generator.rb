@@ -31,7 +31,7 @@ class JsonldGenerator
     local_graph
   end
 
-  # create a HASH for statements
+  # create a HASH of statements
   def self.build_statements_hash statements
     statements_hash = statements.map do |s|
       { status: s.status,
@@ -43,14 +43,27 @@ class JsonldGenerator
         label: s.source.property.label }
     end
     # map statements that have a datatype xsd:anyURI to a list of URIs
-    statements_hash.map { |s|  s[:object] = extract_uri(s[:object]) if s[:value_datatype] == "xsd:anyURI" }
+    statements_hash.map { |s|  s[:object] = extract_uris_from_cache(s[:object]) if s[:value_datatype] == "xsd:anyURI" }
     # remove any blank statements
-    statements_hash.select! { |s| s[:object].present? && s[:object] != '[]'}
+    statements_hash.select! { |s| s[:object].present? && s[:object] != '[]' }
   end
 
-  def self.extract_uri(cache)
+  # Extract only the URIs from the linked data stored in the cache property
+  # Condenser stores linked data as:
+  # {search: "source text", class: "Expected Class", links: [ {label: "Entity label",uri: "URI" }] }
+  def self.extract_uris_from_cache(cache)
     cache_obj = build_json_from_anyURI(cache)
-    cache_obj.pluck(:links).flatten.pluck(:uri)
+    uris = []
+    deleted_uris = []
+    # Extract the links from all except where search: "Manually Deleted"
+    cache_obj.each do |item|
+      if item[:search] != 'Manually deleted'
+        uris << item[:links].flatten.pluck(:uri)
+      else
+        deleted_uris << item[:links].flatten.pluck(:uri)
+      end
+    end
+    uris.flatten - deleted_uris.flatten
   end
 
   def self.make_google_jsonld jsonld
@@ -64,54 +77,52 @@ class JsonldGenerator
 
     subject = rdf_uri.sub('adr:', 'http://kg.artsdata.ca/resource/')
 
-    # TODO: Make generic - not only Event Class. 
-    # Interpret the nesting_options, 
-    # create main Class and blank nodes for each nested class 
+    # TODO: Make generic - not only Event Class.
+    # Interpret the nesting_options,
+    # create main Class and blank nodes for each nested class
     # and set subject first thing inside loop.
     graph << [RDF::URI(subject), RDF.type, RDF::URI('http://schema.org/Event')]
     statements_hash.each do |s|
       next if s[:status] == 'initial' || s[:status] == 'problem'
-        ## TEMPORARY PATCH START #########
-        if s[:rdfs_class] == 5 
-            graph << [RDF::URI(subject), RDF::URI("http://schema.org/offers"), :bn ]
-            graph << [ :bn,  RDF.type,  RDF::URI("http://schema.org/Offer")]
-            s[:object].make_into_array.each do |url|
-              puts "Offer: adding #{url}" 
-              graph << [ :bn, RDF::URI(s[:predicate]), RDF::Literal(url)]
-            end
-            
-        elsif s[:rdfs_class] == 41 
-            graph << [RDF::URI(subject), RDF::URI("http://schema.org/eventStatus"), :bn ]
-            graph << [ :bn,  RDF.type,  RDF::URI("http://schema.org/EventStatusType")]
-            graph << [ :bn, RDF::URI(s[:predicate]), RDF::URI()]
-        ## TEMPORARY PATCH  END #########
 
-        elsif  s[:value_datatype] == "xsd:anyURI"
-            s[:object].each do |uri|
-                graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::URI(uri)] 
-                #add describe URI to graph  
-            end
-        elsif  s[:value_datatype] == 'xsd:dateTime'
-          s[:object].make_into_array.each do |date_time|
-            if RDF::Literal::DateTime.new(date_time).valid?
-              graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::DateTime.new(date_time)] 
-            end
-          end
-
-        else
-            if s[:language].present? 
-                object = RDF::Literal(s[:object], language: s[:language])
-                puts "Non-offer lang object #{object}"
-            else
-                object = RDF::Literal(s[:object])
-                puts "Non-offer object #{object}"
-            end
-            graph << [RDF::URI(subject), RDF::URI(s[:predicate]), object] 
+      ## TEMPORARY PATCH START #########
+      if s[:rdfs_class] == 5
+        graph << [RDF::URI(subject), RDF::URI('http://schema.org/offers'), :bn]
+        graph << [:bn, RDF.type, RDF::URI('http://schema.org/Offer')]
+        s[:object].make_into_array.each do |url|
+          puts "Offer: adding #{url}"
+          graph << [:bn, RDF::URI(s[:predicate]), RDF::Literal(url)]
         end
+      elsif s[:rdfs_class] == 41
+        graph << [RDF::URI(subject), RDF::URI('http://schema.org/eventStatus'), :bn]
+        graph << [:bn,  RDF.type, RDF::URI('http://schema.org/EventStatusType')]
+        graph << [:bn, RDF::URI(s[:predicate]), RDF::URI()]
+      ## TEMPORARY PATCH  END #########
+
+      elsif  s[:value_datatype] == 'xsd:anyURI'
+        s[:object].each do |uri|
+          graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::URI(uri)]
+          # add describe URI to graph
+        end
+      elsif  s[:value_datatype] == 'xsd:dateTime'
+        s[:object].make_into_array.each do |date_time|
+          if RDF::Literal::DateTime.new(date_time).valid?
+            graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::DateTime.new(date_time)] 
+          end
+        end
+      else
+        if s[:language].present?
+          object = RDF::Literal(s[:object], language: s[:language])
+        else
+          object = RDF::Literal(s[:object])
+        end
+        graph << [RDF::URI(subject), RDF::URI(s[:predicate]), object]
+      end
     end
     graph
   end
 
+  # Return a list of URIs to be nested inside the JSON-LD
   def self.extract_object_uris graph
     query = RDF::Query.new do
       pattern [:s, :p, :object]
