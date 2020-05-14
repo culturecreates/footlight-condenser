@@ -70,7 +70,7 @@ class JsonldGenerator
     # and set subject first thing inside loop.
     graph << [RDF::URI(subject), RDF.type, RDF::URI('http://schema.org/Event')]
     statements_hash.each do |s|
-
+      next if s[:status] == 'initial' || s[:status] == 'problem'
         ## TEMPORARY PATCH START #########
         if s[:rdfs_class] == 5 
             graph << [RDF::URI(subject), RDF::URI("http://schema.org/offers"), :bn ]
