@@ -15,7 +15,7 @@ module ResourcesHelper
     #replace "cache" with "value" for better API read-ability
     
     if statement.source.property.value_datatype == "xsd:anyURI"
-      json_statement["value"] = build_json_from_anyURI statement.cache 
+      json_statement["value"] = JsonUriWrapper.build_json_from_anyURI statement.cache 
     else
       json_statement["value"] = statement.cache
     end
@@ -32,40 +32,6 @@ module ResourcesHelper
     return json_statement
   end
 
-  def build_json_from_anyURI cache_str
-    begin
-      value_array = JSON.parse(cache_str)
-    rescue => exception
-      value_array = []
-    end
-    
-    value_obj = []
-    if !value_array.blank?
-      if value_array[0].class == String
-        value_obj << sub_build_json_from_anyURI(value_array)
-        
-      else
-        value_array.each do |obj|
-          if !obj.blank?
-            value_obj << sub_build_json_from_anyURI(obj)
-          end
-        end
-      end
-    end
-    return value_obj
-  end
-
-  def sub_build_json_from_anyURI value_array
-    value_obj = {search: value_array[0], class: value_array[1]}
-    hits = []
-    value_array[2..-1].each do |hit|
-      if !hit.include?("abort")
-         hits << { label: hit[0], uri: hit[1]}
-      end
-    end
-    value_obj[:links] = hits
-    return value_obj
-  end
 
   def calculate_resource_status statements
     resource_status = {initial:0, missing:0, ok: 0, updated:0, problem: 0}

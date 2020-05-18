@@ -21,10 +21,8 @@ class Statement < ApplicationRecord
   before_save :check_if_cache_changed
   before_save :check_mandatory_properties
 
-    # For pagination
-    self.per_page = 100
-
-
+  # For pagination
+  self.per_page = 100
 
   def check_if_cache_changed
     return unless changed_attributes[:cache].present?

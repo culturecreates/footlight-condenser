@@ -1,0 +1,55 @@
+# Class to wrap the Condenser data type xsd:anyURI in JSON
+# and convert from a string stored in the database
+class JsonUriWrapper
+  # Extract only the URIs from the linked data stored in the cache property
+  # Condenser stores linked data as:
+  # {search: "source text", class: "Expected Class", links: [ {label: "Entity label",uri: "URI" }] }
+  def self.extract_uris_from_cache(cache)
+    cache_obj = build_json_from_anyURI(cache)
+    uris = []
+    deleted_uris = []
+    # Extract the links from all except where search: "Manually Deleted"
+    cache_obj.each do |item|
+      if item[:search] != 'Manually deleted'
+        uris << item[:links].flatten.pluck(:uri)
+      else
+        deleted_uris << item[:links].flatten.pluck(:uri)
+      end
+    end
+    uris.flatten - deleted_uris.flatten
+  end
+
+  def self.build_json_from_anyURI(cache_str)
+    begin
+      value_array = JSON.parse(cache_str)
+    rescue => exception
+      value_array = []
+    end
+
+    value_obj = []
+    unless value_array.blank?
+      if value_array[0].class == String
+        value_obj << sub_build_json_from_anyURI(value_array)
+      else
+        value_array.each do |obj|
+          unless obj.blank?
+            value_obj << sub_build_json_from_anyURI(obj)
+          end
+        end
+      end
+    end
+    return value_obj
+  end
+
+  def self.sub_build_json_from_anyURI(value_array)
+    value_obj = {search: value_array[0], class: value_array[1]}
+    hits = []
+    value_array[2..-1].each do |hit|
+      if !hit.include?("abort")
+        hits << { label: hit[0], uri: hit[1]}
+      end
+    end
+    value_obj[:links] = hits
+    return value_obj
+  end
+end

@@ -1,7 +1,5 @@
 # Class to convert data in the Condensor data model to JSON-LD
 class JsonldGenerator
-  extend ResourcesHelper
-
   # main method to return converted JSON-LD
   def self.convert(statements, rdf_uri, webpage)
     local_graph = build_graph(
@@ -43,28 +41,12 @@ class JsonldGenerator
         label: s.source.property.label }
     end
     # map statements that have a datatype xsd:anyURI to a list of URIs
-    statements_hash.map { |s|  s[:object] = extract_uris_from_cache(s[:object]) if s[:value_datatype] == "xsd:anyURI" }
+    statements_hash.map { |s|  s[:object] = JsonUriWrapper.extract_uris_from_cache(s[:object]) if s[:value_datatype] == "xsd:anyURI" }
     # remove any blank statements
     statements_hash.select! { |s| s[:object].present? && s[:object] != '[]' }
   end
 
-  # Extract only the URIs from the linked data stored in the cache property
-  # Condenser stores linked data as:
-  # {search: "source text", class: "Expected Class", links: [ {label: "Entity label",uri: "URI" }] }
-  def self.extract_uris_from_cache(cache)
-    cache_obj = build_json_from_anyURI(cache)
-    uris = []
-    deleted_uris = []
-    # Extract the links from all except where search: "Manually Deleted"
-    cache_obj.each do |item|
-      if item[:search] != 'Manually deleted'
-        uris << item[:links].flatten.pluck(:uri)
-      else
-        deleted_uris << item[:links].flatten.pluck(:uri)
-      end
-    end
-    uris.flatten - deleted_uris.flatten
-  end
+ 
 
   def self.make_google_jsonld jsonld
     jsonld["@graph"][0].merge("@context" => "http://schema.org").to_json
@@ -123,7 +105,7 @@ class JsonldGenerator
   end
 
   # Return a list of URIs to be nested inside the JSON-LD
-  def self.extract_object_uris graph
+  def self.extract_object_uris(graph)
     query = RDF::Query.new do
       pattern [:s, :p, :object]
     end

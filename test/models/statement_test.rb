@@ -53,6 +53,4 @@ class StatementTest < ActiveSupport::TestCase
   test 'invalid iso date' do
     assert_not @statement.valid_iso_date?('error')
   end
-
-
 end
