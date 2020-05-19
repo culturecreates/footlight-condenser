@@ -27,6 +27,14 @@ class Statement < ApplicationRecord
   def check_if_cache_changed
     return unless changed_attributes[:cache].present?
 
+    # Check 'xsd:anyURI' datatypes for a change in URIs 
+    value_datatype = source.property.value_datatype
+    if value_datatype == 'xsd:anyURI'
+      previous_uris = JsonUriWrapper.extract_uris_from_cache(changed_attributes[:cache])
+      new_uris = JsonUriWrapper.extract_uris_from_cache(cache)
+      return if previous_uris.sort == new_uris.sort
+    end
+
     self.cache_changed = Time.new
 
     # Set status to updated unless in intial state.
