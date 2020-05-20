@@ -4,8 +4,12 @@ class ApplicationController < ActionController::Base
   before_action :set_sticky_seedurl, :selectable_websites
 
   def preload_context
-    ctx = JSON::LD::Context.new().parse('http://schema.org/')
-    JSON::LD::Context.add_preloaded('http://schema.org/', ctx)
+    begin
+      ctx = JSON::LD::Context.new().parse('http://schema.org/')
+      JSON::LD::Context.add_preloaded('http://schema.org/', ctx)
+    rescue JSON::LD::JsonLdError::LoadingRemoteContextFailed => e
+      logger.error({ error: e })
+    end
   end
 
   private
