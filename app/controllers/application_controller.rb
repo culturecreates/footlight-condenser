@@ -3,15 +3,6 @@ class ApplicationController < ActionController::Base
   protect_from_forgery with: :exception, prepend: true
   before_action :set_sticky_seedurl, :selectable_websites
 
-  def preload_context
-    begin
-      ctx = JSON::LD::Context.new().parse('http://schema.org/')
-      JSON::LD::Context.add_preloaded('http://schema.org/', ctx)
-    rescue JSON::LD::JsonLdError::LoadingRemoteContextFailed => e
-      logger.error({ error: e })
-    end
-  end
-
   private
 
   def set_sticky_seedurl

@@ -1,8 +1,19 @@
 # Converts data into a graph using RDF.rb
 class GraphsController < ApplicationController
-  before_action :preload_context, only: [:webpage_event]
+  before_action only: [:webpage_event]
 
   require 'json/ld'
+
+  # Speed up loading remote JSON-LD context for schema.org
+  # def preload_context
+  #   begin
+  #     ctx = JSON::LD::Context.new().parse('https://schema.org/docs/jsonldcontext.jsonld')
+  #     JSON::LD::Context.add_preloaded('http://schema.org/', ctx)
+  #     logger.info("Loaded ")
+  #   rescue JSON::LD::JsonLdError::LoadingRemoteContextFailed => e
+  #     logger.error({ error: "LoadingRemoteContextFailed http://schema.org" })
+  #   end
+  # end
 
   # GET /graphs/webpage/event?url=
   def webpage_event
