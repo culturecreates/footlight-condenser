@@ -183,8 +183,16 @@ module StatementsHelper
           data = JSON.parse(scraped_data[0])
         else
           # check for eventStatus
+
+          ###################################################
           # Note: this code requires the following triple
           # { rdfs:label owl:equivalentProperty schema:name . }
+          # so that search_for_uri() method to remain generic using schema:name
+          # normally inserted into the graph http://kg.artsdata.ca/SchemaOrgCultureCreatesExtension
+          # because schema.org defined each status (like EventCancelled) only with rdfs:label
+          # and schema:name is an owl:subPropertyOf schema:label and not an owl:equivalentPropertyOf
+          ###################################################
+
           if property.uri == 'http://schema.org/eventStatus'
             str = scraped_data.join(' - ')
             if str.scan(/\b(Cancelled|Annulé|Annule)/i).present?
