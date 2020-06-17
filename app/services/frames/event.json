@@ -38,5 +38,17 @@
     "image":{},
     "offers": {
         "@type": "Offer"
+    },
+    "organizer":{
+        "@type": ["Organization","Person"],
+        "@explicit": false,
+        "name": [{"@value":{}},{"@value":{},"@language": "en"}] ,
+        "sameAs":{},
+        "url":{},
+        "alternateName":[{"@value":{},"@language": "en"}],
+        "address": {
+            "@type":"PostalAddress",
+            "@explicit": false
+        }
     }
 }
