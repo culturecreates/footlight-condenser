@@ -296,10 +296,14 @@ module StatementsHelper
       sparql_str = CGI.unescapeHTML(sparql_str) # get rid of things like &amp; in the text string
 
       if rdfs_class == 'Place'
+       
         q =
           <<~EOS
             PREFIX schema: <http://schema.org/>
             select  ?uri ?name
+            from <http://kg.artsdata.ca/Place>
+            from <http://laval.footlight.io/Place>
+            from <http://schema.org/#8.0>
             { { select ?uri ?name where {
                     ?uri a schema:Place ; schema:name ?name .
                     OPTIONAL { ?uri schema:alternateName ?alternateName .}
