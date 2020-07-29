@@ -300,7 +300,9 @@ module StatementsHelper
         q =
           <<~EOS
             PREFIX schema: <http://schema.org/>
+            PREFIX onto: <http://www.ontotext.com/>
             select  ?uri ?name
+            FROM onto:disable-sameAs  # disable for speed
             from <http://kg.artsdata.ca/Place>
             from <http://laval.footlight.io/Place>
             from <http://schema.org/#8.0>
@@ -319,23 +321,28 @@ module StatementsHelper
                    }   }}
           EOS
       else
-
         q =
-          <<~EOS
-            PREFIX schema: <http://schema.org/>
-            select  ?uri  ?name
-            where {
-                { ?uri a schema:#{rdfs_class}; schema:alternateName ?search_str ; schema:name ?name . }
-                UNION
-                { ?uri a schema:#{rdfs_class}; schema:name ?search_str, ?name .  }
-                UNION
-                { ?uri a schema:#{rdfs_class}; schema:url ?search_str ; schema:name ?name .  }
-                filter  (isURI(?uri))
-                filter (str(?search_str) != '')
-                values ?web_str {'#{sparql_str}'}
-                filter (contains(lcase(str(?search_str)),lcase(?web_str)) || contains(lcase(?web_str), lcase(str(?search_str)))  )
+        <<~EOS
+          PREFIX schema: <http://schema.org/>
+          PREFIX onto: <http://www.ontotext.com/>
+          select  ?originalUri  ?name  ?uri
+          FROM onto:disable-sameAs  # disable for speed
+          where {
+              { ?originalUri a schema:#{rdfs_class}; schema:alternateName ?search_str ; rdfs:label ?name . }
+              UNION
+              { ?originalUri a schema:#{rdfs_class}; rdfs:label ?search_str, ?name .  }
+              UNION
+              { ?originalUri a schema:#{rdfs_class}; schema:url ?search_str ; rdfs:label ?name .  }
+              OPTIONAL { graph <http://kg.artsdata.ca/Artsdata_Minted>
+                { ?originalUri ^schema:sameAs ?reverseSameAs . filter (isURI(?reverseSameAs)) }
               }
-          EOS
+              bind(coalesce(?reverseSameAs, ?originalUri) as ?uri)
+              filter  (isURI(?originalUri))
+              filter (str(?search_str) != '')
+              values ?web_str {'#{sparql_str}'}
+              filter (contains(lcase(str(?search_str)),lcase(?web_str)) || contains(lcase(?web_str), lcase(str(?search_str)))  )
+            }
+        EOS
 
       end
 
@@ -350,7 +357,8 @@ module StatementsHelper
             hits[n] = [hits[n]['name']['value'], hits[n]['uri']['value']]
           end
         end
-        # ##only return hit if the name is unique #todo: find a way to remove owl:sameAS when the same entity has more than 1 URI
+        
+        # only return hit if the name is unique #todo: find a way to remove owl:sameAS when the same entity has more than 1 URI
         hits.uniq! { |hit| hit[0] }
 
         ## remove duplicate URIs - needed to remove en/fr duplicates and alternte names of same entity
