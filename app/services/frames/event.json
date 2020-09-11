@@ -1,7 +1,7 @@
 {
     "@context":
         {
-            "@vocab": "http://schema.org/",
+            "@vocab": "https://schema.org/",
             "startDate": {"@type":  "http://www.w3.org/2001/XMLSchema#dateTime"},
             "description" : {"@id":"description","@language": "en" },
             "url":  {"@id":"url","@language": "en" },
