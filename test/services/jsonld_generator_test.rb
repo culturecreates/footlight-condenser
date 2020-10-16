@@ -26,6 +26,33 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     assert_equal expected_output, JsonldGenerator.describe_uri(uri).count
   end
 
+  # tests method make_google_jsonld
 
+  test "should not fail with blank jsonld" do
+    jsonld = ''
+    assert_nil JsonldGenerator.make_google_jsonld(jsonld)
+  end
 
+  test "should remove graph node" do
+    jsonld = {"@graph" => ["one" => "thing"]}
+    expected_output = {"one" => "thing", "@context" => "http://schema.org"}
+    assert_equal expected_output, JsonldGenerator.make_google_jsonld(jsonld)
+  end
+
+  # tests method delete_ids
+
+  test "should remove @ids" do
+    jsonld = {"one" => "thing", "@id" => "123"}
+    expected_output = {"one" => "thing"}
+    assert_equal expected_output, JsonldGenerator.delete_ids(jsonld)
+  end
+
+  test "should remove all @ids" do
+    jsonld = {"one" => "thing", "@id" => "123",  "organizer" =>  {
+      "@id" => "http://kg.artsdata.ca/resource/K10-440", "name" => "organizer name"},
+      "performer" =>  {"@id" => "http://kg.artsdata.ca/resource/K10-440"},
+      "location" =>  {"@id" => "http://kg.artsdata.ca/resource/K10-440"}}
+    expected_output = {"one" => "thing",  "organizer" =>  {"name" => "organizer name"}, "performer"=>{}, "location"=>{}}
+    assert_equal expected_output, JsonldGenerator.delete_ids(jsonld)
+  end
 end

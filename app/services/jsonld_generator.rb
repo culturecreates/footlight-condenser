@@ -16,8 +16,9 @@ class JsonldGenerator
     # frame JSON-LD
     jsonld = JSON::LD::API.frame(json_graph, FrameLoader.event(webpage.first.language))
 
-    # remove context because Google doesn't like extra types
-    google_jsonld = make_google_jsonld(jsonld)
+    jsonld = make_google_jsonld(jsonld)
+    delete_ids(jsonld)
+    jsonld.to_json
   end
 
   # Add triples from artsdata.ca using URIs of people, places and organizations
@@ -30,7 +31,7 @@ class JsonldGenerator
   end
 
   # create a HASH of statements
-  def self.build_statements_hash statements
+  def self.build_statements_hash(statements)
     statements_hash = statements.map do |s|
       { status: s.status,
         rdfs_class: s.source.property.rdfs_class_id,
@@ -46,10 +47,21 @@ class JsonldGenerator
     statements_hash.select! { |s| s[:object].present? && s[:object] != '[]' }
   end
 
- 
+  def self.make_google_jsonld(jsonld)
+    return unless jsonld['@graph']
 
-  def self.make_google_jsonld jsonld
-    jsonld["@graph"][0].merge("@context" => "http://schema.org").to_json
+    # remove context because Google doesn't like extra types
+    jsonld['@graph'][0].merge('@context' => 'http://schema.org')
+  end
+
+  def self.delete_ids(jsonld)
+    # remove artsdata @ids to increase Google trust (experiment 2020-10-15)
+    jsonld.delete('@id')
+    jsonld["performer"].delete('@id') if  jsonld["performer"]
+    jsonld["organizer"].delete('@id') if  jsonld["organizer"]
+    jsonld["location"].delete('@id') if  jsonld["location"]
+    
+    return jsonld
   end
 
   # Build a local graph from condenser statements
@@ -60,7 +72,8 @@ class JsonldGenerator
     subject = rdf_uri.sub('adr:', 'http://kg.artsdata.ca/resource/')
 
     # TODO: Make generic - not only Event Class.
-    # Interpret the nesting_options,
+    # Interpret the nesting_options
+    pp nesting_options
     # create main Class and blank nodes for each nested class
     # and set subject first thing inside loop.
     graph << [RDF::URI(subject), RDF.type, RDF::URI('http://schema.org/Event')]
