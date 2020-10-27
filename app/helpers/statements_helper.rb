@@ -364,6 +364,10 @@ module StatementsHelper
         ## remove duplicate URIs - needed to remove en/fr duplicates and alternte names of same entity
         hits.uniq! { |hit| hit[1] }
 
+        if rdfs_class == 'Place' || rdfs_class == 'Organization' || rdfs_class == 'Person'
+          hits.select! { |hit| hit[1].include? "kg.artsdata.ca/resource"  }
+        end
+
         #################################################
         # REMOVE NAMES THAT CREATE MANY FALSE POSITIVES - until better analysis with NLP is available
         names_to_remove = SearchException.where(rdfs_class: RdfsClass.where(name: rdfs_class)).pluck(:name)
