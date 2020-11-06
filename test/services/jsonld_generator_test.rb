@@ -35,7 +35,7 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
 
   test "should remove graph node" do
     jsonld = {"@graph" => ["one" => "thing"]}
-    expected_output = {"one" => "thing", "@context" => "http://schema.org"}
+    expected_output = {"one" => "thing", "@context" => "https://schema.org/"}
     assert_equal expected_output, JsonldGenerator.make_google_jsonld(jsonld)
   end
 
