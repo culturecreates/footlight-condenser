@@ -51,7 +51,7 @@ class JsonldGenerator
     return unless jsonld['@graph']
 
     # remove context because Google doesn't like extra types
-    jsonld['@graph'][0].merge('@context' => 'http://schema.org')
+    jsonld['@graph'][0].merge('@context' => 'https://schema.org/')
   end
 
   def self.delete_ids(jsonld)
