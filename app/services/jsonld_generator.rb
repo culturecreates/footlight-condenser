@@ -103,6 +103,8 @@ class JsonldGenerator
         s[:object].make_into_array.each do |date_time|
           if RDF::Literal::DateTime.new(date_time).valid?
             graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::DateTime.new(date_time)] 
+          elsif RDF::Literal::Date.new(date_time).valid?
+            graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal(date_time)] 
           end
         end
       else
