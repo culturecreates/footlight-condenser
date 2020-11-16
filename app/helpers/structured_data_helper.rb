@@ -124,7 +124,10 @@ module StructuredDataHelper
         prop = statement.source.property.uri.to_s.split("/").last
         logger.info("Adding #{prop} in #{statement.inspect}")
         if prop != nil
-          if statement.source.property.value_datatype == "xsd:anyURI"
+          if prop == "performer"
+            # Added 15 NOV 2020
+            # do nothing because we don't know if performer is a Person or an Organization
+          elsif statement.source.property.value_datatype == "xsd:anyURI"
             add_anyURI _jsonld, prop, statement.cache
           elsif  statement.source.property.value_datatype == "xsd:dateTime"
             _jsonld[prop] = make_into_array statement.cache
@@ -146,7 +149,9 @@ module StructuredDataHelper
           elsif prop == "CreativeWork:video"
             add_video _jsonld, statement.cache
           elsif prop == "performer:url"
-            add_performer _jsonld, "url", statement.cache
+            # Added 15 NOV 2020
+            # skip because performer is being skipped
+            # add_performer _jsonld, "url", statement.cache
           else
             if prop == "name" || prop == "description"
               prop = "#{prop}_#{language}"
