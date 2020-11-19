@@ -4,3 +4,12 @@
 
 <hr>
 
+
+<%= link_to 'export to AWS', databus_create_path(
+  jsonld: @google_jsonld, 
+  artifact: params[:seedurl],  
+  version:  Date.today.iso8601, 
+  file: "#{params[:url]}.json"
+  ),  method: :post 
+%>
+

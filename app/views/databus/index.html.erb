@@ -1,0 +1,13 @@
+<h1>Databus#index</h1>
+<ol>
+
+  <% @contents.each do |obj| %>
+    <% if  obj.key.end_with?('/') %>
+      <h2>  <%= obj.key %> </h2>
+    <% else %>
+      <li><a href='https://data.culturecreates.com/<%= obj.key %>'><%= obj.key.delete_prefix('databus/culture-creates/footlight/') %></a></li>
+    <% end %>
+  <% end %>
+</ol>
+
+
