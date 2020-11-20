@@ -7,7 +7,7 @@ class DatabusControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "should get create" do
-    get databus_create_url
+    put databus_create_url
     assert_response :success
   end
 
