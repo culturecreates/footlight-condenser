@@ -35,7 +35,8 @@ class GraphsController < ApplicationController
       problem_statements = helpers.missing_required_properties(statements)
 
       if problem_statements.blank?
-        @google_jsonld = JsonldGenerator.convert(statements, rdf_uri, webpage)
+
+        @google_jsonld = JsonldGenerator.convert(statements, rdf_uri, webpage, webpage.first.rdfs_class.name )
       else
         problems_summary =
           problem_statements

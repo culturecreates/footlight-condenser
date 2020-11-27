@@ -29,7 +29,7 @@ two:
 
 three:
   cache: myPlaceName
-  status: initial
+  status: updated
   status_origin: MyString
   cache_refreshed: 2018-07-30 16:46:00 UTC
   cache_changed: 2018-07-30 16:46:00 UTC

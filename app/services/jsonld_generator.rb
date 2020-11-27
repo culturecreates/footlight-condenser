@@ -1,24 +1,37 @@
 # Class to convert data in the Condensor data model to JSON-LD
 class JsonldGenerator
   # main method to return converted JSON-LD
-  def self.convert(statements, rdf_uri, webpage)
+  def self.convert(statements, rdf_uri, webpage, main_class = "Event")
     local_graph = build_graph(
       rdf_uri,
       statements,
-      { 1 => { 5 => 'http://schema.org/offers' } }
+      { 1 => { 5 => 'http://schema.org/offers' } },
+      main_class
     )
 
     local_graph = add_triples_from_artsdata(local_graph)
 
     # convert to JSON-LD
-    json_graph = JSON.parse(local_graph.dump(:jsonld))
-
-    # frame JSON-LD
-    jsonld = JSON::LD::API.frame(json_graph, FrameLoader.event(webpage.first.language))
-
-    jsonld = make_google_jsonld(jsonld)
-    delete_ids(jsonld)
-    jsonld.to_json
+    graph_json = JSON.parse(local_graph.dump(:jsonld))
+    
+    # frame JSON-LD depending on main RDF Class
+    lang = webpage.first.language
+    frame_json = FrameLoader.load(main_class, lang)
+    if frame_json
+      graph_json = JSON::LD::API.frame(graph_json, frame_json)
+      graph_json = make_google_jsonld(graph_json)
+      delete_ids(graph_json)
+    else
+      context = JSON.parse(%({
+        "@context": {
+          "@vocab": "http://schema.org/"
+        }
+      }))['@context']
+      graph_json = JSON::LD::API.compact(graph_json, context)
+    end
+   
+   
+    graph_json.to_json
   end
 
   # Add triples from artsdata.ca using URIs of people, places and organizations
@@ -35,6 +48,7 @@ class JsonldGenerator
     statements_hash = statements.map do |s|
       { status: s.status,
         rdfs_class: s.source.property.rdfs_class_id,
+        rdfs_class_name: s.source.property.rdfs_class.name,
         predicate: s.source.property.uri,
         object: s.cache,
         language: s.source.language,
@@ -45,6 +59,7 @@ class JsonldGenerator
     statements_hash.map { |s|  s[:object] = JsonUriWrapper.extract_uris_from_cache(s[:object]) if s[:value_datatype] == "xsd:anyURI" }
     # remove any blank statements
     statements_hash.select! { |s| s[:object].present? && s[:object] != '[]' }
+    return statements_hash
   end
 
   def self.make_google_jsonld(jsonld)
@@ -65,8 +80,9 @@ class JsonldGenerator
   end
 
   # Build a local graph from condenser statements
-  def self.build_graph(rdf_uri, statements, nesting_options)
+  def self.build_graph(rdf_uri, statements, nesting_options, main_class = "Event")
     statements_hash = build_statements_hash(statements)
+    
     graph = RDF::Graph.new
 
     subject = rdf_uri.sub('adr:', 'http://kg.artsdata.ca/resource/')
@@ -76,7 +92,9 @@ class JsonldGenerator
     pp nesting_options
     # create main Class and blank nodes for each nested class
     # and set subject first thing inside loop.
-    graph << [RDF::URI(subject), RDF.type, RDF::URI('http://schema.org/Event')]
+    
+    main_class_uri = "http://schema.org/#{main_class}"
+    graph << [RDF::URI(subject), RDF.type, RDF::URI(main_class_uri)]
     statements_hash.each do |s|
       next if s[:status] == 'initial' || s[:status] == 'problem'
 
