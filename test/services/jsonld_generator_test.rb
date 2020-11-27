@@ -1,6 +1,18 @@
 require 'test_helper'
 
 class JsonldGeneratorTest < ActiveSupport::TestCase
+
+  # test method build_graph
+  test "build_graph" do
+    rdf_uri = "adr:K11-11"
+    statements = [statements(:four)]
+    nesting_options =  { 1 => { 5 => 'http://schema.org/offers' } }
+    expected_output = []
+    assert_equal expected_output, JsonldGenerator.build_graph(rdf_uri, statements, nesting_options)
+  end
+
+
+  # test method extract_object_uris
   test "should extract no URIs" do
     graph = RDF::Graph.new << [:hello, RDF::RDFS.label, "Hello, world!"]
     expected_output = []
@@ -14,6 +26,7 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     assert_equal expected_output, JsonldGenerator.extract_object_uris(graph).sort
   end
 
+  # test method describe_uri
   test "should return graph" do
     uri = RDF::URI.new("http://kg.artsdata.ca/resource/K10-344")
     expected_output = 18
@@ -27,7 +40,6 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
   end
 
   # tests method make_google_jsonld
-
   test "should not fail with blank jsonld" do
     jsonld = ''
     assert_nil JsonldGenerator.make_google_jsonld(jsonld)
@@ -40,7 +52,6 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
   end
 
   # tests method delete_ids
-
   test "should remove @ids" do
     jsonld = {"one" => "thing", "@id" => "123"}
     expected_output = {"one" => "thing"}

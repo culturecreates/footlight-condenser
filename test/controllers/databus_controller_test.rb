@@ -3,12 +3,8 @@ require 'test_helper'
 class DatabusControllerTest < ActionDispatch::IntegrationTest
   test "should get index" do
     get databus_index_url
-    assert_response :success
+    assert_response(:success, message: "To laod credentials >source .aws_keys")
   end
 
-  test "should get create" do
-    put databus_create_url
-    assert_response :success
-  end
 
 end

@@ -9,7 +9,7 @@ one:
 two:
   label: Name
   value_datatype: MyString
-  uri: MyString
+  uri: http://schema.org/name
   rdfs_class: place
 
 three:
