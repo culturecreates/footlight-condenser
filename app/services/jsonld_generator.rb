@@ -28,6 +28,7 @@ class JsonldGenerator
         }
       }))['@context']
       graph_json = JSON::LD::API.compact(graph_json, context)
+      delete_ids(graph_json)
     end
    
    
