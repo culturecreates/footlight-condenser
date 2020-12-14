@@ -89,6 +89,7 @@ module StatementsHelper
         agent = Mechanize.new
         agent.user_agent_alias = 'Mac Safari'
         html = agent.get_file  use_wringer(url, source.render_js, scrape_options)
+        # If response type is json then load json, otherwise load html in next line
         page = Nokogiri::HTML html
         results_list = []
         algorithm.split(';').each do |a|
@@ -136,6 +137,12 @@ module StatementsHelper
           elsif  a.start_with? 'time_zone'
             results_list << "time_zone: #{a.delete_prefix('time_zone=')}"
             logger.info "*** Adding time_zone: #{results_list}"
+          elsif a.start_with? 'json'
+            json = JSON.parse(page.text)
+            ## use this pattern in source algorithm --> json=$json['name']
+            command = a.delete_prefix('json=')
+            command.gsub!('$json', 'json')
+            results_list = eval(command)
           end
         end
       rescue StandardError => e
