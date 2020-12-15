@@ -239,12 +239,15 @@ class StatementsController < ApplicationController
 
     def extract_property_ids rdfs_class_name, property_ids
       # recursive function to traverse tree of properties and add properties of sub-classes with data type of Blank Node or "bnode"
-      rdfs_class = RdfsClass.where(name: rdfs_class_name).first
-      if rdfs_class
-        rdfs_class.properties.each do |property|
-          property_ids << property.id
-          if property.value_datatype == "bnode" || property.value_datatype == "xsd:anyURI"
-            extract_property_ids property.expected_class, property_ids
+      class_list = rdfs_class_name.split(',')
+      class_list.each do |c|
+        rdfs_class = RdfsClass.where(name: c).first
+        if rdfs_class
+          rdfs_class.properties.each do |property|
+            property_ids << property.id
+            if property.value_datatype == "bnode" || property.value_datatype == "xsd:anyURI"
+              extract_property_ids property.expected_class, property_ids
+            end
           end
         end
       end

@@ -19,13 +19,14 @@
     "eventStatus":{},
     "eventAttendanceMode":{},
     "location": {
-        "@type":"Place", 
+        "@type":["Place", "VirtualLocation"],
         "@explicit": true,
         "name": {"@value":{},"@language": "en"} ,
         "address": {
-            "@type":"PostalAddress",
+            "@type": ["PostalAddress"],
             "@explicit": false
-        }
+        },
+        "url":{}
     },
     "performer":{
             "@type": ["Organization","Person"],

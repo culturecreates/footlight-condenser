@@ -241,6 +241,13 @@ module StatementsHelper
     uris = [uri_string]
     # use property object to determine class
     rdfs_class = property_obj.expected_class
+
+    if rdfs_class.split(',').count > 1  
+      # there is a list of class types i.e. ["Place"," VirtualLocation"]
+      # TODO: Fix to search for all types
+      # Patch: for now take first expected class type only
+      rdfs_class = rdfs_class.split(',').first
+    end
     uris << rdfs_class
 
     ## if !uri_string.include?("Error")

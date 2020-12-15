@@ -111,6 +111,10 @@ class JsonldGenerator
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/eventStatus'), :bn]
         graph << [:bn,  RDF.type, RDF::URI('http://schema.org/EventStatusType')]
         graph << [:bn, RDF::URI(s[:predicate]), RDF::URI()]
+      elsif s[:rdfs_class_name] == "VirtualLocation"
+        graph << [RDF::URI(subject), RDF::URI('http://schema.org/location'), :bn3]
+        graph << [:bn3, RDF.type, RDF::URI('http://schema.org/VirtualLocation')]
+        graph << [:bn3, RDF::URI(s[:predicate]), s[:object]]
       ## TEMPORARY PATCH  END #########
 
       elsif  s[:value_datatype] == 'xsd:anyURI'
