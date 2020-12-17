@@ -56,17 +56,22 @@ class EventsController < ApplicationController
     uris_dates_publishable = dates.select { |s| (s.status == 'ok' || s.status == 'updated') }
                                   .map { |s| s.webpage.rdf_uri }
                                   .uniq
-    uris_location_publishable = get_uris_publishable "Location"
+    uris_location_publishable = get_uris_publishable('Event', 'Location')
+
+    uris_virtual_location_publishable = get_uris_publishable('VirtualLocation', 'Virtual Location')
 
     photos_hash.each do |photo|
       uri = photo[0]
       titles_hash[uri] = "Error" if titles_hash[uri].include?("error:")  #prevent sending events that have failed being scrapped
       @events << {rdf_uri: uri,
                   statements_status:
-                        {to_review: uris_to_review.include?(uri),
+                        { to_review: uris_to_review.include?(uri),
                             updated: uris_updated.include?(uri),
                             problem: uris_with_problems.include?(uri),
-                            publishable: uris_title_publishable.include?(uri) && uris_dates_publishable.include?(uri) && uris_location_publishable.include?(uri) },
+                            publishable: uris_title_publishable.include?(uri) && 
+                                         uris_dates_publishable.include?(uri) && 
+                                         (uris_location_publishable.include?(uri) ||  uris_virtual_location_publishable.include?(uri))
+                        },
                 photo: photo[1],
                 title: titles_hash[uri],
                 date: dates_hash[uri] || helpers.patch_invalid_date,
@@ -74,7 +79,7 @@ class EventsController < ApplicationController
               }
     end
 
-    @events.sort_by! {|item| item[:archive_date]}
+    @events.sort_by! { |item| item[:archive_date] }
     @total_events = @events.count
   end
 
@@ -102,14 +107,16 @@ class EventsController < ApplicationController
     Statement.joins({webpage: :website},:source).where(webpages:{websites: {seedurl: params[:seedurl]}}).where(sources: {selected: true}).pluck(:rdf_uri, :status).uniq
   end
 
-  def get_uris_publishable(property)
+  def get_uris_publishable(rdfs_class, property)
     # get property across all events in the website
     # TODO: This is misleading for bilingual sites which will have a publishable title 
     # if either en or fr meets the conditions of ok || updated
+
+    rdfs_class_id = RdfsClass.where(name: rdfs_class).first.id
     publishable_uris = Statement.joins({ source: [:property, :website] }, :webpage)
                                 .where(webpages: { websites: { seedurl: params[:seedurl] } })
                                 .where(sources: { selected: true })
-                                .where(sources: { properties: { label: property, rdfs_class: 1 } })
+                                .where(sources: { properties: { label: property, rdfs_class: rdfs_class_id } })
     # keep only those with status  OK || updated
     publishable_uris.select { |s| (s.status == 'ok' || s.status == 'updated') }
                            .map { |s| s.webpage.rdf_uri }
