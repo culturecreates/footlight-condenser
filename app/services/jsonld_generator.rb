@@ -76,8 +76,9 @@ class JsonldGenerator
     jsonld["performer"].delete('@id') if  jsonld["performer"]
     jsonld["organizer"].delete('@id') if  jsonld["organizer"]
     jsonld["location"].delete('@id') if  jsonld["location"]
-    
-    return jsonld
+    jsonld["@graph"].each do |g|
+      g.delete('@id') if g['@id'].include?('kg.artsdata.ca')
+    end
   end
 
   # Build a local graph from condenser statements
@@ -115,6 +116,10 @@ class JsonldGenerator
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/location'), :bn3]
         graph << [:bn3, RDF.type, RDF::URI('http://schema.org/VirtualLocation')]
         graph << [:bn3, RDF::URI(s[:predicate]), s[:object]]
+      elsif s[:rdfs_class_name] == "PostalAddress"
+        graph << [RDF::URI(subject), RDF::URI('http://schema.org/address'), :bn4 ]
+        graph << [ :bn4 , RDF.type, RDF::URI('http://schema.org/PostalAddress')]
+        graph << [ :bn4 , RDF::URI(s[:predicate]), s[:object]]
       ## TEMPORARY PATCH  END #########
 
       elsif  s[:value_datatype] == 'xsd:anyURI'
