@@ -76,8 +76,10 @@ class JsonldGenerator
     jsonld["performer"].delete('@id') if  jsonld["performer"]
     jsonld["organizer"].delete('@id') if  jsonld["organizer"]
     jsonld["location"].delete('@id') if  jsonld["location"]
-    jsonld["@graph"].each do |g|
-      g.delete('@id') if g['@id'].include?('kg.artsdata.ca')
+    if jsonld["@graph"]
+      jsonld["@graph"].each do |g|
+        g.delete('@id') if g['@id'].include?('kg.artsdata.ca')
+      end
     end
   end
 
