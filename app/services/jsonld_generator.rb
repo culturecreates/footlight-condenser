@@ -81,6 +81,7 @@ class JsonldGenerator
         g.delete('@id') if g['@id'].include?('kg.artsdata.ca')
       end
     end
+    jsonld
   end
 
   # Build a local graph from condenser statements
