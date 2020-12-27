@@ -13,70 +13,38 @@ class EventsController < ApplicationController
     if params[:startDate]
       begin
         start_date = Date.parse(params[:startDate])
-      rescue => exception
-        logger.error("Invalid start_date parameter: #{exception.inspect}")
+      rescue => e
+        logger.error("Invalid start_date parameter: #{e.inspect}")
       end
     end
 
     if params[:endDate]
       begin
         end_date = Date.parse(params[:endDate])
-      rescue => exception
-        logger.error("Invalid end_date parameter: #{exception.inspect}")
+      rescue => e
+        logger.error("Invalid end_date parameter: #{e.inspect}")
       end
     end
 
     time_span = [start_date..end_date]
 
-    titles = get_event_titles time_span
-    # remove blank titles which can happen with multiple languages
-    titles_hash = titles.pluck(:rdf_uri, :cache, "sources.language", :url)
-                        .map { |title| [title[0], title[1]] unless title[1].blank? }
-                        .to_h
+    website_statements_by_event(time_span).each do |k,v|
+      next if v.has_key?('URI List') # Exclude Resource List Class
 
-    photos = get_event_photos time_span
-    photos_hash = photos.pluck(:rdf_uri, :cache).to_h
-
-    dates = get_event_dates time_span
-    dates_hash = dates.pluck(:rdf_uri, :cache)
-                      .map { |array| [array[0], helpers.parse_date_string_array(array[1])] }
-                      .to_h
-
-    archive_dates = get_archive_dates
-    archive_dates_hash = archive_dates.to_h
-
-    event_status = get_event_status
-    uris_with_problems = event_status.select{|event| event[1] == "problem"}.map{|event| event = event[0]}
-    uris_to_review = event_status.select{|event| event[1] == "initial"}.map{|event| event = event[0]}
-    uris_updated = event_status.select{|event| event[1] == "updated"}.map{|event| event = event[0]}
-
-    uris_title_publishable = titles.select { |s| (s.status == 'ok' || s.status == 'updated') }
-                                   .map { |s| s.webpage.rdf_uri }
-                                   .uniq
-    uris_dates_publishable = dates.select { |s| (s.status == 'ok' || s.status == 'updated') }
-                                  .map { |s| s.webpage.rdf_uri }
-                                  .uniq
-    uris_location_publishable = get_uris_publishable('Event', 'Location')
-
-    uris_virtual_location_publishable = get_uris_publishable('VirtualLocation', 'Virtual Location')
-
-    photos_hash.each do |photo|
-      uri = photo[0]
-      titles_hash[uri] = "Error" if titles_hash[uri].include?("error:")  #prevent sending events that have failed being scrapped
-      @events << {rdf_uri: uri,
-                  statements_status:
-                        { to_review: uris_to_review.include?(uri),
-                            updated: uris_updated.include?(uri),
-                            problem: uris_with_problems.include?(uri),
-                            publishable: uris_title_publishable.include?(uri) && 
-                                         uris_dates_publishable.include?(uri) && 
-                                         (uris_location_publishable.include?(uri) ||  uris_virtual_location_publishable.include?(uri))
-                        },
-                photo: photo[1],
-                title: titles_hash[uri],
-                date: dates_hash[uri] || helpers.patch_invalid_date,
-                archive_date: archive_dates_hash[uri]
-              }
+      @events << {
+        rdf_uri: k,
+        statements_status:
+          {
+            to_review: v.any? { |_a, b| b.flatten.include?('initial') },
+            updated: v.any? { |_a,b| b.flatten.include?('updated') },
+            problem: v.any? { |_a,b| b.flatten.include?('problem') },
+            publishable: event_publishable?(v)
+          },
+        photo: v['Photo'][:cache],
+        title: v['Title'][:cache].include?('error:') ? 'Error' : v['Title'][:cache],
+        date: helpers.parse_date_string_array(v['Dates'][:cache]) || helpers.patch_invalid_date,
+        archive_date: v[:archive_date][:cache]
+      }
     end
 
     @events.sort_by! { |item| item[:archive_date] }
@@ -85,41 +53,33 @@ class EventsController < ApplicationController
 
   private
 
-  def get_event_titles archive_date_range = [Time.now - 10.years..Time.now + 10.years]
-    Statement.joins({source: [:property, :website]},:webpage)
-             .where({sources:{selected: true, properties:{label: "Title", rdfs_class: 1}, websites:  {seedurl: params[:seedurl]}, webpages: {archive_date: archive_date_range}  }  }  )
+  def website_statements_by_event(archive_date_range = [Time.now - 10.years..Time.now + 10.years])
+    website_statements =
+      Statement
+      .includes({ source: [:property, :website] }, :webpage)
+      .where({ sources: { selected: true, websites:  {seedurl: params[:seedurl]}, webpages: { archive_date: archive_date_range } } })
+      .order(:created_at)
+
+    # Group by event URI
+    events_by_uri = Hash.new { |h,k| h[k] = {} }
+    website_statements.each do |s|
+      events_by_uri[s.webpage.rdf_uri] =
+        events_by_uri[s.webpage.rdf_uri]
+        .merge({ s.source.property.label => { cache: s.cache, status: s.status } })
+        .merge({ archive_date: { cache: s.webpage.archive_date } })
+    end
+    events_by_uri
   end
 
-  def get_event_photos archive_date_range = [Time.now - 10.years..Time.now + 10.years]
-    Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Photo", rdfs_class: 1}, websites:  {seedurl:  params[:seedurl]}, webpages: {archive_date: archive_date_range}   }  }  )
-             .order(:created_at)
-  end
+  def event_publishable? data  
+    return false if data.has_key?("URI List")
 
-  def get_event_dates archive_date_range = [Time.now - 10.years..Time.now + 10.years]
-    Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Dates", rdfs_class: 1}, websites:  {seedurl:  params[:seedurl]}, webpages: {archive_date: archive_date_range}   }  }  ).order(:created_at)
-  end
+    publishable_states = ['ok','updated']
+    return false unless publishable_states.include?(data['Dates'][:status])
+    return false unless publishable_states.include?(data['Location'][:status]) ||
+                        publishable_states.include?(data['Virtual Location'][:status])
+    return false unless publishable_states.include?(data['Title'][:status])
 
-  def get_archive_dates
-    Webpage.joins(:website).where(rdfs_class: 1, websites: {seedurl: params[:seedurl]}).order(:archive_date).pluck(:rdf_uri, :archive_date)
-  end
-
-  def get_event_status
-    Statement.joins({webpage: :website},:source).where(webpages:{websites: {seedurl: params[:seedurl]}}).where(sources: {selected: true}).pluck(:rdf_uri, :status).uniq
-  end
-
-  def get_uris_publishable(rdfs_class, property)
-    # get property across all events in the website
-    # TODO: This is misleading for bilingual sites which will have a publishable title 
-    # if either en or fr meets the conditions of ok || updated
-
-    rdfs_class_id = RdfsClass.where(name: rdfs_class).first.id
-    publishable_uris = Statement.joins({ source: [:property, :website] }, :webpage)
-                                .where(webpages: { websites: { seedurl: params[:seedurl] } })
-                                .where(sources: { selected: true })
-                                .where(sources: { properties: { label: property, rdfs_class: rdfs_class_id } })
-    # keep only those with status  OK || updated
-    publishable_uris.select { |s| (s.status == 'ok' || s.status == 'updated') }
-                           .map { |s| s.webpage.rdf_uri }
-                           .uniq
+    true
   end
 end
