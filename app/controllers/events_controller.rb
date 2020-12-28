@@ -29,8 +29,14 @@ class EventsController < ApplicationController
     time_span = [start_date..end_date]
 
     website_statements_by_event(time_span).each do |k,v|
-      next if v.has_key?('URI List') # Exclude Resource List Class
+      next if !v.has_key?('Title') # Exclude other classes that don't have Title, like Resource List Class
 
+      title = if v.dig('Title',:cache).present? && !v.dig('Title',:cache).include?('error:')
+                v.dig('Title',:cache)
+              else
+                'Error'
+              end
+      date =  helpers.parse_date_string_array(v.dig('Dates',:cache)) || helpers.patch_invalid_date
       @events << {
         rdf_uri: k,
         statements_status:
@@ -40,10 +46,10 @@ class EventsController < ApplicationController
             problem: v.any? { |_a,b| b.flatten.include?('problem') },
             publishable: event_publishable?(v)
           },
-        photo: v['Photo'][:cache],
-        title: v['Title'][:cache].include?('error:') ? 'Error' : v['Title'][:cache],
-        date: helpers.parse_date_string_array(v['Dates'][:cache]) || helpers.patch_invalid_date,
-        archive_date: v[:archive_date][:cache]
+        photo: v.dig('Photo',:cache),
+        title: title,
+        date: date,
+        archive_date: v.dig(:archive_date,:cache)
       }
     end
 
@@ -75,10 +81,10 @@ class EventsController < ApplicationController
     return false if data.has_key?("URI List")
 
     publishable_states = ['ok','updated']
-    return false unless publishable_states.include?(data['Dates'][:status])
-    return false unless publishable_states.include?(data['Location'][:status]) ||
-                        publishable_states.include?(data['Virtual Location'][:status])
-    return false unless publishable_states.include?(data['Title'][:status])
+    return false unless publishable_states.include?(data.dig('Dates',:status))
+    return false unless publishable_states.include?(data.dig('Location',:status)) ||
+                        publishable_states.include?(data.dig('Virtual Location',:status))
+    return false unless publishable_states.include?(data.dig('Title',:status))
 
     true
   end
