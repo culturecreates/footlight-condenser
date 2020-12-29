@@ -31,12 +31,12 @@ class EventsController < ApplicationController
     website_statements_by_event(time_span).each do |k,v|
       next if !v.has_key?('Title') # Exclude other classes that don't have Title, like Resource List Class
 
-      title = if v.dig('Title',:cache).present? && !v.dig('Title',:cache).include?('error:')
+      title = if v.dig('Title',:cache).present? && !v.dig('Title', :cache).include?('error:')
                 v.dig('Title',:cache)
               else
                 'Error'
               end
-      date =  helpers.parse_date_string_array(v.dig('Dates',:cache)) || helpers.patch_invalid_date
+      date =  helpers.parse_date_string_array(v.dig('Dates', :cache)) || helpers.patch_invalid_date
       @events << {
         rdf_uri: k,
         statements_status:
