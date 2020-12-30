@@ -44,9 +44,11 @@ class JsonUriWrapper
   def self.sub_build_json_from_anyURI(value_array)
     value_obj = {search: value_array[0], class: value_array[1]}
     hits = []
-    value_array[2..-1].each do |hit|
-      if !hit.include?("abort")
-        hits << { label: hit[0], uri: hit[1]}
+    if value_array[2..-1]
+      value_array[2..-1].each do |hit|
+        if !hit.include?("abort")
+          hits << { label: hit[0], uri: hit[1]}
+        end
       end
     end
     value_obj[:links] = hits

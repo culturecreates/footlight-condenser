@@ -142,7 +142,7 @@ module StatementsHelper
             ## use this pattern in source algorithm --> json=$json['name']
             command = a.delete_prefix('json=')
             command.gsub!('$json', 'json')
-            results_list = eval(command)
+            results_list << eval(command)
           end
         end
       rescue StandardError => e
