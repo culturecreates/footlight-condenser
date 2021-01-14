@@ -88,7 +88,7 @@ module StatementsHelper
       begin
         agent = Mechanize.new
         agent.user_agent_alias = 'Mac Safari'
-        html = agent.get_file  use_wringer(url, source.render_js, scrape_options)
+        html = agent.get_file  use_wringer(url, source.render_js, scrape_options) unless  algorithm.split(';')[0].start_with? 'url'
         # If response type is json then load json, otherwise load html in next line
         page = Nokogiri::HTML html
         results_list = []
