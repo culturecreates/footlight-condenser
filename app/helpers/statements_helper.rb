@@ -242,7 +242,7 @@ module StatementsHelper
     # use property object to determine class
     rdfs_class = property_obj.expected_class
 
-    if rdfs_class.split(',').count > 1  
+    if rdfs_class.split(',').count > 1
       # there is a list of class types i.e. ["Place"," VirtualLocation"]
       # TODO: Fix to search for all types
       # Patch: for now take first expected class type only
@@ -250,16 +250,29 @@ module StatementsHelper
     end
     uris << rdfs_class
 
-    ## if !uri_string.include?("Error")
-    # search KG
+    #############################
+    # search Local Condenser DB
+    #############################
+    local_results = search_condenser(uri_string, rdfs_class)
 
+    local_results[:data].each do |uri|
+      if uri
+        http_uri = uri[1].gsub('adr:', 'http://kg.artsdata.ca/resource/')
+        uris << [uri[0], http_uri]
+      end
+    end
+
+    #############################
+    # search KG
+    #############################
     cckg_results = search_cckg(uri_string, rdfs_class)
+
     if cckg_results[:error]
       logger.error("*** search kg ERROR:  #{cckg_results}")
       uris << 'abort_update' # this forces the update to skip when the KG server is down and avoids setting everything to blank
     else
       cckg_results[:data].each do |uri|
-        uris << uri
+        uris << uri if uri
       end
     end
 
@@ -271,12 +284,12 @@ module StatementsHelper
         uris << 'abort_update' # this forces the update to skip when the KG server is down and avoids setting everything to blank
       else
         cckg_results[:data].each do |uri|
-          uris << uri
+          uris << uri if uri
         end
       end
     end
+
     uris.uniq!
-    ## end
 
     uris
   end
@@ -379,7 +392,7 @@ module StatementsHelper
         hits.uniq! { |hit| hit[1] }
 
         if rdfs_class == 'Place' || rdfs_class == 'Organization' || rdfs_class == 'Person'
-          hits.select! { |hit| hit[1].include? "kg.artsdata.ca/resource"  }
+          hits.select! { |hit| (hit[1].include? "kg.artsdata.ca/resource") || (hit[1].include? "laval.footlight.io/resource")  }
         end
 
         #################################################
