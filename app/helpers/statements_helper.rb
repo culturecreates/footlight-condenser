@@ -401,7 +401,7 @@ module StatementsHelper
     begin
       duration_in_seconds = ChronicDuration.parse(duration_str)
       duration_iso8601 = if duration_in_seconds.blank?
-                           "No duration found: #{duration_str}"
+                           '' # Leave statement empty so it gets ignored in the triple store.
                          else
                            "PT#{duration_in_seconds}S"
                          end
