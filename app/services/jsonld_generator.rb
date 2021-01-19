@@ -2,6 +2,7 @@
 class JsonldGenerator
   # main method to return converted JSON-LD
   def self.convert(statements, rdf_uri, webpage, main_class = "Event")
+    # Build a local graph using condenser statements
     local_graph = build_graph(
       rdf_uri,
       statements,
@@ -9,30 +10,47 @@ class JsonldGenerator
       main_class
     )
 
+    # add additional triples about Places, People, Organizations
     local_graph = add_triples_from_artsdata(local_graph)
 
     # convert to JSON-LD
     graph_json = JSON.parse(local_graph.dump(:jsonld))
-    
-    # frame JSON-LD depending on main RDF Class
+    puts "# convert to JSON-LD"
+    puts graph_json.to_json
+
+    # frame JSON-LD depending on main RDF Class and language
     lang = webpage.first.language
+    graph_json = frame_json(graph_json,main_class, lang)
+    puts "# frame"
+    pp graph_json
+
+    # makes changes for Google's flavour of JSON-LD
+    graph_json = make_google_jsonld(graph_json)
+    puts "# Google"
+    pp graph_json
+
+    # remove IDs that point to artsdata.ca
+    delete_ids(graph_json)
+
+    # return as a plain JSON object
+    graph_json.to_json
+  end
+
+  # Frame JSON-LD to display the desired properties
+  def self.frame_json(graph_json, main_class = 'Event', lang = 'en')
     frame_json = FrameLoader.load(main_class, lang)
     if frame_json
       graph_json = JSON::LD::API.frame(graph_json, frame_json)
-      graph_json = make_google_jsonld(graph_json)
-      delete_ids(graph_json)
     else
+      # There is no JSON-LD Frame for the Class, so just add context instead.
       context = JSON.parse(%({
         "@context": {
           "@vocab": "http://schema.org/"
         }
       }))['@context']
       graph_json = JSON::LD::API.compact(graph_json, context)
-      delete_ids(graph_json)
     end
-   
-   
-    graph_json.to_json
+    return graph_json
   end
 
   # Add triples from artsdata.ca using URIs of people, places and organizations
@@ -64,22 +82,20 @@ class JsonldGenerator
   end
 
   def self.make_google_jsonld(jsonld)
-    return unless jsonld['@graph']
-
     # remove context because Google doesn't like extra types
-    jsonld['@graph'][0].merge('@context' => 'https://schema.org/')
+    puts  jsonld.class 
+    jsonld['@context'] = 'https://schema.org/'
+    jsonld
   end
 
   def self.delete_ids(jsonld)
     # remove artsdata @ids to increase Google trust (experiment 2020-10-15)
-    jsonld.delete('@id')
-    jsonld["performer"].delete('@id') if  jsonld["performer"]
-    jsonld["organizer"].delete('@id') if  jsonld["organizer"]
-    jsonld["location"].delete('@id') if  jsonld["location"]
-    if jsonld["@graph"]
-      jsonld["@graph"].each do |g|
-        g.delete('@id') if g['@id'].include?('kg.artsdata.ca')
-      end
+    jsonld&.delete('@id')
+    jsonld['performer']&.delete('@id')
+    jsonld['organizer']&.delete('@id')
+    jsonld['location']&.delete('@id')
+    jsonld['@graph']&.each do |g|
+      g&.delete('@id') if g['@id']&.include?('kg.artsdata.ca')
     end
     jsonld
   end
@@ -87,7 +103,6 @@ class JsonldGenerator
   # Build a local graph from condenser statements
   def self.build_graph(rdf_uri, statements, nesting_options, main_class = "Event")
     statements_hash = build_statements_hash(statements)
-    
     graph = RDF::Graph.new
 
     subject = rdf_uri.sub('adr:', 'http://kg.artsdata.ca/resource/')
@@ -97,7 +112,7 @@ class JsonldGenerator
     pp nesting_options
     # create main Class and blank nodes for each nested class
     # and set subject first thing inside loop.
-    
+
     main_class_uri = "http://schema.org/#{main_class}"
     graph << [RDF::URI(subject), RDF.type, RDF::URI(main_class_uri)]
     statements_hash.each do |s|
@@ -139,14 +154,15 @@ class JsonldGenerator
           end
         end
       else
-        if s[:language].present?
-          object = RDF::Literal(s[:object], language: s[:language])
-        else
-          object = RDF::Literal(s[:object])
-        end
+        object = if s[:language].present?
+                   RDF::Literal(s[:object], language: s[:language])
+                 else
+                   RDF::Literal(s[:object])
+                 end
         graph << [RDF::URI(subject), RDF::URI(s[:predicate]), object]
       end
     end
+
     graph
   end
 
@@ -172,6 +188,17 @@ class JsonldGenerator
     graph = RDF::Graph.new
     result.each do |s|
       graph << [uri, s.to_h[:p], s.to_h[:o]]
+
+      # add type if object is a URI
+      if s.to_h[:o].uri?
+        query3 = RDF::Query.new do
+          pattern [s.to_h[:o], RDF.type, :c]
+        end
+        result3 = query3.execute(ArtsdataGraph.graph)
+        result3.each { |st| graph << [s.to_h[:o], RDF.type, st.to_h[:c]] }
+      end
+
+      # add blank nodes one level deep
       if s.to_h[:o].node?
         # Add blank nodes in object position to expand describe for location which contains a blank node for address.
         query2 = RDF::Query.new do

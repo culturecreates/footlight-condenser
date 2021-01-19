@@ -344,7 +344,7 @@ class StatementsHelperTest < ActionView::TestCase
   end
 
   test "ISO_duration: should find no duration" do
-    expected_output = "No duration found: There is nothing here"
+    expected_output = ""
     assert_equal expected_output, ISO_duration("There is nothing here")
   end
 

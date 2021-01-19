@@ -4,10 +4,8 @@
             "@vocab": "http://schema.org/",
             "startDate": {"@type":  "http://www.w3.org/2001/XMLSchema#dateTime"},
             "description" : {"@id":"description","@language": "en" },
-            "url":  {"@id":"url","@language": "en" },
             "name": {"@id":"name","@language": "en"},
-            "alternateName": {"@id":"alternateName","@language": "en"},
-            "image": {"@id":"image","@language": "en"}
+            "alternateName": {"@id":"alternateName","@language": "en"}
         },
     "@type": "Event",
     "@explicit": true,
@@ -18,6 +16,7 @@
     "url":{"@value":{},"@language": "en"},
     "eventStatus":{},
     "eventAttendanceMode":{},
+    "image":{},
     "location": {
         "@type":["Place", "VirtualLocation"],
         "@explicit": true,
@@ -26,25 +25,25 @@
             "@type": ["PostalAddress"],
             "@explicit": false
         },
-        "url":{}
+        "url":{},
+        "sameAs":{"@type": "URL"}
     },
     "performer":{
             "@type": ["Organization","Person"],
             "@explicit": true,
             "name": [{"@value":{}},{"@value":{},"@language": "en"}] ,
-            "sameAs":{},
+            "sameAs":{"@type": "URL"},
             "url":{},
             "alternateName":[{"@value":{},"@language": "en"}]
         },
-    "image":{},
     "offers": {
         "@type": "Offer"
     },
     "organizer":{
         "@type": ["Organization","Person"],
-        "@explicit": false,
+        "@explicit": true,
         "name": [{"@value":{}},{"@value":{},"@language": "en"}] ,
-        "sameAs":{},
+        "sameAs":{"@type": "URL"},
         "url":{},
         "alternateName":[{"@value":{},"@language": "en"}],
         "address": {

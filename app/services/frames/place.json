@@ -4,6 +4,5 @@
           "@vocab": "http://schema.org/"
       },
   "@type": "Place",
-  "@explicit": true,
-  "name": { "@value":{}}
+  "@explicit": false
 }

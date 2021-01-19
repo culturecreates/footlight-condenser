@@ -1,21 +1,28 @@
 # Class to manage JSON framing for JSON-LD manipulation
 class FrameLoader
-
   def self.load(main_class, lang)
 
-    if main_class == "Event"
-      file = 'app/services/frames/event.json'
-      case lang
-      when 'fr'
-        JSON.parse(File.read(file)
-          .gsub!('"@language": "en"', '"@language": "fr"'))
-      when 'en'
-        JSON.parse(File.read(file))
+    file_name = 
+      case main_class
+      when 'Event'
+        'app/services/frames/event.json'
+      when 'Place'
+        'app/services/frames/place.json'
       else
-        { error: "Unsupported language: #{lang}" }
+        nil
       end
-    else
-      return nil
+
+    return unless file_name
+
+    frame = File.read(file_name)
+
+    case lang
+    when 'fr'
+      frame.gsub!('"@language": "en"', '"@language": "fr"')
+    when 'en'
+      frame
     end
+
+    JSON.parse(frame)
   end
 end
