@@ -384,11 +384,9 @@ module StatementsHelper
             hits[n] = [hits[n]['name']['value'], hits[n]['uri']['value']]
           end
         end
-        
-        # only return hit if the name is unique #todo: find a way to remove owl:sameAS when the same entity has more than 1 URI
-        hits.uniq! { |hit| hit[0] }
 
-        ## remove duplicate URIs - needed to remove en/fr duplicates and alternte names of same entity
+
+        ## remove duplicate URIs - needed to remove en/fr duplicates and alternate names of same entity
         hits.uniq! { |hit| hit[1] }
 
         if rdfs_class == 'Place' || rdfs_class == 'Organization' || rdfs_class == 'Person'
