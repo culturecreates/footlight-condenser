@@ -11,12 +11,13 @@ class JsonldGenerator
     )
 
     # add additional triples about Places, People, Organizations
+    # TODO: pass langauge to best language can be selected for strings
     local_graph = add_triples_from_artsdata(local_graph)
 
     # convert to JSON-LD
     graph_json = JSON.parse(local_graph.dump(:jsonld))
     puts "# convert to JSON-LD"
-    puts graph_json.to_json
+    pp graph_json
 
     # frame JSON-LD depending on main RDF Class and language
     lang = webpage.first.language
@@ -50,7 +51,7 @@ class JsonldGenerator
       }))['@context']
       graph_json = JSON::LD::API.compact(graph_json, context)
     end
-    return graph_json
+    graph_json
   end
 
   # Add triples from artsdata.ca using URIs of people, places and organizations
@@ -96,6 +97,12 @@ class JsonldGenerator
     jsonld['location']&.delete('@id')
     jsonld['@graph']&.each do |g|
       g&.delete('@id') if g['@id']&.include?('kg.artsdata.ca')
+      g['location']&.delete('@id')
+      g.dig('location','address')&.delete('@id')
+      g['performer']&.delete('@id')
+      g['organizer']&.delete('@id')
+      g.dig('organizer','address')&.delete('@id')
+      g['offers']&.delete('@id')
     end
     jsonld
   end
@@ -123,7 +130,6 @@ class JsonldGenerator
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/offers'), :bn]
         graph << [:bn, RDF.type, RDF::URI('http://schema.org/Offer')]
         s[:object].make_into_array.each do |url|
-          puts "Offer: adding #{url}"
           graph << [:bn, RDF::URI(s[:predicate]), RDF::Literal(url)]
         end
       elsif s[:rdfs_class] == 41
@@ -180,6 +186,7 @@ class JsonldGenerator
   end
 
   # Get triples about a URI from Artsdata.ca
+  # TODO: Handle language here by selecting best language (coalescing (en, fr, none))?????
   def self.describe_uri(uri)
     query = RDF::Query.new do
       pattern [uri, :p, :o]
@@ -189,7 +196,8 @@ class JsonldGenerator
     result.each do |s|
       graph << [uri, s.to_h[:p], s.to_h[:o]]
 
-      # add type if object is a URI
+      # add object type if object is a URI 
+      # Example: set schema:sameAs object urls to be type schema:URL
       if s.to_h[:o].uri?
         query3 = RDF::Query.new do
           pattern [s.to_h[:o], RDF.type, :c]
