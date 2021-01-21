@@ -10,18 +10,26 @@ class JsonldGenerator
       main_class
     )
 
+    puts "# Local Graph"
+    pp local_graph.dump(:jsonld)
+
     # add additional triples about Places, People, Organizations
     # TODO: pass langauge to best language can be selected for strings
     local_graph = add_triples_from_artsdata(local_graph)
+
+
+
+    # remove language tags keeping best match
+    lang = webpage.first.language
+    local_graph = coalesce_language(local_graph, lang)
 
     # convert to JSON-LD
     graph_json = JSON.parse(local_graph.dump(:jsonld))
     puts "# convert to JSON-LD"
     pp graph_json
 
-    # frame JSON-LD depending on main RDF Class and language
-    lang = webpage.first.language
-    graph_json = frame_json(graph_json,main_class, lang)
+    # frame JSON-LD depending on main RDF Class
+    graph_json = frame_json(graph_json, main_class)
     puts "# frame"
     pp graph_json
 
@@ -38,8 +46,8 @@ class JsonldGenerator
   end
 
   # Frame JSON-LD to display the desired properties
-  def self.frame_json(graph_json, main_class = 'Event', lang = 'en')
-    frame_json = FrameLoader.load(main_class, lang)
+  def self.frame_json(graph_json, main_class = 'Event')
+    frame_json = RDFLoader.load_frame(main_class)
     if frame_json
       graph_json = JSON::LD::API.frame(graph_json, frame_json)
     else
@@ -60,6 +68,16 @@ class JsonldGenerator
     uris.each do |uri|
       local_graph << describe_uri(uri)
     end
+    local_graph
+  end
+
+  # coalesce languages to best match before JSON-LF Framing
+  def self.coalesce_language(local_graph, lang = "")
+    sparql = RDFLoader.load_sparql('coalesce_languages.sparql',["placeholder",lang])
+    sse = SPARQL.parse(sparql, update: true)
+    local_graph.query(sse)
+    # puts local_graph.dump(:ntriples)
+
     local_graph
   end
 

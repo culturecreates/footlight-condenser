@@ -66,6 +66,7 @@ end
 gem 'tzinfo-data', platforms: [:mingw, :mswin, :x64_mingw, :jruby]
 gem 'rdf', '~> 3.1.1'
 gem 'json-ld', '~> 3.0.2'
+gem 'sparql', '~> 3.1.3'
 gem 'will_paginate', '~> 3.1.6'
 
 gem 'scout_apm'  #used to monitor memory on Heroku

@@ -1,0 +1,16 @@
+PREFIX schema: <http://schema.org/>
+
+delete {
+    ?s ?prop ?o_en, ?o_fr, ?o_ .
+}
+insert {
+   ?s ?prop ?o_selected
+}
+where { 
+    values ?prop {schema:name schema:description schema:url}
+    OPTIONAL { ?s ?prop ?o_en .  filter(langMatches(lang(?o_en),"en")). }
+    OPTIONAL { ?s ?prop ?o_fr .  filter(langMatches(lang(?o_fr),"fr")). }
+    OPTIONAL { ?s ?prop ?o_ .  filter(langMatches(lang(?o_),"")). }
+    bind(coalesce(?o_placeholder, ?o_, ?o_en, ?o_fr)   as ?o_selected )
+    
+    } 
