@@ -22,7 +22,6 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
   end
 
   test "should return graph with no langauge tag preferred" do
-    puts @graph.dump(:ntriples)
     expected_output = RDF::Graph.new << [:hello, @schema.name,  RDF::Literal.new("Mien Théâtre")]
     assert_equal expected_output.dump(:ntriples), JsonldGenerator.coalesce_language(@graph).dump(:ntriples)
   end

@@ -10,14 +10,8 @@ class JsonldGenerator
       main_class
     )
 
-    puts "# Local Graph"
-    pp local_graph.dump(:jsonld)
-
     # add additional triples about Places, People, Organizations
-    # TODO: pass langauge to best language can be selected for strings
     local_graph = add_triples_from_artsdata(local_graph)
-
-
 
     # remove language tags keeping best match
     lang = webpage.first.language
@@ -25,18 +19,12 @@ class JsonldGenerator
 
     # convert to JSON-LD
     graph_json = JSON.parse(local_graph.dump(:jsonld))
-    puts "# convert to JSON-LD"
-    pp graph_json
 
     # frame JSON-LD depending on main RDF Class
     graph_json = frame_json(graph_json, main_class)
-    puts "# frame"
-    pp graph_json
 
     # makes changes for Google's flavour of JSON-LD
     graph_json = make_google_jsonld(graph_json)
-    puts "# Google"
-    pp graph_json
 
     # remove IDs that point to artsdata.ca
     delete_ids(graph_json)
@@ -76,8 +64,6 @@ class JsonldGenerator
     sparql = RDFLoader.load_sparql('coalesce_languages.sparql',["placeholder",lang])
     sse = SPARQL.parse(sparql, update: true)
     local_graph.query(sse)
-    # puts local_graph.dump(:ntriples)
-
     local_graph
   end
 
@@ -97,7 +83,7 @@ class JsonldGenerator
     statements_hash.map { |s|  s[:object] = JsonUriWrapper.extract_uris_from_cache(s[:object]) if s[:value_datatype] == "xsd:anyURI" }
     # remove any blank statements
     statements_hash.select! { |s| s[:object].present? && s[:object] != '[]' }
-    return statements_hash
+    statements_hash
   end
 
   def self.make_google_jsonld(jsonld)
@@ -136,7 +122,6 @@ class JsonldGenerator
 
     # TODO: Make generic - not only Event Class.
     # Interpret the nesting_options
-    pp nesting_options
     # create main Class and blank nodes for each nested class
     # and set subject first thing inside loop.
 
