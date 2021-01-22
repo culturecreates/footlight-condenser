@@ -245,7 +245,7 @@ class StatementsController < ApplicationController
         if rdfs_class
           rdfs_class.properties.each do |property|
             property_ids << property.id
-            if property.value_datatype == "bnode" || property.value_datatype == "xsd:anyURI"
+            if ((property.value_datatype == "bnode" || property.value_datatype == "xsd:anyURI") && property.expected_class != rdfs_class_name)
               extract_property_ids property.expected_class, property_ids
             end
           end
