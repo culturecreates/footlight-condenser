@@ -251,24 +251,21 @@ module StatementsHelper
     uris << rdfs_class
 
     #############################
-    # search Local Condenser DB
+    # search KG
     #############################
-    local_results = search_condenser(uri_string, rdfs_class)
+    cckg_results = search_cckg(uri_string, rdfs_class)
 
-    local_results[:data].each do |uri|
-      if uri
-        http_uri = uri[1].gsub('adr:', 'http://kg.artsdata.ca/resource/')
-        uris << [uri[0], http_uri] if current_webpage.rdf_uri != uri[1]  # DO not add the URI of the current URI (can happen when adding sameAs)
+    if cckg_results[:error]
+      logger.error("*** search kg ERROR:  #{cckg_results}")
+      uris << 'abort_update' # this forces the update to skip when the KG server is down and avoids setting everything to blank
+    else
+      cckg_results[:data].each do |uri|
+        uris << uri if uri
       end
     end
 
-    #############################
-    # search KG
-    #############################
-    
-   #  if uris.count == 2  #TODO:  Allow SPEC to review their artist and places pages before uncommenting 2021-01-20
-      cckg_results = search_cckg(uri_string, rdfs_class)
-
+    if rdfs_class == 'Organization'
+      cckg_results = search_cckg(uri_string, 'Person')
       if cckg_results[:error]
         logger.error("*** search kg ERROR:  #{cckg_results}")
         uris << 'abort_update' # this forces the update to skip when the KG server is down and avoids setting everything to blank
@@ -277,23 +274,25 @@ module StatementsHelper
           uris << uri if uri
         end
       end
+    end
 
-      if rdfs_class == 'Organization'
 
-        cckg_results = search_cckg(uri_string, 'Person')
-        if cckg_results[:error]
-          logger.error("*** search kg ERROR:  #{cckg_results}")
-          uris << 'abort_update' # this forces the update to skip when the KG server is down and avoids setting everything to blank
-        else
-          cckg_results[:data].each do |uri|
-            uris << uri if uri
-          end
+    # When nothing is found in artsdata.ca CC KG then try locally
+    if uris.count == 2  
+      #############################
+      # search Local Condenser DB
+      #############################
+      local_results = search_condenser(uri_string, rdfs_class)
+
+      local_results[:data].each do |uri|
+        if uri
+          http_uri = uri[1].gsub('adr:', 'http://kg.artsdata.ca/resource/')
+          uris << [uri[0], http_uri] if current_webpage.rdf_uri != uri[1]  # DO not add the URI of the current URI (can happen when adding sameAs)
         end
       end
-    #end
+    end
 
     uris.uniq!
-
     uris
   end
 
@@ -306,13 +305,12 @@ module StatementsHelper
       hits << entity if uri_string.downcase.include?(entity[0].downcase)
     end
 
-    # TODO: Allow SPEC to review their artist pages before uncommenting 2021-01-20
-    # if expected_class == "Organization"
-    #   entities = Statement.joins(source: :property).where({ sources: { properties: { label: 'Name', rdfs_class: RdfsClass.where(name: "Person") } } }).pluck(:cache, :webpage_id)
-    #   entities.each do |entity|
-    #     hits << entity if uri_string.downcase.include?(entity[0].downcase)
-    #   end
-    # end
+    if expected_class == "Organization"
+      entities = Statement.joins(source: :property).where({ sources: { properties: { label: 'Name', rdfs_class: RdfsClass.where(name: "Person") } } }).pluck(:cache, :webpage_id)
+      entities.each do |entity|
+        hits << entity if uri_string.downcase.include?(entity[0].downcase)
+      end
+    end
 
     # get uris
     hits.each_with_index do |hit, index|
