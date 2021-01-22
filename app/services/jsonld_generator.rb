@@ -10,6 +10,8 @@ class JsonldGenerator
       main_class
     )
 
+
+
     # add additional triples about Places, People, Organizations
     local_graph = add_triples_from_artsdata(local_graph)
 
@@ -54,7 +56,9 @@ class JsonldGenerator
   def self.add_triples_from_artsdata(local_graph)
     uris = extract_object_uris(local_graph)
     uris.each do |uri|
-      local_graph << describe_uri(uri)
+      additional_graph = describe_uri(uri)
+      # TODO: fetch remote data if additional_graph.count == 0
+      local_graph << additional_graph
     end
     local_graph
   end
@@ -87,8 +91,7 @@ class JsonldGenerator
   end
 
   def self.make_google_jsonld(jsonld)
-    # remove context because Google doesn't like extra types
-    puts  jsonld.class 
+    # remove context because Google doesn't like extra types 
     jsonld['@context'] = 'https://schema.org/'
     jsonld
   end
