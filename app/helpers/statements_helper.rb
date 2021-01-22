@@ -400,7 +400,7 @@ module StatementsHelper
         hits.uniq! { |hit| hit[1] }
 
         if rdfs_class == 'Place' || rdfs_class == 'Organization' || rdfs_class == 'Person'
-          hits.select! { |hit| hit[1].include? "kg.artsdata.ca/resource")  }
+          hits.select! { |hit| hit[1].include? "kg.artsdata.ca/resource"  }
         end
 
         #################################################
