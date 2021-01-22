@@ -234,7 +234,7 @@ module StatementsHelper
     data
   end
 
-  def search_for_uri(uri_string, property_obj, _webpage_obj)
+  def search_for_uri(uri_string, property_obj, current_webpage)
     # data structure of uri = ['name', 'rdfs_class', ['name', 'uri'], ['name','uri'],...]
     uri_string = uri_string.to_s.squish
 
@@ -258,27 +258,17 @@ module StatementsHelper
     local_results[:data].each do |uri|
       if uri
         http_uri = uri[1].gsub('adr:', 'http://kg.artsdata.ca/resource/')
-        uris << [uri[0], http_uri]
+        uris << [uri[0], http_uri] if current_webpage.rdf_uri != uri[1]  # DO not add the URI of the current URI (can happen when adding sameAs)
       end
     end
 
     #############################
     # search KG
     #############################
-    cckg_results = search_cckg(uri_string, rdfs_class)
+    
+   #  if uris.count == 2  #TODO:  Allow SPEC to review their artist and places pages before uncommenting 2021-01-20
+      cckg_results = search_cckg(uri_string, rdfs_class)
 
-    if cckg_results[:error]
-      logger.error("*** search kg ERROR:  #{cckg_results}")
-      uris << 'abort_update' # this forces the update to skip when the KG server is down and avoids setting everything to blank
-    else
-      cckg_results[:data].each do |uri|
-        uris << uri if uri
-      end
-    end
-
-    if rdfs_class == 'Organization'
-
-      cckg_results = search_cckg(uri_string, 'Person')
       if cckg_results[:error]
         logger.error("*** search kg ERROR:  #{cckg_results}")
         uris << 'abort_update' # this forces the update to skip when the KG server is down and avoids setting everything to blank
@@ -287,7 +277,20 @@ module StatementsHelper
           uris << uri if uri
         end
       end
-    end
+
+      if rdfs_class == 'Organization'
+
+        cckg_results = search_cckg(uri_string, 'Person')
+        if cckg_results[:error]
+          logger.error("*** search kg ERROR:  #{cckg_results}")
+          uris << 'abort_update' # this forces the update to skip when the KG server is down and avoids setting everything to blank
+        else
+          cckg_results[:data].each do |uri|
+            uris << uri if uri
+          end
+        end
+      end
+    #end
 
     uris.uniq!
 
@@ -303,11 +306,20 @@ module StatementsHelper
       hits << entity if uri_string.downcase.include?(entity[0].downcase)
     end
 
-    # get uris for found places
+    # TODO: Allow SPEC to review their artist pages before uncommenting 2021-01-20
+    # if expected_class == "Organization"
+    #   entities = Statement.joins(source: :property).where({ sources: { properties: { label: 'Name', rdfs_class: RdfsClass.where(name: "Person") } } }).pluck(:cache, :webpage_id)
+    #   entities.each do |entity|
+    #     hits << entity if uri_string.downcase.include?(entity[0].downcase)
+    #   end
+    # end
+
+    # get uris
     hits.each_with_index do |hit, index|
       webpage = Webpage.find(hit[1])
       hits[index][1] = webpage.rdf_uri if webpage
     end
+    
     { data: hits.uniq }
     # #TODO: ????also check (s.webpage.website == webpage.website)
   end
