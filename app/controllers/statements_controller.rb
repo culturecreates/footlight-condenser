@@ -118,8 +118,8 @@ class StatementsController < ApplicationController
   def update
     respond_to do |format|
       if @statement.update(statement_params)
-        format.html { redirect_to show_resources_path(rdf_uri: @statement.webpage.rdf_uri), notice: 'Statement was successfully updated.' }
-        format.json { redirect_to show_resources_path(rdf_uri: @statement.webpage.rdf_uri, format: :json)}
+        format.html { redirect_to statements_path(rdf_uri: @statement.webpage.rdf_uri), notice: 'Statement was successfully updated.' }
+        format.json { redirect_to statements_path(rdf_uri: @statement.webpage.rdf_uri, format: :json)}
       else
         format.html { render :edit }
         format.json { render json: @statement.errors, status: :unprocessable_entity }
