@@ -23,13 +23,13 @@
             "@explicit": false
         },
         "url":{},
-        "sameAs":{"@type": "URL"} 
+        "sameAs":{}
     },
     "performer":{
             "@type": ["Organization","Person"],
             "@explicit": true,
             "name": {},
-            "sameAs":{"@type": "URL"},
+            "sameAs":{},
             "url":{},
             "alternateName":{}
         },
