@@ -51,7 +51,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
         status: @statement.status,
         status_origin: @statement.status_origin,
         webpage_id: @statement.webpage_id } }
-    assert_redirected_to show_resources_path(rdf_uri: @statement.webpage.rdf_uri)
+    assert_redirected_to statements_path(rdf_uri: @statement.webpage.rdf_uri)
   end
 
   test "should REFRESH webpage" do
