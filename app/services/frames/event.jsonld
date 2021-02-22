@@ -29,7 +29,7 @@
             "@type": ["Organization","Person"],
             "@explicit": true,
             "name": {},
-            "sameAs":{},
+            "sameAs": {},
             "url":{},
             "alternateName":{}
         },
@@ -41,7 +41,7 @@
         "@type": ["Organization","Person"],
         "@explicit": true,
         "name": {}, 
-        "sameAs":{"@type": "URL"},
+        "sameAs": {},
         "url":{},
         "alternateName":{},
         "address": {
