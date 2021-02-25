@@ -15,6 +15,27 @@ class GraphsController < ApplicationController
   #   end
   # end
 
+  # GET /graphs/website/[:seedurl]
+  def website
+    @site = params[:seedurl] 
+    event_controller = EventsController.new
+    all_events = event_controller.website_statements_by_event(@site)
+
+    @publishable = []
+    all_events.each do |e|
+      @publishable << e[0] if event_controller.event_publishable?(e[1])
+    end
+
+    graph = JsonldGenerator.dump_events(@publishable)
+
+    @dump = graph.dump(:jsonld)
+
+    # POST /databus?jsonld=&artifact=&version=
+    databus = DatabusController.new
+    databus.save_on_s3(jsonld: @dump, artifact: "test artifact", version: "2021-02-23", file: "test1.json")
+    redirect_to databus_index_path
+  end
+
   # GET /graphs/webpage/event?url=
   def webpage_event
     webpage = Webpage.where(url: CGI.unescape(params[:url]))
@@ -23,20 +44,18 @@ class GraphsController < ApplicationController
     if webpage.count.positive?
       rdf_uri = webpage.first.rdf_uri
       webpages = Webpage.where(rdf_uri: rdf_uri)
+      main_class = webpage.first.rdfs_class.name
+      main_language = webpage.first.language
     end
     if webpages.present?
 
-      # get statements linked to the webpage that have selected sources.
-      statements =
-        Statement
-        .joins({ source: :property })
-        .where(webpage_id: webpages, sources: { selected: true })
+      statements = selected_statements(webpages)
 
       problem_statements = helpers.missing_required_properties(statements)
 
       if problem_statements.blank?
 
-        @google_jsonld = JsonldGenerator.convert(statements, rdf_uri, webpage, webpage.first.rdfs_class.name )
+        @google_jsonld = JsonldGenerator.convert(statements, rdf_uri, main_language, main_class )
       else
         problems_summary =
           problem_statements
@@ -57,5 +76,14 @@ class GraphsController < ApplicationController
       format.jsonld { render inline: @google_jsonld, content_type: 'application/ld+json' }
     end
   end
-end
 
+  private 
+
+  # get statements linked to the webpage that have selected sources.
+  def selected_statements(webpages)
+    statements =
+      Statement
+      .joins({ source: :property })
+      .where(webpage_id: webpages, sources: { selected: true })
+  end
+end

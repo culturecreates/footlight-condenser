@@ -68,6 +68,10 @@ Rails.application.routes.draw do
       to: 'graphs#webpage_event',
       as: :graphs_webpage_event
 
+  get 'graphs/website/:seedurl',
+      to: 'graphs#website',
+      as: :graphs_website
+
 ### eventually replace these with resouces websites, param: :seedurl
 
 ###   constraints: {seedurl: /[^\/]+/ }

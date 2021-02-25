@@ -1,7 +1,27 @@
 # Class to convert data in the Condensor data model to JSON-LD
 class JsonldGenerator
-  # main method to return converted JSON-LD
-  def self.convert(statements, rdf_uri, webpage, main_class = "Event")
+  # main method to dump all statements into a graph
+  def self.dump_events(events) # list of event uris
+    graphs = RDF::Graph.new
+    events.each do |uri|
+      statements = load_uri_statements(uri)
+      graph = build_graph(uri, statements, {}, 'Event')
+      graph = add_triples_from_artsdata(graph)
+      graphs << graph
+    end
+    graphs
+  end
+
+  # Load all ActiveRecord Statements that are selected 'true'
+  def self.load_uri_statements(rdf_uri)
+    # A uri may span statements from an english and french webpage
+    webpages = Webpage.where(rdf_uri: rdf_uri)
+    statements = Statement.joins({ source: :property }).where(webpage_id: webpages, sources: { selected: true })
+    statements
+  end
+
+  # main method to return converted JSON-LD for a webpage
+  def self.convert(statements, rdf_uri, main_language, main_class = "Event")
     # Build a local graph using condenser statements
     local_graph = build_graph(
       rdf_uri,
@@ -10,14 +30,11 @@ class JsonldGenerator
       main_class
     )
 
-
-
     # add additional triples about Places, People, Organizations
     local_graph = add_triples_from_artsdata(local_graph)
 
     # remove language tags keeping best match
-    lang = webpage.first.language
-    local_graph = coalesce_language(local_graph, lang)
+    local_graph = coalesce_language(local_graph, main_language)
 
     # convert to JSON-LD
     graph_json = JSON.parse(local_graph.dump(:jsonld))
@@ -134,23 +151,23 @@ class JsonldGenerator
 
       ## TEMPORARY PATCH START #########
       if s[:rdfs_class] == 5
-        graph << [RDF::URI(subject), RDF::URI('http://schema.org/offers'), :bn]
-        graph << [:bn, RDF.type, RDF::URI('http://schema.org/Offer')]
+        graph << [RDF::URI(subject), RDF::URI('http://schema.org/offers'), build_uri(subject,'Offer')]
+        graph << [build_uri(subject,'Offer'), RDF.type, RDF::URI('http://schema.org/Offer')]
         s[:object].make_into_array.each do |url|
-          graph << [:bn, RDF::URI(s[:predicate]), RDF::Literal(url)]
+          graph << [build_uri(subject,'Offer'), RDF::URI(s[:predicate]), RDF::Literal(url)]
         end
       elsif s[:rdfs_class] == 41
-        graph << [RDF::URI(subject), RDF::URI('http://schema.org/eventStatus'), :bn]
-        graph << [:bn,  RDF.type, RDF::URI('http://schema.org/EventStatusType')]
-        graph << [:bn, RDF::URI(s[:predicate]), RDF::URI()]
-      elsif s[:rdfs_class_name] == "VirtualLocation"
-        graph << [RDF::URI(subject), RDF::URI('http://schema.org/location'), :bn3]
-        graph << [:bn3, RDF.type, RDF::URI('http://schema.org/VirtualLocation')]
-        graph << [:bn3, RDF::URI(s[:predicate]), s[:object]]
-      elsif s[:rdfs_class_name] == "PostalAddress"
-        graph << [RDF::URI(subject), RDF::URI('http://schema.org/address'), :bn4 ]
-        graph << [ :bn4 , RDF.type, RDF::URI('http://schema.org/PostalAddress')]
-        graph << [ :bn4 , RDF::URI(s[:predicate]), s[:object]]
+        graph << [RDF::URI(subject), RDF::URI('http://schema.org/eventStatus'), build_uri(subject,'EventStatus')]
+        graph << [build_uri(subject, 'EventStatus'), RDF.type, RDF::URI('http://schema.org/EventStatusType')]
+        graph << [build_uri(subject, 'EventStatus'), RDF::URI(s[:predicate]), RDF::URI()]
+      elsif s[:rdfs_class_name] == 'VirtualLocation'
+        graph << [RDF::URI(subject), RDF::URI('http://schema.org/location'), build_uri(subject,'VirtualLocation')]
+        graph << [build_uri(subject, 'VirtualLocation'), RDF.type, RDF::URI('http://schema.org/VirtualLocation')]
+        graph << [build_uri(subject, 'VirtualLocation'), RDF::URI(s[:predicate]), s[:object]]
+      elsif s[:rdfs_class_name] == 'PostalAddress'
+        graph << [RDF::URI(subject), RDF::URI('http://schema.org/address'), build_uri(subject,'PostalAddress')]
+        graph << [build_uri(subject, 'PostalAddress'), RDF.type, RDF::URI('http://schema.org/PostalAddress')]
+        graph << [build_uri(subject, 'PostalAddress'), RDF::URI(s[:predicate]), s[:object]]
       ## TEMPORARY PATCH  END #########
 
       elsif  s[:value_datatype] == 'xsd:anyURI'
@@ -175,8 +192,16 @@ class JsonldGenerator
         graph << [RDF::URI(subject), RDF::URI(s[:predicate]), object]
       end
     end
-
     graph
+  end
+
+  # Build a URI using subject URI and appending 'str'
+  def self.build_uri(subject, str)
+    if subject.include?('#')
+      RDF::URI("#{subject}-#{str}")
+    else
+      RDF::URI("#{subject}##{str}")
+    end
   end
 
   # Return a list of URIs to be nested inside the JSON-LD

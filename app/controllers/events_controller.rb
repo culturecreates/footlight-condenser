@@ -1,9 +1,10 @@
 # Main API call for portal to get the index of events
-# GET /websites/:seedurl/events
+# GET /websites/:seedurl/events?startDate=&endDate=
 class EventsController < ApplicationController
   def index
     params[:startDate] # "2018-01-01"
     params[:endDate] # "2021-01-01"
+    params[:seedurl]
 
     @events = []
 
@@ -28,7 +29,7 @@ class EventsController < ApplicationController
 
     time_span = [start_date..end_date]
 
-    website_statements_by_event(time_span).each do |k,v|
+    website_statements_by_event(params[:seedurl], time_span).each do |k,v|
       next if !v.has_key?('Title') # Exclude other classes that don't have Title, like Resource List Class
 
       title = if v.dig('Title',:cache).present? && !v.dig('Title', :cache).include?('error:')
@@ -57,13 +58,11 @@ class EventsController < ApplicationController
     @total_events = @events.count
   end
 
-  private
-
-  def website_statements_by_event(archive_date_range = [Time.now - 10.years..Time.now + 10.years])
+  def website_statements_by_event(seedurl, archive_date_range = [Time.now - 10.years..Time.now + 10.years])
     website_statements =
       Statement
       .includes({ source: [:property, :website] }, :webpage)
-      .where({ sources: { selected: true, websites:  {seedurl: params[:seedurl]}, webpages: { archive_date: archive_date_range } } })
+      .where({ sources: { selected: true, websites: { seedurl: seedurl }, webpages: { archive_date: archive_date_range } } })
       .order(:created_at)
 
     # Group by event URI
