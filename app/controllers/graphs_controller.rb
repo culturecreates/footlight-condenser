@@ -31,9 +31,9 @@ class GraphsController < ApplicationController
     @dump = graph.dump(:jsonld)
 
     # POST /databus?jsonld=&artifact=&version=
-    databus = DatabusController.new
-    databus.save_on_s3(jsonld: @dump, artifact: "test artifact", version: "2021-02-23", file: "test1.json")
-    redirect_to databus_index_path
+    # databus = DatabusController.new
+    # databus.save_on_s3(jsonld: @dump, artifact: "test artifact", version: "2021-02-23", file: "test1.json")
+    # redirect_to databus_index_path
   end
 
   # GET /graphs/webpage/event?url=

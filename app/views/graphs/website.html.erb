@@ -1,10 +1,11 @@
 <h1> Website dump </h1>
 
 Site: <%= @site %> 
+<br> <br>
+Publishable events <%= @publishable.count  %>
+<br> <br> 
+Sample URI:
 <%=  debug @publishable.first  %>
-
-
 <br>
-Publishable count <%= @publishable.count  %>
 
-Graph: <%=   @dump %>
+Graph: <%=  debug JSON.parse(@dump) %>
