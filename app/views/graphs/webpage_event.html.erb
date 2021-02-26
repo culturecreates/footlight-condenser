@@ -1,11 +1,9 @@
-<p id="notice"><%= notice %></p>
-
 <%= debug JSON.parse(@google_jsonld) %>
 
 <hr>
 
 
-<%= link_to 'export to AWS', databus_create_path(
+<%= link_to 'export to S3', databus_create_path(
   jsonld: @google_jsonld, 
   artifact: params[:seedurl],  
   version:  Date.today.iso8601, 

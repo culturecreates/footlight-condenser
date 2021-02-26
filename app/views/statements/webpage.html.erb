@@ -1,4 +1,4 @@
-<p id="notice"><%= notice %></p>
+
 <ul>
 <% @statements.each do |statement| %>
   <%= statement.source.selected ? "<li>".html_safe : "<ul><li> Alternative".html_safe  %>
