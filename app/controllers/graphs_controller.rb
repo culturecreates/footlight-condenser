@@ -19,21 +19,8 @@ class GraphsController < ApplicationController
   def website
     @site = params[:seedurl] 
     event_controller = EventsController.new
-    all_events = event_controller.website_statements_by_event(@site)
-
-    @publishable = []
-    all_events.each do |e|
-      @publishable << e[0] if event_controller.event_publishable?(e[1])
-    end
-
-    graph = JsonldGenerator.dump_events(@publishable)
-
-    @dump = graph.dump(:jsonld)
-
-    # POST /databus?jsonld=&artifact=&version=
-    # databus = DatabusController.new
-    # databus.save_on_s3(jsonld: @dump, artifact: "test artifact", version: "2021-02-23", file: "test1.json")
-    # redirect_to databus_index_path
+    @publishable = event_controller.publishable_events(@site)
+    @dump = JsonldGenerator.dump_events(@publishable)
   end
 
   # GET /graphs/webpage/event?url=

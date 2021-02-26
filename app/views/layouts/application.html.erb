@@ -10,6 +10,7 @@
 
   <body  style="<%= 'background-color: #EE9;' if Rails.env.development? %>" >
     <%= render 'layouts/header' %>
+    <%= render 'shared/flash' %>
     <%= yield %>
   </body>
 </html>

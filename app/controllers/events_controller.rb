@@ -87,4 +87,14 @@ class EventsController < ApplicationController
 
     true
   end
+
+  def publishable_events(seedurl)
+    all_events = website_statements_by_event(seedurl)
+
+    publishable = []
+    all_events.each do |e|
+      publishable << e[0] if event_publishable?(e[1])
+    end
+    publishable
+  end
 end

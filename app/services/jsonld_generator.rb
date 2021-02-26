@@ -9,7 +9,7 @@ class JsonldGenerator
       graph = add_triples_from_artsdata(graph)
       graphs << graph
     end
-    graphs
+    graphs.dump(:jsonld)
   end
 
   # Load all ActiveRecord Statements that are selected 'true'
