@@ -2,6 +2,7 @@ Rails.application.routes.draw do
 
   get 'databus/index'
   post 'databus/create'
+  post 'databus/artsdata'
   
   resources :search_exceptions
   get 'custom/get_comotion_locations'
