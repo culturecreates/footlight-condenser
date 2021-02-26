@@ -2,13 +2,13 @@ class DatabusController < ApplicationController
   # GET /databus
   def index
     client = Aws::S3::Client.new(region: "ca-central-1", access_key_id: ENV["ACCESS_KEY_ID"], secret_access_key: ENV["SECRET_ACCESS_KEY"])
-    @result = client.list_objects(
+    result = client.list_objects(
       bucket: "data.culturecreates.com", 
       max_keys: 20, 
       prefix: 'databus/culture-creates/footlight/'
     )
-    if @result.contents
-      @contents = @result.contents
+    if result.contents
+      @contents = result.contents
     end
   end
 
