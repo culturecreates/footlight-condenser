@@ -161,27 +161,37 @@ module StatementsHelper
     false
   end
 
+
+  def convert_datetime(scraped_data)
+    logger.info("Formatting dateTime with: #{scraped_data}")
+    data = []
+    # check for time_zone
+    time_zone = nil
+    scraped_data.each do |t|
+      next unless t.class == String
+
+      if t.start_with?('time_zone:')
+        time_zone = t.split(':')[1].strip
+        scraped_data.delete(t)
+      end
+    end
+    scraped_data.each do |t|
+      data << if time_zone
+                ISO_dateTime(t, time_zone)
+              else
+                ISO_dateTime(t)
+              end
+    end
+    data
+  end
+
   def format_datatype(scraped_data, property, webpage)
     data = []
     if property.value_datatype == 'xsd:dateTime'
-      logger.info("Formatting dateTime with: #{scraped_data}")
-      # check for time_zone
-      time_zone = nil
-      scraped_data.each do |t|
-        next unless t.class == String
-
-        if t.start_with?('time_zone:')
-          time_zone = t.split(':')[1].strip
-          scraped_data.delete(t)
-        end
-      end
-      scraped_data.each do |t|
-        data << if time_zone
-                  ISO_dateTime(t, time_zone)
-                else
-                  ISO_dateTime(t)
-                end
-      end
+      data = convert_datetime(scraped_data)
+     
+    elsif property.value_datatype == 'xsd:date'
+      data = convert_datetime(scraped_data).map {|d| d.to_date}
     elsif property.value_datatype == 'xsd:anyURI'
       unless scraped_data.blank?
         # first check if scraped_data is already formated as an array, and then parse and skip search.
