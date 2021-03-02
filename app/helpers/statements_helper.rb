@@ -115,6 +115,7 @@ module StatementsHelper
             command = a.delete_prefix('ruby=')
             command.gsub!('$array', 'results_list')
             command.gsub!('$url', 'url')
+            command.gsub!('$json', 'json')
             results_list = eval(command)
           elsif a.start_with? 'xpath_sanitize'
             page_data = page.xpath(a.delete_prefix('xpath_sanitize='))
