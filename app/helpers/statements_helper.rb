@@ -20,8 +20,8 @@ module StatementsHelper
         _data = format_datatype(_scraped_data, source.property, webpage)
         #################################################
 
-        # add startDate to ArchiveDate in Webpages Table to be able to sort by date and refresh event still to come.
-        if source.property.uri == 'http://schema.org/startDate' && source.selected
+        # add last startDate and endDate to ArchiveDate in Webpages Table to be able to sort by date and refresh event still to come.
+        if (source.property.uri == 'http://schema.org/startDate' || source.property.uri == 'http://schema.org/endDate' ) && source.selected
           ## TODO: need to also check EventStatus is Postponed and set archive date to 1 year in the future.
           logger.info("*** Setting Last Show Date:#{_data}")
           # TODO: improve error handling to use consistent {error:}
