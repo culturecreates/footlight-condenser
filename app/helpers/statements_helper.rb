@@ -92,6 +92,7 @@ module StatementsHelper
         # If response type is json then load json, otherwise load html in next line
         page = Nokogiri::HTML html
         results_list = []
+        json_scraped = nil
         algorithm.split(';').each do |a|
           if a.start_with? 'url'
             # replace current page by sraping new url using format url='http://example.com'
@@ -115,23 +116,19 @@ module StatementsHelper
             command = a.delete_prefix('ruby=')
             command.gsub!('$array', 'results_list')
             command.gsub!('$url', 'url')
-            command.gsub!('$json', 'json')
+            command.gsub!('$json', 'json_scraped')
             results_list = eval(command)
           elsif a.start_with? 'xpath_sanitize'
             page_data = page.xpath(a.delete_prefix('xpath_sanitize='))
             page_data.each { |d| results_list << sanitize(d.to_s, tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href]) }
-
           elsif a.start_with? 'if_xpath'
             page_data = page.xpath(a.delete_prefix('if_xpath='))
             break if page_data.blank?
-
             page_data.each { |d| results_list << d.text }
-
           elsif a.start_with? 'xpath'
             algo = a.delete_prefix('xpath=').gsub('$url', url)
             page_data = page.xpath(algo)
             page_data.each { |d| results_list << d.text }
-
           elsif  a.start_with? 'css'
             page_data = page.css(a.delete_prefix('css='))
             page_data.each { |d| results_list << d.text }
@@ -139,10 +136,10 @@ module StatementsHelper
             results_list << "time_zone: #{a.delete_prefix('time_zone=')}"
             logger.info "*** Adding time_zone: #{results_list}"
           elsif a.start_with? 'json'
-            json = JSON.parse(page.text)
+            json_scraped = JSON.parse(page.text)
             ## use this pattern in source algorithm --> json=$json['name']
             command = a.delete_prefix('json=')
-            command.gsub!('$json', 'json')
+            command.gsub!('$json', 'json_scraped')
             results_list << eval(command)
           end
         end
@@ -170,7 +167,6 @@ module StatementsHelper
     time_zone = nil
     scraped_data.each do |t|
       next unless t.class == String
-
       if t.start_with?('time_zone:')
         time_zone = t.split(':')[1].strip
         scraped_data.delete(t)
@@ -190,7 +186,6 @@ module StatementsHelper
     data = []
     if property.value_datatype == 'xsd:dateTime'
       data = convert_datetime(scraped_data)
-     
     elsif property.value_datatype == 'xsd:date'
       data = convert_datetime(scraped_data).map {|d| d.to_date}
     elsif property.value_datatype == 'xsd:anyURI'
