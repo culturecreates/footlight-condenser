@@ -53,3 +53,13 @@ five:
   cache_changed: 2018-07-30 16:46:00 UTC
   source: three
   webpage: five
+
+
+six:
+  cache: 'Statement Six Name'
+  status: ok
+  status_origin: StatusOrigin
+  cache_refreshed: 2018-07-30 16:46:00 UTC
+  cache_changed: 2018-07-30 16:46:00 UTC
+  source: thirteen
+  webpage: seven

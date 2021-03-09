@@ -28,6 +28,11 @@ class ArtsdataGraph
   @@graph  << [RDF::URI("http://schema.org/OnlineEventAttendanceMode"), RDF.type, RDF::URI("http://schema.org/EventAttendanceModeEnumeration")] 
   @@graph  << [RDF::URI("http://schema.org/MixedEventAttendanceMode"), RDF.type, RDF::URI("http://schema.org/EventAttendanceModeEnumeration")] 
 
+  ## Load local entities
+  local_graph = LocalGraphGenerator.graph_all
+  # puts "Local graph: #{local_graph.dump(:ntriples)}"
+  @@graph << local_graph
+
   def self.graph
     @@graph
   end

@@ -26,7 +26,7 @@ three:
 four:
   url: MyPlaceUrl
   language: en
-  rdf_uri: httpUri
+  rdf_uri: adr:K11-11
   rdfs_class: place
   website: two
 
@@ -41,5 +41,12 @@ six:
   url: myUrl
   language: en
   rdf_uri: oneUrl
+  rdfs_class: place
+  website: two
+
+seven:
+  url: http://example.com/seven
+  language: en
+  rdf_uri: adr:seven
   rdfs_class: place
   website: two

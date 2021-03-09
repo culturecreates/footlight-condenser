@@ -49,3 +49,13 @@ twelve:
   render_js: false
   property: six
   website: one
+
+thirteen:
+  algorithm_value: MyString
+  selected: true
+  selected_by: MyString
+  language: en
+  next_step:
+  render_js: false
+  property: two
+  website: one

@@ -28,13 +28,13 @@ class StatementsHelperTest < ActionView::TestCase
 
   # search_condenser
   test "search_condenser: should search condenser for uris that match 100%" do
-    expected = {data:[["myPlaceName", "httpUri"]]}
+    expected = {data:[["myPlaceName", "adr:K11-11"]]}
     actual = search_condenser "myPlaceName", "Place"
     assert_equal expected, actual
   end
 
   test "search_condenser: should search condenser for uris by matching name in substring" do
-    expected = {data:[["myPlaceName", "httpUri"]]}
+    expected = {data:[["myPlaceName", "adr:K11-11"]]}
     actual = search_condenser "Show is at myPlaceName", "Place"
     assert_equal expected, actual
   end

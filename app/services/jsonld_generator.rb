@@ -5,7 +5,7 @@ class JsonldGenerator
     graphs = RDF::Graph.new
     events.each do |uri|
       statements = load_uri_statements(uri)
-      graph = build_graph(uri, statements, {}, 'Event')
+      graph = build_graph(statements, {})
       graph = add_triples_from_artsdata(graph)
       graphs << graph
     end
@@ -21,14 +21,9 @@ class JsonldGenerator
   end
 
   # main method to return converted JSON-LD for a webpage
-  def self.convert(statements, rdf_uri, main_language, main_class = "Event")
+  def self.convert(statements, main_language, main_class = "Event")
     # Build a local graph using condenser statements
-    local_graph = build_graph(
-      rdf_uri,
-      statements,
-      { 1 => { 5 => 'http://schema.org/offers' } },
-      main_class
-    )
+    local_graph = build_graph(statements,{ 1 => { 5 => 'http://schema.org/offers' } })
 
     # add additional triples about Places, People, Organizations
     local_graph = add_triples_from_artsdata(local_graph)
@@ -94,6 +89,8 @@ class JsonldGenerator
       { status: s.status,
         rdfs_class: s.source.property.rdfs_class_id,
         rdfs_class_name: s.source.property.rdfs_class.name,
+        webpage_class_name: s.webpage.rdfs_class.name,
+        subject: s.webpage.rdf_uri,
         predicate: s.source.property.uri,
         object: s.cache,
         language: s.source.language,
@@ -132,31 +129,31 @@ class JsonldGenerator
     jsonld
   end
 
-  # Build a local graph from condenser statements
-  def self.build_graph(rdf_uri, statements, nesting_options, main_class = "Event")
+  # Returns an RDF graph from condenser statements
+  def self.build_graph(statements, nesting_options = {})
     statements_hash = build_statements_hash(statements)
     graph = RDF::Graph.new
 
-    subject = rdf_uri.sub('adr:', 'http://kg.artsdata.ca/resource/')
-
-    # TODO: Make generic - not only Event Class.
-    # Interpret the nesting_options
-    # create main Class and blank nodes for each nested class
-    # and set subject first thing inside loop.
-
-    main_class_uri = "http://schema.org/#{main_class}"
-    graph << [RDF::URI(subject), RDF.type, RDF::URI(main_class_uri)]
     statements_hash.each do |s|
       next if s[:status] == 'initial' || s[:status] == 'problem'
 
+      main_class_uri = "http://schema.org/#{s[:webpage_class_name]}"
+      subject = s[:subject].sub('adr:', 'http://kg.artsdata.ca/resource/')
+      graph << [RDF::URI(subject), RDF.type, RDF::URI(main_class_uri)]
+
+
       ## TEMPORARY PATCH START #########
-      if s[:rdfs_class] == 5
+      # TODO: Make generic
+      puts "nesting_options unused: #{nesting_options}"
+      # Interpret the nesting_options to remove this patch
+
+      if s[:rdfs_class_name] == 'Offer'
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/offers'), build_uri(subject,'Offer')]
         graph << [build_uri(subject,'Offer'), RDF.type, RDF::URI('http://schema.org/Offer')]
         s[:object].make_into_array.each do |url|
           graph << [build_uri(subject,'Offer'), RDF::URI(s[:predicate]), RDF::Literal(url)]
         end
-      elsif s[:rdfs_class] == 41
+      elsif s[:rdfs_class_name] == 'EventStatus'
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/eventStatus'), build_uri(subject,'EventStatus')]
         graph << [build_uri(subject, 'EventStatus'), RDF.type, RDF::URI('http://schema.org/EventStatusType')]
         graph << [build_uri(subject, 'EventStatus'), RDF::URI(s[:predicate]), RDF::URI()]
@@ -228,14 +225,13 @@ class JsonldGenerator
     result.each do |s|
       graph << [uri, s.to_h[:p], s.to_h[:o]]
 
-      # add object type if object is a URI 
-      # Example: set schema:sameAs object urls to be type schema:URL
+      # If object is a URI then add one level deep to capture location address etc.
       if s.to_h[:o].uri?
         query3 = RDF::Query.new do
-          pattern [s.to_h[:o], RDF.type, :c]
+          pattern [s.to_h[:o], :b, :c]
         end
         result3 = query3.execute(ArtsdataGraph.graph)
-        result3.each { |st| graph << [s.to_h[:o], RDF.type, st.to_h[:c]] }
+        result3.each { |st| graph << [s.to_h[:o], st.to_h[:b], st.to_h[:c]] }
       end
 
       # add blank nodes one level deep

@@ -42,7 +42,7 @@ class GraphsController < ApplicationController
 
       if problem_statements.blank?
 
-        @google_jsonld = JsonldGenerator.convert(statements, rdf_uri, main_language, main_class )
+        @google_jsonld = JsonldGenerator.convert(statements, main_language, main_class)
       else
         problems_summary =
           problem_statements

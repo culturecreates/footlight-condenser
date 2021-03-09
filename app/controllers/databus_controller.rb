@@ -17,9 +17,9 @@ class DatabusController < ApplicationController
     required = [:jsonld, :artifact,  :version, :file]
     if required.all? { |k| params.key? k }
       result = save_on_s3(jsonld: params[:jsonld], artifact: params[:artifact], version: params[:version], file:params[:file] )
-      flash.now[:notice] = "Request was saved successfully."
+      flash.now[:notice] = "Request was saved successfully. #{result}"
     else
-      flash.now[:notice] = "Mising params. #{result}"
+      flash.now[:notice] = "Mising params. Required: #{required}"
     end
   end
 

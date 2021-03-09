@@ -3,11 +3,10 @@ require 'test_helper'
 class JsonldGeneratorTest < ActiveSupport::TestCase
   # test method build_graph
   test "build_graph" do
-    rdf_uri = "adr:K11-11"
     statements = [statements(:three)]
-    nesting_options = { 1 => { 5 => 'http://schema.org/offers' } }
+    nesting_options = {}
     expected_output = 2
-    assert_equal expected_output, JsonldGenerator.build_graph(rdf_uri, statements, nesting_options, "Place").count
+    assert_equal expected_output, JsonldGenerator.build_graph(statements, nesting_options).count
   end
 
   ############################
