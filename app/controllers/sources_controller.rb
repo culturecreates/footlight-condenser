@@ -1,5 +1,6 @@
 class SourcesController < ApplicationController
   before_action :set_source, only: [:show, :edit, :update, :destroy]
+  skip_before_action :verify_authenticity_token
 
   # GET /sources
   # GET /sources.json
@@ -71,6 +72,19 @@ class SourcesController < ApplicationController
       else
         format.html { render :edit }
         format.json { render json: @source.errors, status: :unprocessable_entity }
+      end
+    end
+  end
+
+  # PATCH/PUT /sources/1/review_all_statements.json
+  def review_all_statements
+    # get all statements that are linked to source id
+    statements = Statement.where(source: params[:id], status: ["updated","initial"])
+    respond_to do |format|
+      if statements.update(status: 'ok')
+        format.json { render status: :ok }
+      else
+        format.json { render json: statements.errors, status: :unprocessable_entity }
       end
     end
   end

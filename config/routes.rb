@@ -11,20 +11,22 @@ Rails.application.routes.draw do
 
   root 'websites#index'
 
-
   resources :statements do
     collection do
-      get  'webpage'
-      patch 'refresh_webpage','refresh_rdf_uri'
+      get 'webpage'
+      patch 'refresh_webpage', 'refresh_rdf_uri'
     end
     member do
-      patch 'activate', 'add_linked_data','remove_linked_data','refresh'
+      patch 'activate', 'add_linked_data', 'remove_linked_data', 'refresh'
     end
   end
 
   resources :sources do
     collection do
       get 'website'
+    end
+    member do
+      patch 'review_all_statements'
     end
   end
 
