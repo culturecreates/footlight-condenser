@@ -1,6 +1,6 @@
 # Class to convert data in the Condensor data model to JSON-LD
 class JsonldGenerator
-  # main method to dump all statements into a graph
+  # main method to dump all statements into a graph to push to artsdata
   def self.dump_events(events) # list of event uris
     graphs = RDF::Graph.new
     events.each do |uri|
@@ -20,7 +20,7 @@ class JsonldGenerator
     statements
   end
 
-  # main method to return converted JSON-LD for a webpage
+  # main method to return converted JSON-LD for a webpage with code snippet
   def self.convert(statements, main_language, main_class = "Event")
     # Build a local graph using condenser statements
     local_graph = build_graph(statements,{ 1 => { 5 => 'http://schema.org/offers' } })
@@ -35,9 +35,13 @@ class JsonldGenerator
     graph_json = JSON.parse(local_graph.dump(:jsonld))
 
     # frame JSON-LD depending on main RDF Class
+    # select a subset of properties for SDTT
+    # move xsd:dateTime to context since Google SDTT complains, 
+    # then remove from context in next step so it is completely gone
     graph_json = frame_json(graph_json, main_class)
 
     # makes changes for Google's flavour of JSON-LD
+    # remove xsd:dateTime from context since Google SDTT complains 
     graph_json = make_google_jsonld(graph_json)
 
     # remove IDs that point to artsdata.ca
@@ -105,7 +109,7 @@ class JsonldGenerator
   end
 
   def self.make_google_jsonld(jsonld)
-    # remove context because Google doesn't like extra types 
+    # remove context because Google doesn't like extra data types like xsd:dateTime
     jsonld['@context'] = 'https://schema.org/'
     jsonld
   end
