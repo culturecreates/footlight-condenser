@@ -49,3 +49,4 @@
 <br>
 
 <%= link_to 'New Statement', new_statement_path %>
+<%= link_to 'Review All', review_all_resources_by_query_path(rdf_uri: params[:rdf_uri]), method: :patch %>

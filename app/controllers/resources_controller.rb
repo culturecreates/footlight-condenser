@@ -77,7 +77,19 @@ class ResourcesController < ApplicationController
       end
   end
 
+  # PATCH /resources/review_all_resources_by_query?rdf_uri=
+  # Used only within Condenser
+  def review_all_resources_by_query
+    review_all_statements params[:rdf_uri], 'Condenser Admin'
+
+    respond_to do |format|
+      format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri], format: :html) }
+      format.json { redirect_to statements_path(rdf_uri: params[:rdf_uri], format: :json)}
+    end
+  end
+
   # PATCH /resources/:rdf_uri/reviewed_all
+  # Used by Footlight Client
   def reviewed_all
 
     review_all_statements params[:rdf_uri], params[:event][:status_origin]

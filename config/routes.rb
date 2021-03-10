@@ -100,6 +100,10 @@ Rails.application.routes.draw do
       to: "resources#reviewed_all",
       as: :reviewed_all_resources
 
+  patch 'resources/review_all_resources_by_query',
+      to: "resources#review_all_resources_by_query",
+      as: :review_all_resources_by_query
+
   patch 'resources/:rdf_uri/archive',
       to: "resources#archive",
       as: :archive_resources
