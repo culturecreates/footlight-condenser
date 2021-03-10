@@ -90,13 +90,13 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
       "@id" => "http://kg.artsdata.ca/resource/K10-440", "name" => "organizer name"},
       "performer" =>  {"@id" => "http://kg.artsdata.ca/resource/K10-440"},
       "location" =>  {"@id" => "http://kg.artsdata.ca/resource/K10-440"}}
-    expected_output = {"one" => "thing",  "organizer" =>  {"name" => "organizer name"}, "performer"=>{}, "location"=>{}}
+    expected_output = {"one" => "thing",  "organizer" =>  {"@id"=>"http://kg.artsdata.ca/resource/K10-440", "name" => "organizer name"}, "performer"=>{"@id"=>"http://kg.artsdata.ca/resource/K10-440"}, "location"=>{"@id"=>"http://kg.artsdata.ca/resource/K10-440"}}
     assert_equal expected_output, JsonldGenerator.delete_ids(jsonld)
   end
 
   test "should remove all @ids inside @graph and in list of performers" do
     jsonld = {'@graph' => [{"performer" => [ {"@id" => "http://kg.artsdata.ca/resource/K10-440", "name" => "K10-440"},{"@id" => "http://kg.artsdata.ca/resource/K10-441", "name" => "K10-441"}]}]}
-    expected_output = {'@graph' => [{"performer" =>  [{"name" => "K10-440"},{"name" => "K10-441"}] }]}
+    expected_output = {'@graph' => [{"performer" =>  [{"@id"=>"http://kg.artsdata.ca/resource/K10-440", "name" => "K10-440"},{"@id"=>"http://kg.artsdata.ca/resource/K10-441", "name" => "K10-441"}] }]}
     assert_equal expected_output, JsonldGenerator.delete_ids(jsonld)
   end
 end

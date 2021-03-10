@@ -114,16 +114,16 @@ class JsonldGenerator
     # remove artsdata @ids to increase Google trust (experiment 2020-10-15)
     # TODO: Make this recursive
     jsonld&.delete('@id')
-    jsonld['performer']&.delete('@id')
-    jsonld['organizer']&.delete('@id')
-    jsonld['location']&.delete('@id')
+    # jsonld['performer']&.delete('@id')
+    # jsonld['organizer']&.delete('@id')
+    # jsonld['location']&.delete('@id')
     jsonld['@graph']&.each do |g|
       g&.delete('@id') if g['@id']&.include?('kg.artsdata.ca')
-      g['location']&.delete('@id')
-      g['performer']&.delete('@id')
-      g['performer']&.each { |a| a&.delete('@id') }
-      g['organizer']&.delete('@id')
-      g['organizer']&.each { |a| a&.delete('@id') }
+      # g['location']&.delete('@id')
+      # g['performer']&.delete('@id')
+      # g['performer']&.each { |a| a&.delete('@id') }
+      # g['organizer']&.delete('@id')
+      # g['organizer']&.each { |a| a&.delete('@id') }
       g['offers']&.delete('@id')
     end
     jsonld
