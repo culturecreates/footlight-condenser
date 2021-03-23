@@ -458,7 +458,7 @@ module StatementsHelper
 
       iso_date_time = d.iso8601
     rescue StandardError => e
-      iso_date_time = "Bad input date_time: #{date_time} with error: #{e.inspect}"
+      iso_date_time = "Bad input for date/time: #{date_time}"
     end
     iso_date_time
   end
