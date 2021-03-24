@@ -19,6 +19,11 @@ class CcWringerHelperTest < ActionView::TestCase
     assert_equal expected_output, use_wringer("http://culturecreates.com", true)
   end
 
+  test "should convert url for wringer using json_post" do
+    expected_output = "http://localhost:3009/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true&json_post=true"
+    assert_equal expected_output, use_wringer("http://culturecreates.com", false, { json_post: true })
+  end
+
 
   # test "should call wringer to condense and add webpage to knowledge graph" do
   #   expected_output = ""

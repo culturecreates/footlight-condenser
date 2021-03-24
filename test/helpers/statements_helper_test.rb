@@ -124,7 +124,7 @@ class StatementsHelperTest < ActionView::TestCase
     scraped_data = ["time_zone:  Nowhere Time (US & Canada) ","2020-05-28T22:00:00-01:00", "2020-05-31T22:00:00-01:00"]
     webpage = webpages(:one)
     actual = format_datatype(scraped_data, property, webpage)
-    expected = ["Bad input date_time: 2020-05-28T22:00:00-01:00 with error: #<ArgumentError: Invalid Timezone: Nowhere Time (US & Canada)>", "Bad input date_time: 2020-05-31T22:00:00-01:00 with error: #<ArgumentError: Invalid Timezone: Nowhere Time (US & Canada)>"]
+    expected = ["Bad input for date/time: 2020-05-28T22:00:00-01:00.  (#<ArgumentError: Invalid Timezone: Nowhere Time (US & Canada)>)", "Bad input for date/time: 2020-05-31T22:00:00-01:00.  (#<ArgumentError: Invalid Timezone: Nowhere Time (US & Canada)>)"]
     assert_equal expected, actual
    end
 

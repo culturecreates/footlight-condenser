@@ -88,14 +88,15 @@ module StatementsHelper
       begin
         agent = Mechanize.new
         agent.user_agent_alias = 'Mac Safari'
-        html = agent.get_file  use_wringer(url, source.render_js, scrape_options) unless  algorithm.start_with?('url','ruby')
+        html = agent.get_file  use_wringer(url, source.render_js, scrape_options) unless  algorithm.start_with?('url','ruby','post_url')
         # If response type is json then load json, otherwise load html in next line
         page = Nokogiri::HTML html
         results_list = []
         json_scraped = nil
         algorithm.split(';').each do |a|
           if a.start_with? 'url'
-            # replace current page by sraping new url using format url='http://example.com'
+            # replace current page by scraping new url with wringer
+            # using format url='http://example.com'
             new_url = a.delete_prefix('url=')
             new_url = new_url.gsub('$array', 'results_list')
             new_url = new_url.gsub('$url', 'url')
@@ -103,7 +104,19 @@ module StatementsHelper
             logger.info "*** New URL formed: #{new_url}"
             html = agent.get_file use_wringer(new_url, source.render_js, scrape_options)
             page = Nokogiri::HTML html
+          elsif a.start_with? 'post_url'
+            # replace current page data by scraping new url with wringer using POST
+            # using format url='http://example.com?param_for_post='
+            new_url = a.delete_prefix('post_url=')
+            new_url = new_url.gsub('$array', 'results_list')
+            new_url = new_url.gsub('$url', 'url')
+            new_url = eval(new_url)
+            logger.info "*** New POST URL formed: #{new_url}"
+            temp_scrape_options = scrape_options.merge(json_post: true)
+            data = agent.get_file use_wringer(new_url, source.render_js, temp_scrape_options)
+            page = Nokogiri::HTML data
           elsif a.start_with? 'api'
+            # Call API without going through wringer
             new_url = a.delete_prefix('api=')
             new_url = new_url.gsub('$array', 'results_list')
             new_url = new_url.gsub('$url', 'url')
@@ -458,7 +471,7 @@ module StatementsHelper
 
       iso_date_time = d.iso8601
     rescue StandardError => e
-      iso_date_time = "Bad input for date/time: #{date_time}"
+      iso_date_time = "Bad input for date/time: #{date_time}.  (#{e.inspect})"
     end
     iso_date_time
   end
