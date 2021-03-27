@@ -108,7 +108,7 @@ module StructuredDataHelper
     _jsonld = {
       "@context":
         {
-          "@vocab": "http://schema.org",
+          "@vocab": "http://schema.org/",
           "description_en":{"@id": "description", "@language": "en"},
           "description_fr":{"@id": "description","@language": "fr"},
           "name_en":{"@id": "name",	"@language": "en"},
@@ -174,7 +174,7 @@ module StructuredDataHelper
       @events << {
         "@context":
           {
-            "@vocab": "http://schema.org",
+            "@vocab": "http://schema.org/",
             "name_fr": {"@id": "name", "@language": "fr"},
             "name_en": {"@id": "name",	"@language": "en"}
           },
