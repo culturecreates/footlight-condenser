@@ -337,6 +337,12 @@ module StatementsHelper
       hits[index][1] = webpage.rdf_uri if webpage
     end
     
+    #################################################
+    # REMOVE NAMES THAT CREATE MANY FALSE POSITIVES - until better analysis with NLP is available
+    names_to_remove = SearchException.where(rdfs_class: RdfsClass.where(name: expected_class)).pluck(:name)
+    hits.reject! { |hit| names_to_remove.include? hit[0] }
+    #################################################
+    
     { data: hits.uniq }
     # #TODO: ????also check (s.webpage.website == webpage.website)
   end
