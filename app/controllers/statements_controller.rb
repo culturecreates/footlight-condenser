@@ -68,7 +68,7 @@ class StatementsController < ApplicationController
   # GET /statements
   # GET /statements.json
   def index
-    cookies[:seedurl] = params[:seedrul] if !params[:seedrul].blank?
+    cookies[:seedurl] = params[:seedurl] if !params[:seedurl].blank?
     if params[:rdf_uri]
       webpage = Webpage.where(rdf_uri:params[:rdf_uri] )
       @statements = Statement.joins(:source).where(webpage_id: webpage).order( "sources.selected DESC" , "sources.property_id" ).paginate(page: params[:page], per_page: params[:per_page])
