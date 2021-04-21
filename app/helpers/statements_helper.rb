@@ -232,9 +232,11 @@ module StatementsHelper
             end
             data << search_for_uri(str, property, webpage)
           else
-            scraped_data.each do |uri_string|
-              if uri_string.present? # Do not try to link URIs with empty strings
-                data << search_for_uri(uri_string, property, webpage)
+            if scraped_data.class == Array
+              scraped_data.each do |uri_string|
+                if uri_string.present? # Do not try to link URIs with empty strings
+                  data << search_for_uri(uri_string, property, webpage)
+                end
               end
             end
           end
