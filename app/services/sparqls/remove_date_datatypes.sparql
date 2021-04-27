@@ -1,0 +1,15 @@
+PREFIX schema: <http://schema.org/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+delete {
+  ?s ?prop ?o .
+}
+insert {
+  ?s ?prop ?o_string
+}
+where {    
+  values ?types {xsd:dateTime xsd:date}
+  ?s ?prop ?o .
+  filter (datatype(?o) = ?types )
+  bind(str(?o) as ?o_string )
+} 

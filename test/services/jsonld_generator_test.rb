@@ -99,4 +99,27 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     expected_output = {'@graph' => [{"performer" =>  [{"@id"=>"http://kg.artsdata.ca/resource/K10-440", "name" => "K10-440"},{"@id"=>"http://kg.artsdata.ca/resource/K10-441", "name" => "K10-441"}] }]}
     assert_equal expected_output, JsonldGenerator.delete_ids(jsonld)
   end
+
+
+  ############################
+  # test make_google_graph
+  ############################
+
+  test "remove datatypes" do
+    input_graph = RDF::Graph.new << [:hello, @schema.startDate, RDF::Literal::DateTime.new("2020-07-14T08:00:00-04:00")]
+    input_graph << [:hello, @schema.endDate, RDF::Literal::Date.new("2020-07-14")]
+    expected_output = RDF::Graph.new << [:hello, @schema.startDate, RDF::Literal.new("2020-07-14T08:00:00-04:00")]
+    expected_output << [:hello, @schema.endDate, RDF::Literal.new("2020-07-14")]
+    assert_equal expected_output.dump(:ntriples), JsonldGenerator.make_google_graph(input_graph).dump(:ntriples)
+  end
+
+  test "handle list of startDates" do
+    input_graph = RDF::Graph.new <<  [:hello, @schema.startDate, RDF::Literal::DateTime.new("2020-07-14T08:00:00-04:00")]
+    input_graph << [:hello, @schema.startDate, RDF::Literal::DateTime.new("2020-07-15T08:00:00-04:00")]
+    expected_output = RDF::Graph.new << [:hello, @schema.startDate, RDF::Literal.new("2020-07-14T08:00:00-04:00")]
+    expected_output << [:hello, @schema.startDate, RDF::Literal.new("2020-07-15T08:00:00-04:00")]
+    assert_equal expected_output.dump(:ntriples), JsonldGenerator.make_google_graph(input_graph).dump(:ntriples)
+  end
+
+  
 end

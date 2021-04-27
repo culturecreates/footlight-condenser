@@ -1,8 +1,7 @@
 {
     "@context":
         {
-            "@vocab": "http://schema.org/",
-            "startDate": {"@type":  "http://www.w3.org/2001/XMLSchema#dateTime"} 
+            "@vocab": "http://schema.org/"
         },
     "@type": "Event",
     "@explicit": true,

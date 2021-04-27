@@ -31,18 +31,15 @@ class JsonldGenerator
     # remove language tags keeping best match
     local_graph = coalesce_language(local_graph, main_language)
 
+    # makes changes for Google's flavour of RDF
+    local_graph = make_google_graph(local_graph)
+
     # convert to JSON-LD
     graph_json = JSON.parse(local_graph.dump(:jsonld))
 
     # frame JSON-LD depending on main RDF Class
     # select a subset of properties for SDTT
-    # move xsd:dateTime to context since Google SDTT complains, 
-    # then remove from context in next step so it is completely gone
     graph_json = frame_json(graph_json, main_class)
-
-    # makes changes for Google's flavour of JSON-LD
-    # remove xsd:dateTime from context since Google SDTT complains 
-    graph_json = make_google_jsonld(graph_json)
 
     # remove IDs that point to artsdata.ca
     delete_ids(graph_json)
@@ -108,10 +105,12 @@ class JsonldGenerator
     statements_hash
   end
 
-  def self.make_google_jsonld(jsonld)
-    # remove context because Google doesn't like extra data types like xsd:dateTime
-    jsonld['@context'] = 'https://schema.org/'
-    jsonld
+  # make Google SDTT pass by removing data types like xsd:dateTime and xsd:date
+  def self.make_google_graph(local_graph)
+    sparql = RDFLoader.load_sparql('remove_date_datatypes.sparql')
+    sse = SPARQL.parse(sparql, update: true)
+    local_graph.query(sse)
+    local_graph
   end
 
   def self.delete_ids(jsonld)
@@ -177,10 +176,23 @@ class JsonldGenerator
           # add describe URI to graph
         end
       elsif  s[:value_datatype] == 'xsd:dateTime'
+        # Test value and adjust datatype to either xsd:dateTime or xsd:date or default string
         s[:object].make_into_array.each do |date_time|
           if RDF::Literal::DateTime.new(date_time).valid?
             graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::DateTime.new(date_time)] 
           elsif RDF::Literal::Date.new(date_time).valid?
+            graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::Date.new(date_time)] 
+          else
+            graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal(date_time)] 
+          end
+        end
+      elsif  s[:value_datatype] == 'xsd:date'
+        s[:object].make_into_array.each do |date_time|
+          if RDF::Literal::DateTime.new(date_time).valid?
+            graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::DateTime.new(date_time)] 
+          elsif RDF::Literal::Date.new(date_time).valid?
+            graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::Date.new(date_time)] 
+          else
             graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal(date_time)] 
           end
         end
