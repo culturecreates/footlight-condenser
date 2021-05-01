@@ -4,7 +4,7 @@ class StatementsController < ApplicationController
 
   MANUALLY_ADDED = "Manually added"
 
-  #GET /statements/webpage.json?url=http://
+  # GET /statements/webpage.json?url=http://
   def webpage
     @statements = []
     webpage = Webpage.where(url: params[:url]).first
@@ -14,7 +14,7 @@ class StatementsController < ApplicationController
     @statements.sort
   end
 
-  #PATCH /statements/refresh_webpage.json?url=http://
+  # PATCH /statements/refresh_webpage.json?url=http://
   def refresh_webpage
     webpage = Webpage.includes(:website).where(url: params[:url]).first
     refresh_webpage_statements(webpage,  webpage.website.default_language)
@@ -25,8 +25,8 @@ class StatementsController < ApplicationController
   end
 
 
-  #PATCH /statements/refresh_rdf_uri.json?rdf_uri=
-  #PATCH /statements/refresh_rdf_uri.json?rdf_uri=&force_scrape_every_hrs=24
+  # PATCH /statements/refresh_rdf_uri.json?rdf_uri=
+  # PATCH /statements/refresh_rdf_uri.json?rdf_uri=&force_scrape_every_hrs=24
   def refresh_rdf_uri
     params[:force_scrape_every_hrs] ||= nil
     webpages = Webpage.includes(:website).where(rdf_uri: params[:rdf_uri])
@@ -65,20 +65,13 @@ class StatementsController < ApplicationController
   end
 
 
-  # GET /statements
+  # GET /statements?rdf_uri=&seedurl=&prop=&status=
   # GET /statements.json
   def index
-    cookies[:seedurl] = params[:seedurl] if !params[:seedurl].blank?
-    if params[:rdf_uri]
-      webpage = Webpage.where(rdf_uri:params[:rdf_uri] )
-      @statements = Statement.joins(:source).where(webpage_id: webpage).order( "sources.selected DESC" , "sources.property_id" ).paginate(page: params[:page], per_page: params[:per_page])
-    else
-      if cookies[:seedurl]
-        @statements = Statement.joins(webpage: :website).where(webpages: { websites: {seedurl:  cookies[:seedurl]}}).order(:id).paginate(page: params[:page], per_page: params[:per_page])
-      else
-        @statements = Statement.all.order(:id).paginate(page: params[:page], per_page: params[:per_page])
-      end
-    end
+    @statements = build_query(rdf_uri: params[:rdf_uri], seedurl: params[:seedurl], prop: params[:prop], status: params[:status])
+
+    # Paginate
+    @statements = @statements.paginate(page: params[:page], per_page: params[:per_page])
   end
 
   # GET /statements/1
@@ -112,6 +105,42 @@ class StatementsController < ApplicationController
       end
     end
   end
+
+
+  # PATCH/PUT /statements/review_all
+  def review_all 
+    statements = build_query(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status])
+    status_origin = "condenser-admin-review-all"
+
+    statements.each do |statement|
+      next if statement.is_problem?
+
+      statement.status = 'ok'
+      statement.status_origin = status_origin
+      statement.save
+    end
+
+    respond_to do |format|
+      format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status]), notice: 'Statements successfully reviewed.' }
+      format.json { redirect_to statements_path(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status], format: :json) }
+    end
+  end
+
+  # PATCH/PUT /statements/refresh_all
+  def refresh_all 
+    statements = build_query(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status])
+    status_origin = "condenser-admin-refresh-all"
+
+    statements.each do |statement|
+      refresh_statement statement
+    end
+
+    respond_to do |format|
+      format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status]), notice: 'Statements refreshed.' }
+      format.json { redirect_to statements_path(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status], format: :json) }
+    end
+  end
+  
 
   # PATCH/PUT /statements/1
   # PATCH/PUT /statements/1.json
@@ -227,53 +256,78 @@ class StatementsController < ApplicationController
   end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
-    def set_statement
-      @statement = Statement.find(params[:id])
-    end
 
-    # Never trust parameters from the scary internet, only allow the white list through.
-    def statement_params
-      params.require(:statement).permit(:cache, :status, :status_origin, :cache_refreshed, :cache_changed, :source_id, :webpage_id)
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def set_statement
+    @statement = Statement.find(params[:id])
+  end
 
-    def extract_property_ids rdfs_class_name, property_ids
-      # recursive function to traverse tree of properties and add properties of sub-classes with data type of Blank Node or "bnode"
-      class_list = rdfs_class_name.split(',')
-      class_list.each do |c|
-        rdfs_class = RdfsClass.where(name: c).first
-        if rdfs_class
-          rdfs_class.properties.each do |property|
-            property_ids << property.id
-            if ((property.value_datatype == "bnode" || property.value_datatype == "xsd:anyURI") && property.expected_class != rdfs_class_name)
-              extract_property_ids property.expected_class, property_ids
-            end
+  # Never trust parameters from the scary internet, only allow the white list through.
+  def statement_params
+    params.require(:statement).permit(:cache, :status, :status_origin, :cache_refreshed, :cache_changed, :source_id, :webpage_id)
+  end
+
+  def extract_property_ids rdfs_class_name, property_ids
+    # recursive function to traverse tree of properties and add properties of sub-classes with data type of Blank Node or "bnode"
+    class_list = rdfs_class_name.split(',')
+    class_list.each do |c|
+      rdfs_class = RdfsClass.where(name: c).first
+      if rdfs_class
+        rdfs_class.properties.each do |property|
+          property_ids << property.id
+          if ((property.value_datatype == "bnode" || property.value_datatype == "xsd:anyURI") && property.expected_class != rdfs_class_name)
+            extract_property_ids property.expected_class, property_ids
           end
         end
       end
-      return property_ids
+    end
+    return property_ids
+  end
+
+  def refresh_webpage_statements webpage, default_language = "en", scrape_options={}
+    languages = [webpage.language]
+    #if webpage is default_language then add sources with no language to list of languages [webpage.language,'']
+    if webpage.language == default_language
+      languages << ''
+    end
+    #get the properties for the rdfs_class of the webpage recursively
+    property_ids = extract_property_ids webpage.rdfs_class.name, []
+    property_ids.each do |property_id|
+      #get the sources for each property (usually one by may have several steps)
+      sources = Source.where(website_id: webpage.website, language: languages, property_id: property_id).order(:property_id, :next_step)
+      helpers.scrape_sources sources, webpage, scrape_options
+    end
+  end
+
+  def refresh_statement(statement)
+    # get the webpage and sources (check if more than one sounce with steps)
+    webpage = statement.webpage
+    sources = Source.where(id: statement.source_id).or(Source.where(next_step: statement.source_id)).order(:next_step)
+    helpers.scrape_sources sources, webpage
+  end
+
+  def build_query(rdf_uri: rdf_uri, seedurl: seedurl, prop: prop, status: status)
+    statements = Statement.all
+
+    # filter by a Resource URI
+    if rdf_uri.present?
+      webpage = Webpage.where(rdf_uri: rdf_uri)
+      statements = statements.joins(:source).where(webpage_id: webpage).order( "sources.selected DESC" , "sources.property_id" )
+    end
+    # filter by seedurl
+    if seedurl.present? && seedurl != 'all'
+      statements = statements.joins(webpage: :website).where(webpages: { websites: {seedurl:  seedurl }}).order(:id)
+    end
+    # filter by a property
+    if prop.present?
+      statements = statements.joins(source: :property).where(sources: { properties: {id: prop }} )
+    end
+    # filter by status
+    if status.present?
+      statements = statements.where(status: status)
     end
 
-    def refresh_webpage_statements webpage, default_language = "en", scrape_options={}
-      languages = [webpage.language]
-      #if webpage is default_language then add sources with no language to list of languages [webpage.language,'']
-      if webpage.language == default_language
-        languages << ''
-      end
-      #get the properties for the rdfs_class of the webpage recursively
-      property_ids = extract_property_ids webpage.rdfs_class.name, []
-      property_ids.each do |property_id|
-        #get the sources for each property (usually one by may have several steps)
-        sources = Source.where(website_id: webpage.website, language: languages, property_id: property_id).order(:property_id, :next_step)
-        helpers.scrape_sources sources, webpage, scrape_options
-      end
-    end
-
-    def refresh_statement statement
-      #get the webpage and sources (check if more than one sounce with steps)
-      webpage = statement.webpage
-      sources = Source.where(id: statement.source_id).or(Source.where(next_step: statement.source_id)).order(:next_step)
-      helpers.scrape_sources sources, webpage
-    end
+    statements
+  end
 
 end

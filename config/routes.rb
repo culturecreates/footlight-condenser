@@ -14,7 +14,7 @@ Rails.application.routes.draw do
   resources :statements do
     collection do
       get 'webpage'
-      patch 'refresh_webpage', 'refresh_rdf_uri'
+      patch 'refresh_webpage', 'refresh_rdf_uri', 'review_all', 'refresh_all'
     end
     member do
       patch 'activate', 'add_linked_data', 'remove_linked_data', 'refresh'
@@ -99,10 +99,6 @@ Rails.application.routes.draw do
   patch 'resources/:rdf_uri/reviewed_all',
       to: "resources#reviewed_all",
       as: :reviewed_all_resources
-
-  patch 'resources/review_all_resources_by_query',
-      to: "resources#review_all_resources_by_query",
-      as: :review_all_resources_by_query
 
   patch 'resources/:rdf_uri/archive',
       to: "resources#archive",
