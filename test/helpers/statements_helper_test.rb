@@ -1,8 +1,7 @@
 require 'test_helper'
 
+# Part of StatmentsHelper. See other test files for search_cckg and format_datatype tests. 
 class StatementsHelperTest < ActionView::TestCase
-
-
 
 #scrape
   test "should scrape title from html" do
@@ -43,227 +42,6 @@ class StatementsHelperTest < ActionView::TestCase
     actual = search_condenser("Show is at nowhere", "Place")
     assert_equal expected, actual
   end
-
-
-#format_datatype (scraped_data, property, webpage)
-  test "prexisting array input for any:URI manual source" do
-   property = properties(:seven)
-   scraped_data = ["[\"name\",\"Class\",[\"remote name\",\"uri\"]]"]
-   webpage = webpages(:one)
-   actual = format_datatype(scraped_data, property, webpage)
-   expected = ["name", "Class", ["remote name", "uri"]]
-   assert_equal expected, actual
-  end
-
-  test "string input for any:URI manual source" do
-   property = properties(:seven)
-   scraped_data = ["Théâtre Maisonneuve"]
-   webpage = webpages(:one)
-   actual = format_datatype(scraped_data, property, webpage)
-   expected = ["Théâtre Maisonneuve", "Place", ["Place des Arts - Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/K11-11"]]
-   assert_equal expected, actual
-  end
-
-  test "string input for any:URI scraped source" do
-    property = properties(:nine)
-    scraped_data = ["http://www.tnb.nb.ca/"]
-    webpage = webpages(:one)
-    actual = format_datatype(scraped_data, property, webpage)
-    expected = ["http://www.tnb.nb.ca/", "Organization", ["Theatre New Brunswick", "http://kg.artsdata.ca/resource/K10-168"]]
-    assert_equal expected, actual
-   end
-
-  test "string input for any:URI scraped LONG url source" do
-    property = properties(:nine)
-    scraped_data = ["http://www.taramacleanmusic.com/home"]
-    webpage = webpages(:one)
-    actual = format_datatype(scraped_data, property, webpage)
-    expected = ["http://www.taramacleanmusic.com/home", "Organization", ["Tara MacLean", "http://kg.artsdata.ca/resource/K12-14"]]
-    assert_equal expected, actual
-   end
-
-  test "EMPTY string input for any:URI" do
-    property = properties(:nine)
-    scraped_data = []
-    webpage = webpages(:one)
-    actual = format_datatype(scraped_data, property, webpage)
-    expected = []
-    assert_equal expected, actual
-   end
-
-   test "array string input for any:URI" do
-    property = properties(:nine)
-    scraped_data = ["CompanyKaha:wi Dance Theatre","ArtistsSantee Smith"]
-    webpage = webpages(:one)
-    actual = format_datatype(scraped_data, property, webpage)
-    expected = [["CompanyKaha:wi Dance Theatre", "Organization", ["Kaha:wi Dance Theatre", "http://kg.artsdata.ca/resource/K10-206"]], ["ArtistsSantee Smith", "Organization"]]
-    assert_equal expected, actual
-   end
-
-   test "format_datatype with time_zone" do
-    property = properties(:ten)
-    scraped_data = ["time_zone:  Eastern Time (US & Canada) ","2020-05-28T22:00:00-00:00", "2020-05-31T22:00:00-00:00"]
-    webpage = webpages(:one)
-    actual = format_datatype(scraped_data, property, webpage)
-    expected = ["2020-05-28T18:00:00-04:00", "2020-05-31T18:00:00-04:00"]
-    assert_equal expected, actual
-   end
-
-   test "format_datatype with NO time_zone" do
-    property = properties(:ten)
-    scraped_data = ["2020-05-28T22:00:00-01:00", "2020-05-31T22:00:00-01:00"]
-    webpage = webpages(:one)
-    actual = format_datatype(scraped_data, property, webpage)
-    expected = ["2020-05-28T19:00:00-04:00", "2020-05-31T19:00:00-04:00"]
-    assert_equal expected, actual
-   end
-
-   test "format_datatype with INVALID time_zone" do
-    property = properties(:ten)
-    scraped_data = ["time_zone:  Nowhere Time (US & Canada) ","2020-05-28T22:00:00-01:00", "2020-05-31T22:00:00-01:00"]
-    webpage = webpages(:one)
-    actual = format_datatype(scraped_data, property, webpage)
-    expected = ["Bad input for date/time: 2020-05-28T22:00:00-01:00.  (#<ArgumentError: Invalid Timezone: Nowhere Time (US & Canada)>)", "Bad input for date/time: 2020-05-31T22:00:00-01:00.  (#<ArgumentError: Invalid Timezone: Nowhere Time (US & Canada)>)"]
-    assert_equal expected, actual
-   end
-
-  test "format_datatype EventStatus with cancelled" do
-    property = properties(:twelve)
-    scraped_data = ["Cancelled - Bob Marley live"]
-    webpage = webpages(:one)
-    actual = format_datatype(scraped_data, property, webpage)
-    expected = ["EventCancelled: Cancelled - Bob Marley live", "EventStatusType", ["EventCancelled", "http://schema.org/EventCancelled"]]
-    assert_equal expected, actual
-   end
-
-   test "format_datatype EventStatus with postponed" do
-    property = properties(:twelve)
-    scraped_data = ["Bob Marley live postponed"]
-    webpage = webpages(:one)
-    actual = format_datatype(scraped_data, property, webpage)
-    expected = ["EventPostponed: Bob Marley live postponed", "EventStatusType", ["EventPostponed", "http://schema.org/EventPostponed"]]
-    assert_equal expected, actual
-   end
-
-   test "format_datatype EventStatus with rescheduled" do
-    property = properties(:twelve)
-    scraped_data = ["Bob Marley live Rescheduled"]
-    webpage = webpages(:one)
-    actual = format_datatype(scraped_data, property, webpage)
-    expected = ["EventRescheduled: Bob Marley live Rescheduled", "EventStatusType", ["EventRescheduled", "http://schema.org/EventRescheduled"]]
-    assert_equal expected, actual
-   end
-
-   test "format_datatype EventStatus with scheduled" do
-    property = properties(:twelve)
-    scraped_data = ["Bob Marley live"]
-    webpage = webpages(:one)
-    actual = format_datatype(scraped_data, property, webpage)
-    expected = ["EventScheduled: No mention of cancelled, postponed or rescheduled in: Bob Marley live.", "EventStatusType", ["EventScheduled", "http://schema.org/EventScheduled"]]
-    assert_equal expected, actual
-   end
-
-   test "format_datatype EventStatus with hidden rescheduled" do
-    property = properties(:twelve)
-    scraped_data = ["Bob Marley live with the amazing derescheduled"]
-    webpage = webpages(:one)
-    actual = format_datatype(scraped_data, property, webpage)
-    expected = ["EventScheduled: No mention of cancelled, postponed or rescheduled in: Bob Marley live with the amazing derescheduled.", "EventStatusType", ["EventScheduled", "http://schema.org/EventScheduled"]]
-    assert_equal expected, actual
-   end
-
-
-  #search_cckg
-  test "search_cckg: should search cckg for uris that match 100%" do
-    expected = {:data=>[["Place des Arts - Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/K11-11"]]}
-    actual = search_cckg "Théâtre Maisonneuve", "Place"
-    assert_equal expected, actual
-  end
-
-  test "search_cckg: should search cckg for uris by matching name in substring" do
-    expected = {:data=>[["St. Lawrence Centre for the Arts - Bluma Appel Theatre", "http://kg.artsdata.ca/resource/K11-6"], ["Canadian Stage - Berkeley Street Theatre", "http://kg.artsdata.ca/resource/K11-14"]]}
-    actual = search_cckg "The locations is in the lovely Bluma Appel Theatre and Berkeley Street Theatre.", "Place"
-    assert_equal expected, actual
-  end
-
-  test "search_cckg: should search cckg for VaughnCo Entertainment presents" do
-    expected = {data:[["VaughnCo Entertainment", "http://kg.artsdata.ca/resource/K10-148"]]}
-    actual = search_cckg "VaughnCo Entertainment presents", "Organization"
-    assert_equal expected, actual
-  end
-  
-
-  test "search_cckg: should search cckg for Wajdi Mouawad" do
-    expected = {data:[["Wajdi Mouawad", "http://kg.artsdata.ca/resource/K12-362"]]}
-    actual = search_cckg "Wajdi Mouawad", "Person"
-    assert_equal expected, actual
-  end
-  
-
-  test "search_cckg: should search cckg for nowhere" do
-    expected = {:data=>[]}
-    actual = search_cckg "Show is at nowhere", "Place"
-    assert_equal expected, actual
-  end
-
-  test "search_cckg: remove duplicates" do
-    expected = {data:[["Canadian Stage - Berkeley Street Theatre", "http://kg.artsdata.ca/resource/K11-14"]]}
-    actual = search_cckg "The locations is in the lovely Berkeley Street Theatre and Canadian Stage - Berkeley Street Theatre.", "Place"
-    assert_equal expected, actual
-  end
-
-  test "search_cckg: using web url" do
-    expected = {data:[["Rumours Tribute Show", "http://kg.artsdata.ca/resource/K10-180"]]}
-    actual = search_cckg "https://www.rumourstributeshow.com/", "Organization"
-    assert_equal expected, actual
-  end
-
-  test "search_cckg: using web url of a PERSON" do
-    expected = {data:[["Jason Cyrus", "http://kg.artsdata.ca/resource/K12-5"]]}
-    actual = search_cckg "http://www.jasoncyrus.com", "Person"
-    assert_equal expected, actual
-  end
-  
-  test "search_cckg: should not match names with common words" do  # Example Person name that is removed "wiL", "http://kg.artsdata.ca/resource/K12-32"
-    expected = {data:[]}
-    actual = search_cckg "The word will contains part of a first name.", "Person"
-    assert_equal expected, actual
-  end
-
-  test "search_cckg: should match names with single neutral quote" do  
-    expected = {:data=>[["La P'tite Église (Shippagan)", "http://kg.artsdata.ca/resource/K11-131"]]}
-    actual = search_cckg "Shippagan 20 h 00 La P'tite Église (Shippagan)", "Place"
-    assert_equal expected, actual
-  end
-
-  test "search_cckg: should match names with single curved quote" do  
-    expected = {:data=>[["Emily D’Angelo", "http://kg.artsdata.ca/resource/K12-150"]]}
-    actual = search_cckg "Emily D’Angelo", "Person"
-    assert_equal expected, actual
-  end
-  
-
-  test "search_cckg: should match names with &" do  
-    expected = {:data=>[["meagan&amy", "http://kg.artsdata.ca/resource/K10-376"]]}
-    actual = search_cckg "meagan&amp;amy", "Organization"
-    assert_equal expected, actual
-  end
-
-  test "search_cckg: should match places with title in French" do  
-    expected = {:data=>[["Théâtre Marc Lescarbot", "http://kg.artsdata.ca/resource/K11-133"]]}
-    actual = search_cckg "Théâtre Marc Lescarbot", "Place"
-    assert_equal expected, actual
-  end
-
-  test "search_cckg: find alternate names" do
-    expected = {data:[["Dow Centennial Centre - Shell Theatre", "http://kg.artsdata.ca/resource/K11-64"]]}
-    actual = search_cckg "Shell Theatre", "Place"
-    assert_equal expected, actual
-  end
-
-
-
-
 
   # french_to_english_month
   test "french_to_english_month: should covert french month mai to english" do
@@ -347,9 +125,6 @@ class StatementsHelperTest < ActionView::TestCase
     assert_equal expected_output, ISO_duration("There is nothing here")
   end
 
-
-
-  
   # test "ISO_duration: should convert messy string to ISO duration" do
   #   expected_output = "PT3600S"
   #   assert_equal expected_output, ISO_duration(" samedi 20 octobre 2018, de 10 h à 11 h ")
@@ -360,8 +135,6 @@ class StatementsHelperTest < ActionView::TestCase
 
 #  href="/Pages/Fr/Calendrier/consultation-politique-stationnement.aspx">
   #du 22 octobre 2018, 23 h, au 23 octobre 2018, 2 h
-
-
 
   #process_linked_data_removal statement_cache, uri_to_delete, class_to_delete, label_to_delete
   test "process_linked_data_removal: delete a link added manually" do

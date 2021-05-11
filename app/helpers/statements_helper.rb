@@ -209,28 +209,55 @@ module StatementsHelper
           data = JSON.parse(scraped_data[0])
         else
           # check for eventStatus
-
-          ###################################################
-          # Note: this code requires the following triple
-          # { rdfs:label owl:equivalentProperty schema:name . }
-          # so that search_for_uri() method to remain generic using schema:name
-          # normally inserted into the graph http://kg.artsdata.ca/SchemaOrgCultureCreatesExtension
-          # because schema.org defined each status (like EventCancelled) only with rdfs:label
-          # and schema:name is an owl:subPropertyOf schema:label and not an owl:equivalentPropertyOf
-          ###################################################
-
           if property.uri == 'http://schema.org/eventStatus'
             str = scraped_data.join(' - ')
             if str.scan(/\b(Cancelled|Annulé|Annule)/i).present?
-              str = "EventCancelled: #{str}"
+              name = 'EventCancelled'
+              uri = 'http://schema.org/EventCancelled'
             elsif str.scan(/\b(Postponed|Suspendu)/i).present?
-              str = "EventPostponed: #{str}"
+              name = 'EventPostponed'
+              uri = 'http://schema.org/EventPostponed'
             elsif str.scan(/\b(Rescheduled|reporté|reporte)/i).present?
-              str = "EventRescheduled: #{str}"
+              name = 'EventRescheduled'
+              uri = 'http://schema.org/EventRescheduled'
             else
-              str = "EventScheduled: No mention of cancelled, postponed or rescheduled in: #{str}."
+              name = 'EventScheduled'
+              uri = 'http://schema.org/EventScheduled'
             end
-            data << search_for_uri(str, property, webpage)
+            # data structure of uri = ['str', 'rdfs_class', ['name', 'uri']]
+            data << [str, 'EventStatusType', [name, uri]]
+          elsif property.uri == 'http://schema.org/additionalType'
+            str = scraped_data.join(' - ')
+            data << str
+            data << 'EventTypeEnumeration'
+            if str.scan(/\b(Young public|Jeune public)/i).present?
+              data << ['ChildrensEvent', 'http://schema.org/ChildrensEvent']
+            end
+            if str.scan(/\b(Comedy|Humour)/i).present?
+              data << ['ComedyEvent', 'http://schema.org/ComedyEvent']
+            end
+            if str.scan(/\b(Dance|Danse)/i).present?
+              data << ['DanceEvent', 'http://schema.org/DanceEvent']
+            end
+            if str.scan(/\b(Music|Musique)/i).present?
+              data << ['MusicEvent', 'http://schema.org/MusicEvent']
+            end
+            if str.scan(/\b(Theatre|Théâtre)/i).present?
+              data << ['TheaterEvent', 'http://schema.org/TheaterEvent']
+            end
+          elsif property.uri == 'http://schema.org/eventAttendanceMode'
+            str = scraped_data.join(' - ')
+            data << str
+            data << 'EventAttendanceModeEnumeration'
+            if str.scan(/\b(OfflineEventAttendanceMode)/i).present?
+              data << ['In-person', 'http://schema.org/OfflineEventAttendanceMode']
+            end
+            if str.scan(/\b(OnlineEventAttendanceMode)/i).present?
+              data << ['Online', 'http://schema.org/OnlineEventAttendanceMode']
+            end
+            if str.scan(/\b(MixedEventAttendanceMode)/i).present?
+              data << ['Mixed', 'http://schema.org/MixedEventAttendanceMode']
+            end
           else
             if scraped_data.class == Array
               scraped_data.each do |uri_string|
@@ -352,83 +379,14 @@ module StatementsHelper
   def search_cckg(str, rdfs_class) # returns a HASH
     if str.length > 3
 
-      sparql_str = str.gsub('\\', ' ') # remove double backslash for SPARQL
-                      .gsub(/'/, "\\\\'") # escape single quote so it does not interfere with SPARQL
-                      .gsub(/\u00A0/i, ' ') # remove &nbsp;
-                      .squish
+      # call Reconciliation service
+      results = HTTParty.get("https://api.artsdata.ca/recon?query=#{CGI.escape(CGI.unescapeHTML(str))}&type=#{rdfs_class}")
 
-      sparql_str = CGI.unescapeHTML(sparql_str) # get rid of things like &amp; in the text string
-
-      if rdfs_class == 'Place'
-       
-        q =
-          <<~EOS
-            PREFIX schema: <http://schema.org/>
-            PREFIX onto: <http://www.ontotext.com/>
-            select  ?uri ?name
-            FROM onto:disable-sameAs  # disable for speed
-            from <http://kg.artsdata.ca/Place>
-            from <http://laval.footlight.io/Place>
-            from <http://schema.org/#8.0>
-            { { select ?uri ?name where {
-                    ?uri a schema:Place ; schema:name ?name .
-                    OPTIONAL { ?uri schema:alternateName ?alternateName .}
-                    values ?web_str {'#{sparql_str}'}
-                    filter (contains(lcase(?web_str), lcase(str(?name))) || contains(lcase(?web_str), lcase(str(?alternateName)))  )
-                    filter  (isURI(?uri))
-                    } }
-              MINUS
-              {select ?uri  where {
-                     ?smallPlace a schema:Place ; schema:name ?name ; schema:alternateName ?alternateName; schema:containedInPlace ?uri  .
-                     values ?web_str {'#{sparql_str}'}
-                     filter (contains(lcase(?web_str), lcase(str(?name))) || contains(lcase(?web_str), lcase(str(?alternateName)))  )
-                   }   }}
-          EOS
-      else
-        q =
-        <<~EOS
-          PREFIX schema: <http://schema.org/>
-          PREFIX onto: <http://www.ontotext.com/>
-          select  ?originalUri  ?name  ?uri
-          FROM onto:disable-sameAs  # disable for speed
-          where {
-              { ?originalUri a schema:#{rdfs_class}; schema:alternateName ?search_str ; rdfs:label ?name . }
-              UNION
-              { ?originalUri a schema:#{rdfs_class}; rdfs:label ?search_str, ?name .  }
-              UNION
-              { ?originalUri a schema:#{rdfs_class}; schema:url ?search_str ; rdfs:label ?name .  }
-              OPTIONAL { graph <http://kg.artsdata.ca/Artsdata_Minted>
-                { ?originalUri ^schema:sameAs ?reverseSameAs . filter (isURI(?reverseSameAs)) }
-              }
-              bind(coalesce(?reverseSameAs, ?originalUri) as ?uri)
-              filter  (isURI(?originalUri))
-              filter (str(?search_str) != '')
-              values ?web_str {'#{sparql_str}'}
-              filter (contains(lcase(str(?search_str)),lcase(?web_str)) || contains(lcase(?web_str), lcase(str(?search_str)))  )
-            }
-        EOS
-
-      end
-
-      logger.info "SPARQL: #{q}"
-      results = cc_kg_query(q, rdfs_class)
-
-      if !results[:error]
-        hits = results[:data].clone
-        logger.info " ++++++++++++=Hits from cc_kg_query: #{hits}"
-        hits.count.times do |n|
-          unless hits[n].blank?
-            hits[n] = [hits[n]['name']['value'], hits[n]['uri']['value']]
-          end
-        end
-
-
-        ## remove duplicate URIs - needed to remove en/fr duplicates and alternate names of same entity
+      if results.response.code == "200"
+        # keep results that are matches
+        hits = JSON.parse(results.response.body)
+        hits = hits["result"].select { |h| h["match"] == true }.map { |h| [h["name"], "http://kg.artsdata.ca/resource/#{h["id"]}"]}
         hits.uniq! { |hit| hit[1] }
-
-        if rdfs_class == 'Place' || rdfs_class == 'Organization' || rdfs_class == 'Person'
-          hits.select! { |hit| hit[1].include? "kg.artsdata.ca/resource"  }
-        end
 
         #################################################
         # REMOVE NAMES THAT CREATE MANY FALSE POSITIVES - until better analysis with NLP is available
@@ -438,7 +396,7 @@ module StatementsHelper
 
         { data: hits }
       else
-        { error: results, method: 'search_cckg' } # with error message
+        { error: "#{results.response.code}: #{results.response.message}", method: 'search_cckg' } # with error message
       end
     else
       { error: "String '#{str} is too short. Needs to be londer than 2 characters", method: 'search_cckg' } # with error message

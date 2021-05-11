@@ -76,3 +76,10 @@ twelve:
   uri: http://schema.org/eventStatus
   rdfs_class: one
   expected_class: EventStatusType
+
+additionalType:
+  label: Event Type
+  value_datatype: xsd:anyURI
+  uri: http://schema.org/additionalType
+  rdfs_class: one
+  expected_class: URL
