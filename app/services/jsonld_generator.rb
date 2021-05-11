@@ -147,7 +147,7 @@ class JsonldGenerator
 
       ## TEMPORARY PATCH START #########
       # TODO: Make generic
-      puts "nesting_options unused: #{nesting_options}"
+      # puts "nesting_options unused: #{nesting_options}"
       # Interpret the nesting_options to remove this patch
 
       if s[:rdfs_class_name] == 'Offer'
