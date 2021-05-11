@@ -306,7 +306,7 @@ class StatementsController < ApplicationController
     helpers.scrape_sources sources, webpage
   end
 
-  def build_query(rdf_uri: rdf_uri, seedurl: seedurl, prop: prop, status: status)
+  def build_query(rdf_uri:, seedurl:, prop:, status:)
     statements = Statement.all
 
     # filter by a Resource URI

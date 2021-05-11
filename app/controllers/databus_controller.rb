@@ -3,8 +3,8 @@ class DatabusController < ApplicationController
   def index
     client = Aws::S3::Client.new(region: "ca-central-1", access_key_id: ENV["ACCESS_KEY_ID"], secret_access_key: ENV["SECRET_ACCESS_KEY"])
     result = client.list_objects(
-      bucket: "data.culturecreates.com", 
-      max_keys: 200, 
+      bucket: "data.culturecreates.com",
+      max_keys: 200,
       prefix: 'databus/culture-creates/footlight/'
     )
     if result.contents
@@ -35,8 +35,6 @@ class DatabusController < ApplicationController
       downloadFile = params[:downloadFile]
       version = params[:version]
 
-      puts "downloadFile: #{downloadFile}"
-
       data = HTTParty.post(artsdata_url,
         query: {
           publisher: publisher,
@@ -51,12 +49,11 @@ class DatabusController < ApplicationController
         #          'Accept' => 'application/json'},
         # timeout: 4 
       )
-      puts "data: #{data}"
+      if data.code[0] != 2
+        # TODO: Log this error somehwere
+        # puts "data: #{data}"
+      end
       render json: { message: data }.to_json
-
-
-
-
   end
 
   def save_on_s3(jsonld:, artifact:, version:, file:)
