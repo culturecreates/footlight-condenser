@@ -137,7 +137,7 @@ class StatementsHelperTest < ActionView::TestCase
     scraped_data = ["Humour | Programmation distanciée"]
     webpage = webpages(:one)
     actual = format_datatype(scraped_data, property, webpage)
-    expected = ["Humour | Programmation distanciée", "URL", ["ComedyEvent", "http://schema.org/ComedyEvent"]]
+    expected = ["Humour | Programmation distanciée", "EventTypeEnumeration", ["ComedyEvent", "http://schema.org/ComedyEvent"]]
     assert_equal expected, actual
   end
 end
