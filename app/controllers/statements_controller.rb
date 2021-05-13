@@ -109,7 +109,7 @@ class StatementsController < ApplicationController
 
   # PATCH/PUT /statements/review_all
   def review_all 
-    statements = build_query(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status])
+    statements = build_query(rdf_uri: params[:rdf_uri], seedurl: params[:seedurl], prop: params[:prop], status: params[:status])
     status_origin = "condenser-admin-review-all"
 
     statements.each do |statement|
