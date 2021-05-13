@@ -1,20 +1,27 @@
 class DatabusController < ApplicationController
   # GET /databus
+  # List files on S3
   def index
-    client = Aws::S3::Client.new(region: "ca-central-1", access_key_id: ENV["ACCESS_KEY_ID"], secret_access_key: ENV["SECRET_ACCESS_KEY"])
-    result = client.list_objects(
-      bucket: "data.culturecreates.com",
-      max_keys: 200,
-      prefix: 'databus/culture-creates/footlight/'
-    )
-    if result.contents
-      @contents = result.contents
+    @contents = []
+    begin
+      client = Aws::S3::Client.new(region: "ca-central-1", access_key_id: ENV["ACCESS_KEY_ID"], secret_access_key: ENV["SECRET_ACCESS_KEY"])
+      result = client.list_objects(
+        bucket: "data.culturecreates.com",
+        max_keys: 200,
+        prefix: 'databus/culture-creates/footlight/'
+      )
+      if result.contents
+        @contents = result.contents
+      end
+    rescue Aws::Sigv4::Errors::MissingCredentialsError => credentials_error
+      flash.now[:notice] = credentials_error.message
     end
   end
 
-  # POST /databus?jsonld=&artifact=&version=
+  # POST /databus?jsonld=&artifact=&version=&file=
+  # Save JSON-LD on S3
   def create
-    required = [:jsonld, :artifact,  :version, :file]
+    required = [:jsonld, :artifact, :version, :file]
     if required.all? { |k| params.key? k }
       result = save_on_s3(jsonld: params[:jsonld], artifact: params[:artifact], version: params[:version], file:params[:file] )
       flash.now[:notice] = "Request was saved successfully. #{result}"
@@ -23,46 +30,57 @@ class DatabusController < ApplicationController
     end
   end
 
-  # POST /databus/artsdata?group=&artifact=&version=&downloadURL=&downloadFile=
+  # POST /databus/artsdata?group=&artifact=&version=&downloadUrl=&downloadFile=\
+  # Create an entry on the Artsdata Databus
   def artsdata
-      artsdata_url = 'http://api.artsdata.ca/databus'
-      publisher = 'https://graph.culturecreates.com/id/footlight'
-      reportCallbackUrl = 'https://webhook.site/a4b17b13-ba49-4456-b010-1776fec399ad'
-       # To view callbacks https://webhook.site/#!/a4b17b13-ba49-4456-b010-1776fec399ad
-      group = params[:group]
-      artifact = params[:artifact]
-      downloadUrl = params[:downloadUrl]
-      downloadFile = params[:downloadFile]
-      version = params[:version]
-
-      data = HTTParty.post(artsdata_url,
-        query: {
-          publisher: publisher,
-          group: group,
-          artifact: artifact,
-          version: version,
-          downloadUrl: downloadUrl,
-          downloadFile: downloadFile,
-          reportCallbackUrl: reportCallbackUrl
-        },
-        #headers: { 'Content-Type' => 'application/x-www-form-urlencoded; charset=UTF-8',
-        #          'Accept' => 'application/json'},
-        # timeout: 4 
-      )
-      if data.code[0] != 2
-        # TODO: Log this error somehwere
-        # puts "data: #{data}"
-      end
+    group = params[:group]
+    artifact = params[:artifact]
+    download_url = params[:downloadUrl]
+    download_file = params[:downloadFile]
+    version = params[:version]
+    data = add_to_databus(group: group, artifact: artifact, download_url: download_url, download_file: download_file, version: version)
+    if data.code[0] == 2
       render json: { message: data }.to_json
+    else
+      render json: { error: data }.to_json
+    end
   end
 
+  # Save a JSON-LD on S3
   def save_on_s3(jsonld:, artifact:, version:, file:)
-    client = Aws::S3::Client.new(region: "ca-central-1", access_key_id: ENV["ACCESS_KEY_ID"], secret_access_key: ENV["SECRET_ACCESS_KEY"])
     bucket = "data.culturecreates.com"
-    client.put_object(
-      bucket: bucket,
-      key: "databus/culture-creates/footlight/#{artifact}/#{version}/#{file}", 
-      body: jsonld
+
+    begin
+      client = Aws::S3::Client.new(region: "ca-central-1", access_key_id: ENV["ACCESS_KEY_ID"], secret_access_key: ENV["SECRET_ACCESS_KEY"])
+      client.put_object(
+        bucket: bucket,
+        key: "databus/culture-creates/footlight/#{artifact}/#{version}/#{file}", 
+        body: jsonld
+      )
+    rescue Aws::Sigv4::Errors::MissingCredentialsError => credentials_error
+      credentials_error
+    end
+  end
+
+  def add_to_databus(group:, artifact:, download_url:, download_file:, version:)
+    artsdata_url = 'http://api.artsdata.ca/databus'
+    publisher = 'https://graph.culturecreates.com/id/footlight'
+    report_callback_url = 'https://webhook.site/a4b17b13-ba49-4456-b010-1776fec399ad'
+    # To view callbacks https://webhook.site/#!/a4b17b13-ba49-4456-b010-1776fec399ad
+
+    data = HTTParty.post(artsdata_url,
+      query: {
+        publisher: publisher,
+        group: group,
+        artifact: artifact,
+        version: version,
+        downloadUrl: download_url,
+        downloadFile: download_file,
+        reportCallbackUrl: report_callback_url
+      } # ,
+      #headers: { 'Content-Type' => 'application/x-www-form-urlencoded; charset=UTF-8',
+      #          'Accept' => 'application/json'},
+      # timeout: 4
     )
   end
 end

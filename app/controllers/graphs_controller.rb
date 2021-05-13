@@ -17,7 +17,7 @@ class GraphsController < ApplicationController
 
   # GET /graphs/website/[:seedurl]
   def website
-    @site = params[:seedurl] 
+    @site = params[:seedurl]
     event_controller = EventsController.new
     @publishable = event_controller.publishable_events(@site)
     @dump = JsonldGenerator.dump_events(@publishable)

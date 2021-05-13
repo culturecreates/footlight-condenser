@@ -9,9 +9,9 @@ Site: <%= @site %>
 
 <%= form_with url: databus_create_path do |form| %>
   <%= form.hidden_field :jsonld, value: @dump %>
-    <%= form.hidden_field :artifact, value: @site %>
-    <%= form.hidden_field :version, value: Date.today.iso8601 %>
-    <%= form.text_field :file, value:  "#{@site}.json"%>
+    <%= form.hidden_field :artifact, value: make_databus_artifact(@site)  %>
+    <%= form.hidden_field :version, value: make_databus_version() %>
+    <%= form.text_field :file, value:  make_databus_file(@site)%>
      <%= form.submit %>
 
 <% end %>

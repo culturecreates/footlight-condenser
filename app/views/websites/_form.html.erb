@@ -27,6 +27,16 @@
   </div>
 
   <div class="field">
+    <%= form.label :schedule_every_days %>
+    <%= form.text_field :schedule_every_days, id: :website_schedule_every_days %>
+  </div>
+
+   <div class="field">
+    <%= form.label :schedule_time %>
+    <%= form.time_select :schedule_time, id: :website_schedule_time %>
+  </div>
+
+  <div class="field">
     <%= form.label :graph_name %>
     <%= form.text_field :graph_name, id: :website_graph_name %>
   </div>

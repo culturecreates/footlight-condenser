@@ -10,6 +10,9 @@ Last 24 hrs:  <%= @statements_errors %> errors
       <th>Name</th>
       <th>Seedurl</th>
       <th>Default Language</th>
+       <th>Last Refresh</th>
+        <th>Schedule Every Days</th>
+         <th>Schedule Time</th>
       <th>Graph Name</th>
       <th> Webpages</th>
       <th>Statements</th>
@@ -25,6 +28,9 @@ Last 24 hrs:  <%= @statements_errors %> errors
         <td><%= website.name %></td>
         <td><%= website.seedurl %></td>
          <td><%= website.default_language %></td>
+         <td><%= website.last_refresh %></td>
+          <td><%= website.schedule_every_days %></td>
+          <td><%= display_time(website.schedule_time) %></td>
         <td><%= website.graph_name %></td>
         <td><%=  @webpages[website] %></td>
         <td><%=  @statements_grouped[website.seedurl] %>

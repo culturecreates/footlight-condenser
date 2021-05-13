@@ -10,10 +10,20 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20200414130757) do
+ActiveRecord::Schema.define(version: 2021_05_13_184039) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
+
+  create_table "condensers", force: :cascade do |t|
+    t.text "json_ld"
+    t.datetime "condensed_date"
+    t.bigint "website_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "graph_uri"
+    t.index ["website_id"], name: "index_condensers_on_website_id"
+  end
 
   create_table "properties", force: :cascade do |t|
     t.string "label"
@@ -94,6 +104,9 @@ ActiveRecord::Schema.define(version: 20200414130757) do
     t.datetime "updated_at", null: false
     t.string "graph_name", default: "http://artsdata.ca"
     t.string "default_language", default: "en"
+    t.integer "schedule_every_days"
+    t.datetime "last_refresh"
+    t.time "schedule_time"
   end
 
   add_foreign_key "properties", "rdfs_classes"

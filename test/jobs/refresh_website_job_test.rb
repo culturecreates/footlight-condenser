@@ -1,6 +1,6 @@
 require 'test_helper'
 
-class ExportArtifactJobTest < ActiveJob::TestCase
+class RefreshWebsiteJobTest < ActiveJob::TestCase
   # test "the truth" do
   #   assert true
   # end
