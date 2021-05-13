@@ -44,18 +44,9 @@ module StatementsHelper
         if s.count != 1
           Statement.create!(cache: _data, webpage_id: webpage.id, source_id: source.id, status: 'initial', status_origin: 'condenser_refresh', cache_refreshed: Time.new)
         else
-          # #check if manual entry and ONLY update if the cache has a status of missing
-          # if source.algorithm_value.start_with?("manual=")
-          #   if s.first.status != "missing"
-          #     logger.info "Skipping update of manual entry"
-          #     next
-          #   else
-          #     logger.info "Retrying to process manual entry because status is MISSING"
-          #   end
-          # end
-
-          # preserve manually added and deleted links of datatype xsd:anyURI
-          unless source.algorithm_value.start_with?("manual=")
+          # skip if source is manual and not missing
+          unless source.algorithm_value.start_with?("manual=") && s.first.status != "missing"
+            # preserve manually added and deleted links of datatype xsd:anyURI
             if source.property.value_datatype == 'xsd:anyURI'
                 _data = preserve_manual_links _data, s.first.cache
             end
