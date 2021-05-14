@@ -36,6 +36,12 @@
     <%= form.time_select :schedule_time, id: :website_schedule_time %>
   </div>
 
+
+   <div class="field">
+    <%= form.label :last_refresh %>
+    <%= form.date_select :last_refresh, id: :website_last_refresh %>
+  </div>
+
   <div class="field">
     <%= form.label :graph_name %>
     <%= form.text_field :graph_name, id: :website_graph_name %>

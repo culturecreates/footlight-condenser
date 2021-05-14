@@ -1,6 +1,5 @@
 <h1>Databus#index</h1>
 
-Link for callback reports: <a href='https://webhook.site/#!/a4b17b13-ba49-4456-b010-1776fec399ad/f55f7961-5f26-4dcc-af1e-57a70087fbb0/1'> webhook site </a>
 <ol>
   <% @contents.each do |obj| %>
     <% if  obj.key.end_with?('/') %>
@@ -10,7 +9,14 @@ Link for callback reports: <a href='https://webhook.site/#!/a4b17b13-ba49-4456-b
        <% downloadUrl = "https://data.culturecreates.com/#{obj.key}" %>
           <% artifact_path = obj.key.delete_prefix(@base_path) %>
       <li><a href=<%= downloadUrl %>><%= artifact_path %></a> | 
-      <%= link_to 'push to artsdata', databus_artsdata_path(group: make_databus_group(), artifact: artifact_path.split('/')[0], version: artifact_path.split('/')[1],downloadFile: artifact_path.split('/')[2], downloadUrl: downloadUrl), method: :post %>  
+      <%= link_to 'push to artsdata', 
+            databus_artsdata_path(
+              group: make_databus_group(), 
+              artifact: artifact_path.split('/')[0], 
+              version: artifact_path.split('/')[1],
+              downloadFile: artifact_path.split('/')[2], 
+              downloadUrl: downloadUrl), 
+            method: :post %>  
       </li>
     <% end %>
   <% end %>

@@ -1,10 +1,17 @@
 Rails.application.routes.draw do
 
+  resources :messages do
+    collection do
+      post 'webhook'
+    end
+  end
+
   get 'databus/index'
   post 'databus/create'
   post 'databus/artsdata'
-  
+
   resources :search_exceptions
+
   get 'custom/get_comotion_locations'
 
   get 'structured_data/event_markup'

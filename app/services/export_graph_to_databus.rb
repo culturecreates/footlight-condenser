@@ -1,6 +1,6 @@
 class ExportGraphToDatabus
 
-  def self.export_events(seedurl)
+  def self.export_events(seedurl, root_url)
     # Create Graph
     event_controller = EventsController.new
     publishable = event_controller.publishable_events(seedurl)
@@ -14,18 +14,23 @@ class ExportGraphToDatabus
     version = helpers.make_databus_version
     download_url = helpers.make_databus_download_url(seedurl,version)
 
+    report_callback_url = "#{root_url}/messages/webhook.json?artifact=#{artifact}"
+
     # Save to S3
     result = save_on_s3(jsonld: dump, artifact: artifact, version: version, file: file)
+    puts "Result of save_on_s3: #{result.inspect}"
 
     if result # TODO: check for S3 errors
       # Add to Artsdata Databus
-      result = add_to_databus(group: group, artifact: artifact, download_url: download_url, download_file: file, version: version)
+      result = add_to_databus(group: group, artifact: artifact, download_url: download_url, download_file: file, version: version, report_callback_url: report_callback_url)
+      puts "Result of add_to_databus: #{result.inspect}"
     end
 
     result
   end
 
-  def self.check_schedule
+  def self.check_schedule(root_url)
+    logger = Rails.logger
     # get list of websites
     websites = Website.all
 
@@ -41,8 +46,10 @@ class ExportGraphToDatabus
           if days_past >= schedule_every_days.days
             if Time.now.utc.strftime( "%H%M" ) >= schedule_time.utc.strftime( "%H%M" )
               # refresh and set refresh_date
+              puts "Artsdata Export events for #{website.inspect}"
               logger.info("Artsdata Export events for #{website.inspect}")
-              result = export_events(website.seedurl)
+              result = export_events(website.seedurl, root_url)
+              puts "Result of export_events: #{result.inspect}"
               logger.info("Artsdata Export Result: #{result.inspect}")
               website.last_refresh = Time.now
               website.save
@@ -69,13 +76,10 @@ class ExportGraphToDatabus
     end
   end
 
-  def self.add_to_databus(group:, artifact:, download_url:, download_file:, version:, report_callback_url: 'https://webhook.site/a4b17b13-ba49-4456-b010-1776fec399ad')
-    artsdata_url = 'http://api.artsdata.ca/databus'
+  def self.add_to_databus(group:, artifact:, download_url:, download_file:, version:, report_callback_url:)
     publisher = 'https://graph.culturecreates.com/id/footlight'
-    # report_callback_url = 'https://webhook.site/a4b17b13-ba49-4456-b010-1776fec399ad'
-    # To view callbacks https://webhook.site/#!/a4b17b13-ba49-4456-b010-1776fec399ad
 
-    data = HTTParty.post(artsdata_url,
+    data = HTTParty.post(artsdata_api_url,
       query: {
         publisher: publisher,
         group: group,
@@ -89,5 +93,15 @@ class ExportGraphToDatabus
       #          'Accept' => 'application/json'},
       # timeout: 4
     )
+  end
+
+
+  def self.artsdata_api_url
+    if Rails.env.development?  || Rails.env.test?
+      'http://localhost:3003/databus'
+    else
+      'http://api.artsdata.ca/databus'
+    end
+
   end
 end
