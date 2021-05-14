@@ -1,6 +1,6 @@
 class ExportGraphToDatabus
 
-  def self.export(seedurl)
+  def self.export_events(seedurl)
     # Create Graph
     event_controller = EventsController.new
     publishable = event_controller.publishable_events(seedurl)
@@ -15,12 +15,11 @@ class ExportGraphToDatabus
     download_url = helpers.make_databus_download_url(seedurl,version)
 
     # Save to S3
-    databus = DatabusController.new
-    result = databus.save_on_s3(jsonld: dump, artifact: artifact, version: version, file: file)
+    result = save_on_s3(jsonld: dump, artifact: artifact, version: version, file: file)
 
     if result # TODO: check for S3 errors
       # Add to Artsdata Databus
-      result = databus.add_to_databus(group: group, artifact: artifact, download_url: download_url, download_file: file, version: version)
+      result = add_to_databus(group: group, artifact: artifact, download_url: download_url, download_file: file, version: version)
     end
 
     result
@@ -41,9 +40,9 @@ class ExportGraphToDatabus
           days_past = Time.now.at_beginning_of_day - last_refresh.at_beginning_of_day
           if days_past >= schedule_every_days.days
             if Time.now.utc.strftime( "%H%M" ) >= schedule_time.utc.strftime( "%H%M" )
-              # queue websites to refresh and set refresh_date
-              logger.info("Artsdata Export #{website.inspect}")
-              result = export(website.seedurl)
+              # refresh and set refresh_date
+              logger.info("Artsdata Export events for #{website.inspect}")
+              result = export_events(website.seedurl)
               logger.info("Artsdata Export Result: #{result.inspect}")
               website.last_refresh = Time.now
               website.save
@@ -52,5 +51,43 @@ class ExportGraphToDatabus
         end
       end
     end
-   end
+  end
+
+  # Save a JSON-LD on S3
+  def self.save_on_s3(jsonld:, artifact:, version:, file:)
+    bucket = "data.culturecreates.com"
+
+    begin
+      client = Aws::S3::Client.new(region: "ca-central-1", access_key_id: ENV["ACCESS_KEY_ID"], secret_access_key: ENV["SECRET_ACCESS_KEY"])
+      client.put_object(
+        bucket: bucket,
+        key: "databus/culture-creates/footlight/#{artifact}/#{version}/#{file}", 
+        body: jsonld
+      )
+    rescue Aws::Sigv4::Errors::MissingCredentialsError => credentials_error
+      credentials_error
+    end
+  end
+
+  def self.add_to_databus(group:, artifact:, download_url:, download_file:, version:, report_callback_url: 'https://webhook.site/a4b17b13-ba49-4456-b010-1776fec399ad')
+    artsdata_url = 'http://api.artsdata.ca/databus'
+    publisher = 'https://graph.culturecreates.com/id/footlight'
+    # report_callback_url = 'https://webhook.site/a4b17b13-ba49-4456-b010-1776fec399ad'
+    # To view callbacks https://webhook.site/#!/a4b17b13-ba49-4456-b010-1776fec399ad
+
+    data = HTTParty.post(artsdata_url,
+      query: {
+        publisher: publisher,
+        group: group,
+        artifact: artifact,
+        version: version,
+        downloadUrl: download_url,
+        downloadFile: download_file,
+        reportCallbackUrl: report_callback_url
+      } # ,
+      #headers: { 'Content-Type' => 'application/x-www-form-urlencoded; charset=UTF-8',
+      #          'Accept' => 'application/json'},
+      # timeout: 4
+    )
+  end
 end
