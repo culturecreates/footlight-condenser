@@ -31,7 +31,6 @@ class DatabusController < ApplicationController
   # POST /databus/artsdata?group=&artifact=&version=&downloadUrl=&downloadFile=
   # Create an entry on the Artsdata Databus
   def artsdata
-    puts "starting artsdata webhook: #{webhook_messages_url}"
     group = params[:group]
     artifact = params[:artifact]
     download_url = params[:downloadUrl]
