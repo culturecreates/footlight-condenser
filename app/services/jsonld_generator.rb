@@ -77,8 +77,8 @@ class JsonldGenerator
   end
 
   # coalesce languages to best match before JSON-LF Framing
-  def self.coalesce_language(local_graph, lang = "")
-    sparql = RDFLoader.load_sparql('coalesce_languages.sparql',["placeholder",lang])
+  def self.coalesce_language(local_graph, lang = '')
+    sparql = RDFLoader.load_sparql('coalesce_languages.sparql', ['placeholder', lang])
     sse = SPARQL.parse(sparql, update: true)
     local_graph.query(sse)
     local_graph
@@ -231,7 +231,6 @@ class JsonldGenerator
   end
 
   # Get triples about a URI from Artsdata.ca
-  # TODO: Handle language here by selecting best language (coalescing (en, fr, none))?????
   def self.describe_uri(uri)
     query = RDF::Query.new do
       pattern [uri, :p, :o]
@@ -260,6 +259,34 @@ class JsonldGenerator
         result2.each { |bns| graph << [s.to_h[:o], bns.to_h[:bnp], bns.to_h[:bno]] }
       end
     end
+
+    # if nothing is found, dereference URI
+    if graph.count.zero?
+      if uri.value.include?('kg.artsdata.ca/resource/K')
+        # dereference URI
+        linked_data = dereference_uri(uri)
+        # TODO: remove non-schema vocabulary for types
+        sparql = RDFLoader.load_sparql('remove_nonschema_types.sparql')
+        sse = SPARQL.parse(sparql, update: true)
+        linked_data.query(sse)
+        # TODO: keep only english and french languages (MUST for wikidata entries)
+        graph << linked_data
+        # add to ArtsdataGraph class variable for the lifespan of the server (until restart)
+        ArtsdataGraph.graph << linked_data
+      end
+    end
+
     graph
+  end
+
+  # Derefence URI and return a graph object
+  def self.dereference_uri(uri)
+    # RDF::URI.new("http://kg.artsdata.ca/resource/K16-6")
+    begin
+      RDF::Graph.load(uri)
+    rescue IOError => e
+      Rails.logger.error "Error dereferencing URI: #{uri.inspect}. Exception: #{e.inspect}"
+      RDF::Graph.new
+    end
   end
 end
