@@ -4,7 +4,7 @@ class WebsitesController < ApplicationController
 
 
   def test_api
-    @websites =  Website.all
+    @websites = Website.all.order(:name)
   end
 
   # GET /webpages/events.json?seedurl=
@@ -37,7 +37,7 @@ class WebsitesController < ApplicationController
       like_keyword = "%#{params[:q]}%"
       @websites = Website.where("name LIKE ?", like_keyword)
     else
-      @websites = Website.all
+      @websites = Website.all.order(:name)
     end
   
     @total_statements = Statement.all.count

@@ -11,7 +11,7 @@ class ApplicationController < ActionController::Base
 
   def selectable_websites
     # used in nav bar
-    @selectable_websites = Website.all
+    @selectable_websites = Website.all.order(:name)
     @website =
       if params[:seedurl].present?
         Website.where(seedurl: params[:seedurl]).first
