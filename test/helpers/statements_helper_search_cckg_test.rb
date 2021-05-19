@@ -11,7 +11,7 @@ class StatementsHelperSearchCckgTest < ActionView::TestCase
   end
 
   test "search_cckg: should search cckg for uris by matching name in substring" do
-    expected = {:data=>[["Bluma Appel Theatre", "http://kg.artsdata.ca/resource/K11-6"], ["Canadian Stage - Berkeley Street Theatre", "http://kg.artsdata.ca/resource/K11-14"]]}
+    expected = {:data=>[["St. Lawrence Centre for the Arts - Bluma Appel Theatre", "http://kg.artsdata.ca/resource/K11-6"], ["Canadian Stage - Berkeley Street Theatre", "http://kg.artsdata.ca/resource/K11-14"]]}
     actual = search_cckg "The locations is in the lovely Bluma Appel Theatre and Berkeley Street Theatre.", "Place"
     assert_equal expected, actual
   end

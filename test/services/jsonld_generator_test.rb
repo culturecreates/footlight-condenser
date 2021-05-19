@@ -78,7 +78,40 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     assert_equal expected_output, JsonldGenerator.describe_uri(uri).count
   end
 
+  ############################
+  # test dereferencing uri
+  ############################
+  test "should dereference artsdata uri" do
+    uri = RDF::URI.new("http://kg.artsdata.ca/resource/K16-6")
+    expected_output = 30
+    actual = JsonldGenerator.dereference_uri(uri)
+    assert_equal expected_output, actual.count
+  end
+
+  test "should dereference wikidata uri" do
+    uri = RDF::URI.new("https://www.wikidata.org/entity/Q3308948")
+    expected_output = 19553
+    actual = JsonldGenerator.dereference_uri(uri)
+    assert_equal expected_output, actual.count
+  end
+
+  test "should not dereference when uri does not exist" do
+    uri = RDF::URI.new("https://www.wikidata.org/entity/Q12121212121212")
+    expected_output = 0
+    actual = JsonldGenerator.dereference_uri(uri)
+    assert_equal expected_output, actual.count
+  end
+
+  test "should not dereference invalid uri protocol" do
+    uri = RDF::URI.new("ht://badprotocol.com")
+    expected_output = 0
+    actual = JsonldGenerator.dereference_uri(uri)
+    assert_equal expected_output, actual.count
+  end
+
+  ############################
   # tests method delete_ids
+  ############################
   test "should remove @ids" do
     jsonld = {"one" => "thing", "@id" => "123"}
     expected_output = {"one" => "thing"}

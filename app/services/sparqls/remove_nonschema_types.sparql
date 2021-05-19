@@ -1,0 +1,10 @@
+# When building JSON-LD for webpages
+# Google compains about non schema.org rdf types 
+# that come from mappings in artsdata to other vocabs
+delete {
+  ?s a ?p
+}
+where {
+  ?s a ?p
+  filter (!contains(str(?p),"schema.org"))
+} 
