@@ -64,11 +64,17 @@ class ExportGraphToDatabus
     bucket = "data.culturecreates.com"
 
     begin
-      client = Aws::S3::Client.new(region: "ca-central-1", access_key_id: ENV["ACCESS_KEY_ID"], secret_access_key: ENV["SECRET_ACCESS_KEY"])
+      client = Aws::S3::Client.new(
+        region: "ca-central-1", 
+        access_key_id: ENV["ACCESS_KEY_ID"], 
+        secret_access_key: ENV["SECRET_ACCESS_KEY"]
+      )
+
       client.put_object(
         bucket: bucket,
         key: "databus/culture-creates/footlight/#{artifact}/#{version}/#{file}", 
-        body: jsonld
+        body: jsonld,
+        cache_control: 'max-age=0'
       )
     rescue Aws::Sigv4::Errors::MissingCredentialsError => credentials_error
       credentials_error
