@@ -1,5 +1,4 @@
 class ExportGraphToDatabus
-
   def self.export_events(seedurl, root_url)
     # Create Graph
     event_controller = EventsController.new
@@ -76,8 +75,10 @@ class ExportGraphToDatabus
     end
   end
 
-  def self.add_to_databus(group:, artifact:, download_url:, download_file:, version:, report_callback_url:)
+  def self.add_to_databus(group:, artifact:, download_url:, download_file:, version:, report_callback_url:, shacl_file: 'artsdata')
     publisher = 'https://graph.culturecreates.com/id/footlight'
+
+    puts "SHACL: #{shacl_file}"
 
     data = HTTParty.post(artsdata_api_url,
       query: {
@@ -87,7 +88,8 @@ class ExportGraphToDatabus
         version: version,
         downloadUrl: download_url,
         downloadFile: download_file,
-        reportCallbackUrl: report_callback_url
+        reportCallbackUrl: report_callback_url,
+        shacl: shacl_file
       } # ,
       #headers: { 'Content-Type' => 'application/x-www-form-urlencoded; charset=UTF-8',
       #          'Accept' => 'application/json'},

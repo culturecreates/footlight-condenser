@@ -9,14 +9,16 @@
        <% downloadUrl = "https://data.culturecreates.com/#{obj.key}" %>
           <% artifact_path = obj.key.delete_prefix(@base_path) %>
       <li><a href=<%= downloadUrl %>><%= artifact_path %></a> | 
+      <%= link_to 'validate', "#{ExportGraphToDatabus.artsdata_api_url}/validate?downloadUrl=#{downloadUrl}&shacl=condenser" %>  | 
       <%= link_to 'push to artsdata', 
-            databus_artsdata_path(
-              group: make_databus_group(), 
-              artifact: artifact_path.split('/')[0], 
-              version: artifact_path.split('/')[1],
-              downloadFile: artifact_path.split('/')[2], 
-              downloadUrl: downloadUrl), 
-            method: :post %>  
+      databus_artsdata_path(
+        group: make_databus_group(), 
+        artifact: artifact_path.split('/')[0], 
+        version: artifact_path.split('/')[1],
+        downloadFile: artifact_path.split('/')[2], 
+        downloadUrl: downloadUrl,
+        shacl: 'condenser'), 
+      method: :post %>  
       </li>
     <% end %>
   <% end %>

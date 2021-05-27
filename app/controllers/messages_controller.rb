@@ -18,6 +18,8 @@ class MessagesController < ApplicationController
     @message = Message.new
   end
 
+  # POST /webhook.json
+  # Use this for callback URL with Artsdata Databus
   def webhook
     @message = Message.new
     @message.message = params[:message]
@@ -40,6 +42,7 @@ class MessagesController < ApplicationController
   # POST /messages
   # POST /messages.json
   def create
+    puts "Params: #{params}"
     @message = Message.new(message_params)
 
     respond_to do |format|

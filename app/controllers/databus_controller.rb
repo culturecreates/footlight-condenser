@@ -28,7 +28,7 @@ class DatabusController < ApplicationController
     end
   end
 
-  # POST /databus/artsdata?group=&artifact=&version=&downloadUrl=&downloadFile=
+  # POST /databus/artsdata?group=&artifact=&version=&downloadUrl=&downloadFile=&shacl=
   # Create an entry on the Artsdata Databus
   def artsdata
     group = params[:group]
@@ -36,11 +36,20 @@ class DatabusController < ApplicationController
     download_url = params[:downloadUrl]
     download_file = params[:downloadFile]
     version = params[:version]
-    data = ExportGraphToDatabus.add_to_databus(group: group, artifact: artifact, download_url: download_url, download_file: download_file, version: version, report_callback_url: webhook_messages_url(artifact: artifact, format: :json))
+    shacl_file = params[:shacl]
+    data = ExportGraphToDatabus.add_to_databus(
+      group: group,
+      artifact: artifact, 
+      download_url: download_url, 
+      download_file: download_file, 
+      version: version, 
+      report_callback_url: webhook_messages_url(artifact: artifact, format: :json),
+      shacl_file: shacl_file)
     if data.code[0] == 2
       render json: { message: data }.to_json
     else
       render json: { error: data }.to_json
     end
   end
+
 end
