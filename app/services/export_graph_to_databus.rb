@@ -81,10 +81,8 @@ class ExportGraphToDatabus
     end
   end
 
-  def self.add_to_databus(group:, artifact:, download_url:, download_file:, version:, report_callback_url:, shacl_file: 'artsdata')
+  def self.add_to_databus(group:, artifact:, download_url:, download_file:, version:, report_callback_url:, shacl_file: 'condenser')
     publisher = 'https://graph.culturecreates.com/id/footlight'
-
-    puts "SHACL: #{shacl_file}"
 
     data = HTTParty.post(artsdata_api_url,
       query: {
