@@ -265,7 +265,7 @@ class JsonldGenerator
       if uri.value.include?('kg.artsdata.ca/resource/K')
         # dereference URI
         linked_data = dereference_uri(uri)
-        # TODO: remove non-schema vocabulary for types
+        # remove non-schema vocabulary for types
         sparql = RDFLoader.load_sparql('remove_nonschema_types.sparql')
         sse = SPARQL.parse(sparql, update: true)
         linked_data.query(sse)
@@ -281,12 +281,27 @@ class JsonldGenerator
 
   # Derefence URI and return a graph object
   def self.dereference_uri(uri)
-    # RDF::URI.new("http://kg.artsdata.ca/resource/K16-6")
+    return  RDF::Graph.new unless uri.value.include?('kg.artsdata.ca/resource/K')
+
+    artsdata_id = uri.value.delete_prefix('http://kg.artsdata.ca/resource/')
     begin
-      RDF::Graph.load(uri)
+      # get ranked dereference
+      url = "#{self.artsdata_rank_api_url}#{artsdata_id}.json"
+      result = HTTParty.get(url)
+      # create graph 
+      # OLD RDF::Graph.load(uri)
+      RDF::Graph.new << JSON::LD::API.toRdf(JSON.parse(result.body))
     rescue IOError => e
       Rails.logger.error "Error dereferencing URI: #{uri.inspect}. Exception: #{e.inspect}"
       RDF::Graph.new
+    end
+  end
+
+  def self.artsdata_rank_api_url
+    if Rails.env.development?  || Rails.env.test?
+      'http://localhost:3003/ranked/'
+    else
+      'http://api.artsdata.ca/ranked/'
     end
   end
 end

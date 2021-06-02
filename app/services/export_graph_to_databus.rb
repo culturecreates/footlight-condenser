@@ -84,7 +84,7 @@ class ExportGraphToDatabus
   def self.add_to_databus(group:, artifact:, download_url:, download_file:, version:, report_callback_url:, shacl_file: 'condenser')
     publisher = 'https://graph.culturecreates.com/id/footlight'
 
-    data = HTTParty.post(artsdata_api_url,
+    data = HTTParty.post(artsdata_databus_api_url,
       query: {
         publisher: publisher,
         group: group,
@@ -101,13 +101,11 @@ class ExportGraphToDatabus
     )
   end
 
-
-  def self.artsdata_api_url
+  def self.artsdata_databus_api_url
     if Rails.env.development?  || Rails.env.test?
       'http://localhost:3003/databus'
     else
       'http://api.artsdata.ca/databus'
     end
-
   end
 end

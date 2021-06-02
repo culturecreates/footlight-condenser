@@ -83,14 +83,14 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
   ############################
   test "should dereference artsdata uri" do
     uri = RDF::URI.new("http://kg.artsdata.ca/resource/K16-6")
-    expected_output = 30
+    expected_output = 17
     actual = JsonldGenerator.dereference_uri(uri)
     assert_equal expected_output, actual.count
   end
 
   test "should dereference wikidata uri" do
     uri = RDF::URI.new("https://www.wikidata.org/entity/Q3308948")
-    expected_output = 19553
+    expected_output = 0
     actual = JsonldGenerator.dereference_uri(uri)
     assert_equal expected_output, actual.count
   end
@@ -154,5 +154,5 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     assert_equal expected_output.dump(:ntriples), JsonldGenerator.make_google_graph(input_graph).dump(:ntriples)
   end
 
-  
+
 end
