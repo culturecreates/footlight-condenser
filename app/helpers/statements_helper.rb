@@ -3,6 +3,7 @@
 module StatementsHelper
   include CcKgHelper
   include CcWringerHelper
+  Page = Struct.new(:text) # Used to simulate Nokogiri object's text method
 
   def scrape_sources(sources, webpage, scrape_options = {})
     logger.info("*** Starting scrape with sources:#{sources.inspect} for webpage: #{webpage.inspect}")
@@ -95,6 +96,15 @@ module StatementsHelper
             logger.info "*** New URL formed: #{new_url}"
             html = agent.get_file use_wringer(new_url, source.render_js, scrape_options)
             page = Nokogiri::HTML html
+          elsif a.start_with? 'json_url'
+            new_url = a.delete_prefix('url_json=')
+            new_url = new_url.gsub('$array', 'results_list')
+            new_url = new_url.gsub('$url', 'url')
+            new_url = eval(new_url)
+            logger.info "*** New URL for JSON call: #{new_url}"
+            html = agent.get_file use_wringer(new_url, source.render_js, scrape_options)
+            page = Page.new html  # Do not use Nokogiri because it will remove html
+            #page = Nokogiri::HTML html
           elsif a.start_with? 'post_url'
             # replace current page data by scraping new url with wringer using POST
             # using format url='http://example.com?param_for_post='
