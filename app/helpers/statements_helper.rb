@@ -349,13 +349,13 @@ module StatementsHelper
     # get names of all statements of expected_class
     hits = []
     # statements = Statement.where(cache: uri_string)
-    entities = Statement.joins(source: :property).where(status: ['ok','updated']).where({ sources: { selected: true, properties: { label: 'Name', rdfs_class: RdfsClass.where(name: expected_class) } }  }).pluck(:cache, :webpage_id)
+    entities = Statement.joins(source: :property).where(status: ['ok','updated']).where({ sources: { selected: true, properties: { label: ['Name','alternateName'], rdfs_class: RdfsClass.where(name: expected_class) } }  }).pluck(:cache, :webpage_id)
     entities.each do |entity|
       hits << entity if uri_string.downcase.include?(entity[0].downcase)
     end
 
     if expected_class == "Organization"
-      entities = Statement.joins(source: :property).where(status: ['ok','updated']).where({ sources: { selected: true, properties: { label: 'Name', rdfs_class: RdfsClass.where(name: "Person") } } }).pluck(:cache, :webpage_id)
+      entities = Statement.joins(source: :property).where(status: ['ok','updated']).where({ sources: { selected: true, properties: { label: ['Name','alternateName'], rdfs_class: RdfsClass.where(name: "Person") } } }).pluck(:cache, :webpage_id)
       entities.each do |entity|
         hits << entity if uri_string.downcase.include?(entity[0].downcase)
       end
