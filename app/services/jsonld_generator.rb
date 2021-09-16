@@ -116,18 +116,17 @@ class JsonldGenerator
 
   # convert a list of startDates into subEvents
   def self.make_event_series(local_graph, uri)
-   # return  local_graph if uri.include?("’")  #ouimag
-   # return  local_graph if uri.include?("spec-qc-ca_film-symphonique")
-    puts "make_event_series uri: #{uri}"
+   # resolve prefix if present
+   full_uri = uri.gsub("adr:", "http://kg.artsdata.ca/resource/")
 
     # Check for more than 1 startDate
     query = RDF::Query.new do
-      pattern [RDF::URI.new(uri),RDF::URI.new("http://schema.org/startDate"), :o]
+      pattern [RDF::URI.new(full_uri),RDF::URI.new("http://schema.org/startDate"), :o] 
     end
     result = query.execute(local_graph)
     return local_graph unless result.count > 1
 
-    sparql = RDFLoader.load_sparql('event_series.sparql',["adr:spec-qc-ca_broue", uri])
+    sparql = RDFLoader.load_sparql('event_series.sparql',["http://kg.artsdata.ca/resource/spec-qc-ca_broue", full_uri])
     begin
       sse = SPARQL.parse(sparql, update: true)
       local_graph.query(sse)

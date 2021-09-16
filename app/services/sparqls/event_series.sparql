@@ -18,15 +18,15 @@ where {
          schema:name ?name .
     {
         select ?dates ?uri where {
-            values ?uri { adr:spec-qc-ca_broue }
+            values ?uri { <http://kg.artsdata.ca/resource/spec-qc-ca_broue> }
             ?uri  schema:startDate ?dates
         }
     }
     {
         select ?firstDate where {
-            values ?uri { adr:spec-qc-ca_broue }
+            values ?uri { <http://kg.artsdata.ca/resource/spec-qc-ca_broue> }
             ?uri  schema:startDate ?firstDate
         }  order by ?firstDate limit 1 
     } 
-    bind(URI(CONCAT(str(?uri),str(?dates))) as ?subEventUri)
+    bind(URI(CONCAT(str(?uri),REPLACE(str(?dates),":",""))) as ?subEventUri)
 }

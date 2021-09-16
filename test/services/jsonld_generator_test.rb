@@ -22,23 +22,26 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     g << [uri, @schema.startDate, RDF::Literal::DateTime.new("2020-07-14T08:00:00-04:00")]
     g << [uri, @schema.startDate, RDF::Literal::DateTime.new("2020-07-15T08:00:00-04:00")]
 
-    expected_output = g
-    expected_output.delete [uri, @schema.startDate, RDF::Literal::DateTime.new("2020-07-15T08:00:00-04:00")]
+    expected_output = RDF::Graph.new
+    expected_output << [uri, @schema.name, RDF::Literal.new("Test Event Series")]
+    expected_output << [uri, @schema.location, RDF::Literal.new("My Place")]
+    expected_output << [uri, @schema.startDate, RDF::Literal::DateTime.new("2020-07-14T08:00:00-04:00")]
     expected_output << [uri, RDF.type, @schema.EventSeries]
-    uri2 =  RDF::URI.new("http://kg.artsdata.ca/resource/spec-qc-ca_broue2020-07-14T08:00:00-04:00")
+    uri2 =  RDF::URI.new("http://kg.artsdata.ca/resource/spec-qc-ca_broue2020-07-14T080000-0400")
     expected_output << [uri, @schema.subEvent, uri2]
     expected_output << [uri2, RDF.type, @schema.Event]
     expected_output << [uri2, @schema.name, RDF::Literal.new("Test Event Series")]
     expected_output << [uri2, @schema.location, RDF::Literal.new("My Place")]
     expected_output<< [uri2, @schema.startDate, RDF::Literal::DateTime.new("2020-07-14T08:00:00-04:00")]
-    uri3 =  RDF::URI.new("http://kg.artsdata.ca/resource/spec-qc-ca_broue2020-07-15T08:00:00-04:00")
+    uri3 =  RDF::URI.new("http://kg.artsdata.ca/resource/spec-qc-ca_broue2020-07-15T080000-0400")
     expected_output << [uri, @schema.subEvent, uri3]
     expected_output << [uri3, RDF.type, @schema.Event]
     expected_output << [uri3, @schema.name, RDF::Literal.new("Test Event Series")]
     expected_output << [uri3, @schema.location, RDF::Literal.new("My Place")]
     expected_output<< [uri3, @schema.startDate, RDF::Literal::DateTime.new("2020-07-15T08:00:00-04:00")]
-
-    assert_equal expected_output.dump(:ntriples), JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue").dump(:ntriples)
+    
+    actual = JsonldGenerator.make_event_series(g,"http://kg.artsdata.ca/resource/spec-qc-ca_broue")
+    assert_equal expected_output.dump(:ntriples), actual.dump(:ntriples)
   end
 
   test "DO NOT convert single startDate to subEvents" do
@@ -49,7 +52,7 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     g << [uri, @schema.location, RDF::Literal.new("My Place")]
     g << [uri, @schema.startDate, RDF::Literal::DateTime.new("2020-07-14T08:00:00-04:00")]
     expected_output = g
-    assert_equal expected_output.dump(:ntriples), JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue").dump(:ntriples)
+    assert_equal expected_output.dump(:ntriples), JsonldGenerator.make_event_series(g,"http://kg.artsdata.ca/resource/spec-qc-ca_broue").dump(:ntriples)
   end
 
   ############################
