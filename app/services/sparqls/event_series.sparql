@@ -1,20 +1,32 @@
 PREFIX schema: <http://schema.org/>
-
-construct {
-    ?uri schema:subEvent
-        [ a schema:Event  ; 
-        schema:name ?name ; 
-        schema:description ?description ;
-        schema:startDate ?dates ;
-        schema:location ?location ]
+PREFIX adr: <http://kg.artsdata.ca/resource/>
+delete {
+      ?uri  schema:startDate ?dates ;
+       a schema:Event .
 }
-where { 
-    ?uri schema:description ?description ; 
-    schema:location ?location ;
-    schema:name ?name .
-        { select ?dates where {
-            values ?uri {  }
+insert {
+    ?uri schema:startDate ?firstDate ;
+         a schema:EventSeries ;
+         schema:subEvent ?subEventUri .
+           ?subEventUri a schema:Event  ;
+              schema:name ?name ;
+              schema:startDate ?dates ;
+              schema:location ?location .
+}
+where {
+    ?uri schema:location ?location ;
+         schema:name ?name .
+    {
+        select ?dates ?uri where {
+            values ?uri { adr:spec-qc-ca_broue }
             ?uri  schema:startDate ?dates
         }
+    }
+    {
+        select ?firstDate where {
+            values ?uri { adr:spec-qc-ca_broue }
+            ?uri  schema:startDate ?firstDate
+        }  order by ?firstDate limit 1 
     } 
+    bind(URI(CONCAT(str(?uri),str(?dates))) as ?subEventUri)
 }

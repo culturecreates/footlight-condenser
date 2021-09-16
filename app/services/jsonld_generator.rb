@@ -6,6 +6,7 @@ class JsonldGenerator
     events.each do |uri|
       statements = load_uri_statements(uri)
       graph = build_graph(statements, {})
+      graph = make_event_series(graph, uri)
       graph = add_triples_from_artsdata(graph)
       graphs << graph
     end
@@ -110,6 +111,22 @@ class JsonldGenerator
     sparql = RDFLoader.load_sparql('remove_date_datatypes.sparql')
     sse = SPARQL.parse(sparql, update: true)
     local_graph.query(sse)
+    local_graph
+  end
+
+  # convert a list of startDates into subEvents
+  def self.make_event_series(local_graph, uri)
+   # return  local_graph if uri.include?("’") 
+   # return  local_graph if uri.include?("spec-qc-ca_film-symphonique")
+    puts "make_event_series uri: #{uri}"
+    
+    sparql = RDFLoader.load_sparql('event_series.sparql',["adr:spec-qc-ca_broue", uri])
+    begin
+      sse = SPARQL.parse(sparql, update: true)
+      local_graph.query(sse)
+    rescue => exception
+      Rails.logger.error "ERROR: #{exception}"
+    end
     local_graph
   end
 
