@@ -14,7 +14,7 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
   ############################
 
   test "convert startDates to subEvents" do
-     @schema = RDF::Vocabulary.new("http://schema.org/")
+    @schema = RDF::Vocabulary.new("http://schema.org/")
     g = RDF::Graph.new
     uri = RDF::URI.new("http://kg.artsdata.ca/resource/spec-qc-ca_broue")
     g << [uri, @schema.name, RDF::Literal.new("Test Event Series")]
@@ -38,6 +38,17 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     expected_output << [uri3, @schema.location, RDF::Literal.new("My Place")]
     expected_output<< [uri3, @schema.startDate, RDF::Literal::DateTime.new("2020-07-15T08:00:00-04:00")]
 
+    assert_equal expected_output.dump(:ntriples), JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue").dump(:ntriples)
+  end
+
+  test "DO NOT convert single startDate to subEvents" do
+    @schema = RDF::Vocabulary.new("http://schema.org/")
+    g = RDF::Graph.new
+    uri = RDF::URI.new("http://kg.artsdata.ca/resource/spec-qc-ca_broue")
+    g << [uri, @schema.name, RDF::Literal.new("Test Event Series")]
+    g << [uri, @schema.location, RDF::Literal.new("My Place")]
+    g << [uri, @schema.startDate, RDF::Literal::DateTime.new("2020-07-14T08:00:00-04:00")]
+    expected_output = g
     assert_equal expected_output.dump(:ntriples), JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue").dump(:ntriples)
   end
 
