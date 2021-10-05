@@ -3,7 +3,7 @@
 <ol>
   <% @contents.each do |obj| %>
       <% downloadUrl = "https://data.culturecreates.com/#{obj.key}" %>
-      <% artifact_path = obj.key.delete_prefix(@website.seedurl) %>
+      <% artifact_path = obj.key.delete_prefix("databus/culture-creates/footlight/#{@website.seedurl}/") %>
       <li><a href=<%= downloadUrl %>><%= artifact_path %></a> | 
       <%= link_to 'validate', "#{ExportGraphToDatabus.artsdata_databus_api_url}/validate?downloadUrl=#{downloadUrl}&shacl=condenser" %>  | 
       <%= link_to 'push to artsdata', 

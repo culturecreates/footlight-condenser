@@ -9,7 +9,7 @@ class DatabusController < ApplicationController
       result = client.list_objects(
         bucket: "data.culturecreates.com",
         max_keys: 1000,
-        prefix: "databus/culture-creates/footlight/#{@website.seedurl}"
+        prefix: "databus/culture-creates/footlight/#{@website.seedurl}/"
       )
       @contents = result.contents if result.contents
     rescue Aws::Sigv4::Errors::MissingCredentialsError => e
