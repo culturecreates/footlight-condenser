@@ -3,12 +3,13 @@ class DatabusController < ApplicationController
   # List files on S3
   def index
     @contents = []
+    @offset = params[:offset]
     begin
       client = Aws::S3::Client.new(region: "ca-central-1", access_key_id: ENV["ACCESS_KEY_ID"], secret_access_key: ENV["SECRET_ACCESS_KEY"])
       result = client.list_objects(
         bucket: "data.culturecreates.com",
         max_keys: 1000,
-        prefix: 'databus/culture-creates/footlight/'
+        prefix: "databus/culture-creates/footlight/#{@website.seedurl}"
       )
       @contents = result.contents if result.contents
     rescue Aws::Sigv4::Errors::MissingCredentialsError => e

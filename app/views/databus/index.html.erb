@@ -2,12 +2,8 @@
 
 <ol>
   <% @contents.each do |obj| %>
-    <% if  obj.key.end_with?('/') %>
-      <h2>  <%= obj.key %> </h2>
-      <% @base_path =  obj.key %>
-    <% else %>
-       <% downloadUrl = "https://data.culturecreates.com/#{obj.key}" %>
-          <% artifact_path = obj.key.delete_prefix(@base_path) %>
+      <% downloadUrl = "https://data.culturecreates.com/#{obj.key}" %>
+      <% artifact_path = obj.key.delete_prefix(@website.seedurl) %>
       <li><a href=<%= downloadUrl %>><%= artifact_path %></a> | 
       <%= link_to 'validate', "#{ExportGraphToDatabus.artsdata_databus_api_url}/validate?downloadUrl=#{downloadUrl}&shacl=condenser" %>  | 
       <%= link_to 'push to artsdata', 
@@ -20,7 +16,7 @@
         shacl: 'condenser'), 
       method: :post %>  
       </li>
-    <% end %>
+  
   <% end %>
 </ol>
 
