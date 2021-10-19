@@ -309,10 +309,9 @@ class JsonldGenerator
     artsdata_id = uri.value.delete_prefix('http://kg.artsdata.ca/resource/')
     begin
       # get ranked dereference
-      url = "#{self.artsdata_rank_api_url}#{artsdata_id}.json"
+      url = "#{self.artsdata_rank_api_url}#{artsdata_id}?format=jsonld"
       result = HTTParty.get(url)
       # create graph 
-      # OLD RDF::Graph.load(uri)
       RDF::Graph.new << JSON::LD::API.toRdf(JSON.parse(result.body))
     rescue IOError => e
       Rails.logger.error "Error dereferencing URI: #{uri.inspect}. Exception: #{e.inspect}"
