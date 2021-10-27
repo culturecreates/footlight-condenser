@@ -96,6 +96,16 @@ module StatementsHelper
             logger.info "*** New URL formed: #{new_url}"
             html = agent.get_file use_wringer(new_url, source.render_js, scrape_options)
             page = Nokogiri::HTML html
+          elsif a.start_with? 'renderjs_url'
+            # FORCE Render JS -- replace current page by scraping new url with wringer
+            # using format renderjs_url='http://example.com'
+            new_url = a.delete_prefix('renderjs_url=')
+            new_url = new_url.gsub('$array', 'results_list')
+            new_url = new_url.gsub('$url', 'url')
+            new_url = eval(new_url)
+            logger.info "*** New URL formed: #{new_url}"
+            html = agent.get_file use_wringer(new_url, true, scrape_options)
+            page = Nokogiri::HTML html
           elsif a.start_with? 'json_url'
             new_url = a.delete_prefix('url_json=')
             new_url = new_url.gsub('$array', 'results_list')
