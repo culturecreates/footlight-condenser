@@ -13,10 +13,9 @@ class JsonldGenerator
     graphs.dump(:jsonld)
   end
 
-  # Load all ActiveRecord Statements that are selected 'true'
+  # Load all ActiveRecord Statements for a URI that are selected 'true'
   def self.load_uri_statements(rdf_uri)
-    # A uri may span statements from an english and french webpage
-    webpages = Webpage.where(rdf_uri: rdf_uri)
+    webpages = Webpage.where(rdf_uri: rdf_uri) # A uri may span statements from an english and french webpage
     statements = Statement.joins({ source: :property }).where(webpage_id: webpages, sources: { selected: true })
     statements
   end
@@ -71,13 +70,13 @@ class JsonldGenerator
     uris = extract_object_uris(local_graph)
     uris.each do |uri|
       additional_graph = describe_uri(uri)
-      # TODO: fetch remote data if additional_graph.count == 0
+      # TODO: fetch remote data from Wikidata if additional_graph.count == 0
       local_graph << additional_graph
     end
     local_graph
   end
 
-  # coalesce languages to best match before JSON-LF Framing
+  # coalesce languages to best match before JSON-LD Framing
   def self.coalesce_language(local_graph, lang = '')
     sparql = RDFLoader.load_sparql('coalesce_languages.sparql', ['placeholder', lang])
     sse = SPARQL.parse(sparql, update: true)
@@ -195,8 +194,14 @@ class JsonldGenerator
 
       elsif  s[:value_datatype] == 'xsd:anyURI'
         s[:object].each do |uri|
-          graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::URI(uri)]
-          # add describe URI to graph
+          # check for schema:sameAs and add as string because this is always a string in schema.org
+          # but condenser treats it as a URI inorder to link to Artsdata
+          # if we don't convert to string we will add back the data from Artsdata in a loop
+          if s[:predicate].include?('sameAs')
+            graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal(uri)]
+          else
+            graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::URI(uri)]
+          end
         end
       elsif  s[:value_datatype] == 'xsd:dateTime'
         # Test value and adjust datatype to either xsd:dateTime or xsd:date or default string
@@ -258,6 +263,7 @@ class JsonldGenerator
     query = RDF::Query.new do
       pattern [uri, :p, :o]
     end
+    # Get all URI's triples from ArtsdataGraph initialized at startup
     result = query.execute(ArtsdataGraph.graph)
     graph = RDF::Graph.new
     result.each do |s|
@@ -283,7 +289,7 @@ class JsonldGenerator
       end
     end
 
-    # if nothing is found, dereference URI
+    # if nothing is found in cached ArtsdataGraph then dereference URI from Artsdata
     if graph.count.zero?
       if uri.value.include?('kg.artsdata.ca/resource/K')
         # dereference URI

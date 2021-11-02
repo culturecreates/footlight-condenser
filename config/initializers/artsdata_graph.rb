@@ -1,4 +1,4 @@
-# Local copy of the relevant graphs in Artsdata.ca including People, Places, Organizations
+# Local copy of the relevant graphs in Artsdata.ca including Culture Creates curated People, Places, Organizations
 class ArtsdataGraph
   @@schema = RDF::Vocabulary.new('http://schema.org/')
 
@@ -28,7 +28,7 @@ class ArtsdataGraph
   @@graph  << [RDF::URI("http://schema.org/OnlineEventAttendanceMode"), RDF.type, RDF::URI("http://schema.org/EventAttendanceModeEnumeration")] 
   @@graph  << [RDF::URI("http://schema.org/MixedEventAttendanceMode"), RDF.type, RDF::URI("http://schema.org/EventAttendanceModeEnumeration")] 
 
-  ## Load local entities
+  ## Load local entities (People, Places, Organizations) entered manually into Footlight
   local_graph = LocalGraphGenerator.graph_all
   # puts "Local graph: #{local_graph.dump(:ntriples)}"
   @@graph << local_graph
