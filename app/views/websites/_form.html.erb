@@ -47,6 +47,13 @@
     <%= form.text_field :graph_name, id: :website_graph_name %>
   </div>
 
+    <div class="field">
+    <%= form.label :auto_review %>
+    True <%= form.radio_button :auto_review, :true %>
+    False <%= form.radio_button :auto_review, :false %>
+   
+  </div>
+
   <div class="actions">
     <%= form.submit %>
   </div>

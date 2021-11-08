@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 2021_05_14_130447) do
+ActiveRecord::Schema.define(version: 2021_11_08_162834) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
@@ -114,6 +114,7 @@ ActiveRecord::Schema.define(version: 2021_05_14_130447) do
     t.integer "schedule_every_days"
     t.datetime "last_refresh"
     t.time "schedule_time"
+    t.boolean "auto_review", default: false
   end
 
   add_foreign_key "properties", "rdfs_classes"
