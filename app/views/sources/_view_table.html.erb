@@ -9,6 +9,7 @@
       <th>Selected</th>
      
       <th>Render js</th>
+       <th>Auto review</th>
       <th>Website</th>
       <th colspan="3"></th>
     </tr>
@@ -24,6 +25,7 @@
         <td><%= source.algorithm_value %></td>
         <td <%= "style=bakground-color:pink;" if !source.selected %>><%= source.selected %></td>
         <td><%= source.render_js %></td>
+         <td><%= source.auto_review %></td>
         <td><%= source.website.seedurl + "(#{source.website_id})" %></td>
 
         <td><%= link_to 'Show', source %></td>

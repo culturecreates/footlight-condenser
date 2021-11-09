@@ -45,6 +45,11 @@
   <%= @source.website.seedurl %>
 </p>
 
+<p>
+  <strong>Auto Review:</strong>
+  <%= @source.auto_review %>
+</p>
+
 <% if @source.statements.first.present? %>
   <%= link_to 'Test', refresh_statement_path(@source.statements.first), method: :patch %> |
 <% elsif @source.website.webpages.where(website: @source.website, rdfs_class_id: @source.property.rdfs_class_id).present? %>

@@ -44,7 +44,8 @@ module StatementsHelper
         # decide to create or update database entry
         if s.count != 1
           # check if website is auto-review
-          new_status = if webpage.website.auto_review
+
+          new_status = if source.auto_review
                          'updated'
                        else
                          'initial'

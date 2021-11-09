@@ -40,24 +40,19 @@
     <%= form.check_box :selected, id: :source_selected %>
   </div>
 
-  <div class="field" style="margin: 0 5px 0 5px;display:block; float:clear;">
-    <%= form.label :selected_by %>
-    <%= form.text_field :selected_by, id: :source_selected_by %>
-  </div>
 
 <div class="field"  style="margin: 0 5px 0 5px;display:block; float:left;">
     <%= form.label :render_js %>
     <%= form.check_box :render_js, id: :source_render_js %>
   </div>
-  <div class="field"  style="margin: 0 5px 0 5px;display:block; float:clear;">
-    <%= form.label :next_step %>
-    <%= form.text_field :next_step, id: :source_next_step %>
+
+ <div class="field">
+    <%= form.label :auto_review %>
+    <%= form.check_box :auto_review %>
   </div>
 
   <div style="display:block; float:clear;"></div>
   
-
-
   <div class="field">
     <%= form.label :website_id %>
     <%= form.collection_select(:website_id, @websites, :id, :seedurl, {selected: @website.id }) %>

@@ -1,8 +1,6 @@
 class WebsitesController < ApplicationController
   before_action :set_website, only: [:show, :edit, :update, :destroy, :delete_all_statements]
 
-
-
   def test_api
     @websites = Website.all.order(:name)
   end
@@ -17,7 +15,6 @@ class WebsitesController < ApplicationController
     cookies[:seedurl] = params[:seedurl]
   end
 
-
   # GET /webpages/places.json?seedurl=
   def places
     @places = []
@@ -26,9 +23,6 @@ class WebsitesController < ApplicationController
       @places << {rdf_uri: uri}
     end
   end
-
-
-
 
   # GET /websites
   # GET /websites.json
@@ -39,7 +33,6 @@ class WebsitesController < ApplicationController
     else
       @websites = Website.all.order(:name)
     end
-  
     @total_statements = Statement.all.count
     @statements_errors = Statement.where("cache LIKE ?", "%error%")
                                    .where(cache_refreshed: [(Time.now - 24.hours)..(Time.now)])
@@ -49,7 +42,6 @@ class WebsitesController < ApplicationController
     @statements_refreshed_24hr = Statement.joins(source: :website).where(cache_refreshed: [(Time.now - 24.hours)..(Time.now)]).group(:seedurl).count
     @statements_updated_24hr = Statement.joins(source: :website).where(cache_changed: [(Time.now - 24.hours)..(Time.now)]).group(:seedurl).count
     @webpages = Webpage.group(:website).count
-
   end
 
   # GET /websites/1
@@ -126,19 +118,15 @@ class WebsitesController < ApplicationController
     end
   end
 
-
-
-
   private
-    # Use callbacks to share common setup or constraints between actions.
-    def set_website
-      @website = Website.find(params[:id])
-    end
 
-    # Never trust parameters from the scary internet, only allow the white list through.
-    def website_params
-      params.require(:website).permit(:name, :seedurl, :graph_name, :default_language, :schedule_every_days, :schedule_time, :last_refresh, :auto_review)
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def set_website
+    @website = Website.find(params[:id])
+  end
 
-
+  # Never trust parameters from the scary internet, only allow the white list through.
+  def website_params
+    params.require(:website).permit(:name, :seedurl, :graph_name, :default_language, :schedule_every_days, :schedule_time, :last_refresh)
+  end
 end
