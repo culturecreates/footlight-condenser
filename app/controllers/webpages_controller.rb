@@ -2,7 +2,6 @@ class WebpagesController < ApplicationController
   skip_before_action :verify_authenticity_token
   before_action :set_webpage, only: [:show, :edit, :update, :destroy]
 
-
   # GET /webpages
   # GET /webpages.json
   def index
@@ -49,7 +48,6 @@ class WebpagesController < ApplicationController
     end
 
   end
-
 
   # GET /webpages/1
   # GET /webpages/1.json
@@ -129,20 +127,18 @@ class WebpagesController < ApplicationController
   end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
-    def set_webpage
-      @webpage = Webpage.find(params[:id])
-    end
 
-    # Never trust parameters from the scary internet, only allow the white list through.
-    def webpage_params
-      params.require(:webpage).permit(:url, :language, :rdf_uri, :rdfs_class_id, :website_id, :archive_date)
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def set_webpage
+    @webpage = Webpage.find(params[:id])
+  end
 
-    def webpage_api_params
-      params.require(:webpage).permit(:url, :language, :rdf_uri, :rdfs_class, :seedurl)
-    end
+  # Never trust parameters from the scary internet, only allow the white list through.
+  def webpage_params
+    params.require(:webpage).permit(:url, :language, :rdf_uri, :rdfs_class_id, :website_id, :archive_date)
+  end
 
-
-
+  def webpage_api_params
+    params.require(:webpage).permit(:url, :language, :rdf_uri, :rdfs_class, :seedurl)
+  end
 end
