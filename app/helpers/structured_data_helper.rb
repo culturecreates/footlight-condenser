@@ -142,7 +142,7 @@ module StructuredDataHelper
             end
           elsif prop == "offer:url"
             add_offer _jsonld, "url", statement.cache
-          elsif prop == "offer:price"
+          elsif prop == "price"
             add_offer _jsonld, "price", statement.cache
           elsif prop == "CreativeWork:keywords"
             add_keywords _jsonld, statement.cache
