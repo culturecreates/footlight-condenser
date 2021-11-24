@@ -103,7 +103,7 @@ class ExportGraphToDatabus
 
   def self.artsdata_databus_api_url
     if Rails.env.development?  || Rails.env.test?
-      'http://localhost:3003/databus'
+      "http://localhost:#{ARTSDATA_API_PORT}/databus"
     else
       'http://api.artsdata.ca/databus'
     end

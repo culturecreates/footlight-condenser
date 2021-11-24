@@ -1,0 +1,70 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: http://db.artsdata.ca/repositories/artsdata
+    body:
+      encoding: UTF-8
+      string: query=SELECT%20%3Fpred%20%3Fobj%20where%20%7B%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%3Chttp%3A%2F%2Fnon-existant%3E%20%3Fa%20%3Fb%20%20%20.%20%20%20%20%20%20%20%20%20%20%20%20%20%3Fb%20%20a%20%20%3Chttp%3A%2F%2Fschema.org%2FPostalAddress%3E%20.%20%20%20%20%20%20%20%20%20%20%20%20%20%20%3Fb%20%20%3Fpred%20%3Fobj%20.%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7D
+    headers:
+      Content-Type:
+      - application/x-www-form-urlencoded; charset=UTF-8
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 200
+      message: ''
+    headers:
+      Server:
+      - nginx/1.18.0 (Ubuntu)
+      Date:
+      - Wed, 24 Nov 2021 15:20:05 GMT
+      Content-Type:
+      - application/sparql-results+json;charset=UTF-8
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Vary:
+      - Accept
+      Cache-Control:
+      - no-store
+      Content-Disposition:
+      - attachment; filename=query-result.srj
+      X-Xss-Protection:
+      - 1; mode=block
+      - 1; mode=block
+      X-Frame-Options:
+      - DENY
+      - SAMEORIGIN
+      X-Content-Type-Options:
+      - nosniff
+      - nosniff
+      Content-Language:
+      - en-US
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Referrer-Policy:
+      - origin
+    body:
+      encoding: UTF-8
+      string: |-
+        {
+          "head" : {
+            "vars" : [
+              "pred",
+              "obj"
+            ]
+          },
+          "results" : {
+            "bindings" : [ ]
+          }
+        }
+    http_version:
+  recorded_at: Wed, 24 Nov 2021 15:20:05 GMT
+recorded_with: VCR 3.0.3

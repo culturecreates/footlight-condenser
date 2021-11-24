@@ -1,0 +1,53 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: http://localhost:3003/recon?query=Th%C3%A9%C3%A2tre%20Maisonneuve&type=Place
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - application/json; charset=utf-8
+      Etag:
+      - W/"bd7c0471ca4f7ae4d09a380d69114dd0"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - 7cee7d3f-5b38-43d1-ba36-0361525dc546
+      X-Runtime:
+      - '0.366078'
+      Vary:
+      - Origin
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: ASCII-8BIT
+      string: !binary |-
+        eyJyZXN1bHQiOlt7ImlkIjoiSzExLTExIiwibmFtZSI6IlBsYWNlIGRlcyBBcnRzIC0gVGjDqcOidHJlIE1haXNvbm5ldXZlIiwic2NvcmUiOjUuMzExOTAxLCJtYXRjaCI6dHJ1ZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xNTciLCJuYW1lIjoiVGjDqcOidHJlIEV2ZXJncmVlbiIsInNjb3JlIjoxLjI1Mjk0OTUsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xNzMiLCJuYW1lIjoiVGjDqcOidHJlIExFUiIsInNjb3JlIjoxLjI1Mjk0OTUsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS00IiwibmFtZSI6IlRow6nDonRyZSBIZWN0b3ItQ2hhcmxhbmQiLCJzY29yZSI6MS4wNDQxMjQ2LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtMTU4IiwibmFtZSI6IlRow6nDonRyZSBGYXRpbWEgKEtlZGd3aWNrKSIsInNjb3JlIjoxLjA0NDEyNDYsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xNTkiLCJuYW1lIjoiVGjDqcOidHJlIEdpbGxlcy1MYXBsYW50ZSIsInNjb3JlIjoxLjA0NDEyNDYsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xNjIiLCJuYW1lIjoiVGjDqcOidHJlIFJpY2hhcmQtRGVueXMiLCJzY29yZSI6MS4wNDQxMjQ2LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtMTU0IiwibmFtZSI6IlRow6nDonRyZSBCZXJuYXJkLVBvaXJpZXIiLCJzY29yZSI6MS4wNDQxMjQ2LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtMjEzIiwibmFtZSI6IlRow6nDonRyZSBNYXJjZWxsaW4tQ2hhbXBhZ25hdCIsInNjb3JlIjoxLjA0NDEyNDYsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0yMjIiLCJuYW1lIjoiVGjDqcOidHJlIEplYW4tRHVjZXBwZSIsInNjb3JlIjoxLjA0NDEyNDYsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS01IiwibmFtZSI6IlRow6nDonRyZSBkdSBOb3V2ZWF1IE1vbmRlIiwic2NvcmUiOjAuODM1Mjk5NywibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTE1NiIsIm5hbWUiOiJUaMOpw6J0cmUgZHUgTW9udW1lbnQtTGVmZWJ2cmUiLCJzY29yZSI6MC44MzUyOTk3LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtMTQyIiwibmFtZSI6IlNhbGxlIEFsbWEgQXRob2x2aWxsZSAoVGjDqcOidHJlIFVOSSkiLCJzY29yZSI6MC44MzUyOTk3LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtMTU1IiwibmFtZSI6IlRow6nDonRyZSBkZXMgR3JhbmRzLVZlbnRzIiwic2NvcmUiOjAuODM1Mjk5NywibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTE4OSIsIm5hbWUiOiJUaMOpw6J0cmUgZGVzIERldXggUml2ZXMiLCJzY29yZSI6MC44MzUyOTk3LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtMTkwIiwibmFtZSI6IkNhYmFyZXQtVGjDqcOidHJlIGR1IFZpZXV4LVNhaW50LUplYW4iLCJzY29yZSI6MC43MzA4ODcyMywibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTE5MyIsIm5hbWUiOiJJbXBlcmlhbCBUaGVhdHJlIiwic2NvcmUiOjAuNzIzMzkwNzYsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xMTYiLCJuYW1lIjoiQ2FwaXRvbCBUaGVhdHJlIiwic2NvcmUiOjAuNzIzMzkwNzYsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xNjQiLCJuYW1lIjoiVGjDqcOidHJlIFZvZ3VlIiwic2NvcmUiOjAuNzIzMzkwNzYsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xNjEiLCJuYW1lIjoiVGjDqcOidHJlIExvdWlzIFZlcm1lZXJzY2giLCJzY29yZSI6MC42MDI4MjU2NCwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfV19
+    http_version:
+  recorded_at: Wed, 24 Nov 2021 13:17:00 GMT
+recorded_with: VCR 3.0.3

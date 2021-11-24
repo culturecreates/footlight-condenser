@@ -1,0 +1,72 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: http://localhost:3003/recon?query=The%20locations%20is%20in%20the%20lovely%20Berkeley%20Street%20Theatre%20and%20Canadian%20Stage%20-%20Berkeley%20Street%20Theatre.&type=Place
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - application/json; charset=utf-8
+      Etag:
+      - W/"a6847dece4c106e2207c1fc5a5c64f13"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - caac9774-f240-4ab3-9dbd-c2a98476bb8e
+      X-Runtime:
+      - '1.284580'
+      Vary:
+      - Origin
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: UTF-8
+      string: '{"result":[{"id":"K11-14","name":"Canadian Stage - Berkeley Street
+        Theatre","score":5.7782803,"match":true,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-8","name":"Canadian
+        Stage - Berkeley Street Theatre Upstairs","score":5.0559955,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-61","name":"Canadian
+        Stage - Marilyn and Charles Baillie Theatre","score":0.87198776,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-13","name":"Canadian
+        Stage","score":0.51029104,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-53","name":"Goldcorp
+        Stage at BMO Theatre Centre","score":0.42261702,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-99","name":"Domino
+        Theatre","score":0.25815126,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-180","name":"York
+        Theatre","score":0.25815126,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-206","name":"Elgin
+        Theatre","score":0.25815126,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-207","name":"The
+        Theatre on King","score":0.25815126,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-25","name":"Centaur
+        Theatre","score":0.23712707,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-44","name":"Citadel
+        Theatre","score":0.23712707,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-55","name":"Sagebrush
+        Theatre","score":0.23712707,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-56","name":"Pavilion
+        Theatre","score":0.23712707,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-65","name":"Sunset
+        Theatre","score":0.23712707,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-45","name":"Citadel
+        Theatre - Shoctor Theatre","score":0.22356556,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-46","name":"Citadel
+        Theatre - Maclab Theatre","score":0.22356556,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-47","name":"Citadel
+        Theatre - The Club","score":0.19760588,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-193","name":"Imperial
+        Theatre","score":0.19361344,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-76","name":"Kingston
+        Grand Theatre","score":0.19361344,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]},{"id":"K11-116","name":"Capitol
+        Theatre","score":0.19361344,"match":false,"type":[{"id":"http://schema.org/Place","name":"Place"}]}]}'
+    http_version:
+  recorded_at: Wed, 24 Nov 2021 13:29:27 GMT
+recorded_with: VCR 3.0.3

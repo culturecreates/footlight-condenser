@@ -1,14 +1,16 @@
 require 'test_helper'
 
 class DatabusControllerTest < ActionDispatch::IntegrationTest
-  test "should get index" do
-    get databus_index_url
-    assert_response(:success, message: "To load credentials >source .aws_keys")
-  end
+  # test "should get index" do
+  #   get databus_index_url
+  #   assert_response(:success, message: "To load credentials >source .aws_keys")
+  # end
 
   test "should call artsdata databus api with missing params" do
-    post databus_artsdata_url
-    assert_response(:success)
+    VCR.use_cassette('DatabusController missing params') do
+      post databus_artsdata_url
+      assert_response(:success)
+    end
   end
 
   # test "should call artsdata databus api with bad file" do

@@ -130,11 +130,13 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
   test "should dereference artsdata uri" do
     uri = RDF::URI.new("http://kg.artsdata.ca/resource/K16-6") # Crossfire Productions
     expected_output = 11
-    actual = JsonldGenerator.dereference_uri(uri)
-    assert_equal expected_output, actual.count
+    VCR.use_cassette('JsonldGenerator.dereference_uri artsdata') do
+      actual = JsonldGenerator.dereference_uri(uri)
+      assert_equal expected_output, actual.count
+    end
   end
 
-  test "should dereference wikidata uri" do
+  test "should NOT dereference wikidata uri" do
     uri = RDF::URI.new("https://www.wikidata.org/entity/Q3308948")
     expected_output = 0
     actual = JsonldGenerator.dereference_uri(uri)
@@ -142,10 +144,12 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
   end
 
   test "should not dereference when uri does not exist" do
-    uri = RDF::URI.new("https://www.wikidata.org/entity/Q12121212121212")
+    uri = RDF::URI.new("http://kg.artsdata.ca/resource/K16-677777777777")
     expected_output = 0
-    actual = JsonldGenerator.dereference_uri(uri)
-    assert_equal expected_output, actual.count
+    VCR.use_cassette('JsonldGenerator.dereference_uri uri does not exist') do
+      actual = JsonldGenerator.dereference_uri(uri)
+      assert_equal expected_output, actual.count
+    end
   end
 
   test "should not dereference invalid uri protocol" do

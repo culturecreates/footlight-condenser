@@ -1,0 +1,52 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: http://localhost:3003/recon?query=meagan%26amy&type=Organization
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - application/json; charset=utf-8
+      Etag:
+      - W/"493bd823dc84eb6d16a392b482f46235"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - 486d0ed4-a9d4-4778-9ba9-553ce7f7af29
+      X-Runtime:
+      - '0.170930'
+      Vary:
+      - Origin
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: UTF-8
+      string: '{"result":[{"id":"K10-376","name":"meagan\u0026amy","score":8.508646,"match":true,"type":[{"id":"http://schema.org/Organization","name":"Organization"}]}]}'
+    http_version:
+  recorded_at: Wed, 24 Nov 2021 13:29:28 GMT
+recorded_with: VCR 3.0.3

@@ -398,7 +398,7 @@ module StatementsHelper
     if str.length > 3
 
       # call Reconciliation service
-      results = HTTParty.get("https://api.artsdata.ca/recon?query=#{CGI.escape(CGI.unescapeHTML(str))}&type=#{rdfs_class}")
+      results = HTTParty.get("#{artsdata_recon_url}?query=#{CGI.escape(CGI.unescapeHTML(str))}&type=#{rdfs_class}")
 
       if results.response.code == "200"
         # keep results that are matches
@@ -519,5 +519,13 @@ module StatementsHelper
       _data << c if c[0] == 'Manually added' || c[0] == 'Manually deleted'
     end
     _data
+  end
+
+  def artsdata_recon_url
+    if Rails.env.development?  || Rails.env.test?
+      "http://localhost:#{ARTSDATA_API_PORT}/recon"
+    else
+      'http://api.artsdata.ca/recon'
+    end
   end
 end

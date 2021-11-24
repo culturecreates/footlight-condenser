@@ -1,0 +1,53 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: http://localhost:3003/recon?query=Shell%20Theatre&type=Place
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - application/json; charset=utf-8
+      Etag:
+      - W/"c815ff5090bfc931937080f0f0e5d9a7"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - c93f9615-6194-4d18-909e-9ec2adf67b5b
+      X-Runtime:
+      - '0.809848'
+      Vary:
+      - Origin
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: ASCII-8BIT
+      string: !binary |-
+        eyJyZXN1bHQiOlt7ImlkIjoiSzExLTY0IiwibmFtZSI6IkRvdyBDZW50ZW5uaWFsIENlbnRyZSAtIFNoZWxsIFRoZWF0cmUiLCJzY29yZSI6NC4yMzU2NDE1LCJtYXRjaCI6dHJ1ZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS02NCIsIm5hbWUiOiJEb3cgQ2VudGVubmlhbCBDZW50cmUgLSBTaGVsbCBUaGVhdHJlIiwic2NvcmUiOjQuMjM1NjQxNSwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTk5IiwibmFtZSI6IkRvbWlubyBUaGVhdHJlIiwic2NvcmUiOjAuODQ3OTE5LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtMTgwIiwibmFtZSI6IllvcmsgVGhlYXRyZSIsInNjb3JlIjowLjg0NzkxOSwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTIwNiIsIm5hbWUiOiJFbGdpbiBUaGVhdHJlIiwic2NvcmUiOjAuODQ3OTE5LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtMjA3IiwibmFtZSI6IlRoZSBUaGVhdHJlIG9uIEtpbmciLCJzY29yZSI6MC44NDc5MTksIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0yNSIsIm5hbWUiOiJDZW50YXVyIFRoZWF0cmUiLCJzY29yZSI6MC43Nzg4NjMzLCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtNDQiLCJuYW1lIjoiQ2l0YWRlbCBUaGVhdHJlIiwic2NvcmUiOjAuNzc4ODYzMywibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTU1IiwibmFtZSI6IlNhZ2VicnVzaCBUaGVhdHJlIiwic2NvcmUiOjAuNzc4ODYzMywibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTU2IiwibmFtZSI6IlBhdmlsaW9uIFRoZWF0cmUiLCJzY29yZSI6MC43Nzg4NjMzLCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtNjUiLCJuYW1lIjoiU3Vuc2V0IFRoZWF0cmUiLCJzY29yZSI6MC43Nzg4NjMzLCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtNDUiLCJuYW1lIjoiQ2l0YWRlbCBUaGVhdHJlIC0gU2hvY3RvciBUaGVhdHJlIiwic2NvcmUiOjAuNzM0MzE5NCwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTQ2IiwibmFtZSI6IkNpdGFkZWwgVGhlYXRyZSAtIE1hY2xhYiBUaGVhdHJlIiwic2NvcmUiOjAuNzM0MzE5NCwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTQ3IiwibmFtZSI6IkNpdGFkZWwgVGhlYXRyZSAtIFRoZSBDbHViIiwic2NvcmUiOjAuNjQ5MDUyOCwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTE5MyIsIm5hbWUiOiJJbXBlcmlhbCBUaGVhdHJlIiwic2NvcmUiOjAuNjM1OTM5MjQsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS03NiIsIm5hbWUiOiJLaW5nc3RvbiBHcmFuZCBUaGVhdHJlIiwic2NvcmUiOjAuNjM1OTM5MjQsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xMTYiLCJuYW1lIjoiQ2FwaXRvbCBUaGVhdHJlIiwic2NvcmUiOjAuNjM1OTM5MjQsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xNjQiLCJuYW1lIjoiVGjDqcOidHJlIFZvZ3VlIiwic2NvcmUiOjAuNjM1OTM5MjQsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xNzgiLCJuYW1lIjoiVGhlIEN1bHRjaCAtIEhpc3RvcmljIFRoZWF0cmUiLCJzY29yZSI6MC42MzU5MzkyNCwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTIwMSIsIm5hbWUiOiJXaW50ZXIgR2FyZGVuIFRoZWF0cmUiLCJzY29yZSI6MC42MzU5MzkyNCwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfV19
+    http_version:
+  recorded_at: Wed, 24 Nov 2021 13:29:24 GMT
+recorded_with: VCR 3.0.3

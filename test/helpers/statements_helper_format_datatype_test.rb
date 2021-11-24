@@ -17,9 +17,11 @@ class StatementsHelperTest < ActionView::TestCase
     property = properties(:seven)
     scraped_data = ["Théâtre Maisonneuve"]
     webpage = webpages(:one)
-    actual = format_datatype(scraped_data, property, webpage)
-    expected = ["Théâtre Maisonneuve", "Place", ["Place des Arts - Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/K11-11"]]
-    assert_equal expected, actual
+    VCR.use_cassette('StatementsHelper_format_datatype') do
+      actual = format_datatype(scraped_data, property, webpage)
+      expected = ["Théâtre Maisonneuve", "Place", ["Place des Arts - Théâtre Maisonneuve", "http://kg.artsdata.ca/resource/K11-11"]]
+      assert_equal expected, actual
+    end
   end
 
   # TODO: match on URL
@@ -55,9 +57,10 @@ class StatementsHelperTest < ActionView::TestCase
     property = properties(:nine)
     scraped_data = ["CompanyKaha:wi Dance Theatre","ArtistsSantee Smith"]
     webpage = webpages(:one)
-    actual = format_datatype(scraped_data, property, webpage)
     expected = [["CompanyKaha:wi Dance Theatre", "Organization", ["Kaha:wi Dance Theatre", "http://kg.artsdata.ca/resource/K10-206"]], ["ArtistsSantee Smith", "Organization"]]
-    assert_equal expected, actual
+    VCR.use_cassette('StatementsHelper array string input for any:URI') do
+      assert_equal expected, format_datatype(scraped_data, property, webpage)
+    end
   end
 
   test "format_datatype with time_zone" do

@@ -1,0 +1,52 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: http://localhost:3003/databus?artifact=&downloadFile=&downloadUrl=&group=&publisher=https://graph.culturecreates.com/id/footlight&reportCallbackUrl=http://www.example.com/messages/webhook.json&shacl=&version=
+    body:
+      encoding: UTF-8
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 400
+      message: Bad Request
+    headers:
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - application/json; charset=utf-8
+      Cache-Control:
+      - no-cache
+      X-Request-Id:
+      - 490ac4a1-ea7c-4572-b390-f903449fccb5
+      X-Runtime:
+      - '0.075119'
+      Vary:
+      - Origin
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: UTF-8
+      string: '{"message":"Error with downloadUrl= [#\u003cFaraday::ConnectionFailed
+        wrapped=#\u003cErrno::ECONNREFUSED: Failed to open TCP connection to :80 (Connection
+        refused - connect(2) for nil port 80)\u003e\u003e]"}'
+    http_version:
+  recorded_at: Wed, 24 Nov 2021 14:41:29 GMT
+recorded_with: VCR 3.0.3

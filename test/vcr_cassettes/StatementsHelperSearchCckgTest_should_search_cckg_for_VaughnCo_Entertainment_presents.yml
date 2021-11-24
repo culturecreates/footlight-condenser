@@ -1,0 +1,55 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: http://localhost:3003/recon?query=VaughnCo%20Entertainment%20presents&type=Organization
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - application/json; charset=utf-8
+      Etag:
+      - W/"4c4aae6f9f981ab48f5db53a059e9eab"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - 36ab7341-bb59-4694-9df1-4435c2706410
+      X-Runtime:
+      - '0.145372'
+      Vary:
+      - Origin
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: UTF-8
+      string: '{"result":[{"id":"K10-148","name":"VaughnCo Entertainment","score":5.4086113,"match":true,"type":[{"id":"http://schema.org/Organization","name":"Organization"}]},{"id":"K10-66","name":"Gravity
+        Zero Entertainment","score":0.9474096,"match":false,"type":[{"id":"http://schema.org/Organization","name":"Organization"}]},{"id":"K10-500","name":"Innovation
+        Arts \u0026 Entertainment","score":0.92826796,"match":false,"type":[{"id":"http://schema.org/Organization","name":"Organization"}]},{"id":"K10-505","name":"RWS
+        Entertainment Group","score":0.92826796,"match":false,"type":[{"id":"http://schema.org/Organization","name":"Organization"}]}]}'
+    http_version:
+  recorded_at: Wed, 24 Nov 2021 13:29:26 GMT
+recorded_with: VCR 3.0.3

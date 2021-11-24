@@ -1,0 +1,53 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: http://localhost:3003/recon?query=Shippagan%2020%20h%2000%20La%20P'tite%20%C3%89glise%20(Shippagan)&type=Place
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - application/json; charset=utf-8
+      Etag:
+      - W/"50909b9630acdad72998d1e38d7468e0"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - 17de9f4c-b584-4125-aa40-22bae3ab701a
+      X-Runtime:
+      - '0.988104'
+      Vary:
+      - Origin
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: ASCII-8BIT
+      string: !binary |-
+        eyJyZXN1bHQiOlt7ImlkIjoiSzExLTEzMSIsIm5hbWUiOiJMYSBQJ3RpdGUgw4lnbGlzZSAoU2hpcHBhZ2FuKSIsInNjb3JlIjoyLjMzOTIzMDUsIm1hdGNoIjp0cnVlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTM5IiwibmFtZSI6IkxhIFNlaW5lIE11c2ljYWxlIiwic2NvcmUiOjAuMDY4MzgyNiwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTEyOSIsIm5hbWUiOiJMJ2VzcGFjZSBjdWx0dXJlbGxlIExhIEJpYml0dGUiLCJzY29yZSI6MC4wNTQ3MDYwOCwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTI4IiwibmFtZSI6IkVzcGxhbmFkZSBkZSBsYSBQbGFjZSBkZXMgQXJ0cyIsInNjb3JlIjowLjA0Nzg2NzgyMywibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTEzMCIsIm5hbWUiOiJMZSBDZW50cmUgZGVzIGFydHMgZXQgZGUgbGEgY3VsdHVyZSBkZSBEaWVwcGUgLSBMYSBDYXNlcm5lIiwic2NvcmUiOjAuMDQ3Mzc2ODYsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xMTQiLCJuYW1lIjoiQ2Fmw6l0ZXJpdW0gw4ljb2xlIGRlIGxhIE1vc2FpcXVlIGR1IE5vcmQiLCJzY29yZSI6MC4wNDEwMjk1NiwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTExMCIsIm5hbWUiOiJBdWRpdG9yaXVtIGRlIGxhIHBvbHl2YWxlbnRlIGRlcyDDjmxlcyAoTOKAmcOJdGFuZyBkdSBOb3JkKSIsInNjb3JlIjowLjA0MTAyOTU2LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtMzMiLCJuYW1lIjoiU2VnYWwgQ2VudHJlIGZvciBQZXJmb3JtaW5nIEFydHMiLCJzY29yZSI6MC4wMzE1ODQ1NzIsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xMjMiLCJuYW1lIjoiQ2VudHJlIGRlcyBjb25ncsOocyBkZSBsYSBQZW5pbnN1bGUgQWNhZGllbm5lIiwic2NvcmUiOjAuMDMxNTg0NTcyLCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19XX0=
+    http_version:
+  recorded_at: Wed, 24 Nov 2021 13:29:26 GMT
+recorded_with: VCR 3.0.3

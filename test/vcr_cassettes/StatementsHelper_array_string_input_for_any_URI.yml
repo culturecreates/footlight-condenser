@@ -1,0 +1,202 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: http://localhost:3003/recon?query=CompanyKaha:wi%20Dance%20Theatre&type=Organization
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - application/json; charset=utf-8
+      Etag:
+      - W/"5de3103ec3dd3ba9a1c62278afbb0863"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - 8e2072f2-5f8a-4b32-b4be-46c057021de4
+      X-Runtime:
+      - '0.665190'
+      Vary:
+      - Origin
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: ASCII-8BIT
+      string: !binary |-
+        eyJyZXN1bHQiOlt7ImlkIjoiSzEwLTE5IiwibmFtZSI6IkJhbmdhcnJhIERhbmNlIFRoZWF0cmUiLCJzY29yZSI6MS41ODc3ODI0LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvT3JnYW5pemF0aW9uIiwibmFtZSI6Ik9yZ2FuaXphdGlvbiJ9XX0seyJpZCI6IksxMC0xNDYiLCJuYW1lIjoiVG9yb250byBEYW5jZSBUaGVhdHJlIiwic2NvcmUiOjEuNTg3NzgyNCwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL09yZ2FuaXphdGlvbiIsIm5hbWUiOiJPcmdhbml6YXRpb24ifV19LHsiaWQiOiJLMTAtMjA2IiwibmFtZSI6IkthaGE6d2kgRGFuY2UgVGhlYXRyZSIsInNjb3JlIjoxLjU4Nzc4MjQsIm1hdGNoIjp0cnVlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL09yZ2FuaXphdGlvbiIsIm5hbWUiOiJPcmdhbml6YXRpb24ifV19LHsiaWQiOiJLMTAtMzA3IiwibmFtZSI6IkRhbmNlIEltbWVyc2lvbiIsInNjb3JlIjowLjY0MDc4NDQsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9Pcmdhbml6YXRpb24iLCJuYW1lIjoiT3JnYW5pemF0aW9uIn1dfSx7ImlkIjoiSzEwLTMwOCIsIm5hbWUiOiJEYW5jZSBWaWN0b3JpYSIsInNjb3JlIjowLjY0MDc4NDQsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9Pcmdhbml6YXRpb24iLCJuYW1lIjoiT3JnYW5pemF0aW9uIn1dfSx7ImlkIjoiSzEwLTMwNiIsIm5hbWUiOiJUaGUgRGFuY2UgQ2VudHJlIiwic2NvcmUiOjAuNjQwNzg0NCwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL09yZ2FuaXphdGlvbiIsIm5hbWUiOiJPcmdhbml6YXRpb24ifV19LHsiaWQiOiJLMTAtNTEiLCJuYW1lIjoiRG9ycmFuY2UgRGFuY2UiLCJzY29yZSI6MC41ODg1OTgsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9Pcmdhbml6YXRpb24iLCJuYW1lIjoiT3JnYW5pemF0aW9uIn1dfSx7ImlkIjoiSzEwLTU4IiwibmFtZSI6IkZhbGwgZm9yIERhbmNlIE5vcnRoIiwic2NvcmUiOjAuNDkwNDk4MzYsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9Pcmdhbml6YXRpb24iLCJuYW1lIjoiT3JnYW5pemF0aW9uIn1dfSx7ImlkIjoiSzEwLTk2IiwibmFtZSI6Ik1hbHBhc28gRGFuY2UgQ29tcGFueSIsInNjb3JlIjowLjQ5MDQ5ODM2LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvT3JnYW5pemF0aW9uIiwibmFtZSI6Ik9yZ2FuaXphdGlvbiJ9XX0seyJpZCI6IksxMC0zMDQiLCJuYW1lIjoiQ3JpbXNvbiBDb2FzdCBEYW5jZSIsInNjb3JlIjowLjQ5MDQ5ODM2LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvT3JnYW5pemF0aW9uIiwibmFtZSI6Ik9yZ2FuaXphdGlvbiJ9XX0seyJpZCI6IksxMC0xOTIiLCJuYW1lIjoiRnJlZGVyaWN0b24gRGFuc2UiLCJzY29yZSI6MC40ODA1ODgzLCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvT3JnYW5pemF0aW9uIiwibmFtZSI6Ik9yZ2FuaXphdGlvbiJ9XX0seyJpZCI6IksxMC0zMTUiLCJuYW1lIjoiRmFsbCBmb3IgRGFuY2UgTm9ydGgiLCJzY29yZSI6MC40ODA1ODgzLCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvT3JnYW5pemF0aW9uIiwibmFtZSI6Ik9yZ2FuaXphdGlvbiJ9XX0seyJpZCI6IksxMC0zMjYiLCJuYW1lIjoiTWlsZSBaZXJvIERhbmNlIiwic2NvcmUiOjAuNDgwNTg4MywibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL09yZ2FuaXphdGlvbiIsIm5hbWUiOiJPcmdhbml6YXRpb24ifV19LHsiaWQiOiJLMTAtMzI4IiwibmFtZSI6Ik5laWdoYm91cmhvb2QgRGFuY2UgV29ya3MiLCJzY29yZSI6MC40ODA1ODgzLCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvT3JnYW5pemF0aW9uIiwibmFtZSI6Ik9yZ2FuaXphdGlvbiJ9XX0seyJpZCI6IksxMC0zMDIiLCJuYW1lIjoiQ2FuQXNpYW4gRGFuY2UgRmVzdGl2YWwiLCJzY29yZSI6MC40ODA1ODgzLCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvT3JnYW5pemF0aW9uIiwibmFtZSI6Ik9yZ2FuaXphdGlvbiJ9XX0seyJpZCI6IksxMC0zNzMiLCJuYW1lIjoiRnVqaXdhcmEgRGFuY2UgSW52ZW50aW9ucyIsInNjb3JlIjowLjQ4MDU4ODMsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9Pcmdhbml6YXRpb24iLCJuYW1lIjoiT3JnYW5pemF0aW9uIn1dfSx7ImlkIjoiSzEwLTQ1NiIsIm5hbWUiOiIzU2l4dHkgRGFuY2UgQW5kIEZpdG5lc3MiLCJzY29yZSI6MC40ODA1ODgzLCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvT3JnYW5pemF0aW9uIiwibmFtZSI6Ik9yZ2FuaXphdGlvbiJ9XX0seyJpZCI6IksxMC0yMDkiLCJuYW1lIjoiQ29tcGFnbmllIGRlIGRhbnNlIEVibmZsxY1oIiwic2NvcmUiOjAuNDAwNDkwMjUsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9Pcmdhbml6YXRpb24iLCJuYW1lIjoiT3JnYW5pemF0aW9uIn1dfSx7ImlkIjoiSzEwLTMxOCIsIm5hbWUiOiJHdWVscGggQ29udGVtcG9yYXJ5IERhbmNlIEZlc3RpdmFsIiwic2NvcmUiOjAuNDAwNDkwMjUsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9Pcmdhbml6YXRpb24iLCJuYW1lIjoiT3JnYW5pemF0aW9uIn1dfSx7ImlkIjoiSzEwLTMyMyIsIm5hbWUiOiJMaXZlIEFydCBEYW5jZSBQcm9kdWN0aW9ucyIsInNjb3JlIjowLjQwMDQ5MDI1LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvT3JnYW5pemF0aW9uIiwibmFtZSI6Ik9yZ2FuaXphdGlvbiJ9XX1dfQ==
+    http_version:
+  recorded_at: Wed, 24 Nov 2021 15:14:10 GMT
+- request:
+    method: get
+    uri: http://localhost:3003/recon?query=CompanyKaha:wi%20Dance%20Theatre&type=Person
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - application/json; charset=utf-8
+      Etag:
+      - W/"63c49671e4c0faf619ee397c992e45e4"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - e3160334-5795-4a14-9576-b3eff795c3db
+      X-Runtime:
+      - '1.738425'
+      Vary:
+      - Origin
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: UTF-8
+      string: '{"result":[]}'
+    http_version:
+  recorded_at: Wed, 24 Nov 2021 15:14:11 GMT
+- request:
+    method: get
+    uri: http://localhost:3003/recon?query=ArtistsSantee%20Smith&type=Organization
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - application/json; charset=utf-8
+      Etag:
+      - W/"63c49671e4c0faf619ee397c992e45e4"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - 1cbb4c55-5bbf-4477-bf86-5b31faad61ec
+      X-Runtime:
+      - '0.127214'
+      Vary:
+      - Origin
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: UTF-8
+      string: '{"result":[]}'
+    http_version:
+  recorded_at: Wed, 24 Nov 2021 15:14:11 GMT
+- request:
+    method: get
+    uri: http://localhost:3003/recon?query=ArtistsSantee%20Smith&type=Person
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - application/json; charset=utf-8
+      Etag:
+      - W/"d788e99044fd04ffba08dfab48557652"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - 2c45668e-2507-45b2-ba2f-eb9530a10b1d
+      X-Runtime:
+      - '0.126564'
+      Vary:
+      - Origin
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: UTF-8
+      string: '{"result":[{"id":"K12-95","name":"Kevin Smith","score":1.589492,"match":false,"type":[{"id":"http://schema.org/Person","name":"Person"}]},{"id":"K12-342","name":"Alfie
+        Smith","score":1.589492,"match":false,"type":[{"id":"http://schema.org/Person","name":"Person"}]},{"id":"K12-428","name":"Reeny
+        Smith","score":1.589492,"match":false,"type":[{"id":"http://schema.org/Person","name":"Person"}]}]}'
+    http_version:
+  recorded_at: Wed, 24 Nov 2021 15:14:12 GMT
+recorded_with: VCR 3.0.3

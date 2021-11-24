@@ -1,0 +1,53 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: http://localhost:3003/recon?query=The%20locations%20is%20in%20the%20lovely%20Bluma%20Appel%20Theatre%20and%20Berkeley%20Street%20Theatre.&type=Place
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - application/json; charset=utf-8
+      Etag:
+      - W/"f09e23cc9cc5d4d11b83f909820f30c7"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - 00e0c9f0-b09f-4f78-8598-0666c4ac9293
+      X-Runtime:
+      - '1.061236'
+      Vary:
+      - Origin
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: ASCII-8BIT
+      string: !binary |-
+        eyJyZXN1bHQiOlt7ImlkIjoiSzExLTYiLCJuYW1lIjoiU3QuIExhd3JlbmNlIENlbnRyZSBmb3IgdGhlIEFydHMgLSBCbHVtYSBBcHBlbCBUaGVhdHJlIiwic2NvcmUiOjEuNjQ0MDUzNywibWF0Y2giOnRydWUsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtMTQiLCJuYW1lIjoiQ2FuYWRpYW4gU3RhZ2UgLSBCZXJrZWxleSBTdHJlZXQgVGhlYXRyZSIsInNjb3JlIjoxLjYyMTcxNzEsIm1hdGNoIjp0cnVlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTE0IiwibmFtZSI6IkNhbmFkaWFuIFN0YWdlIC0gQmVya2VsZXkgU3RyZWV0IFRoZWF0cmUiLCJzY29yZSI6MS42MjE3MTcxLCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtOCIsIm5hbWUiOiJDYW5hZGlhbiBTdGFnZSAtIEJlcmtlbGV5IFN0cmVldCBUaGVhdHJlIFVwc3RhaXJzIiwic2NvcmUiOjEuNDE5MDAyNCwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTk5IiwibmFtZSI6IkRvbWlubyBUaGVhdHJlIiwic2NvcmUiOjAuMzMxNjEyOSwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTE4MCIsIm5hbWUiOiJZb3JrIFRoZWF0cmUiLCJzY29yZSI6MC4zMzE2MTI5LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtMjA2IiwibmFtZSI6IkVsZ2luIFRoZWF0cmUiLCJzY29yZSI6MC4zMzE2MTI5LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtMjA3IiwibmFtZSI6IlRoZSBUaGVhdHJlIG9uIEtpbmciLCJzY29yZSI6MC4zMzE2MTI5LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtMjUiLCJuYW1lIjoiQ2VudGF1ciBUaGVhdHJlIiwic2NvcmUiOjAuMzA0NjA1OSwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTQ0IiwibmFtZSI6IkNpdGFkZWwgVGhlYXRyZSIsInNjb3JlIjowLjMwNDYwNTksIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS01NSIsIm5hbWUiOiJTYWdlYnJ1c2ggVGhlYXRyZSIsInNjb3JlIjowLjMwNDYwNTksIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS01NiIsIm5hbWUiOiJQYXZpbGlvbiBUaGVhdHJlIiwic2NvcmUiOjAuMzA0NjA1OSwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTY1IiwibmFtZSI6IlN1bnNldCBUaGVhdHJlIiwic2NvcmUiOjAuMzA0NjA1OSwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTQ1IiwibmFtZSI6IkNpdGFkZWwgVGhlYXRyZSAtIFNob2N0b3IgVGhlYXRyZSIsInNjb3JlIjowLjI4NzE4NTIyLCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtNDYiLCJuYW1lIjoiQ2l0YWRlbCBUaGVhdHJlIC0gTWFjbGFiIFRoZWF0cmUiLCJzY29yZSI6MC4yODcxODUyMiwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTQ3IiwibmFtZSI6IkNpdGFkZWwgVGhlYXRyZSAtIFRoZSBDbHViIiwic2NvcmUiOjAuMjUzODM4MjcsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xOTMiLCJuYW1lIjoiSW1wZXJpYWwgVGhlYXRyZSIsInNjb3JlIjowLjI0ODcwOTY4LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtNzYiLCJuYW1lIjoiS2luZ3N0b24gR3JhbmQgVGhlYXRyZSIsInNjb3JlIjowLjI0ODcwOTY4LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtMTE2IiwibmFtZSI6IkNhcGl0b2wgVGhlYXRyZSIsInNjb3JlIjowLjI0ODcwOTY4LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtMTY0IiwibmFtZSI6IlRow6nDonRyZSBWb2d1ZSIsInNjb3JlIjowLjI0ODcwOTY4LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19XX0=
+    http_version:
+  recorded_at: Wed, 24 Nov 2021 13:29:23 GMT
+recorded_with: VCR 3.0.3

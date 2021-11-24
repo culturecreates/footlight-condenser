@@ -1,0 +1,55 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: http://db.artsdata.ca/repositories/artsdata
+    body:
+      encoding: UTF-8
+      string: query=SELECT%20%3Fpred%20%3Fobj%20where%20%7B%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20invalid-uri%20%3Fa%20%3Fb%20%20%20.%20%20%20%20%20%20%20%20%20%20%20%20%20%3Fb%20%20a%20%20%3Chttp%3A%2F%2Fschema.org%2FPostalAddress%3E%20.%20%20%20%20%20%20%20%20%20%20%20%20%20%20%3Fb%20%20%3Fpred%20%3Fobj%20.%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7D
+    headers:
+      Content-Type:
+      - application/x-www-form-urlencoded; charset=UTF-8
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 400
+      message: ''
+    headers:
+      Server:
+      - nginx/1.18.0 (Ubuntu)
+      Date:
+      - Wed, 24 Nov 2021 15:19:53 GMT
+      Content-Type:
+      - text/plain;charset=UTF-8
+      Content-Length:
+      - '789'
+      Connection:
+      - keep-alive
+      Vary:
+      - Accept-Encoding
+      Cache-Control:
+      - no-store
+      Content-Language:
+      - en-US
+    body:
+      encoding: UTF-8
+      string: "MALFORMED QUERY: Encountered \" \"in\" \"in \"\" at line 1, column
+        41.\nWas expecting one of:\n    \"(\" ...\n    \"{\" ...\n    \"}\" ...\n
+        \   \"[\" ...\n    <NIL> ...\n    <ANON> ...\n    \"select\" ...\n    \"optional\"
+        ...\n    \"graph\" ...\n    \"minus\" ...\n    \"filter\" ...\n    \"true\"
+        ...\n    \"false\" ...\n    \"bind\" ...\n    \"service\" ...\n    \"values\"
+        ...\n    <Q_IRI_REF> ...\n    <PNAME_NS> ...\n    <PNAME_LN> ...\n    <BLANK_NODE_LABEL>
+        ...\n    <VAR1> ...\n    <VAR2> ...\n    <INTEGER> ...\n    <INTEGER_POSITIVE>
+        ...\n    <INTEGER_NEGATIVE> ...\n    <DECIMAL> ...\n    <DECIMAL_POSITIVE>
+        ...\n    <DECIMAL_NEGATIVE> ...\n    <DOUBLE> ...\n    <DOUBLE_POSITIVE> ...\n
+        \   <DOUBLE_NEGATIVE> ...\n    <STRING_LITERAL1> ...\n    <STRING_LITERAL2>
+        ...\n    <STRING_LITERAL_LONG1> ...\n    <STRING_LITERAL_LONG2> ...\n    \"<<\"
+        ...\n    "
+    http_version:
+  recorded_at: Wed, 24 Nov 2021 15:19:53 GMT
+recorded_with: VCR 3.0.3

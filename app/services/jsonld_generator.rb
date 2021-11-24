@@ -327,7 +327,7 @@ class JsonldGenerator
 
   def self.artsdata_rank_api_url
     if Rails.env.development?  || Rails.env.test?
-      'http://localhost:3003/ranked/'
+      "http://localhost:#{ARTSDATA_API_PORT}/ranked/"
     else
       'http://api.artsdata.ca/ranked/'
     end

@@ -1,0 +1,52 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: http://localhost:3003/ranked/K16-677777777777?format=jsonld
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - application/ld+json; charset=utf-8
+      Etag:
+      - W/"e55f8108383e025d737ce68c96df7c35"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - 56e23ec6-3e6c-4c15-aa3b-05f7bb98ac5f
+      X-Runtime:
+      - '0.113972'
+      Vary:
+      - Origin
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: UTF-8
+      string: '{"@context":{"@vocab":"http://schema.org/","@base":"http://schema.org/","id":{"@id":"@id"},"xsd":"http://www.w3.org/2001/XMLSchema#","nameFr":{"@id":"name","@language":"fr"},"nameEn":{"@id":"name","@language":"en"},"namePref":{"@id":"name"}},"@graph":[]}'
+    http_version:
+  recorded_at: Wed, 24 Nov 2021 14:04:04 GMT
+recorded_with: VCR 3.0.3

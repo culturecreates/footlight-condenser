@@ -8,7 +8,10 @@ class StructuredDataHelperTest < ActionView::TestCase
   TESTDATE_TODAY = "2019-01-01"
   TESTDATE_TOMORROW = "2019-01-02"
 
-# build_events_per_startDate _jsonld
+  ###############################
+  # build_events_per_startDate _jsonld
+  ###############################
+  
   test "build_events_per_startDate: only a date" do
     expected_output = [{"startDate"=>TESTDATETIME_TODAY, "endDate"=>TESTDATE_TODAY}]
     assert_equal expected_output, build_events_per_startDate({"startDate" => [TESTDATETIME_TODAY]})
@@ -39,8 +42,6 @@ class StructuredDataHelperTest < ActionView::TestCase
     assert_equal expected_output, build_events_per_startDate({"startDate" => [TESTDATETIME_TODAY, TESTDATETIME_TOMORROW], "duration" => ["1 hr","2 hrs"]})
   end
 
-
-
   test "build_events_per_startDate: 2 dates with 1 ticket offer url" do
     expected_output = [{"startDate"=>TESTDATETIME_TODAY, "endDate"=>TESTDATE_TODAY, :offers =>{"url"=>"offer_url"}}, {"startDate"=>TESTDATETIME_TOMORROW, "endDate"=>TESTDATE_TOMORROW, :offers =>{"url"=>"offer_url"}}]
     assert_equal expected_output, build_events_per_startDate({"startDate" => [TESTDATETIME_TODAY, TESTDATETIME_TOMORROW], :offers => {"url" => ["offer_url"]}})
@@ -50,13 +51,11 @@ class StructuredDataHelperTest < ActionView::TestCase
     expected_output = [{"startDate"=>TESTDATETIME_TODAY, "endDate"=>TESTDATE_TODAY, :offers =>{"url"=>"offer_url_one"}}, {"startDate"=>TESTDATETIME_TOMORROW, "endDate"=>TESTDATE_TOMORROW, :offers => {"url"=>"offer_url_two"}}]
     assert_equal expected_output, build_events_per_startDate({"startDate" => [TESTDATETIME_TODAY, TESTDATETIME_TOMORROW], :offers => {"url" => ["offer_url_one","offer_url_two"]}})
   end
+  
+  ###############################
+  # add_offer
+  ###############################
 
-
-
-
-
-
-# add_offer
   test "add_offer: simple cases with one url or price" do
     some_date = DateTime.new(2014, 12, 12, 1, 1, 1)
     Date.stubs(:today).returns(some_date)
@@ -74,14 +73,12 @@ class StructuredDataHelperTest < ActionView::TestCase
     assert_equal expected_output, add_offer(jsonld, "url", "http://ticket_link_url.com")
   end
 
-
   test "add_offer: multiple buy links" do
     some_date = DateTime.new(2014, 12, 12, 1, 1, 1)
     Date.stubs(:today).returns(some_date)
     expected_output = {:offers=>{:@type=>"Offer", "validFrom"=>"2014-11-12T01:01:01+00:00", "availability"=>"http://schema.org/InStock", "url"=>["http://ticket_link_one.com", "http://ticket_link_two.com"]}}
     assert_equal expected_output, add_offer({}, "url", "[\"http://ticket_link_one.com\", \"http://ticket_link_two.com\"]")
   end
-
 
   test "add_offer: Complet" do
     some_date = DateTime.new(2014, 12, 12, 1, 1, 1)
@@ -90,11 +87,10 @@ class StructuredDataHelperTest < ActionView::TestCase
     assert_equal expected_output, add_offer({}, "url", "[\"Complet\"]")
   end
 
+  ###############################
+  # get_kg_place
+  ###############################
 
-
-
-
-# get_kg_place
   fass_place =   {"22-rdf-syntax-ns#type"=>"http://schema.org/PostalAddress", "addressCountry"=>"CA", "addressLocality"=>"Saint-Sauveur", "addressRegion"=>"QC", "postalCode"=>"J0R 1R0", "streetAddress"=>"167, rue Principale"}
 
   # test "get_kg_place: should get fass place from cc knowledge graph" do
@@ -104,12 +100,16 @@ class StructuredDataHelperTest < ActionView::TestCase
 
   test "get_kg_place: should get non-existant place" do
     expected_output = {}
-    assert_equal expected_output, get_kg_place("http://non-existant")
+    VCR.use_cassette('StructuredDataHelper get_kg_place: should get non-existant place') do
+      assert_equal expected_output, get_kg_place("http://non-existant")
+    end
   end
 
   test "get_kg_place: should produce error with invalid URI" do
     expected_output = {:error=>"400"}  #Bad request
-    assert_equal expected_output, get_kg_place("invalid-uri")
+    VCR.use_cassette('StructuredDataHelper get_kg_place: should produce error with invalid URI') do
+      assert_equal expected_output, get_kg_place("invalid-uri")
+    end
   end
 
   # test "get_kg_place: should get fass place using PREFIX" do
@@ -117,9 +117,10 @@ class StructuredDataHelperTest < ActionView::TestCase
   #   assert_equal expected_output, get_kg_place("adr:50ad9328-6caf-4844-ac07-981b042ad4e9-7")
   # end
 
+  ###############################
+  # tests for make_into_array()
+  ###############################
 
-
-#tests for make_into_array()
   test "make_into_array: string" do
     expected_output = ["hello"]
     assert_equal expected_output, make_into_array("hello")
@@ -130,10 +131,11 @@ class StructuredDataHelperTest < ActionView::TestCase
     assert_equal expected_output, make_into_array("[\"hello\",\"there\"]")
   end
 
+  ###############################
+  # tests for publishable
+  ###############################
 
-  #tests for publishable
-    test "publishable? no date" do
-      assert_equal  true, publishable?(JSON.parse("{\"startDate\" : [\"startDate\"], \"location\" : [\"location\"], \"name\" : \"name\"}"))
-    end
-
+  test "publishable? no date" do
+    assert_equal  true, publishable?(JSON.parse("{\"startDate\" : [\"startDate\"], \"location\" : [\"location\"], \"name\" : \"name\"}"))
+  end
 end

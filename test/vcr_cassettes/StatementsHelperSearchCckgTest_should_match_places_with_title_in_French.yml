@@ -1,0 +1,53 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: http://localhost:3003/recon?query=Th%C3%A9%C3%A2tre%20Marc%20Lescarbot&type=Place
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - application/json; charset=utf-8
+      Etag:
+      - W/"3d0a5c47120bb557ce5d87a010bc24e9"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - d4455ab3-739f-4279-a638-e86cb64ed17e
+      X-Runtime:
+      - '0.714563'
+      Vary:
+      - Origin
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: ASCII-8BIT
+      string: !binary |-
+        eyJyZXN1bHQiOlt7ImlkIjoiSzExLTEzMyIsIm5hbWUiOiJsZSBNYXJjIExlc2NhcmJvdCAoUG9pbnRlLWRlLWzigJnDqWdsaXNlKSIsInNjb3JlIjo1Ljk5MjYyNCwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTEzMyIsIm5hbWUiOiJUaMOpw6J0cmUgTWFyYyBMZXNjYXJib3QiLCJzY29yZSI6NS45OTI2MjQsIm1hdGNoIjp0cnVlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTE1NyIsIm5hbWUiOiJUaMOpw6J0cmUgRXZlcmdyZWVuIiwic2NvcmUiOjAuNjc1OTYyOCwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTE3MyIsIm5hbWUiOiJUaMOpw6J0cmUgTEVSIiwic2NvcmUiOjAuNjc1OTYyOCwibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTQiLCJuYW1lIjoiVGjDqcOidHJlIEhlY3Rvci1DaGFybGFuZCIsInNjb3JlIjowLjU2MzMwMjMsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xNTgiLCJuYW1lIjoiVGjDqcOidHJlIEZhdGltYSAoS2VkZ3dpY2spIiwic2NvcmUiOjAuNTYzMzAyMywibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTE1OSIsIm5hbWUiOiJUaMOpw6J0cmUgR2lsbGVzLUxhcGxhbnRlIiwic2NvcmUiOjAuNTYzMzAyMywibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTE2MiIsIm5hbWUiOiJUaMOpw6J0cmUgUmljaGFyZC1EZW55cyIsInNjb3JlIjowLjU2MzMwMjMsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xNTQiLCJuYW1lIjoiVGjDqcOidHJlIEJlcm5hcmQtUG9pcmllciIsInNjb3JlIjowLjU2MzMwMjMsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0yMTMiLCJuYW1lIjoiVGjDqcOidHJlIE1hcmNlbGxpbi1DaGFtcGFnbmF0Iiwic2NvcmUiOjAuNTYzMzAyMywibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTIyMiIsIm5hbWUiOiJUaMOpw6J0cmUgSmVhbi1EdWNlcHBlIiwic2NvcmUiOjAuNTYzMzAyMywibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfSx7ImlkIjoiSzExLTExIiwibmFtZSI6IlBsYWNlIGRlcyBBcnRzIC0gVGjDqcOidHJlIE1haXNvbm5ldXZlIiwic2NvcmUiOjAuNDUwNjQxODQsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS01IiwibmFtZSI6IlRow6nDonRyZSBkdSBOb3V2ZWF1IE1vbmRlIiwic2NvcmUiOjAuNDUwNjQxODQsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xNTYiLCJuYW1lIjoiVGjDqcOidHJlIGR1IE1vbnVtZW50LUxlZmVidnJlIiwic2NvcmUiOjAuNDUwNjQxODQsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xNDIiLCJuYW1lIjoiU2FsbGUgQWxtYSBBdGhvbHZpbGxlIChUaMOpw6J0cmUgVU5JKSIsInNjb3JlIjowLjQ1MDY0MTg0LCJtYXRjaCI6ZmFsc2UsInR5cGUiOlt7ImlkIjoiaHR0cDovL3NjaGVtYS5vcmcvUGxhY2UiLCJuYW1lIjoiUGxhY2UifV19LHsiaWQiOiJLMTEtMTU1IiwibmFtZSI6IlRow6nDonRyZSBkZXMgR3JhbmRzLVZlbnRzIiwic2NvcmUiOjAuNDUwNjQxODQsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xODkiLCJuYW1lIjoiVGjDqcOidHJlIGRlcyBEZXV4IFJpdmVzIiwic2NvcmUiOjAuNDUwNjQxODQsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xOTAiLCJuYW1lIjoiQ2FiYXJldC1UaMOpw6J0cmUgZHUgVmlldXgtU2FpbnQtSmVhbiIsInNjb3JlIjowLjM5NDMxMTYsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xOTMiLCJuYW1lIjoiSW1wZXJpYWwgVGhlYXRyZSIsInNjb3JlIjowLjM5MDI2NzMsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8vc2NoZW1hLm9yZy9QbGFjZSIsIm5hbWUiOiJQbGFjZSJ9XX0seyJpZCI6IksxMS0xMTYiLCJuYW1lIjoiQ2FwaXRvbCBUaGVhdHJlIiwic2NvcmUiOjAuMzkwMjY3MywibWF0Y2giOmZhbHNlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9zY2hlbWEub3JnL1BsYWNlIiwibmFtZSI6IlBsYWNlIn1dfV19
+    http_version:
+  recorded_at: Wed, 24 Nov 2021 13:29:25 GMT
+recorded_with: VCR 3.0.3

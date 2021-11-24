@@ -1,0 +1,54 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: http://localhost:3003/ranked/K16-6?format=jsonld
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - application/ld+json; charset=utf-8
+      Etag:
+      - W/"22dd0f0e030648bdb9bf23207f4b79cd"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - 7f9e73bf-e704-4848-83f9-2cf3a5da869c
+      X-Runtime:
+      - '0.095711'
+      Vary:
+      - Origin
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: UTF-8
+      string: '{"@context":{"@vocab":"http://schema.org/","@base":"http://schema.org/","id":{"@id":"@id"},"xsd":"http://www.w3.org/2001/XMLSchema#","nameFr":{"@id":"name","@language":"fr"},"nameEn":{"@id":"name","@language":"en"},"namePref":{"@id":"name"}},"id":"http://kg.artsdata.ca/resource/K16-6","@type":"Organization","address":{"@type":"PostalAddress","addressCountry":"CA","addressLocality":"Apsley","addressRegion":"ON","postalCode":"K0L
+        1A0","streetAddress":"PO Box 23"},"nameEn":"Crossfire Productions","namePref":"Crossfire
+        Productions","url":"https://crossfire-productions.net/"}'
+    http_version:
+  recorded_at: Wed, 24 Nov 2021 12:45:25 GMT
+recorded_with: VCR 3.0.3
