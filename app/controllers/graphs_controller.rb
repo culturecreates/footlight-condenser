@@ -67,6 +67,7 @@ class GraphsController < ApplicationController
   private 
 
   # get statements linked to the webpage that have selected sources.
+  # TODO: add support for overidding a source per event
   def selected_statements(webpages)
     statements =
       Statement

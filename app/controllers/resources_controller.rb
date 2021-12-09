@@ -13,6 +13,7 @@ class ResourcesController < ApplicationController
   #GET /resources/:rdf_uri
   def show
     # get resource by rdf_uri and all statements for all related webpages
+    # TODO: Add support for overidding a selected source per event
     @resource = { uri: params[:rdf_uri],
                   rdfs_class: "",
                   seedurl: "",
@@ -32,6 +33,9 @@ class ResourcesController < ApplicationController
         if statement.source.selected
           @resource[:statements][property].merge!(helpers.adjust_labels_for_api(statement))
           @resource[:statements][property].merge!({rdf_uri:params[:rdf_uri] })
+        elsif statement.selected_individual
+          @resource[:statements][property].merge!({indivisual_override: []}) if @resource[:statements][property][:indivisual_override].nil?
+          @resource[:statements][property][:indivisual_override] << helpers.adjust_labels_for_api(statement)
         else
           @resource[:statements][property].merge!({alternatives: []}) if @resource[:statements][property][:alternatives].nil?
           @resource[:statements][property][:alternatives] << helpers.adjust_labels_for_api(statement)

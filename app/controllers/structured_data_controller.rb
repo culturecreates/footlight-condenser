@@ -5,6 +5,7 @@ class StructuredDataController < ApplicationController
     #TODO: add route and code to create JSON-LD for Places
   end
 
+  # OLD code - use graphs controller instead
   # GET /structured_data/event_markup?url=
   def event_markup
     params[:url]
