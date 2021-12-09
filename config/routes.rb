@@ -99,9 +99,13 @@ Rails.application.routes.draw do
       to: "export#export",
       as: :export
 
-  get 'resources/:rdf_uri',
-      to: "resources#show",
-      as: :show_resources
+  # get 'resources/:rdf_uri',
+  #     to: "resources#show",
+  #     as: :show_resources
+
+  match 'resources/:rdf_uri' => 'resources#show',
+    :via => [:get],
+    constraints: { id: /.+/ }, as: :resource
 
   patch 'resources/:rdf_uri/reviewed_all',
       to: "resources#reviewed_all",

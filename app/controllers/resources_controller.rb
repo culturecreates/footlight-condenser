@@ -13,36 +13,8 @@ class ResourcesController < ApplicationController
   #GET /resources/:rdf_uri
   def show
     # get resource by rdf_uri and all statements for all related webpages
-    # TODO: Add support for overidding a selected source per event
-    @resource = { uri: params[:rdf_uri],
-                  rdfs_class: "",
-                  seedurl: "",
-                  archive_date: "",
-                  statements: {}}
-
-    webpages = Webpage.where(rdf_uri: params[:rdf_uri]).order(:archive_date) 
-    @resource[:rdfs_class] = webpages.first.rdfs_class.name if !webpages.empty?
-    @resource[:seedurl] = webpages.first.website.seedurl if !webpages.empty?
-    @resource[:archive_date] = webpages.last.archive_date if !webpages.empty?  #get the lastest date for bilingual sites that have 2 archive_dates
-
-    webpages.each do |webpage|
-      webpage.statements.each do |statement|
-        property = helpers.build_key(statement)
-        @resource[:statements][property] = {} if @resource[:statements][property].nil?
-        #add statements that are 'not selected' as an alternative inside the selected statement
-        if statement.source.selected
-          @resource[:statements][property].merge!(helpers.adjust_labels_for_api(statement))
-          @resource[:statements][property].merge!({rdf_uri:params[:rdf_uri] })
-        elsif statement.selected_individual
-          @resource[:statements][property].merge!({indivisual_override: []}) if @resource[:statements][property][:indivisual_override].nil?
-          @resource[:statements][property][:indivisual_override] << helpers.adjust_labels_for_api(statement)
-        else
-          @resource[:statements][property].merge!({alternatives: []}) if @resource[:statements][property][:alternatives].nil?
-          @resource[:statements][property][:alternatives] << helpers.adjust_labels_for_api(statement)
-        end
-      end
-    end
-    @statement_keys = @resource[:statements].keys.sort
+    @resource = Resource.new( params[:rdf_uri])
+    @statement_keys =  @resource.statements.keys.sort
   end
 
   #GET /resources/:rdf_uri/webpage_urls
