@@ -20,7 +20,7 @@ class Resource
         if statement.source.selected
           @statements[property].merge!(adjust_labels_for_api(statement)) # ResourcesHelper
           @statements[property].merge!({ rdf_uri: @rdf_uri }) # each statement has a copy of the triple subject
-         elsif statement.selected_individual
+        elsif statement.selected_individual
           @statements[property].merge!({individual_override: []}) if @statements[property][:individual_override].nil?
           @statements[property][:individual_override] << adjust_labels_for_api(statement) # ResourcesHelper
         else

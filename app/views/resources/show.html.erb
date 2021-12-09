@@ -3,7 +3,8 @@
   <% @statement_keys.each do |statement_key| %>
 
         [<%= @resource.statements[statement_key]["status"] %>] <%= @resource.statements[statement_key]["label"] %><%=format_language @resource.statements[statement_key]["language"] %>
-     --> <%= @resource.statements[statement_key]["value"] %> alternatives:<%= @resource.statements[statement_key][:alternatives] %>
+     --> <%= @resource.statements[statement_key]["value"] %> <br> alternatives:<%= @resource.statements[statement_key][:alternatives] %> <br> individual_override:<%= @resource.statements[statement_key][:individual_override] %>
+
 
       <br>
       <br>
