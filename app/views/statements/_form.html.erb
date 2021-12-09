@@ -22,6 +22,11 @@
   </div>
 
   <div class="field">
+    <%= form.label :selected_individual %>
+    <%= form.check_box :selected_individual, id: :statement_selected_individual %>
+  </div>
+
+  <div class="field">
     <%= form.label :status_origin %>
     <%= form.text_field :status_origin, id: :statement_status_origin %>
   </div>
