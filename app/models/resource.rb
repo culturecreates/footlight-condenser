@@ -12,17 +12,19 @@ class Resource
     @seedurl = @webpages.first.website.seedurl if !@webpages.empty?
     @archive_date = @webpages.last.archive_date if !@webpages.empty?  #get the lastest date for bilingual sites that have 2 archive_dates
 
+    override = [] # add properties that are selected_individuals, putting regular selected source for those properties into alternatives
     @webpages.each do |webpage|
-      webpage.statements.each do |statement|
+      webpage.statements.order(selected_individual: :desc).each do |statement|
         property = build_key(statement) # StatementsHelper
         @statements[property] = {} if @statements[property].nil?
         # add statements that are 'not selected' as an alternative inside the selected statement
-        if statement.source.selected
+        if statement.selected_individual
           @statements[property].merge!(adjust_labels_for_api(statement)) # ResourcesHelper
           @statements[property].merge!({ rdf_uri: @rdf_uri }) # each statement has a copy of the triple subject
-        elsif statement.selected_individual
-          @statements[property].merge!({individual_override: []}) if @statements[property][:individual_override].nil?
-          @statements[property][:individual_override] << adjust_labels_for_api(statement) # ResourcesHelper
+          override << property
+        elsif statement.source.selected && !override.include?(property)
+          @statements[property].merge!(adjust_labels_for_api(statement)) # ResourcesHelper
+          @statements[property].merge!({ rdf_uri: @rdf_uri }) # each statement has a copy of the triple subject
         else
           @statements[property].merge!({alternatives: []}) if @statements[property][:alternatives].nil?
           @statements[property][:alternatives] << adjust_labels_for_api(statement) # ResourcesHelper

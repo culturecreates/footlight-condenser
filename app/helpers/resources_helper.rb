@@ -29,6 +29,7 @@ module ResourcesHelper
     json_statement["uri"] = statement.source.property.uri
 
     json_statement["manual"] = statement.source.algorithm_value.start_with?("manual=") ? true : false
+    json_statement["selected_source"] = statement.source.selected
     return json_statement
   end
 
