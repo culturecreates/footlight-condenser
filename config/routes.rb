@@ -24,7 +24,7 @@ Rails.application.routes.draw do
       patch 'refresh_webpage', 'refresh_rdf_uri', 'review_all', 'refresh_all'
     end
     member do
-      patch 'activate', 'add_linked_data', 'remove_linked_data', 'refresh'
+      patch 'activate', 'activate_individual','deactivate_individual','add_linked_data', 'remove_linked_data', 'refresh'
     end
   end
 

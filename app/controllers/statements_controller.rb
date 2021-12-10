@@ -240,8 +240,45 @@ class StatementsController < ApplicationController
 
     respond_to do |format|
         format.html { redirect_to statements_path(rdf_uri: @webpage.rdf_uri), notice: 'Statement was successfully activated.' }
-        format.json { redirect_to statement_path(id: @webpage.rdf_uri, format: :json)}
+        format.json { redirect_to show_resources_path(rdf_uri: @webpage.rdf_uri, format: :json)}
       #  format.json { render "resources/show", rdf_uri: @webpage.rdf_uri}
+    end
+  end
+
+  # PATCH/PUT /statements/1/activate_individual
+  # PATCH/PUT /statements/1/activate_individual.json
+  def activate_individual
+    #get all statements about this property/language for the resource(individual)
+    @statement = Statement.find(params[:id])
+    @property = @statement.source.property
+    @webpage =  @statement.webpage
+ 
+    # Get list of statements that share the same source property id and source 
+    @statements = Statement.includes({source: [:property]}, :webpage).where(sources: {property: @property}, webpage_id: @webpage)
+   
+    #set all statement.selected_individual = false
+    @statements.each do |statement|
+      if statement != @statement
+        statement.update(selected_individual: false)
+      else
+        statement.update(selected_individual: true)
+      end
+    end
+
+    respond_to do |format|
+        format.html { redirect_to statements_path(rdf_uri: @webpage.rdf_uri), notice: 'Statement was successfully activated.' }
+        format.json { redirect_to show_resources_path(rdf_uri: @webpage.rdf_uri, format: :json)}
+    end
+  end
+
+  # PATCH/PUT /statements/1/deactivate_individual
+  # PATCH/PUT /statements/1/deactivate_individual.json
+  def deactivate_individual
+    @statement = Statement.find(params[:id])
+    @statement.update(selected_individual: false)
+    respond_to do |format|
+        format.html { redirect_to statements_path(rdf_uri: @statement.webpage.rdf_uri), notice: 'Statement was successfully activated.' }
+        format.json { redirect_to show_resources_path(rdf_uri: @statement.webpage.rdf_uri, format: :json)}
     end
   end
 

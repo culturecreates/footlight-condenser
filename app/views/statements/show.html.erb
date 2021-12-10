@@ -95,7 +95,12 @@ Change status:
 <hr>
 <p>
 Activate:
-<%= link_to "Activate", activate_statement_path(@statement), local: true, format: :json,  method: :patch %>
+<%= link_to "Activate source", activate_statement_path(@statement), local: true, format: :json,  method: :patch %>
+|
+<%= link_to "Activate indivdual statement", activate_individual_statement_path(@statement), local: true, format: :json,  method: :patch %>
+|
+<%= link_to "Deactive indivdual statement", deactivate_individual_statement_path(@statement), local: true, format: :json,  method: :patch %>
+
 </p>
 
 <hr>
