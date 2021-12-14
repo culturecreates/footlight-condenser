@@ -398,7 +398,12 @@ module StatementsHelper
     if str.length > 3
 
       # call Reconciliation service
-      results = HTTParty.get("#{artsdata_recon_url}?query=#{CGI.escape(CGI.unescapeHTML(str))}&type=#{rdfs_class}")
+      begin
+        results = HTTParty.get("#{artsdata_recon_url}?query=#{CGI.escape(CGI.unescapeHTML(str))}&type=#{rdfs_class}")
+      rescue StandardError => e
+        results = { error: "No server running at #{artsdata_recon_url}", method: 'search_cckg', message: "#{e.inspect}"}
+        return results
+      end
 
       if results.response.code == "200"
         # keep results that are matches
