@@ -11,6 +11,8 @@ class Resource
   # "archive_date": "2021-02-07T04:59:00.000Z",
   # "statements": {
   #   "webpage_link_fr": {
+  #     "subject": "adr:spec-qc-ca_chaakapesh",
+  #     "webpage_class_name" : "Event",
   #     "id": 84138,
   #     "status": "ok",
   #     "status_origin": "Gregory Saumier-Finch",
