@@ -27,26 +27,18 @@ class GraphsController < ApplicationController
   def webpage_event
     webpage = Webpage.where(url: CGI.unescape(params[:url]))
 
-    # Get all the webpages related to this webpage's resource URI
     if webpage.count.positive?
-      rdf_uri = webpage.first.rdf_uri
-      webpages = Webpage.where(rdf_uri: rdf_uri)
-      main_class = webpage.first.rdfs_class.name
+      resource = Resource.new(webpage.first.rdf_uri)
       main_language = webpage.first.language
-    end
-    if webpages.present?
-
-      statements = selected_statements(webpages)
-
+      statements = resource.statements.map { |n,v| v}
+      main_class = resource.rdfs_class
       problem_statements = helpers.missing_required_properties(statements)
-
       if problem_statements.blank?
-
         @google_jsonld = JsonldGenerator.convert(statements, main_language, main_class)
       else
         problems_summary =
           problem_statements
-          .map { |s| s.source.property.label }
+          .map { |s| s['label'] }
           .join(', ')
         @google_jsonld = {
           'message' => "Event needs review in Footlight console. Issues with #{problems_summary}." 
@@ -64,14 +56,4 @@ class GraphsController < ApplicationController
     end
   end
 
-  private 
-
-  # get statements linked to the webpage that have selected sources.
-  # TODO: add support for overidding a source per event
-  def selected_statements(webpages)
-    statements =
-      Statement
-      .joins({ source: :property })
-      .where(webpage_id: webpages, sources: { selected: true })
-  end
 end

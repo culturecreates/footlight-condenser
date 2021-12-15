@@ -10,26 +10,34 @@ module ResourcesHelper
     return uri_list
   end
 
-  def adjust_labels_for_api statement
-    json_statement = JSON.parse(statement.to_json)
-    #replace "cache" with "value" for better API read-ability
+  # input: ActiveRecord statement, :subject, :webpage_class_name
+  # output: Hash
+  def adjust_labels_for_api statement, **extras
     
-    if statement.source.property.value_datatype == "xsd:anyURI"
-      json_statement["value"] = JsonUriWrapper.build_json_from_anyURI statement.cache 
-    else
-      json_statement["value"] = statement.cache
+    #convert ActiveRecord to hash despite the misleading name of .as_json
+    json_statement = statement.as_json 
+
+    #replace "cache" with "value" for better API read-ability
+    json_statement[:value] = statement.cache
+    json_statement.delete(:cache)
+
+    json_statement[:datatype] = statement.source.property.value_datatype
+    if json_statement[:datatype] == "xsd:anyURI"
+      json_statement[:value] = JsonUriWrapper.build_json_from_anyURI(json_statement[:value])
     end
-    json_statement.delete("cache")
+   
+    json_statement[:subject] = extras[:subject] if extras
+    json_statement[:webpage_class_name] = extras[:webpage_class_name] if extras
+    json_statement[:label] = statement.source.property.label
+    json_statement[:language] = statement.source.language
+    json_statement[:source_label] = statement.source.label
+    json_statement[:datatype] = statement.source.property.value_datatype
+    json_statement[:expected_class] = statement.source.property.expected_class
+    json_statement[:predicate] = statement.source.property.uri
+    json_statement[:manual] = statement.source.algorithm_value.start_with?("manual=") ? true : false
+    json_statement[:selected_source] = statement.source.selected
 
-    json_statement["label"] = statement.source.property.label
-    json_statement["language"] = statement.source.language
-    json_statement["source_label"] = statement.source.label
-    json_statement["datatype"] = statement.source.property.value_datatype
-    json_statement["expected_class"] = statement.source.property.expected_class
-    json_statement["uri"] = statement.source.property.uri
-
-    json_statement["manual"] = statement.source.algorithm_value.start_with?("manual=") ? true : false
-    json_statement["selected_source"] = statement.source.selected
+    json_statement[:rdfs_class_name] = statement.source.property.rdfs_class.name
     return json_statement
   end
 

@@ -5,11 +5,12 @@ class JsonUriWrapper
   # Condenser stores linked data as:
   # {search: "source text", class: "Expected Class", links: [ {label: "Entity label",uri: "URI" }] }
   def self.extract_uris_from_cache(cache)
-    cache_obj = build_json_from_anyURI(cache)
+    
+    #cache_obj = build_json_from_anyURI(cache)
     uris = []
     deleted_uris = []
     # Extract the links from all except where search: "Manually Deleted"
-    cache_obj.each do |item|
+    cache.each do |item|
       if item[:search] != 'Manually deleted'
         uris << item[:links].flatten.pluck(:uri)
       else

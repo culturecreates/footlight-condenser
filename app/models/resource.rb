@@ -3,6 +3,35 @@ class Resource
   include ResourcesHelper
   attr_accessor :statements, :rdfs_class, :seedurl, :archive_date, :webpages, :rdf_uri
 
+
+  # DATA MODEL
+  #  "uri": "adr:spec-qc-ca_chaakapesh",
+  # "rdfs_class": "Event",
+  # "seedurl": "spec-qc-ca",
+  # "archive_date": "2021-02-07T04:59:00.000Z",
+  # "statements": {
+  #   "webpage_link_fr": {
+  #     "id": 84138,
+  #     "status": "ok",
+  #     "status_origin": "Gregory Saumier-Finch",
+  #     "cache_refreshed": "2021-12-09T23:09:48.457Z",
+  #     "cache_changed": null,
+  #     "source_id": 691,
+  #     "webpage_id": 5667,
+  #     "created_at": "2021-02-05T09:04:29.085Z",
+  #     "updated_at": "2021-12-09T23:09:48.462Z",
+  #     "selected_individual": false,
+  #     "value": "https://spec.qc.ca/spectacle/chaakapesh",
+  #     "label": "Webpage link",
+  #     "language": "fr",
+  #     "source_label": "",
+  #     "datatype": "",
+  #     "expected_class": "",
+  #     "uri": "http://schema.org/url",
+  #     "manual": false,
+  #     "rdf_uri": "adr:spec-qc-ca_chaakapesh",
+  #     "alternatives": [{}]
+
   def initialize(rdf_uri)
     @rdf_uri = rdf_uri
     @statements = {}
@@ -19,18 +48,17 @@ class Resource
         @statements[property] = {} if @statements[property].nil?
         # add statements that are 'not selected' as an alternative inside the selected statement
         if statement.selected_individual
-          @statements[property].merge!(adjust_labels_for_api(statement)) # ResourcesHelper
-          @statements[property].merge!({ rdf_uri: @rdf_uri }) # each statement has a copy of the triple subject
+          @statements[property].merge!(adjust_labels_for_api(statement, subject: @rdf_uri, webpage_class_name: @rdfs_class )) # ResourcesHelper
           override << property
         elsif statement.source.selected && !override.include?(property)
-          @statements[property].merge!(adjust_labels_for_api(statement)) # ResourcesHelper
-          @statements[property].merge!({ rdf_uri: @rdf_uri }) # each statement has a copy of the triple subject
+          @statements[property].merge!(adjust_labels_for_api(statement, subject: @rdf_uri, webpage_class_name: @rdfs_class)) # ResourcesHelper
         else
           @statements[property].merge!({alternatives: []}) if @statements[property][:alternatives].nil?
-          @statements[property][:alternatives] << adjust_labels_for_api(statement) # ResourcesHelper
+          @statements[property][:alternatives] << adjust_labels_for_api(statement, subject: @rdf_uri, webpage_class_name: @rdfs_class) # ResourcesHelper
         end
       end
     end
+    
   end
 
 

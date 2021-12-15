@@ -84,26 +84,6 @@ class JsonldGenerator
     local_graph
   end
 
-  # create a HASH of statements
-  def self.build_statements_hash(statements)
-    statements_hash = statements.map do |s|
-      { status: s.status,
-        rdfs_class: s.source.property.rdfs_class_id,
-        rdfs_class_name: s.source.property.rdfs_class.name,
-        webpage_class_name: s.webpage.rdfs_class.name,
-        subject: s.webpage.rdf_uri,
-        predicate: s.source.property.uri,
-        object: s.cache,
-        language: s.source.language,
-        value_datatype: s.source.property.value_datatype,
-        label: s.source.property.label }
-    end
-    # map statements that have a datatype xsd:anyURI to a list of URIs
-    statements_hash.map { |s|  s[:object] = JsonUriWrapper.extract_uris_from_cache(s[:object]) if s[:value_datatype] == "xsd:anyURI" }
-    # remove any blank statements
-    statements_hash.select! { |s| s[:object].present? && s[:object] != '[]' }
-    statements_hash
-  end
 
   # make Google SDTT pass by removing data types like xsd:dateTime and xsd:date
   def self.make_google_graph(local_graph)
@@ -156,10 +136,14 @@ class JsonldGenerator
 
   # Returns an RDF graph from condenser statements
   def self.build_graph(statements, nesting_options = {})
-    statements_hash = build_statements_hash(statements)
+    # map statements that have a datatype xsd:anyURI to a list of URIs
+    statements.map { |s|  s[:value] = JsonUriWrapper.extract_uris_from_cache(s[:value]) if s[:datatype] == "xsd:anyURI" }
+    # remove any blank statements
+    statements.select! { |s| s[:value].present? && s[:value] != '[]' }
+    
     graph = RDF::Graph.new
 
-    statements_hash.each do |s|
+    statements.each do |s|
       next if s[:status] == 'initial' || s[:status] == 'problem'
 
       main_class_uri = "http://schema.org/#{s[:webpage_class_name]}"
@@ -175,7 +159,7 @@ class JsonldGenerator
       if s[:rdfs_class_name] == 'Offer'
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/offers'), build_uri(subject,'Offer')]
         graph << [build_uri(subject,'Offer'), RDF.type, RDF::URI('http://schema.org/Offer')]
-        s[:object].make_into_array.each do |url|
+        s[:value].make_into_array.each do |url|
           graph << [build_uri(subject,'Offer'), RDF::URI(s[:predicate]), RDF::Literal(url)]
         end
       elsif s[:rdfs_class_name] == 'EventStatus'
@@ -185,15 +169,15 @@ class JsonldGenerator
       elsif s[:rdfs_class_name] == 'VirtualLocation'
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/location'), build_uri(subject,'VirtualLocation')]
         graph << [build_uri(subject, 'VirtualLocation'), RDF.type, RDF::URI('http://schema.org/VirtualLocation')]
-        graph << [build_uri(subject, 'VirtualLocation'), RDF::URI(s[:predicate]), s[:object]]
+        graph << [build_uri(subject, 'VirtualLocation'), RDF::URI(s[:predicate]), s[:value]]
       elsif s[:rdfs_class_name] == 'PostalAddress'
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/address'), build_uri(subject,'PostalAddress')]
         graph << [build_uri(subject, 'PostalAddress'), RDF.type, RDF::URI('http://schema.org/PostalAddress')]
-        graph << [build_uri(subject, 'PostalAddress'), RDF::URI(s[:predicate]), s[:object]]
+        graph << [build_uri(subject, 'PostalAddress'), RDF::URI(s[:predicate]), s[:value]]
       ## TEMPORARY PATCH  END #########
 
-      elsif  s[:value_datatype] == 'xsd:anyURI'
-        s[:object].each do |uri|
+      elsif  s[:datatype] == 'xsd:anyURI'
+        s[:value].each do |uri|
           # check for schema:sameAs and add as string because this is always a string in schema.org
           # but condenser treats it as a URI inorder to link to Artsdata
           # if we don't convert to string we will add back the data from Artsdata in a loop
@@ -203,9 +187,9 @@ class JsonldGenerator
             graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::URI(uri)]
           end
         end
-      elsif  s[:value_datatype] == 'xsd:dateTime'
+      elsif  s[:datatype] == 'xsd:dateTime'
         # Test value and adjust datatype to either xsd:dateTime or xsd:date or default string
-        s[:object].make_into_array.each do |date_time|
+        s[:value].make_into_array.each do |date_time|
           if RDF::Literal::DateTime.new(date_time).valid?
             graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::DateTime.new(date_time)] 
           elsif RDF::Literal::Date.new(date_time).valid?
@@ -214,8 +198,8 @@ class JsonldGenerator
             graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal(date_time)] 
           end
         end
-      elsif  s[:value_datatype] == 'xsd:date'
-        s[:object].make_into_array.each do |date_time|
+      elsif  s[:datatype] == 'xsd:date'
+        s[:value].make_into_array.each do |date_time|
           if RDF::Literal::DateTime.new(date_time).valid?
             graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::DateTime.new(date_time)] 
           elsif RDF::Literal::Date.new(date_time).valid?
@@ -226,9 +210,9 @@ class JsonldGenerator
         end
       else
         object = if s[:language].present?
-                   RDF::Literal(s[:object], language: s[:language])
+                   RDF::Literal(s[:value], language: s[:language])
                  else
-                   RDF::Literal(s[:object])
+                   RDF::Literal(s[:value])
                  end
         graph << [RDF::URI(subject), RDF::URI(s[:predicate]), object]
       end
