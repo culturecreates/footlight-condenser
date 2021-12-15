@@ -3,8 +3,9 @@ class Resource
   include ResourcesHelper
   attr_accessor :statements, :rdfs_class, :seedurl, :archive_date, :webpages, :rdf_uri
 
-
-  # DATA MODEL
+  ########################
+  #  DATA MODEL
+  ########################
   #  "uri": "adr:spec-qc-ca_chaakapesh",
   # "rdfs_class": "Event",
   # "seedurl": "spec-qc-ca",

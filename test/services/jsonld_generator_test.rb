@@ -1,9 +1,11 @@
 require 'test_helper'
 
 class JsonldGeneratorTest < ActiveSupport::TestCase
+  include ResourcesHelper
+
   # test method build_graph
   test "build_graph" do
-    statements = [statements(:three)]
+    statements = [statements(:three)].map { |stat| adjust_labels_for_api(stat, subject: "http://subject.com") }
     nesting_options = {}
     expected_output = 2
     assert_equal expected_output, JsonldGenerator.build_graph(statements, nesting_options).count

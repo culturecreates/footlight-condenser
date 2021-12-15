@@ -1,25 +1,31 @@
 class JsonUriWrapperTest < ActiveSupport::TestCase
   test "should extract one uri" do
-    cache = '["source text", "Expected Class", [ "Entity label", "http://example.com" ]]'
-    expected_output = ["http://example.com"]
+    cache = [{ search: "source text", class: "Expected Class", links: [ {label: "Entity label 1",uri: "URI1" }] }]
+  
+    expected_output = ["URI1"]
     assert_equal expected_output, JsonUriWrapper.extract_uris_from_cache(cache)
   end
 
   test "should extract two uris" do
-    cache = '["source text", "Expected Class", [ "Entity 1", "http://example.com#1" ], [ "Entity 2", "http://example.com#2" ] ]'
-    expected_output = ["http://example.com#1", "http://example.com#2"]
+    cache = [{ search: "source text", class: "Expected Class", links: [ {label: "Entity label 1",uri: "URI1" }, {label: "Entity label 2",uri: "URI2" }] }]
+    #cache = ["source text", "Expected Class", [ "Entity 1", "http://example.com#1" ], [ "Entity 2", "http://example.com#2" ] ]
+    expected_output = ["URI1", "URI2"]
     assert_equal expected_output, JsonUriWrapper.extract_uris_from_cache(cache)
   end
 
   test "should extract uri 3 and not the deleted uri 1" do
-    cache = '[["text", "Class", [ "Entity 1", "http://example.com#1" ]],["text 3", "Class 3", [ "Entity 3", "http://example.com#3" ] ],["Manually deleted", "Class",["Label","http://example.com#1"]]]'
-    expected_output = ["http://example.com#3"]
+    cache = [{ search: "source text", class: "Expected Class", links: [ {label: "Entity label 1",uri: "URI1" }] }, { search: "source text 9", class: "Expected Class 9", links: [ {label: "Entity label",uri: "URI3" }] },  { search: "Manually deleted", class: "Expected Class 9", links: [ {label: "Entity label",uri: "URI1" }] }] 
+ 
+    #cache = '[["text", "Class", [ "Entity 1", "http://example.com#1" ]],["text 3", "Class 3", [ "Entity 3", "http://example.com#3" ] ],["Manually deleted", "Class",["Label","http://example.com#1"]]]'
+    expected_output = ["URI3"]
     assert_equal expected_output, JsonUriWrapper.extract_uris_from_cache(cache)
   end
 
   test "should extract  uri 2 from double link and not the deleted uri 1" do
-    cache = '[["source text", "Expected Class", [ "Entity 1", "http://example.com#1" ], [ "Entity 2", "http://example.com#2" ] ],["Manually deleted", "Class",["Label","http://example.com#1"]]]'
-    expected_output = ["http://example.com#2"]
+    #cache = '[["source text", "Expected Class", [ "Entity 1", "http://example.com#1" ], [ "Entity 2", "http://example.com#2" ] ],["Manually deleted", "Class",["Label","http://example.com#1"]]]'
+    cache = [{ search: "source text", class: "Expected Class", links: [ {label: "Entity label 1",uri: "URI1" }, {label: "Entity label 2",uri: "URI2" }] }, { search: "Manually deleted", class: "Expected Class 9", links: [ {label: "Entity label",uri: "URI1" }] }]
+ 
+    expected_output = ["URI2"]
     assert_equal expected_output, JsonUriWrapper.extract_uris_from_cache(cache)
   end
 
