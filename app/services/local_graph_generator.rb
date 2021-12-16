@@ -1,6 +1,6 @@
 # Class to load database statements into a RDF Graph
 class LocalGraphGenerator
-  extend ResourcesHelper
+  extend ResourcesHelper # for method adjust_labels_for_api
 
   # main method to dump all local statements into a graph
   def self.graph_all
