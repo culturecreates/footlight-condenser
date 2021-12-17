@@ -3,13 +3,76 @@
 class EventsController < ApplicationController
   include ResourcesHelper # for get_uris method
    
+  # GET /websites/:seedurl/events_by_property.json
+  # GET statements for a specific property and handle selected_individuals.
+  # Use in Concolse when viewing by property
+  # Inputs: 
+  #     params[:startDate] # "2018-01-01"
+  #     params[:endDate] # "2021-01-01"
+  #     params[:seedurl] 
+  #     params[:property] # Title
+  # Outputs: @time_span, @events, @seedurl, @property_ids
+  def index_by_property
+    @seedurl = params[:seedurl]
+    start_date =  if valid_date?(params[:startDate])
+                    Date.parse(params[:startDate])
+                  else
+                    Time.now
+                  end
+    end_date =  if valid_date?(params[:endDate])
+                  Date.parse(params[:endDate])
+                else
+                  Time.now.next_year + 6.months
+                end 
+    @time_span = [start_date..end_date]
+
+    @property_ids = [Property.where(label: "Title").first.id] << params[:property].to_i
+    
+    @property_labels = [] 
+    @property_ids.each do |prop_id|
+      @property_labels << Property.find(prop_id).label
+    end
+    
+    # Psudocode
+
+    # 1. Get all statements of webpages with class Event and website seedurl and with archive data within date range
+    website_statements =
+      Statement
+      .includes({ source: [:property, :website] }, :webpage)
+      .where({ sources:  { properties: { id: @property_ids }, websites: { seedurl: @seedurl }, webpages: { archive_date: @time_span } } })
+      .order(:webpage_id)
+      .order(selected_individual: :desc)
+
+    # 2. For statements grouped by webpage, set subject and for each statement with same subject (uri), call build_nested_statement 
+    current_page = nil
+    override = []
+    all_webpage_statements = {}
+    webpage_statements = {}
+    subject = nil
+    website_statements.each do |stat|
+      if current_page == stat.webpage_id 
+        statements, override = build_nested_statement(webpage_statements, stat, override: override,subject: subject, webpage_class_name: "Event")
+        all_webpage_statements[subject].merge!(statements)
+      else
+        current_page = stat.webpage_id
+        override = []
+        subject = stat.webpage.rdf_uri
+        webpage_statements = {}
+        statements, override = build_nested_statement(webpage_statements, stat, override: override,subject: subject, webpage_class_name: "Event")
+        all_webpage_statements[subject] = {} if all_webpage_statements[subject].nil?
+        all_webpage_statements[subject].merge!(statements) # to include en and fr webpages together
+        all_webpage_statements[subject].merge!({:archive_date =>  { :archive_date => stat.webpage.archive_date}})
+      end
+    end
+    @events = all_webpage_statements
+  end
+
   # GET /websites/:seedurl/events.json
   #     params[:startDate] # "2018-01-01"
   #     params[:endDate] # "2021-01-01"
   #     params[:seedurl]
   def index
     seedurl = params[:seedurl]
-
     start_date =  if valid_date?(params[:startDate])
                     Date.parse(params[:startDate])
                   else
@@ -93,6 +156,7 @@ class EventsController < ApplicationController
   end
 
   def valid_date?(str)
+    return false if str.nil?
     begin
       Date.parse(str)
       return true

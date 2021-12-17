@@ -95,6 +95,10 @@ Rails.application.routes.draw do
       to: "events#index",
       as: :website_events
 
+  get 'websites/:seedurl/events_by_property',
+      to: "events#index_by_property",
+      as: :website_events_by_property
+
   get 'websites/:seedurl/export',
       to: "export#export",
       as: :export

@@ -58,14 +58,23 @@ class ResourcesController < ApplicationController
   # Used by Footlight Client
   def reviewed_all
 
-    review_all_statements params[:rdf_uri], params[:event][:status_origin]
-
-  #  update_remote_jsonld  params[:rdf_uri] #stored in wringer and updated in clouddb by wringer
+    # OLD: review_all_statements params[:rdf_uri], params[:event][:status_origin]
+    Resource.new(params[:rdf_uri]).review_all_resource_except_flagged(params[:event][:status_origin])
 
     uri_to_load = params[:rdf_uri]
     if params[:review_next] == "true"
       #get next rdf_uri
-      uris_to_review = Statement.joins({webpage: :website},:source, {webpage: :rdfs_class}).where(webpages:{websites: {seedurl: params[:seedurl]}, rdfs_classes: {name: "Event"}}).where(sources: {selected: true}).where(status: "initial").or(Statement.joins({webpage: :website}, :source, {webpage: :rdfs_class}).where(webpages: {websites: {seedurl: params[:seedurl]}, rdfs_classes: {name: "Event"}}).where(sources: {selected: true}).where(status: "updated")).order(:created_at).pluck(:rdf_uri).uniq
+      uris_to_review = Statement.joins({webpage: :website},:source, {webpage: :rdfs_class})
+        .where(webpages:{websites: {seedurl: params[:seedurl]}, rdfs_classes: {name: "Event"}})
+        .where(sources: {selected: true})
+        .where(status: "initial")
+        .or(Statement.joins({webpage: :website}, :source, {webpage: :rdfs_class})
+        .where(webpages: {websites: {seedurl: params[:seedurl]}, rdfs_classes: {name: "Event"}})
+        .where(sources: {selected: true})
+        .where(status: "updated"))
+        .order(:created_at)
+        .pluck(:rdf_uri)
+        .uniq
       if !uris_to_review.blank?
         uri_to_load = uris_to_review.first
       end
@@ -76,45 +85,7 @@ class ResourcesController < ApplicationController
     end
   end
 
-  private
 
-    def review_all_statements rdf_uri, status_origin
-      statements = []
-      _webpages = Webpage.where(rdf_uri: rdf_uri)
-      _webpages.each do |webpage|
-        webpage.statements.each do |statement|
-          statements << statement
-        end
-      end
-      statements.each do |statement|
-        if statement.source.selected && !statement.is_problem?
-          statement.status = "ok"
-          statement.status_origin = status_origin
-          statement.save
-        end
-      end
-    end
-
-    def update_remote_jsonld rdf_uri
-      webpages = Webpage.where(rdf_uri: rdf_uri).preload(:website)
-
-      #get all statements for webpage in each language
-      condensor_statements = []
-      webpages.each do |w|
-        w.statements.each do |s|
-          condensor_statements << s
-        end
-      end
-
-      #generate jsonld per language BUT using statements from pages of all languages
-      webpages.each do |webpage|
-        adr_prefix = "#{webpage.website.graph_name}/resource/"
-        jsonld = helpers.build_jsonld condensor_statements, webpage.language, rdf_uri, adr_prefix
-        helpers.update_jsonld_on_wringer webpage.url, webpage.website.graph_name, jsonld
-      end
-
-
-    end
 
 
 end

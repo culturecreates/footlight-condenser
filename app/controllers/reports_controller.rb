@@ -1,7 +1,7 @@
 class ReportsController < ApplicationController
 
     def source
-        # GET /report/source.json?source_id=
+        # GET /reports/source.json?source_id=
         params[:startDate]  # "2018-01-01"
         params[:endDate]   # "2021-01-01"
     

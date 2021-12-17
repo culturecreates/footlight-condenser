@@ -32,6 +32,56 @@ class Resource
     @statements
   end
 
+  def review_all_resource_except_flagged(status_origin)
+    # Select all statements of entity that have (a selected source or selected_individual) 
+    # and are not problem state.
+    statements =
+      Statement
+      .includes(:source, :webpage)
+      .where({ sources:  { selected: true }, webpages: { rdf_uri: @rdf_uri } }, status: ["ok","initial","updated"] )
+      .or(Statement.includes(:source, :webpage)
+      .where(selected_individual: true)
+      .where(status: ["ok","initial","updated"])
+      .where({ webpages: { rdf_uri: @rdf_uri } }) )
+      .order(selected_individual: :desc)
+
+    # for each : if selected_individual add Title and language to skip list, 
+    # remove corresponding statement (same Title and language) if exists, 
+    # set status to ok.
+    skip = []
+    statements.each do |stat|
+      next if skip.include?("#{stat.source.property.label}-#{stat.webpage.language}")
+
+      if stat.selected_individual 
+        skip << "#{stat.source.property.label}-#{stat.webpage.language}"
+      end
+      stat.status = "ok"
+      stat.status_origin = status_origin
+      stat.save
+    end
+  end
+
+    # def review_all_statements rdf_uri, status_origin
+
+    #   # Select all statements of entity that have (a selected source or selected_individual) and are not problem state.
+    #   # sort by selected_individual
+    #   # for each : if selected_individual add Title and language to skip list, remove corresponding statement (same Title and language) if exists, set status to ok.
+    #   statements = []
+    #   _webpages = Webpage.where(rdf_uri: rdf_uri)
+    #   _webpages.each do |webpage|
+    #     webpage.statements.each do |statement|
+    #       statements << statement
+    #     end
+    #   end
+    #   statements.each do |statement|
+    #     if statement.source.selected && !statement.is_problem?
+    #       statement.status = "ok"
+    #       statement.status_origin = status_origin
+    #       statement.save
+    #     end
+    #   end
+    # end
+
 
 
 end
