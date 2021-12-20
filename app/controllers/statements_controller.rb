@@ -68,7 +68,15 @@ class StatementsController < ApplicationController
   # GET /statements?rdf_uri=&seedurl=&prop=&status=
   # GET /statements.json
   def index
-    @statements = build_query(rdf_uri: params[:rdf_uri], seedurl: params[:seedurl], prop: params[:prop], status: params[:status])
+    @statements = build_query(
+      rdf_uri: params[:rdf_uri], 
+      seedurl: params[:seedurl], 
+      prop: params[:prop], 
+      status: params[:status],
+      selected: params[:selected],
+      selected_individual: params[:selected_individual],
+      selected_or_individual: params[:selected_or_individual]
+    )
 
     # Paginate
     @statements = @statements.paginate(page: params[:page], per_page: params[:per_page])
@@ -277,7 +285,7 @@ class StatementsController < ApplicationController
     @statement = Statement.find(params[:id])
     @statement.update(selected_individual: false)
     respond_to do |format|
-        format.html { redirect_to statements_path(rdf_uri: @statement.webpage.rdf_uri), notice: 'Statement was successfully activated.' }
+        format.html { redirect_to statements_path(rdf_uri: @statement.webpage.rdf_uri), notice: 'Statement was successfully deactivated.' }
         format.json { redirect_to show_resources_path(rdf_uri: @statement.webpage.rdf_uri, format: :json)}
     end
   end
@@ -343,7 +351,7 @@ class StatementsController < ApplicationController
     helpers.scrape_sources sources, webpage
   end
 
-  def build_query(rdf_uri:, seedurl:, prop:, status:)
+  def build_query(rdf_uri:, seedurl:, prop:, status:, selected:, selected_individual:, selected_or_individual:)
     statements = Statement.all
 
     # filter by a Resource URI
@@ -362,6 +370,22 @@ class StatementsController < ApplicationController
     # filter by status
     if status.present?
       statements = statements.where(status: status)
+    end
+    # filter by selected
+    if selected.present?
+      statements = statements.includes(:source).where(sources: { selected: selected } )
+    end
+     # filter by selected_individual
+     if selected_individual.present?
+      statements = statements.where(selected_individual: selected_individual )
+    end
+    # filter by selected_or_individual
+    if selected_or_individual.present?
+      statements = statements.includes(:source)
+        .where(selected_individual: true )
+        .or(statements.includes(:source).where(sources: { selected: true } ))
+        .order(:webpage_id, selected_individual: :DESC)
+     
     end
 
     statements
