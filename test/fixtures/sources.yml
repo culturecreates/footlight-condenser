@@ -11,7 +11,7 @@ one:
   website: one
 
 two:
-  algorithm_value: MyString
+  algorithm_value: Source2
   selected: false
   selected_by: MyString
   language: en

@@ -3,7 +3,7 @@
 one:
   url: MyString
   language: en
-  rdf_uri: MyString
+  rdf_uri: uri1
   rdfs_class: one
   website: one
   archive_date: <%= Time.now + 10.days %>

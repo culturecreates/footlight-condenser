@@ -80,13 +80,23 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     statement_params = { "statement": {"cache": "[\"name1\",\"class1\",\"uri1\"]", "status": "ok", "status_origin": "test_user"} }
     patch add_linked_data_statement_url(statements(:five)), params: statement_params
     assert_redirected_to show_resources_path(rdf_uri: statements(:five).webpage.rdf_uri)
-  
   end
 
-   test "should update statements by removing link in statement" do  
+  test "should update statements by removing link in statement" do  
     statement_params = { "statement": {"cache": "[\"name1\",\"class1\",\"uri1\"]", "status": "ok", "status_origin": "test_user"} }
     patch remove_linked_data_statement_url(statements(:five)), params: statement_params
     assert_redirected_to show_resources_path(rdf_uri: statements(:five).webpage.rdf_uri)
-  
   end
+
+
+  test "should activate source of statements" do
+    patch activate_statement_path(@statement)
+    assert_redirected_to statements_path(rdf_uri: "uri1")
+
+    patch activate_statement_path(@statement, params: {format: :json})
+    assert_redirected_to show_resources_path(rdf_uri: "uri1.json")
+  end
+
+
+
 end

@@ -42,20 +42,17 @@ module ResourcesHelper
   #     "alternatives": [{}]
   #     }
   #  }
-  def build_nested_statement(statements, statement, override:, subject:, webpage_class_name: )
+  def build_nested_statement(statements, statement, subject:, webpage_class_name: )
     property = build_key(statement) # StatementsHelper
     statements[property] = {} if statements[property].nil?
     # add statements that are 'not selected' as an alternative inside the selected statement
     if statement.selected_individual
       statements[property].merge!(adjust_labels_for_api(statement, subject: subject, webpage_class_name: webpage_class_name )) # ResourcesHelper
-      override << property
-    elsif statement.source.selected && !override.include?(property)
-      statements[property].merge!(adjust_labels_for_api(statement, subject: subject, webpage_class_name: webpage_class_name)) # ResourcesHelper
     else
       statements[property].merge!({alternatives: []}) if statements[property][:alternatives].nil?
       statements[property][:alternatives] << adjust_labels_for_api(statement, subject: subject, webpage_class_name: webpage_class_name) # ResourcesHelper
     end
-    return statements, override
+    return statements
   end
 
 

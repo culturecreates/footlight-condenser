@@ -1,5 +1,5 @@
 class StatementsController < ApplicationController
-  before_action :set_statement, only: [:show, :edit, :update, :destroy, :add_linked_data, :remove_linked_data]
+  before_action :set_statement, only: [:show, :edit, :update, :destroy, :add_linked_data, :remove_linked_data, :activate]
   skip_before_action :verify_authenticity_token
 
   MANUALLY_ADDED = "Manually added"
@@ -226,35 +226,22 @@ class StatementsController < ApplicationController
 
   # PATCH/PUT /statements/1/activate
   # PATCH/PUT /statements/1/activate.json
+  # Sets the source of this statement to selected = true, and sets the other sources of the same property/lanague to false.
+  # Also switchs selected individual for all events of this website.
   def activate
-    #get all statements about this property/language for the resource(individual)
-    @statement = Statement.find(params[:id])
-    @source_id = @statement.source.id
-    @property = @statement.source.property
-    @language = @statement.source.language
-    @webpage =  @statement.webpage
-    @website = @webpage.website
-    @sources = Source.where(website_id: @website.id, property_id: @property.id, language: @language )
 
-    #set all source selected = false
-    @sources.each do |source|
-      if source.id != @source_id
-        source.update(selected: false)
-      else
-        source.update(selected: true)
-        #?????set all statements with this source to status: updated if in initial status
-      end
-    end
+    statements = helpers.activate_source(@statement)
+    rdf_uri = @statement.webpage.rdf_uri
 
     respond_to do |format|
-        format.html { redirect_to statements_path(rdf_uri: @webpage.rdf_uri), notice: 'Statement was successfully activated.' }
-        format.json { redirect_to show_resources_path(rdf_uri: @webpage.rdf_uri, format: :json)}
-      #  format.json { render "resources/show", rdf_uri: @webpage.rdf_uri}
+        format.html { redirect_to statements_path(rdf_uri: rdf_uri), notice: 'Statement was successfully activated.' }
+        format.json { redirect_to show_resources_path(rdf_uri: rdf_uri, format: :json)}
     end
   end
 
   # PATCH/PUT /statements/1/activate_individual
   # PATCH/PUT /statements/1/activate_individual.json
+
   def activate_individual
     #get all statements about this property/language for the resource(individual)
     @statement = Statement.find(params[:id])
@@ -281,9 +268,24 @@ class StatementsController < ApplicationController
 
   # PATCH/PUT /statements/1/deactivate_individual
   # PATCH/PUT /statements/1/deactivate_individual.json
+  # Set all this entity's statements of property/language back to source template
   def deactivate_individual
     @statement = Statement.find(params[:id])
-    @statement.update(selected_individual: false)
+    @property = @statement.source.property
+    @webpage =  @statement.webpage
+ 
+    # Get list of statements that share the same source property id and source 
+    @statements = Statement.includes({source: [:property]}, :webpage).where(sources: {property: @property}, webpage_id: @webpage)
+  
+     #set all statement.selected_individual = false
+     @statements.each do |statement|
+      if statement.source.selected
+        statement.update(selected_individual: true)
+      else
+        statement.update(selected_individual: false)
+      end
+    end
+
     respond_to do |format|
         format.html { redirect_to statements_path(rdf_uri: @statement.webpage.rdf_uri), notice: 'Statement was successfully deactivated.' }
         format.json { redirect_to show_resources_path(rdf_uri: @statement.webpage.rdf_uri, format: :json)}
@@ -351,7 +353,7 @@ class StatementsController < ApplicationController
     helpers.scrape_sources sources, webpage
   end
 
-  def build_query(rdf_uri:, seedurl:, prop:, status:, selected:, selected_individual:, selected_or_individual:)
+  def build_query(rdf_uri:, seedurl:, prop:, status:, selected: nil, selected_individual: nil, selected_or_individual: nil)
     statements = Statement.all
 
     # filter by a Resource URI
@@ -390,5 +392,7 @@ class StatementsController < ApplicationController
 
     statements
   end
+
+  
 
 end

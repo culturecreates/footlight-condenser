@@ -41,7 +41,6 @@ class EventsController < ApplicationController
       .includes({ source: [:property, :website] }, :webpage)
       .where({ sources:  { properties: { id: @property_ids }, websites: { seedurl: @seedurl }, webpages: { archive_date: @time_span } } })
       .order(:webpage_id)
-      .order(selected_individual: :desc)
 
     # 2. For statements grouped by webpage, set subject and for each statement with same subject (uri), call build_nested_statement 
     current_page = nil
@@ -51,14 +50,13 @@ class EventsController < ApplicationController
     subject = nil
     website_statements.each do |stat|
       if current_page == stat.webpage_id 
-        statements, override = build_nested_statement(webpage_statements, stat, override: override,subject: subject, webpage_class_name: "Event")
+        statements = build_nested_statement(webpage_statements, stat, subject: subject, webpage_class_name: "Event")
         all_webpage_statements[subject].merge!(statements)
       else
         current_page = stat.webpage_id
-        override = []
         subject = stat.webpage.rdf_uri
         webpage_statements = {}
-        statements, override = build_nested_statement(webpage_statements, stat, override: override,subject: subject, webpage_class_name: "Event")
+        statements = build_nested_statement(webpage_statements, stat,subject: subject, webpage_class_name: "Event")
         all_webpage_statements[subject] = {} if all_webpage_statements[subject].nil?
         all_webpage_statements[subject].merge!(statements) # to include en and fr webpages together
         all_webpage_statements[subject].merge!({:archive_date =>  { :archive_date => stat.webpage.archive_date}})

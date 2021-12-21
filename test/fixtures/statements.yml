@@ -8,6 +8,7 @@ one:
   cache_changed: 2018-07-30 16:46:00 UTC
   source:  one
   webpage: one
+  selected_individual: false
 
 one_photo:
   cache: Photo URL

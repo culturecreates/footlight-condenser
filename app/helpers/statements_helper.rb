@@ -533,4 +533,44 @@ module StatementsHelper
       'http://api.artsdata.ca/recon'
     end
   end
+
+
+
+  # Activate statement's source and selected_indvidual across all events
+  # INPUT: statement ActiveRecord
+  # OUPUT: sources ActiveRecord::Relation
+  def activate_source(statement)
+    #get all statements about this property/language for the resource(individual)
+    
+    sources = Source.where(website_id: statement.webpage.website.id, property_id: statement.source.property.id, language: statement.source.language )
+
+    sources.each do |source|
+      if source.id != statement.source.id
+        if source.selected 
+          source.update(selected: false)
+          Statement.where(source: source, selected_individual: true)  
+                   .update_all(selected_individual: false) # turn off all statements that were on by template
+        end
+      else # the one to activate
+        source.update(selected: true)
+        Statement.includes(:source)
+                  .where(source: source, selected_individual: false)  # get all statements where currently 
+                  .update_all(selected_individual: true)
+      end
+    end
+    # Fix manual overrides
+    override_statements = Statement.includes(:source).where(source: sources, sources: {selected: false}, selected_individual: true )
+    
+    override_statements.each do |s|
+      # get other statements for same property/language/webpage
+      related_statements = Statement.includes(:source).where(webpage_id: s.webpage_id, sources: { property_id: s.source.property.id, language: s.source.language})
+      related_statements.each do  |related_stat|
+        if related_stat.id != s.id
+          related_stat.update(selected_individual: false)
+        end
+      end
+    end
+
+    sources
+  end
 end
