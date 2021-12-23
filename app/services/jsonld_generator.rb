@@ -278,14 +278,16 @@ class JsonldGenerator
       if uri.value.include?('kg.artsdata.ca/resource/K')
         # dereference URI
         linked_data = dereference_uri(uri)
-        # remove non-schema vocabulary for types
-        sparql = RDFLoader.load_sparql('remove_nonschema_types.sparql')
-        sse = SPARQL.parse(sparql, update: true)
-        linked_data.query(sse)
-        # TODO: keep only english and french languages (MUST for wikidata entries)
-        graph << linked_data
-        # add to ArtsdataGraph class variable for the lifespan of the server (until restart)
-        ArtsdataGraph.graph << linked_data
+        if !linked_data[:error]
+          # remove non-schema vocabulary for types
+          sparql = RDFLoader.load_sparql('remove_nonschema_types.sparql')
+          sse = SPARQL.parse(sparql, update: true)
+          linked_data.query(sse)
+          # TODO: keep only english and french languages (MUST for wikidata entries)
+          graph << linked_data
+          # add to ArtsdataGraph class variable for the lifespan of the server (until restart)
+          ArtsdataGraph.graph << linked_data
+        end
       end
     end
 
@@ -305,7 +307,10 @@ class JsonldGenerator
       RDF::Graph.new << JSON::LD::API.toRdf(JSON.parse(result.body))
     rescue IOError => e
       Rails.logger.error "Error dereferencing URI: #{uri.inspect}. Exception: #{e.inspect}"
-      RDF::Graph.new
+      { error: "IOError", method: 'dereference_uri', message: "#{e.inspect}"}
+    rescue StandardError => e
+      Rails.logger.error "No server running at: #{artsdata_rank_api_url}. Exception: #{e.inspect}"
+      { error: "No server running at #{artsdata_rank_api_url}", method: 'dereference_uri', message: "#{e.inspect}"}
     end
   end
 

@@ -44,13 +44,12 @@ module StatementsHelper
         # decide to create or update database entry
         if s.count != 1
           # check if website is auto-review
-
           new_status = if source.auto_review
                          'updated'
                        else
                          'initial'
                        end
-          Statement.create!(cache: _data, webpage_id: webpage.id, source_id: source.id, status: new_status, status_origin: 'condenser_refresh', cache_refreshed: Time.new)
+          Statement.create!(cache: _data, selected_individual: source.selected, webpage_id: webpage.id, source_id: source.id, status: new_status, status_origin: 'condenser_refresh', cache_refreshed: Time.new)
         else
           # skip if source is manual and not missing
           unless source.algorithm_value.start_with?("manual=") && s.first.status != "missing"

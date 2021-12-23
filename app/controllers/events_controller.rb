@@ -116,13 +116,11 @@ class EventsController < ApplicationController
       Statement
       .includes({ source: [:property, :website] }, :webpage)
       .where({ sources: { websites: { seedurl: seedurl }, webpages: { archive_date: archive_date_range, rdfs_class_id: RdfsClass.where(name:'Event')  } } })
-      .order(:selected_individual) # to display selected source
+      .where(selected_individual: true)
     
     # Group by event URI
     events_by_uri = Hash.new { |h,k| h[k] = {} }
     website_statements.each do |s|
-      next unless s.selected_individual || s.source.selected 
-
       events_by_uri[s.webpage.rdf_uri] =
         events_by_uri[s.webpage.rdf_uri]
         .merge({ s.source.property.label => { cache: s.cache, status: s.status, selected_individual: s.selected_individual} })
