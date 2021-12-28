@@ -5,7 +5,7 @@ class EventsController < ApplicationController
    
   # GET /websites/:seedurl/events_by_property.json
   # GET statements for a specific property and handle selected_individuals.
-  # Use in Concolse when viewing by property
+  # Use in Console when viewing by property
   # Inputs: 
   #     params[:startDate] # "2018-01-01"
   #     params[:endDate] # "2021-01-01"
@@ -44,7 +44,6 @@ class EventsController < ApplicationController
 
     # 2. For statements grouped by webpage, set subject and for each statement with same subject (uri), call build_nested_statement 
     current_page = nil
-    override = []
     all_webpage_statements = {}
     webpage_statements = {}
     subject = nil
