@@ -212,12 +212,23 @@ module StatementsHelper
     data
   end
 
+  def convert_date(scraped_data)
+    dates = convert_datetime(scraped_data)
+    dates.map do |d|
+      begin
+        d.to_date 
+      rescue => exception
+        "input: #{scraped_data} error: #{exception}"
+      end
+    end
+  end
+
   def format_datatype(scraped_data, property, webpage)
     data = []
     if property.value_datatype == 'xsd:dateTime'
       data = convert_datetime(scraped_data)
     elsif property.value_datatype == 'xsd:date'
-      data = convert_datetime(scraped_data).map {|d| d.to_date}
+      data = convert_date(scraped_data)
     elsif property.value_datatype == 'xsd:anyURI'
       unless scraped_data.blank?
         # first check if scraped_data is already formated as an array, and then parse and skip search.
