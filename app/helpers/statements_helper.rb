@@ -21,24 +21,6 @@ module StatementsHelper
         _data = format_datatype(_scraped_data, source.property, webpage)
         #################################################
 
-        # add last startDate and endDate to ArchiveDate in Webpages Table to be able to sort by date and refresh event still to come.
-        if (source.property.uri == 'http://schema.org/startDate' || source.property.uri == 'http://schema.org/endDate' ) && source.selected
-          ## TODO: need to also check EventStatus is Postponed and set archive date to 1 year in the future.
-          logger.info("*** Setting Last Show Date:#{_data}")
-          # TODO: improve error handling to use consistent {error:}
-          _data_string = _data&.to_s&.downcase
-          if !_data_string.include?('error') && !_data_string.include?('bad')
-            last_show_date = _data.class == Array ? _data.last : _data
-            if last_show_date.present?
-              webpage.archive_date = last_show_date.to_datetime - 24.hours
-              if webpage.save
-                logger.debug("*** set archive date for #{webpage.url} to #{webpage.archive_date}")
-              else
-                logger.error("*** ERROR: could not save archive date for #{webpage.url} using  #{last_show_date}.")
-              end
-            end
-           end
-        end
 
         s = Statement.where(webpage_id: webpage.id, source_id: source.id)
         # decide to create or update database entry
