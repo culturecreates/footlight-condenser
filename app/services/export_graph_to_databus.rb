@@ -28,34 +28,36 @@ class ExportGraphToDatabus
     result
   end
 
+  ##
+  # Check the schedule for each website and refresh export to param:root_url if needed.
+  # Call this method every hour with a cron job.
+  # For each website use:
+  #    website.last_refresh = dateTime of last refresh
+  #    website.schedule_time = time of day to refresh
+  #    website.schedule_every_days = days to wait before refresh
+
   def self.check_schedule(root_url)
-    logger = Rails.logger
-    # get list of websites
     websites = Website.all
-
-    # check which websites need to be refreshed
     websites.each do |website|
-      schedule_every_days = website.schedule_every_days
-      schedule_time = website.schedule_time # only hour of day
-      last_refresh = website.last_refresh
+      # ensure there is a schedule
+      next unless schedule_every_days = website.schedule_every_days 
+      next unless schedule_every_days.to_i > 0
 
-      if last_refresh && schedule_every_days
-        if schedule_every_days.to_i > 0
-          days_past = Time.now.at_beginning_of_day - last_refresh.at_beginning_of_day
-          if days_past >= schedule_every_days.days
-            if Time.now.utc.strftime( "%H%M" ) >= schedule_time.utc.strftime( "%H%M" )
-              # refresh and set refresh_date
-              puts "Artsdata Export events for #{website.inspect}"
-              logger.info("Artsdata Export events for #{website.inspect}")
-              result = export_events(website.seedurl, root_url)
-              puts "Result of export_events: #{result.inspect}"
-              logger.info("Artsdata Export Result: #{result.inspect}")
-              website.last_refresh = Time.now
-              website.save
-            end
-          end
-        end
-      end
+      # ensure that website has been crawled atleast once
+      next unless last_refresh = website.last_refresh
+
+      # ensure that the number of days has passed
+      days_past = Time.now.at_beginning_of_day - last_refresh.at_beginning_of_day
+      next unless days_past >= schedule_every_days.days
+         
+      # ensure that the scheduled time of day has passed
+      next unless Time.now.utc.strftime( "%H%M" ) >= website.schedule_time.utc.strftime( "%H%M" )
+            
+      # refresh
+      result = export_events(website.seedurl, root_url)
+      Rails.logger.info("Artsdata Export #{website.inspect} Result: #{result.inspect}")
+      website.last_refresh = Time.now
+      website.save
     end
   end
 
