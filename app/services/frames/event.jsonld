@@ -1,7 +1,8 @@
 {
     "@context":
         {
-            "@vocab": "http://schema.org/"
+            "@vocab": "http://schema.org/",
+            "additionalType": { "@id":"additionalType", "@type":"@id"}
         },
     "@type": "Event",
     "@explicit": true,
@@ -11,6 +12,7 @@
     "description" :{},
     "duration": {},
     "url":{},
+    "additionalType":{},
     "eventStatus":{},
     "eventAttendanceMode":{},
     "image":{},
