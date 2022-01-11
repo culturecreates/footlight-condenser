@@ -106,7 +106,7 @@ class Statement < ApplicationRecord
   end
 
   # Set the archive date whenever the startDate or endDate cache changes
-  # and when the statement is selected individually or as the source selection
+  # including when the statement is manually edited
   def update_archive_date
     return unless selected_individual
 
@@ -114,18 +114,12 @@ class Statement < ApplicationRecord
 
     @value_datatype ||= source.property.value_datatype
     if @value_datatype == 'xsd:dateTime' || @value_datatype == 'xsd:date'
-     
-      return unless valid_date?
-
       last_show_date = last_show_date(cache)
-      
       if last_show_date.present?
-        webpage.archive_date = last_show_date.to_datetime - 24.hours
-        if webpage.save
-          logger.debug("*** set archive date for #{webpage.url} to #{webpage.archive_date}")
-        else
-          logger.error("*** ERROR: could not save archive date for #{webpage.url} using  #{last_show_date}.")
-        end
+        # Get all webpage languages
+        webpages = Webpage.where(rdf_uri: webpage.rdf_uri)
+        webpages.update_all(archive_date: last_show_date.to_datetime - 24.hours)
+        logger.debug("*** set archive date for #{webpage.rdf_uri} to #{webpage.archive_date}")
       end
     end
   end

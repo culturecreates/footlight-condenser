@@ -1,86 +1,50 @@
-# Main API call for portal to get the index of events
-# GET /websites/:seedurl/events?startDate=&endDate=
+
 class EventsController < ApplicationController
   include ResourcesHelper # for get_uris method
    
+  ##
+  # GET statements across a website for a property, or list of properties
+  # Used in Console when viewing by property
   # GET /websites/:seedurl/events_by_property.json
-  # GET statements for a specific property and handle selected_individuals.
-  # Use in Console when viewing by property
   # Inputs: 
   #     params[:startDate] # "2018-01-01"
   #     params[:endDate] # "2021-01-01"
   #     params[:seedurl] 
-  #     params[:property] # Title
+  #     params[:property] # Title or Title,Duration
   # Outputs: @time_span, @events, @seedurl, @property_ids
   def index_by_property
     @seedurl = params[:seedurl]
-    start_date =  if valid_date?(params[:startDate])
-                    Date.parse(params[:startDate])
-                  else
-                    Time.now
-                  end
-    end_date =  if valid_date?(params[:endDate])
-                  Date.parse(params[:endDate])
-                else
-                  Time.now.next_year + 6.months
-                end 
-    @time_span = [start_date..end_date]
-
+    time_span = create_timespan(params[:startDate], params[:endDate])
+    # Add title property for the first column in the table
     @property_ids = [Property.where(label: "Title").first.id] << params[:property].to_i
-    
-    @property_labels = [] 
-    @property_ids.each do |prop_id|
-      @property_labels << Property.find(prop_id).label
-    end
-    
-    # Psudocode
-
-    # 1. Get all statements of webpages with class Event and website seedurl and with archive data within date range
+    @property_labels =  @property_ids.map { |id| Property.find(id).label }
+  
+    # Get statements matching critria
     website_statements =
       Statement
       .includes({ source: [:property, :website] }, :webpage)
-      .where({ sources:  { properties: { id: @property_ids }, websites: { seedurl: @seedurl }, webpages: { archive_date: @time_span } } })
+      .where({ sources:  { properties: { id: @property_ids }, websites: { seedurl: @seedurl }, webpages: { archive_date: time_span } } })
       .order(:webpage_id)
 
-    # 2. For statements grouped by webpage, set subject and for each statement with same subject (uri), call build_nested_statement 
-    current_page = nil
-    all_webpage_statements = {}
-    webpage_statements = {}
-    subject = nil
+    # For each statement, build_nested_statement and add to website events
+    website_event_resources = Hash.new { |h,k| h[k] = {} }
     website_statements.each do |stat|
-      if current_page == stat.webpage_id 
-        statements = build_nested_statement(webpage_statements, stat, subject: subject, webpage_class_name: "Event")
-        all_webpage_statements[subject].merge!(statements)
-      else
-        current_page = stat.webpage_id
-        subject = stat.webpage.rdf_uri
-        webpage_statements = {}
-        statements = build_nested_statement(webpage_statements, stat,subject: subject, webpage_class_name: "Event")
-        all_webpage_statements[subject] = {} if all_webpage_statements[subject].nil?
-        all_webpage_statements[subject].merge!(statements) # to include en and fr webpages together
-        all_webpage_statements[subject].merge!({:archive_date =>  { :archive_date => stat.webpage.archive_date}})
-      end
+      subject = stat.webpage.rdf_uri
+      statements = build_nested_statement(website_event_resources[subject], stat,subject: subject, webpage_class_name: "Event")
+      website_event_resources[subject].merge!(statements) # to include en and fr webpages together
+      website_event_resources[subject].merge!({:archive_date =>  { :archive_date => stat.webpage.archive_date}})
     end
-    @events = all_webpage_statements
+    @events = website_event_resources
   end
 
+  # Main API calls to get the index of events
   # GET /websites/:seedurl/events.json
   #     params[:startDate] # "2018-01-01"
   #     params[:endDate] # "2021-01-01"
-  #     params[:seedurl]
   def index
     seedurl = params[:seedurl]
-    start_date =  if valid_date?(params[:startDate])
-                    Date.parse(params[:startDate])
-                  else
-                    Time.now
-                  end
-    end_date =  if valid_date?(params[:endDate])
-                  Date.parse(params[:endDate])
-                else
-                  Time.now.next_year + 6.months
-                end 
-    time_span = [start_date..end_date]
+    time_span = create_timespan(params[:startDate], params[:endDate])
+    
     @events = []
 
     website_statements_by_event(seedurl, time_span).each do |k,v|
@@ -110,6 +74,7 @@ class EventsController < ApplicationController
     @total_events = @events.count
   end
 
+  # Return a hash of event uris with grouped statements per event.
   def website_statements_by_event(seedurl, archive_date_range = [Time.now - 10.years..Time.now + 10.years])
     website_statements =
       Statement
@@ -129,7 +94,6 @@ class EventsController < ApplicationController
   end
 
   def event_publishable? data  
-   # return false if data.has_key?("URI List")
 
     publishable_states = ['ok','updated']
     return false unless publishable_states.include?(data.dig('Dates',:status))
@@ -159,6 +123,20 @@ class EventsController < ApplicationController
       logger.error("Invalid Event date parameter: #{e.inspect}")
       return false
     end
+  end
+
+  def create_timespan(start_date_input, end_date_input)
+    start_date =  if valid_date?(start_date_input)
+      Date.parse(start_date_input)
+    else
+      Time.now
+    end
+    end_date =  if valid_date?(end_date_input)
+      Date.parse(end_date_input)
+    else
+      Time.now.next_year + 6.months
+    end 
+    return [start_date..end_date]
   end
   
 end
