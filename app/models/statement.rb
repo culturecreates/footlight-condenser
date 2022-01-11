@@ -109,11 +109,12 @@ class Statement < ApplicationRecord
   # including when the statement is manually edited
   def update_archive_date
     return unless selected_individual
-
-    return if cache.include?('error') || cache.include?('bad')
-
     @value_datatype ||= source.property.value_datatype
     if @value_datatype == 'xsd:dateTime' || @value_datatype == 'xsd:date'
+      return if cache.nil?
+
+      return if cache.include?('error') || cache.include?('bad')
+
       last_show_date = last_show_date(cache)
       if last_show_date.present?
         # Get all webpage languages

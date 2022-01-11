@@ -451,6 +451,8 @@ module StatementsHelper
       Time.zone = current_timezone
 
       iso_date_time = d.iso8601
+    rescue NoMethodError => e
+      iso_date_time = ""
     rescue StandardError => e
       iso_date_time = "Bad input for date/time: #{date_time}.  (#{e.inspect})"
     end
