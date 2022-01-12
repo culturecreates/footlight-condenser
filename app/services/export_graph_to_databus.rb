@@ -29,13 +29,13 @@ class ExportGraphToDatabus
   end
 
   ##
-  # Check the schedule for each website and refresh export to param:root_url if needed.
+  # Check the schedule for each website and refresh export if needed.
   # Call this method every hour with a cron job.
+  # INPUT: root_url = root url for callback mechanism to get reports
   # For each website use:
   #    website.last_refresh = dateTime of last refresh
   #    website.schedule_time = time of day to refresh
   #    website.schedule_every_days = days to wait before refresh
-
   def self.check_schedule(root_url)
     websites = Website.all
     websites.each do |website|
@@ -86,7 +86,7 @@ class ExportGraphToDatabus
   def self.add_to_databus(group:, artifact:, download_url:, download_file:, version:, report_callback_url:, shacl_file: 'condenser')
     publisher = 'https://graph.culturecreates.com/id/footlight'
 
-    data = HTTParty.post(artsdata_databus_api_url,
+    HTTParty.post(artsdata_databus_api_url,
       query: {
         publisher: publisher,
         group: group,
@@ -96,10 +96,7 @@ class ExportGraphToDatabus
         downloadFile: download_file,
         reportCallbackUrl: report_callback_url,
         shacl: shacl_file
-      } # ,
-      #headers: { 'Content-Type' => 'application/x-www-form-urlencoded; charset=UTF-8',
-      #          'Accept' => 'application/json'},
-      # timeout: 4
+      } 
     )
   end
 
