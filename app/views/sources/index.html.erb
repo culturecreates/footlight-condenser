@@ -1,5 +1,3 @@
-<p id="notice"><%= notice %></p>
-
 <h1>Sources</h1>
 
 <%= render "view_table" %>
@@ -10,3 +8,15 @@
   <%= link_to "New #{rdfs_class.name} Source", new_source_path(rdfs_class_id: rdfs_class.id) %>
   <%= '|' if  rdfs_class != @rdfs_classes.last %>
 <% end %>
+
+<br><br>
+Added sources from website: 
+<% if @website_id %>
+  <%= form_tag(copy_sources_path(to_website_id: @website_id )) do -%>
+    <%= select_tag "from_website_id", options_from_collection_for_select(@selectable_websites, "id", "seedurl") %> 
+    <div><%= submit_tag('Copy', class: "button") %></div>
+  <% end -%>
+<% else %>
+  Please select a website first.
+<% end %>  
+

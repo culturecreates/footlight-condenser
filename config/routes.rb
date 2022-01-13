@@ -31,6 +31,7 @@ Rails.application.routes.draw do
   resources :sources do
     collection do
       get 'website'
+      post 'copy'
     end
     member do
       patch 'review_all_statements'

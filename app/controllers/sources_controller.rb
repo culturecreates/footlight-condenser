@@ -8,6 +8,7 @@ class SourcesController < ApplicationController
     seedurl = params[:seedurl] ||  cookies[:seedurl]
     if seedurl
       @sources = Source.where(website_id: Website.where(seedurl: seedurl).first.id).order(selected: :desc).order(:property_id, :language)
+      @website_id = Website.where(seedurl: seedurl).first.id
     else
       @sources = Source.all
     end
@@ -60,6 +61,25 @@ class SourcesController < ApplicationController
         format.json { render json: @source.errors, status: :unprocessable_entity }
       end
     end
+  end
+
+  ## 
+  # Copy all sources from another website
+  # POST /sources/copy?from_website_id=&to_website_id=
+  def copy
+    # Get all sources from website
+    website = Website.find(params[:to_website_id])
+    sources = Source.where(website: params[:from_website_id])
+    sources.each do |source|
+      new_source = website.sources.new
+      if new_source.update(source.attributes.except("id","website_id","created_at","updated_at"))
+        puts "Created new_source #{new_source.property_id}"
+        next
+      else
+        puts "failed to update source.inspect "
+      end
+    end
+    redirect_to sources_url, notice: 'Sources added.' 
   end
 
   # PATCH/PUT /sources/1
