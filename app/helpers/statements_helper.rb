@@ -23,6 +23,7 @@ module StatementsHelper
 
 
         s = Statement.where(webpage_id: webpage.id, source_id: source.id)
+        manual =  source.algorithm_value.start_with?("manual=") ? true : false
         # decide to create or update database entry
         if s.count != 1
           # check if website is auto-review
@@ -31,10 +32,11 @@ module StatementsHelper
                        else
                          'initial'
                        end
-          Statement.create!(cache: _data, selected_individual: source.selected, webpage_id: webpage.id, source_id: source.id, status: new_status, status_origin: 'condenser_refresh', cache_refreshed: Time.new)
+          
+          Statement.create!(manual: manual, cache: _data, selected_individual: source.selected, webpage_id: webpage.id, source_id: source.id, status: new_status, status_origin: 'condenser_refresh', cache_refreshed: Time.new)
         else
           # skip if source is manual and not missing
-          unless source.algorithm_value.start_with?("manual=") && s.first.status != "missing"
+          unless manual && s.first.status != "missing"
             # preserve manually added and deleted links of datatype xsd:anyURI
             if source.property.value_datatype == 'xsd:anyURI'
                 _data = preserve_manual_links _data, s.first.cache

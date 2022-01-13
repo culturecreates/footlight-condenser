@@ -50,7 +50,7 @@ class StatementsController < ApplicationController
     refresh_statement @statement
     @statement = Statement.where(id: params[:id]).first
     post_refresh = @statement.cache_refreshed
-    if prior_refresh == post_refresh && !@statement.source.algorithm_value.starts_with?("manual")
+    if prior_refresh == post_refresh && !@statement.source.algorithm_value.starts_with?("manual") && !@statement.manual
       @statement.errors[:base] << "Error scrapping. Refresh was aborted! Checks logs."
     end
     respond_to do |format|
@@ -155,6 +155,10 @@ class StatementsController < ApplicationController
   def update
     respond_to do |format|
       if @statement.update(statement_params)
+        if statement_params.include?("cache")
+          # This statement's value has been edited so it should be set to manual so it does not get updated automatically
+          @statement.update(manual: true)
+        end
         format.html { redirect_to statements_path(rdf_uri: @statement.webpage.rdf_uri), notice: 'Statement was successfully updated.' }
         format.json { redirect_to show_resources_path(rdf_uri: @statement.webpage.rdf_uri, format: :json)}
       else
@@ -311,7 +315,7 @@ class StatementsController < ApplicationController
 
   # Never trust parameters from the scary internet, only allow the white list through.
   def statement_params
-    params.require(:statement).permit(:cache, :status, :status_origin, :cache_refreshed, :cache_changed, :source_id, :webpage_id, :selected_individual)
+    params.require(:statement).permit(:manual, :cache, :status, :status_origin, :cache_refreshed, :cache_changed, :source_id, :webpage_id, :selected_individual)
   end
 
   def extract_property_ids rdfs_class_name, property_ids
@@ -346,7 +350,11 @@ class StatementsController < ApplicationController
     end
   end
 
+  ##
+  # Load the statement's source algorithms unless the statement is manual
   def refresh_statement(statement)
+    return if statement.manual
+
     # get the webpage and sources (check if more than one sounce with steps)
     webpage = statement.webpage
     sources = Source.where(id: statement.source_id).or(Source.where(next_step: statement.source_id)).order(:next_step)

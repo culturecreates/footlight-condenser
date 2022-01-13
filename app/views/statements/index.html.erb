@@ -31,6 +31,7 @@ status:  <%=params[:status] %>
       <th>Property</th>
       <th>Cache</th>
       <th>Status</th>
+       <th>Manual</th>
       <th>Selected Source</th>
       <th>Selected Individual</th>
       <th>Status origin</th>
@@ -49,6 +50,7 @@ status:  <%=params[:status] %>
         <td><%= statement.source.property.label %> <%= format_language statement.source.language%></td>
         <td><%= statement.cache %></td>
         <td><%= statement.status %></td>
+         <td><%= statement.manual %></td>
         <td <%= "style=background-color:pink;" if !statement.source.selected %>><%= statement.source.selected %></td>
         <td <%= "style=background-color:green;" if statement.selected_individual %>><%= statement.selected_individual %></td>
         <td><%= statement.status_origin %></td>
