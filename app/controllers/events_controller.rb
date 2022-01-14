@@ -120,7 +120,7 @@ class EventsController < ApplicationController
       Date.parse(str)
       return true
     rescue => e
-      logger.error("Invalid Event date parameter: #{e.inspect}")
+      logger.info("Invalid Event date parameter: #{e.inspect}")
       return false
     end
   end
