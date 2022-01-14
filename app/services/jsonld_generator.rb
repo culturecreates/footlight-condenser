@@ -1,11 +1,13 @@
 # Class to convert data in the Condensor data model to JSON-LD
 class JsonldGenerator
+  extend ResourcesHelper # for method adjust_labels_for_api
   # main method to dump all statements into a graph to push to artsdata
   def self.dump_events(events) # list of event uris
     graphs = RDF::Graph.new
     events.each do |uri|
       statements = load_uri_statements(uri)
-      graph = build_graph(statements, {})
+      statements_hash = statements.map{ |stat| adjust_labels_for_api(stat, subject: stat.webpage.rdf_uri, webpage_class_name: stat.webpage.rdfs_class.name  ) }
+      graph = build_graph(statements_hash, {})
       graph = make_event_series(graph, uri)
       graph = add_triples_from_artsdata(graph)
       graphs << graph
@@ -13,10 +15,10 @@ class JsonldGenerator
     graphs.dump(:jsonld)
   end
 
-  # Load all ActiveRecord Statements for a URI that are selected 'true'
+  # Load all ActiveRecord Statements for a URI that are selected_individual 'true'
   def self.load_uri_statements(rdf_uri)
     webpages = Webpage.where(rdf_uri: rdf_uri) # A uri may span statements from an english and french webpage
-    statements = Statement.joins({ source: :property }).where(webpage_id: webpages, sources: { selected: true })
+    statements = Statement.where(webpage_id: webpages, selected_individual: true)
     statements
   end
 
@@ -134,8 +136,8 @@ class JsonldGenerator
     jsonld
   end
 
-  # Returns an RDF graph from condenser statements
-  def self.build_graph(statements, nesting_options = {})
+  # Returns an RDF graph from condenser statements hash
+  def self.build_graph(statements, nesting_options = {})    
     # map statements that have a datatype xsd:anyURI to a list of URIs
     statements.map { |s|  s[:value] = JsonUriWrapper.extract_uris_from_cache(s[:value]) if s[:datatype] == "xsd:anyURI" }
     # remove any blank statements
@@ -278,7 +280,7 @@ class JsonldGenerator
       if uri.value.include?('kg.artsdata.ca/resource/K')
         # dereference URI
         linked_data = dereference_uri(uri)
-        if !linked_data[:error]
+        if linked_data.class == RDF::Graph
           # remove non-schema vocabulary for types
           sparql = RDFLoader.load_sparql('remove_nonschema_types.sparql')
           sse = SPARQL.parse(sparql, update: true)
