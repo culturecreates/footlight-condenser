@@ -242,7 +242,7 @@ class JsonldGenerator
     uri_list
   end
 
-  # Get triples about a URI from Artsdata.ca
+  # Get triples about a URI from Artsdata.ca AND Footlight database
   def self.describe_uri(uri)
     query = RDF::Query.new do
       pattern [uri, :p, :o]
@@ -309,7 +309,7 @@ class JsonldGenerator
       Rails.logger.error "Error dereferencing URI: #{uri.inspect}. Exception: #{e.inspect}"
       { error: "IOError", method: 'dereference_uri', message: "#{e.inspect}"}
     rescue StandardError => e
-      Rails.logger.error "No server running at: #{artsdata_rank_api_url}. Exception: #{e.inspect}"
+      Rails.logger.error "No server running at: #{artsdata_rank_api_url}. Unable to dereference URI: #{uri.inspect}. Exception: #{e.inspect}"
       { error: "No server running at #{artsdata_rank_api_url}", method: 'dereference_uri', message: "#{e.inspect}"}
     end
   end
