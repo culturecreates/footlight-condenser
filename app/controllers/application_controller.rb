@@ -6,7 +6,11 @@ class ApplicationController < ActionController::Base
   private
 
   def set_sticky_seedurl
-    params[:seedurl] = cookies[:seedurl] if !cookies[:seedurl].blank? && params[:seedurl].blank?
+    if params[:seedurl].blank?
+      params[:seedurl] = cookies[:seedurl] if !cookies[:seedurl].blank?
+    else
+      cookies[:seedurl] = params[:seedurl] 
+    end
   end
 
   def selectable_websites
