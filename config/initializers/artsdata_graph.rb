@@ -9,7 +9,6 @@ class ArtsdataGraph
     @@schema = RDF::Vocabulary.new('http://schema.org/')
 
     if Rails.env.test? || Rails.env.development?
-      puts 'loading artsdata graph from test/fixtures/files'
       @@graph = RDF::Graph.load('test/fixtures/files/artsdata-dump.nt',
                                         format: :nquads)
     else

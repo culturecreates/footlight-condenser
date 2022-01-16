@@ -190,24 +190,25 @@ class JsonldGenerator
           end
         end
       elsif  s[:datatype] == 'xsd:dateTime'
-        # Test value and adjust datatype to either xsd:dateTime or xsd:date or default string
+        # Test value and adjust datatype to either xsd:dateTime or xsd:date
         s[:value].make_into_array.each do |date_time|
           if RDF::Literal::DateTime.new(date_time).valid?
             graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::DateTime.new(date_time)] 
           elsif RDF::Literal::Date.new(date_time).valid?
             graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::Date.new(date_time)] 
           else
-            graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal(date_time)] 
+            # graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal(date_time)] 
           end
         end
       elsif  s[:datatype] == 'xsd:date'
+        # Test value and adjust datatype to either xsd:dateTime or xsd:date
         s[:value].make_into_array.each do |date_time|
           if RDF::Literal::DateTime.new(date_time).valid?
             graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::DateTime.new(date_time)] 
           elsif RDF::Literal::Date.new(date_time).valid?
             graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::Date.new(date_time)] 
           else
-            graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal(date_time)] 
+            # graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal(date_time)] 
           end
         end
       else
