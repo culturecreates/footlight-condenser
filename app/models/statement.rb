@@ -63,7 +63,7 @@ class Statement < ApplicationRecord
     elsif property_label == 'Title'
       self.status = 'missing' unless cache.present?
     elsif property_label == 'Virtual Location'
-      self.status = 'missing' unless cache.present?
+      self.status = 'missing' unless cache.present? && cache != '[]'
     end
   end
 
