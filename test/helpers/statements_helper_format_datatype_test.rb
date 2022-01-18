@@ -4,14 +4,17 @@ require 'test_helper'
 class StatementsHelperTest < ActionView::TestCase
   tests StatementsHelper
 
-  test "prexisting array input for any:URI manual source" do
-    property = properties(:seven)
-    scraped_data = ["[\"name\",\"Class\",[\"remote name\",\"uri\"]]"]
-    webpage = webpages(:one)
-    actual = format_datatype(scraped_data, property, webpage)
-    expected = ["name", "Class", ["remote name", "uri"]]
-    assert_equal expected, actual
-  end
+  # Removed test JAN 2022 - it was a bad idea to use manual source with array input.
+  # Instead use manual=Place des Arts
+  #
+  # test "prexisting array input for any:URI manual source" do
+  #   property = properties(:seven)
+  #   scraped_data = ["[\"name\",\"Class\",[\"remote name\",\"uri\"]]"]
+  #   webpage = webpages(:one)
+  #   actual = format_datatype(scraped_data, property, webpage)
+  #   expected = ["name", "Class", ["remote name", "uri"]]
+  #   assert_equal expected, actual
+  # end
 
   test "string input for any:URI manual source" do
     property = properties(:seven)
@@ -141,6 +144,15 @@ class StatementsHelperTest < ActionView::TestCase
     webpage = webpages(:one)
     actual = format_datatype(scraped_data, property, webpage)
     expected = ["Humour | Programmation distanciée", "EventTypeEnumeration", ["ComedyEvent", "http://schema.org/ComedyEvent"]]
+    assert_equal expected, actual
+  end
+
+  test "link to attendanceMode In-person" do
+    property = properties(:AttendanceMode)
+    scraped_data = ["OfflineEventAttendanceMode detected in event"]
+    webpage = webpages(:one)
+    actual = format_datatype(scraped_data, property, webpage)
+    expected = ["OfflineEventAttendanceMode detected in event", "EventAttendanceModeEnumeration", ['In-person', 'http://schema.org/OfflineEventAttendanceMode']]
     assert_equal expected, actual
   end
 end

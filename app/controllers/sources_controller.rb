@@ -100,12 +100,12 @@ class SourcesController < ApplicationController
   def review_all_statements
     # get all statements that are linked to source id
     statements = Statement.includes(:source).where(sources: { property_id: params[:id] }, status: ["updated","initial"], selected_individual: true)
+    statements.each do |stat|
+      stat.update(status: 'ok')
+    end
+    # TODO: Handle errors?
     respond_to do |format|
-      if statements.update_all(status: 'ok')
         format.json { render status: :ok }
-      else
-        format.json { render json: statements.errors, status: :unprocessable_entity }
-      end
     end
   end
 

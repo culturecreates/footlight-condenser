@@ -155,7 +155,7 @@ class StatementsController < ApplicationController
   def update
     respond_to do |format|
       if @statement.update(statement_params)
-        if statement_params.include?("cache")
+        if statement_params.include?("cache") && !statement_params.include?("manual")
           # This statement's value has been edited so it should be set to manual so it does not get updated automatically
           @statement.update(manual: true)
         end
@@ -234,7 +234,7 @@ class StatementsController < ApplicationController
   # Also switchs selected individual for all events of this website.
   def activate
 
-    statements = helpers.activate_source(@statement)
+    helpers.activate_source(@statement)
     rdf_uri = @statement.webpage.rdf_uri
 
     respond_to do |format|
@@ -386,7 +386,7 @@ class StatementsController < ApplicationController
       statements = statements.includes(:source).where(sources: { selected: selected } )
     end
      # filter by selected_individual
-     if selected_individual.present?
+    if selected_individual.present?
       statements = statements.where(selected_individual: selected_individual )
     end
     # filter by selected_or_individual

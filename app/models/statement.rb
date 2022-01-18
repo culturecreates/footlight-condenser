@@ -21,6 +21,7 @@ class Statement < ApplicationRecord
   before_save :check_if_cache_changed
   before_save :check_mandatory_properties
   before_save :update_archive_date
+  before_save :set_manual_performer_organizer
 
   # For pagination
   self.per_page = 100
@@ -42,7 +43,7 @@ class Statement < ApplicationRecord
 
     # Set status to updated unless in intial state.
     # because status cannot update itself from initial state. Need a human to see it first.
-    unless status == 'initial' && status_origin == 'condenser_refresh'
+    unless  self.status == 'initial' &&  self.status_origin == 'condenser_refresh'
       self.status = 'updated'
     end
     self.status_origin = 'condenser_refresh'
@@ -51,19 +52,29 @@ class Statement < ApplicationRecord
 
   # update status of mandatory properties
   def check_mandatory_properties
-    return if status == 'problem' || status == 'intial'
+    return if  self.status == 'problem' ||  self.status == 'intial'
 
-    property_label = source.property.label
-
-    if property_label == 'Location'
+    @property_label ||= source.property.label
+    if @property_label == 'Location'
       urls = JsonUriWrapper.extract_uris_from_cache(cache)
       self.status = 'missing' unless urls.to_s.include?('http')
-    elsif property_label == 'Dates'
+    elsif @property_label == 'Dates'
       self.status = 'missing' unless valid_date?
-    elsif property_label == 'Title'
+    elsif @property_label == 'Title'
       self.status = 'missing' unless cache.present?
-    elsif property_label == 'Virtual Location'
+    elsif @property_label == 'Virtual Location'
       self.status = 'missing' unless cache.present? && cache != '[]'
+    end
+  end
+
+  def set_manual_performer_organizer
+    return if self.manual
+
+    return if self.status == 'problem' ||  self.status == 'initial'
+
+    @property_label ||= source.property.label
+    if ['Performed by','Organized by'].include?(@property_label)
+      self.manual = true
     end
   end
 

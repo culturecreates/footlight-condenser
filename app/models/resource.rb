@@ -35,11 +35,13 @@ class Resource
     # Select all statements of entity that are selected_individual
     # and are not problem state.
     
-      Statement.includes(:webpage)
+      statements = Statement.includes(:webpage)
       .where(selected_individual: true)
       .where(status: ["ok","initial","updated"])
       .where({ webpages: { rdf_uri: @rdf_uri } })
-      .update_all(status: "ok", status_origin: status_origin)
-      
+    
+      statements.each do |stat|
+        stat.update(status: "ok", status_origin: status_origin)
+      end
   end
 end

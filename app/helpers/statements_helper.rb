@@ -12,15 +12,8 @@ module StatementsHelper
       # MAIN SCRAPE ACTIVITY
       _scraped_data = scrape(source, @next_step.nil? ? webpage.url : @next_step, scrape_options)
       #################################################
-
       if source.next_step.nil?
         @next_step = nil # clear to break chain of scraping urls
-
-        #################################################
-        # SECONDARY SCRAPE ACTIVITY - post process
-        _data = format_datatype(_scraped_data, source.property, webpage)
-        #################################################
-
 
         s = Statement.where(webpage_id: webpage.id, source_id: source.id)
         manual =  source.algorithm_value.start_with?("manual=") ? true : false
@@ -32,18 +25,26 @@ module StatementsHelper
                        else
                          'initial'
                        end
-          
+          #################################################
+          # SECONDARY SCRAPE ACTIVITY - post process
+          _data = format_datatype(_scraped_data, source.property, webpage)
+          #################################################
           Statement.create!(manual: manual, cache: _data, selected_individual: source.selected, webpage_id: webpage.id, source_id: source.id, status: new_status, status_origin: 'condenser_refresh', cache_refreshed: Time.new)
         else
           # skip if source is manual and not missing
           unless manual && s.first.status != "missing"
+            first_statement =  s.first
+            #################################################
+            # SECONDARY SCRAPE ACTIVITY - post process
+            _data = format_datatype(_scraped_data, source.property, webpage)
+            #################################################
             # preserve manually added and deleted links of datatype xsd:anyURI
             if source.property.value_datatype == 'xsd:anyURI'
                 _data = preserve_manual_links _data, s.first.cache
             end
             # update database. Model automatically sets cache changed
             logger.info("*** Last step cache: #{_data}")
-            first_statement =  s.first
+            
             if _data&.to_s&.include?('abort_update')
               # set errors
               logger.error "###ERROR IN SCRAPE: Received 'abort_update' during scraping. #{_data}"
@@ -207,7 +208,7 @@ module StatementsHelper
     end
   end
 
-  def format_datatype(scraped_data, property, webpage)
+  def format_datatype(scraped_data, property, webpage, statement_status: "initial")
     data = []
     if property.value_datatype == 'xsd:dateTime'
       data = convert_datetime(scraped_data)
@@ -215,69 +216,25 @@ module StatementsHelper
       data = convert_date(scraped_data)
     elsif property.value_datatype == 'xsd:anyURI'
       unless scraped_data.blank?
-        # first check if scraped_data is already formated as an array, and then parse and skip search.
-        if is_condenser_formated_array(scraped_data)
-          # parse URI set mannually
-          data = JSON.parse(scraped_data[0])
+        if property.uri == 'http://schema.org/eventStatus'
+          data << reconcile_event_status(scraped_data)
+        elsif property.uri == 'http://schema.org/additionalType'
+          data << reconcile_additional_type(scraped_data)
+        elsif property.uri == 'http://schema.org/eventAttendanceMode'
+          data << reconcile_attendance_mode(scraped_data)
         else
-          # check for eventStatus
-          if property.uri == 'http://schema.org/eventStatus'
-            str = scraped_data.join(' - ')
-            if str.scan(/\b(Cancelled|Annulé|Annule)/i).present?
-              name = 'EventCancelled'
-              uri = 'http://schema.org/EventCancelled'
-            elsif str.scan(/\b(Postponed|Suspendu)/i).present?
-              name = 'EventPostponed'
-              uri = 'http://schema.org/EventPostponed'
-            elsif str.scan(/\b(Rescheduled|reporté|reporte)/i).present?
-              name = 'EventRescheduled'
-              uri = 'http://schema.org/EventRescheduled'
-            else
-              name = 'EventScheduled'
-              uri = 'http://schema.org/EventScheduled'
-            end
-            # data structure of uri = ['str', 'rdfs_class', ['name', 'uri']]
-            data << [str, 'EventStatusType', [name, uri]]
-          elsif property.uri == 'http://schema.org/additionalType'
-            str = scraped_data.join(' - ')
-            data << str
-            data << 'EventTypeEnumeration'
-            if str.scan(/\b(Young public|Jeune public)/i).present?
-              data << ['ChildrensEvent', 'http://schema.org/ChildrensEvent']
-            end
-            if str.scan(/\b(Comedy|Humour)/i).present?
-              data << ['ComedyEvent', 'http://schema.org/ComedyEvent']
-            end
-            if str.scan(/\b(Dance|Danse)/i).present?
-              data << ['DanceEvent', 'http://schema.org/DanceEvent']
-            end
-            if str.scan(/\b(Music|Musique)/i).present?
-              data << ['MusicEvent', 'http://schema.org/MusicEvent']
-            end
-            if str.scan(/\b(Theatre|Théâtre)/i).present?
-              data << ['TheaterEvent', 'http://schema.org/TheaterEvent']
-            end
-          elsif property.uri == 'http://schema.org/eventAttendanceMode'
-            str = scraped_data.join(' - ')
-            data << str
-            data << 'EventAttendanceModeEnumeration'
-            if str.scan(/\b(OfflineEventAttendanceMode)/i).present?
-              data << ['In-person', 'http://schema.org/OfflineEventAttendanceMode']
-            end
-            if str.scan(/\b(OnlineEventAttendanceMode)/i).present?
-              data << ['Online', 'http://schema.org/OnlineEventAttendanceMode']
-            end
-            if str.scan(/\b(MixedEventAttendanceMode)/i).present?
-              data << ['Mixed', 'http://schema.org/MixedEventAttendanceMode']
-            end
-          else
-            if scraped_data.class == Array
+          if scraped_data.class == Array
+            # Always reconcile when the state is "initial","missing","problem"
+            # If the state is "ok", "update" then reconcile except performer and organizer.
+            # Example: Performer that has been reviewed (ok) will not be reconciled.
+           # if ["initial","missing","problem"].include?(statement_status) || !['http://schema.org/performer','http://schema.org/organizer'].include?(property.uri) 
               scraped_data.each do |uri_string|
-                if uri_string.present? # Do not try to link URIs with empty strings
+                if uri_string.present? && !uri_string.include?("error:")# Do not try to link URIs with empty strings or errors
+                  # TODO: Only reconcile location if original cache "based on:" text changed
                   data << search_for_uri(uri_string, property, webpage)
                 end
               end
-            end
+            # end
           end
         end
       end
@@ -293,6 +250,59 @@ module StatementsHelper
     end
     data
   end
+
+  def reconcile_event_status(scraped_data)
+    str = scraped_data.join(' - ')
+    result = [str, 'EventStatusType']
+    if str.scan(/\b(Cancelled|Annulé|Annule)/i).present?
+      result << ['EventCancelled', 'http://schema.org/EventCancelled']
+    elsif str.scan(/\b(Postponed|Suspendu)/i).present?
+      result << ['EventPostponed','http://schema.org/EventPostponed']
+    elsif str.scan(/\b(Rescheduled|reporté|reporte)/i).present?
+      result << ['EventRescheduled','http://schema.org/EventRescheduled']
+    else
+      result << ['EventScheduled','http://schema.org/EventScheduled']
+    end
+    result
+  end
+
+  def reconcile_additional_type(scraped_data)
+    str = scraped_data.join(' - ')
+    result =  [str, 'EventTypeEnumeration']
+    if str.scan(/\b(Young public|Jeune public)/i).present?
+      result << ['ChildrensEvent', 'http://schema.org/ChildrensEvent']
+    end
+    if str.scan(/\b(Comedy|Humour)/i).present?
+      result << ['ComedyEvent', 'http://schema.org/ComedyEvent']
+    end
+    if str.scan(/\b(Dance|Danse)/i).present?
+      result << ['DanceEvent', 'http://schema.org/DanceEvent']
+    end
+    if str.scan(/\b(Music|Musique)/i).present?
+      result <<  ['MusicEvent', 'http://schema.org/MusicEvent']
+    end
+    if str.scan(/\b(Theatre|Théâtre)/i).present?
+      result << ['TheaterEvent', 'http://schema.org/TheaterEvent']
+    end
+    result
+  end
+
+  def reconcile_attendance_mode(scraped_data)
+    str = scraped_data.join(' - ')
+    result =  [str, 'EventAttendanceModeEnumeration']
+    if str.scan(/\b(OfflineEventAttendanceMode)/i).present?
+      result << ['In-person', 'http://schema.org/OfflineEventAttendanceMode']
+    end
+    if str.scan(/\b(OnlineEventAttendanceMode)/i).present?
+      result << ['Online', 'http://schema.org/OnlineEventAttendanceMode']
+    end
+    if str.scan(/\b(MixedEventAttendanceMode)/i).present?
+      result << ['Mixed', 'http://schema.org/MixedEventAttendanceMode']
+    end
+    result
+  end
+
+
 
   def search_for_uri(uri_string, property_obj, current_webpage)
     # data structure of uri = ['name', 'rdfs_class', ['name', 'uri'], ['name','uri'],...]

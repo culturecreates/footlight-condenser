@@ -83,3 +83,10 @@ additionalType:
   uri: http://schema.org/additionalType
   rdfs_class: one
   expected_class: URL
+
+AttendanceMode:
+  label: Attendance Mode
+  value_datatype: xsd:anyURI
+  uri: http://schema.org/eventAttendanceMode
+  rdfs_class: one
+  expected_class: URL
