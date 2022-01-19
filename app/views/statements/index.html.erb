@@ -9,15 +9,28 @@
       </p>
 <% end %>
 
+<%= form_tag(batch_update_statements_path) do -%>
 <h3>Filtered by:</h3>
-seedurl: <%= params[:seedurl] %> 
-<br>
-uri:  <%=params[:rdf_uri] %>
-<br>
-property:  <%=params[:prop] %>
-<br>
-status:  <%=params[:status] %>
-<br>
+seedurl(all): <%= text_field_tag 'seedurl',  params[:seedurl] %> 
+
+rdf_uri:  <%=text_field_tag 'rdf_uri',   params[:rdf_uri] %>
+
+prop:  <%=text_field_tag 'prop',  params[:prop], size: 6 %>
+
+status: <%=text_field_tag 'status', params[:status] %>
+
+selected:  <%=text_field_tag 'selected', params[:selected] ,size:  6%> 
+
+selected_individual:  <%=text_field_tag 'selected_individual', params[:selected_individual], size: 6 %>
+
+source:  <%=text_field_tag 'source', params[:source] %>
+
+<%= submit_tag 'View' %>
+
+
+ <div><%= text_area_tag 'update_data','', placeholder: 'selected: true, cache: ["one"]' %><%= submit_tag 'Update' %></div>
+<% end -%>
+
 <%= link_to "Review all", review_all_statements_path(rdf_uri: params[:rdf_uri], seedurl: params[:seedurl], prop: params[:prop], status: params[:status]), method: :patch %>
 <%= link_to "Refresh all", refresh_all_statements_path(rdf_uri: params[:rdf_uri], seedurl: params[:seedurl], prop: params[:prop], status: params[:status]), method: :patch %>
 <br>

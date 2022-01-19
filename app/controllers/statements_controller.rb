@@ -75,7 +75,7 @@ class StatementsController < ApplicationController
       status: params[:status],
       selected: params[:selected],
       selected_individual: params[:selected_individual],
-      selected_or_individual: params[:selected_or_individual]
+      source: params[:source]
     )
 
     # Paginate
@@ -165,6 +165,34 @@ class StatementsController < ApplicationController
         format.html { render :edit }
         format.json { render json: @statement.errors, status: :unprocessable_entity }
       end
+    end
+  end
+
+  # POST /statements/batch_update?data=
+  # For INTERNAL use of Condenser admin webpages
+  def batch_update 
+    if params[:commit] == "View"
+      redirect_to statements_path(request.parameters.except(:authenticity_token))
+    end
+
+    if params[:commit] == "Update"
+      @statements = build_query(
+        rdf_uri: params[:rdf_uri], 
+        seedurl: params[:seedurl], 
+        prop: params[:prop], 
+        status: params[:status],
+        selected: params[:selected],
+        selected_individual: params[:selected_individual],
+        source: params[:source]
+      )
+      update_data = eval(params[:update_data])
+      @statements.each do |stat|
+        if !stat.update(update_data)
+          redirect_to statements_path(request.parameters.except(:authenticity_token), notice: 'Failed to update.')
+        end
+      end
+
+      redirect_to statements_path(request.parameters.except(:authenticity_token))
     end
   end
 
@@ -366,7 +394,7 @@ class StatementsController < ApplicationController
     helpers.scrape_sources sources, webpage
   end
 
-  def build_query(rdf_uri:, seedurl:, prop:, status:, selected: nil, selected_individual: nil, selected_or_individual: nil)
+  def build_query(rdf_uri:, seedurl:, prop:, status:, selected: nil, selected_individual: nil, source: nil)
     statements = Statement.all
 
     # filter by a Resource URI
@@ -394,15 +422,11 @@ class StatementsController < ApplicationController
     if selected_individual.present?
       statements = statements.where(selected_individual: selected_individual )
     end
-    # filter by selected_or_individual
-    if selected_or_individual.present?
-      statements = statements.includes(:source)
-        .where(selected_individual: true )
-        .or(statements.includes(:source).where(sources: { selected: true } ))
-        .order(:webpage_id, selected_individual: :DESC)
-     
+     # filter by source
+    if source.present?
+      statements = statements.where(source: source )
     end
-
+    
     statements
   end
 

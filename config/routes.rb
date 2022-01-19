@@ -1,11 +1,12 @@
 Rails.application.routes.draw do
 
   ##
-  # Admin section only used for admin webpages
-  root 'websites#index'
+  # API Section used by Footlight Console
+  # For resource collections, the API calls using implicit actions (like get) are listed in comments.
+  # and admin webpage actions moved to seperate lines and commented with "Internal Webpages only"
 
   resources :websites do
-    # get /websites API
+    # API: get /websites 
     collection do
       get 'events','places', 'test_api' # Internal Webpages Only
       delete 'delete_all_statements','delete_all_webpages' # Internal Webpages Only
@@ -15,7 +16,6 @@ Rails.application.routes.draw do
   get 'websites/:seedurl/resources',
       to: "resources#index",
       as: :website_all_resources
-
 
   get 'websites/:seedurl/events',
       to: "events#index",
@@ -38,20 +38,20 @@ Rails.application.routes.draw do
       as: :reviewed_all_resources
 
   resources :statements do
-    # patch /statements API
+    # API: patch /statements 
+    member do
+      patch 'activate','activate_individual','deactivate_individual','add_linked_data', 'remove_linked_data' # API
+      patch  'refresh' # Internal Webpages Only
+    end
     collection do
       get 'webpage' # Internal Webpages Only
       patch 'refresh_webpage', 'refresh_rdf_uri', 'review_all', 'refresh_all' # Internal Webpages Only
       post 'batch_update' # Internal Webpages Only
     end
-    member do
-      patch 'activate','activate_individual','deactivate_individual','add_linked_data', 'remove_linked_data' # API
-      patch  'refresh' # Internal Webpages Only
-    end
   end
 
   resources :sources do
-    # get /sources API
+    # API: get /sources
     collection do
       get 'website' # Internal Webpages Only
       post 'copy' # Internal Webpages Only
@@ -61,9 +61,12 @@ Rails.application.routes.draw do
     end
   end
 
-
-##
-# API Section used by Footlight Console
+  ##
+  # Admin section only used for admin webpages
+  # These actions are not used by external Footlight Console APIs
+  #
+  #
+  root 'websites#index'
 
   resources :batch_jobs do
     collection do
@@ -85,18 +88,15 @@ Rails.application.routes.draw do
 
   get 'structured_data/event_markup'
 
- 
   resources :places
   resources :properties
   resources :rdfs_classes
-
 
   resources :lists do
     collection do
       get 'add_webpages'
     end
   end
-
  
   resources :webpages do
     collection do
@@ -111,7 +111,7 @@ Rails.application.routes.draw do
 
   resources :reports do
     collection do
-      get 'source' # API
+      get 'source' 
     end
   end
 
