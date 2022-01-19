@@ -81,6 +81,7 @@ module ResourcesHelper
     json_statement[:expected_class] = statement.source.property.expected_class
     json_statement[:predicate] = statement.source.property.uri
     json_statement[:manual] = statement.manual
+    json_statement[:source_is_feed] = statement.source.algorithm_value.start_with?("manual=") ? false : true
     json_statement[:selected_source] = statement.source.selected
 
     json_statement[:rdfs_class_name] = statement.source.property.rdfs_class.name
