@@ -258,7 +258,12 @@ class StatementsController < ApplicationController
     #set all statement.selected_individual = false
     @statements.each do |statement|
       if statement != @statement
-        statement.update(selected_individual: false)
+        if statement.source.selected
+          # toggle selected individual and also review selected so we can check for update state on selected source (a date change should be alterted to the user)
+          statement.update(selected_individual: false, status: 'ok')
+        else
+          statement.update(selected_individual: false)
+        end 
       else
         statement.update(selected_individual: true)
       end
