@@ -10,32 +10,26 @@ module StatementsHelper
     sources.each do |source|
       #################################################
       # MAIN SCRAPE ACTIVITY
-      _scraped_data = scrape(source, @next_step.nil? ? webpage.url : @next_step, scrape_options)
+      _scraped_data = scrape(source, @next_step.nil? ? webpage.url : @next_step, scrape_options) # TODO: remove next step code
       #################################################
       if source.next_step.nil?
         @next_step = nil # clear to break chain of scraping urls
-
         s = Statement.where(webpage_id: webpage.id, source_id: source.id)
-        manual =  source.algorithm_value.start_with?("manual=") ? true : false
-        # decide to create or update database entry
-        if s.count != 1
-          # check if website is auto-review
-          new_status = if source.auto_review
-                         'updated'
-                       else
-                         'initial'
-                       end
+        if s.count != 1 # create a new statement
+          source_is_manual = source.algorithm_value.start_with?("manual=") ? true : false
+          new_status = source.auto_review ? 'updated' : 'initial'
           #################################################
-          # SECONDARY SCRAPE ACTIVITY - post process
+          # SECONDARY SCRAPE ACTIVITY - post process and reconcile
           _data = format_datatype(_scraped_data, source.property, webpage)
           #################################################
-          Statement.create!(manual: manual, cache: _data, selected_individual: source.selected, webpage_id: webpage.id, source_id: source.id, status: new_status, status_origin: 'condenser_refresh', cache_refreshed: Time.new)
-        else
-          # skip if source is manual and not missing
-          unless manual && s.first.status != "missing"
-            first_statement =  s.first
+          Statement.create!(manual: source_is_manual, cache: _data, selected_individual: source.selected, webpage_id: webpage.id, source_id: source.id, status: new_status, status_origin: 'condenser_refresh', cache_refreshed: Time.new)
+        else # update statement
+          statement =  s.first
+          unless statement.manual && ['ok','updated'].include?(statement.status)
+            # TODO: This condition is not DRY because it is repeated in refresh_statement(statement) controller.
+            # But needed here because refresh_webpage_statements doesn't check
             #################################################
-            # SECONDARY SCRAPE ACTIVITY - post process
+            # SECONDARY SCRAPE ACTIVITY - post process and reconcile
             _data = format_datatype(_scraped_data, source.property, webpage)
             #################################################
             # preserve manually added and deleted links of datatype xsd:anyURI
@@ -44,14 +38,13 @@ module StatementsHelper
             end
             # update database. Model automatically sets cache changed
             logger.info("*** Last step cache: #{_data}")
-            
             if _data&.to_s&.include?('abort_update')
               # set errors
               logger.error "###ERROR IN SCRAPE: Received 'abort_update' during scraping. #{_data}"
             else
-              first_statement.cache = _data
-              first_statement.cache_refreshed = Time.new
-              first_statement.save
+              statement.cache = _data
+              statement.cache_refreshed = Time.new
+              statement.save
             end
           end
         end
@@ -75,7 +68,7 @@ module StatementsHelper
         # If response type is json then load json, otherwise load html in next line
         page = Nokogiri::HTML html
         results_list = []
-        json_scraped = nil
+        json_scraped = nil # needed for eval 'json_scraped'
         algorithm.split(';').each do |a|
           if a.start_with? 'url'
             # replace current page by scraping new url with wringer

@@ -137,7 +137,6 @@ class StatementsController < ApplicationController
   # PATCH/PUT /statements/refresh_all
   def refresh_all 
     statements = build_query(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status])
-    status_origin = "condenser-admin-refresh-all"
 
     statements.each do |statement|
       refresh_statement statement
@@ -386,7 +385,8 @@ class StatementsController < ApplicationController
   ##
   # Load the statement's source algorithms unless the statement is manual
   def refresh_statement(statement)
-    return if statement.manual
+    # TODO: This condition is not DRY because it is repeated in scrape_sources helper.
+    return if statement.manual && ["ok","updated"].include?(statement.status)
 
     # get the webpage and sources (check if more than one sounce with steps)
     webpage = statement.webpage
