@@ -1,0 +1,39 @@
+<br>
+<br>
+<hr>
+<% dsl = {
+  "xpath": "Load xpath and add results to $array.",
+    "xpath_sanitize": "Load xpath keeping white listed HTML (tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href])",
+  "if_xpath": "Load xpath and continue if load is not blank, otherwise break.",
+    "ruby": "Execute ruby code using block $array.each {}",
+  "css": "Load css classes and add results to $array.",
+  "url": "Replace current page by scraping new url with wringer. url='http://example.com' or url=$url + '.json'",
+  "renderjs_url": "FORCE Render JS -- replace current page by scraping new url with wringer",
+  
+  "json_url": "Load JSON from URL keeping all HTML codes. json_url=$url + '.json';json=$json['description'] ",
+  "post_url": "Replace current page data by scraping new url with wringer using POST using format url='http://example.com?param_for_post=",
+  "api": "Call API without going through wringer",
+  "json": "Use JSON loaded previously with json, json_url, post_url or api. json=$json['name'] or url=$url + '.json';json=$json.dig('image','sizes','large')",
+  "time_zone": "Set time zone. Example: 'time_zone=Eastern Time (Canada & US)'",
+  } %>
+
+
+<h1> DSL </h1>
+<h3> Variables </h3>
+<ul>
+<li> $url - Contains the url of the current webapge
+<li> $array - contains the array of responses from previous commands in chain
+<li> $json - Contains JSON returned with JSON.parse(page.text)
+</ul>
+<h3> Command Prefixes </h3>
+<table>
+<th> Prefix </th>
+<th> Description </th>
+<% dsl.each do |n,v| %>
+
+<tr>
+<td> <%= n %> </td>
+<td> <%= v %> </td>
+</tr>
+<% end %>
+</table>
