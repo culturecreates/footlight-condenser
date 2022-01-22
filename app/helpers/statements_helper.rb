@@ -5,39 +5,33 @@ module StatementsHelper
   include CcWringerHelper
   Page = Struct.new(:text) # Used to simulate Nokogiri object's text method
 
+  ##
+  # Input: 
+  #   sources - A list of Active Record Sources
+  #   webpage - The Active Record webpage to crawl
+  #   scrape_options - options such as 23 hr fresh crawl
   def scrape_sources(sources, webpage, scrape_options = {})
     logger.info("*** Starting scrape with sources:#{sources.inspect} for webpage: #{webpage.inspect}")
     sources.each do |source|
-      #################################################
-      # MAIN SCRAPE ACTIVITY
-      _scraped_data = scrape(source, @next_step.nil? ? webpage.url : @next_step, scrape_options) # TODO: remove next step code
-      #################################################
-      if source.next_step.nil?
-        @next_step = nil # clear to break chain of scraping urls
+        _scraped_data = scrape(source,  webpage.url, scrape_options) 
         s = Statement.where(webpage_id: webpage.id, source_id: source.id)
         if s.count != 1 # create a new statement
           source_is_manual = source.algorithm_value.start_with?("manual=") ? true : false
           new_status = source.auto_review ? 'updated' : 'initial'
-          #################################################
-          # SECONDARY SCRAPE ACTIVITY - post process and reconcile
           _data = format_datatype(_scraped_data, source.property, webpage)
-          #################################################
           Statement.create!(manual: source_is_manual, cache: _data, selected_individual: source.selected, webpage_id: webpage.id, source_id: source.id, status: new_status, status_origin: 'condenser_refresh', cache_refreshed: Time.new)
         else # update statement
           statement =  s.first
           unless statement.manual && ['ok','updated'].include?(statement.status)
             # TODO: This condition is not DRY because it is repeated in refresh_statement(statement) controller.
             # But needed here because refresh_webpage_statements doesn't check
-            #################################################
-            # SECONDARY SCRAPE ACTIVITY - post process and reconcile
             _data = format_datatype(_scraped_data, source.property, webpage)
-            #################################################
             # preserve manually added and deleted links of datatype xsd:anyURI
             if source.property.value_datatype == 'xsd:anyURI'
                 _data = preserve_manual_links _data, s.first.cache
             end
             # update database. Model automatically sets cache changed
-            logger.info("*** Last step cache: #{_data}")
+            logger.info("***  cache before post-processing: #{_data}")
             if _data&.to_s&.include?('abort_update')
               # set errors
               logger.error "###ERROR IN SCRAPE: Received 'abort_update' during scraping. #{_data}"
@@ -48,11 +42,7 @@ module StatementsHelper
             end
           end
         end
-      else
-        # there is another step
-        logger.info("*** First step cache: #{_scraped_data}")
-        @next_step = _scraped_data.count == 1 ? _scraped_data : _scraped_data.first
-      end
+      
     end
   end
 

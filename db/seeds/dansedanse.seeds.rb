@@ -50,7 +50,7 @@ def self.create_source(label, options={})
   options[:languages].each do |lang|
     if !options[:next_algo].blank?
       s = Source.create!(language: lang, render_js: true, website: @site, property: Property.where(label: label).first, algorithm_value: options[:next_algo], selected: options[:selected])
-      Source.create!(language: lang, next_step: s.id, website: @site, property: Property.where(label: label).first, algorithm_value: options[:algo], selected: options[:selected])
+      Source.create!(language: lang,  website: @site, property: Property.where(label: label).first, algorithm_value: options[:algo], selected: options[:selected])
     else
       Source.create!(language: lang, website: @site, property: Property.where(label: label, rdfs_class_id: options[:rdfs_class_id]).first, algorithm_value: options[:algo], selected: options[:selected])
     end

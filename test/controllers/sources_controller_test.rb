@@ -22,7 +22,7 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
 
   test "should create source" do
     assert_difference('Source.count') do
-      post sources_url, params: { source: { algorithm_value: @source.algorithm_value, next_step: @source.next_step, property_id: @source.property_id, render_js: @source.render_js, selected: @source.selected, selected_by: @source.selected_by, website_id: @source.website_id } }
+      post sources_url, params: { source: { algorithm_value: @source.algorithm_value,  property_id: @source.property_id, render_js: @source.render_js, selected: @source.selected, selected_by: @source.selected_by, website_id: @source.website_id } }
     end
 
     assert_redirected_to source_url(Source.last)
@@ -39,7 +39,7 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "should update source" do
-    patch source_url(@source), params: { source: { algorithm_value: @source.algorithm_value, next_step: @source.next_step, property_id: @source.property_id, render_js: @source.render_js, selected: @source.selected, selected_by: @source.selected_by, website_id: @source.website_id } }
+    patch source_url(@source), params: { source: { algorithm_value: @source.algorithm_value, property_id: @source.property_id, render_js: @source.render_js, selected: @source.selected, selected_by: @source.selected_by, website_id: @source.website_id } }
     assert_redirected_to source_url(@source)
   end
 

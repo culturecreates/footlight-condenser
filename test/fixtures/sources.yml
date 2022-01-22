@@ -5,7 +5,6 @@ one:
   selected: true
   selected_by: MyString
   language: en
-  next_step:
   render_js: false
   property: one
   website: one
@@ -15,7 +14,6 @@ two:
   selected: false
   selected_by: MyString
   language: en
-  next_step:
   render_js: false
   property: two
   website: two
@@ -25,7 +23,6 @@ three:
   selected: false
   selected_by: MyString
   language: en
-  next_step:
   render_js: false
   property: two
   website: two
@@ -35,7 +32,6 @@ eleven:
   selected: true
   selected_by: MyString
   language: en
-  next_step:
   render_js: false
   property: eleven
   website: one
@@ -45,7 +41,6 @@ twelve:
   selected: true
   selected_by: MyString
   language: en
-  next_step:
   render_js: false
   property: six
   website: one
@@ -55,7 +50,6 @@ thirteen:
   selected: true
   selected_by: MyString
   language: en
-  next_step:
   render_js: false
   property: two
   website: one

@@ -2,7 +2,7 @@
   <thead>
     <tr>
       <th>ID</th>
-      <th>Next step</th>
+
       <th>Property</th>
        <th>Label</th>
       <th>Algorithm value</th>
@@ -19,7 +19,7 @@
     <% @sources.each do |source| %>
       <tr <%= "style=color:red;" if !source.selected %>>
         <td><%= source.id %></td>
-        <td><%= source.next_step %></td>
+
         <td><%= source.property.rdfs_class.name %> <%= source.property.label  + "(#{source.property_id})" %> <%= "@" + source.language if !source.language.blank?%></td>
         <td><%= source.label %></td>
         <td><%= source.algorithm_value %></td>

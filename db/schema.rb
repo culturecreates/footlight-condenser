@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 2022_01_13_012527) do
+ActiveRecord::Schema.define(version: 2022_01_22_180813) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
@@ -62,7 +62,6 @@ ActiveRecord::Schema.define(version: 2022_01_13_012527) do
     t.string "algorithm_value"
     t.boolean "selected"
     t.string "selected_by"
-    t.bigint "next_step"
     t.string "language"
     t.boolean "render_js"
     t.bigint "property_id"

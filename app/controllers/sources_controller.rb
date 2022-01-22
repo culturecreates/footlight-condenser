@@ -130,6 +130,6 @@ class SourcesController < ApplicationController
 
   # Never trust parameters from the scary internet, only allow the white list through.
   def source_params
-    params.require(:source).permit(:algorithm_value, :label, :language, :selected, :selected_by, :next_step, :render_js, :property_id, :website_id, :auto_review)
+    params.require(:source).permit(:algorithm_value, :label, :language, :selected, :selected_by, :render_js, :property_id, :website_id, :auto_review)
   end
 end

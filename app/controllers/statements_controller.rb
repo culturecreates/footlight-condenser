@@ -377,7 +377,7 @@ class StatementsController < ApplicationController
     property_ids = extract_property_ids webpage.rdfs_class.name, []
     property_ids.each do |property_id|
       #get the sources for each property (usually one by may have several steps)
-      sources = Source.where(website_id: webpage.website, language: languages, property_id: property_id).order(:property_id, :next_step)
+      sources = Source.where(website_id: webpage.website, language: languages, property_id: property_id).order(:property_id)
       helpers.scrape_sources sources, webpage, scrape_options
     end
   end
@@ -390,7 +390,7 @@ class StatementsController < ApplicationController
 
     # get the webpage and sources (check if more than one sounce with steps)
     webpage = statement.webpage
-    sources = Source.where(id: statement.source_id).or(Source.where(next_step: statement.source_id)).order(:next_step)
+    sources = Source.where(id: statement.source_id)
     helpers.scrape_sources sources, webpage
   end
 
