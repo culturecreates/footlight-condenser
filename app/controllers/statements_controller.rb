@@ -59,17 +59,7 @@ class StatementsController < ApplicationController
   # GET /statements?rdf_uri=&seedurl=&prop=&status=
   # GET /statements.json
   def index
-    @statements = build_query(
-      seedurl: params[:seedurl], 
-      rdf_uri: params[:rdf_uri], 
-      prop: params[:prop], 
-      source: params[:source],
-      cache: params[:cache],
-      status: params[:status],
-      manual: params[:manual],
-      selected: params[:selected],
-      selected_individual: params[:selected_individual]
-    )
+    @statements = build_query
     # Paginate
     @statements = @statements.paginate(page: params[:page], per_page: params[:per_page])
   end
@@ -164,15 +154,7 @@ class StatementsController < ApplicationController
       redirect_to statements_path(request.parameters.except(:authenticity_token))
     end
     if params[:commit] == "Update"
-      @statements = build_query(
-        rdf_uri: params[:rdf_uri], 
-        seedurl: params[:seedurl], 
-        prop: params[:prop], 
-        status: params[:status],
-        selected: params[:selected],
-        selected_individual: params[:selected_individual],
-        source: params[:source]
-      )
+      @statements = build_query
       update_data = eval(params[:update_data])
       @statements.each do |stat|
         if !stat.update(update_data)
@@ -377,45 +359,45 @@ class StatementsController < ApplicationController
     return property_ids
   end
 
-  def build_query(rdf_uri:, seedurl:, prop:, cache:, manual:, status:, selected: nil, selected_individual: nil, source: nil)
+  def build_query
     statements = Statement.all
 
     # filter by a Resource URI
-    if rdf_uri.present?
-      webpage = Webpage.where(rdf_uri: rdf_uri)
+    if params[:rdf_uri].present?
+      webpage = Webpage.where(rdf_uri: params[:rdf_uri])
       statements = statements.joins(:source).where(webpage_id: webpage).order( "sources.selected DESC" , "sources.property_id" )
     end
     # filter by seedurl
-    if seedurl.present? && seedurl != 'all'
-      statements = statements.joins(webpage: :website).where(webpages: { websites: {seedurl:  seedurl }}).order(:id)
+    if params[:seedurl].present? && params[:seedurl] != 'all'
+      statements = statements.joins(webpage: :website).where(webpages: { websites: {seedurl:  params[:seedurl] }}).order(:id)
     end
     # filter by a property
-    if prop.present?
-      statements = statements.joins(source: :property).where(sources: { properties: {id: prop }} )
+    if params[:prop].present?
+      statements = statements.joins(source: :property).where(sources: { properties: {id: params[:prop] }} )
     end
     # filter by source
-    if source.present?
-      statements = statements.where(source: source )
+    if params[:source].present?
+      statements = statements.where(source: params[:source] )
     end
     # filter by cache
-    if cache.present?
-      statements = statements.where("cache LIKE ?" , "%#{cache}%" )
+    if params[:cache].present?
+      statements = statements.where("cache LIKE ?" , "%#{params[:cache]}%" )
     end
     # filter by status
-    if status.present?
-      statements = statements.where(status: status)
+    if params[:status].present?
+      statements = statements.where(status: params[:status])
     end
     # filter by manual
-    if manual.present?
-      statements = statements.where(manual: manual)
+    if params[:manual].present?
+      statements = statements.where(manual: params[:manual])
     end
     # filter by selected
-    if selected.present?
-      statements = statements.includes(:source).where(sources: { selected: selected } )
+    if params[:selected].present?
+      statements = statements.includes(:source).where(sources: { selected: params[:selected] } )
     end
      # filter by selected_individual
-    if selected_individual.present?
-      statements = statements.where(selected_individual: selected_individual )
+    if params[:selected_individual].present?
+      statements = statements.where(selected_individual: params[:selected_individual] )
     end
     
     statements
