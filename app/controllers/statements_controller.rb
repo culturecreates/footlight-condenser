@@ -1,5 +1,5 @@
 class StatementsController < ApplicationController
-  before_action :set_statement, only: [:show, :edit, :update, :destroy, :add_linked_data, :remove_linked_data, :activate]
+  before_action :set_statement, only: [:refresh, :show, :edit, :update, :destroy, :add_linked_data, :remove_linked_data, :activate]
   skip_before_action :verify_authenticity_token
 
   MANUALLY_ADDED = "Manually added"
@@ -17,45 +17,36 @@ class StatementsController < ApplicationController
   # PATCH /statements/refresh_webpage.json?url=http://
   def refresh_webpage
     webpage = Webpage.includes(:website).where(url: params[:url]).first
-    refresh_webpage_statements(webpage,  webpage.website.default_language)
+    error_list = refresh_webpage_statements(webpage,  webpage.website.default_language)
     respond_to do |format|
-        format.html {redirect_to webpage_statements_path(url: params[:url]), notice: 'All statements were successfully refreshed.'}
-        format.json {render json: {message:"statements refreshed"}.to_json }
+        format.html {redirect_to webpage_statements_path(url: params[:url]), notice:"Refresh result: #{error_list}" }
+        format.json {render json: {message:"statements refreshed. #{error_list}"}.to_json }
     end
   end
-
 
   # PATCH /statements/refresh_rdf_uri.json?rdf_uri=
   # PATCH /statements/refresh_rdf_uri.json?rdf_uri=&force_scrape_every_hrs=24
   def refresh_rdf_uri
     params[:force_scrape_every_hrs] ||= nil
+    error_list = []
     webpages = Webpage.includes(:website).where(rdf_uri: params[:rdf_uri])
     webpages.each do |webpage|
-      refresh_webpage_statements(webpage, webpage.website.default_language, :force_scrape_every_hrs => params[:force_scrape_every_hrs])
+      errors = refresh_webpage_statements(webpage, webpage.website.default_language, {:force_scrape_every_hrs => params[:force_scrape_every_hrs]})
+      error_list << {"Webpage id: #{webpage.id}" => errors}
     end
-
-
     respond_to do |format|
-      format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri]), notice: 'Refresh requested on all statements. Check individual statements for success.' }
-      format.json { render json: {message:"URI refreshed. Check individual statements for success."}.to_json }
+      format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri]), notice:"Refresh errors: #{error_list}"  }
+      format.json { render json: {message:"URI refreshed. Refresh errors: #{error_list}"}.to_json }
     end
   end
 
   # PATCH /statements/1/refresh
   # PATCH /statements/1/refresh.json
   def refresh
-   
-    @statement = Statement.where(id: params[:id]).first
-    prior_refresh = @statement.cache_refreshed
-    refresh_statement @statement
-    @statement = Statement.where(id: params[:id]).first
-    post_refresh = @statement.cache_refreshed
-    if prior_refresh == post_refresh && !@statement.source.algorithm_value.starts_with?("manual") && !@statement.manual
-      @statement.errors[:base] << "Error scrapping. Refresh was aborted! Checks logs."
-    end
+    helpers.refresh_statement_helper(@statement)
     respond_to do |format|
       if @statement.errors.any?
-        format.html { redirect_to @statement, notice: 'Statement errors' + @statement.errors.messages.inspect }
+        format.html { redirect_to @statement, notice: 'Statement errors: ' + @statement.errors.messages.inspect }
         format.json { render json: @statement.errors, status: :unprocessable_entity }
       else
         format.html { redirect_to @statement, notice: 'Statement was successfully refreshed.' }
@@ -69,15 +60,16 @@ class StatementsController < ApplicationController
   # GET /statements.json
   def index
     @statements = build_query(
-      rdf_uri: params[:rdf_uri], 
       seedurl: params[:seedurl], 
+      rdf_uri: params[:rdf_uri], 
       prop: params[:prop], 
+      source: params[:source],
+      cache: params[:cache],
       status: params[:status],
+      manual: params[:manual],
       selected: params[:selected],
-      selected_individual: params[:selected_individual],
-      source: params[:source]
+      selected_individual: params[:selected_individual]
     )
-
     # Paginate
     @statements = @statements.paginate(page: params[:page], per_page: params[:per_page])
   end
@@ -102,7 +94,6 @@ class StatementsController < ApplicationController
   # POST /statements.json
   def create
     @statement = Statement.new(statement_params)
-
     respond_to do |format|
       if @statement.save
         format.html { redirect_to @statement, notice: 'Statement was successfully created.' }
@@ -119,7 +110,6 @@ class StatementsController < ApplicationController
   def review_all 
     statements = build_query(rdf_uri: params[:rdf_uri], seedurl: params[:seedurl], prop: params[:prop], status: params[:status])
     status_origin = "condenser-admin-review-all"
-
     statements.each do |statement|
       next if statement.is_problem?
 
@@ -127,7 +117,6 @@ class StatementsController < ApplicationController
       statement.status_origin = status_origin
       statement.save
     end
-
     respond_to do |format|
       format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status]), notice: 'Statements successfully reviewed.' }
       format.json { redirect_to statements_path(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status], format: :json) }
@@ -137,13 +126,14 @@ class StatementsController < ApplicationController
   # PATCH/PUT /statements/refresh_all
   def refresh_all 
     statements = build_query(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status])
-
+    error_list = []
     statements.each do |statement|
-      refresh_statement statement
+      # TODO: capture errors
+      helpers.refresh_statement_helper(statement)
+      error_list << {"Statement id #{stat.id}" => stat.errors.messages} if stat.errors.any?
     end
-
     respond_to do |format|
-      format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status]), notice: 'Statements refreshed.' }
+      format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status]), notice: "Statements refreshed. #{error_list}" }
       format.json { redirect_to statements_path(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status], format: :json) }
     end
   end
@@ -173,7 +163,6 @@ class StatementsController < ApplicationController
     if params[:commit] == "View"
       redirect_to statements_path(request.parameters.except(:authenticity_token))
     end
-
     if params[:commit] == "Update"
       @statements = build_query(
         rdf_uri: params[:rdf_uri], 
@@ -190,23 +179,19 @@ class StatementsController < ApplicationController
           redirect_to statements_path(request.parameters.except(:authenticity_token), notice: 'Failed to update.')
         end
       end
-
       redirect_to statements_path(request.parameters.except(:authenticity_token))
     end
   end
 
 
   # PATCH/PUT /statements/1/add_linked_data.json
+  # Structure of statement_params { "statement": {"cache": "[\"#{options[:name]}\",\"#{options[:rdfs_class]}\",\"#{options[:uri]}\"]", "status": "ok", "status_origin": user_name} }
   def add_linked_data
     s = statement_params
-    #  { "statement": {"cache": "[\"#{options[:name]}\",\"#{options[:rdfs_class]}\",\"#{options[:uri]}\"]", "status": "ok", "status_origin": user_name} }
-
     statement_cache = JSON.parse(@statement.cache)
     if statement_cache[0].class != Array
       statement_cache = [statement_cache]
     end
-
-
     link_added = false
     statement_cache.each_with_index do |c,i|
       if c[0] == MANUALLY_ADDED 
@@ -217,7 +202,6 @@ class StatementsController < ApplicationController
     if !link_added 
       statement_cache << [MANUALLY_ADDED,JSON.parse(s['cache'])[1], [JSON.parse(s['cache'])[0], JSON.parse(s['cache'])[2]]]
     end
-
     s['cache'] = statement_cache.to_s
     respond_to do |format|
       if @statement.update(s)
@@ -232,17 +216,14 @@ class StatementsController < ApplicationController
 
 
   # PATCH/PUT /statements/1/remove_linked_data.json
+  # Structure of statement_params: { "statement": {"cache": "[\"#{options[:name]}\",\"#{options[:rdfs_class]}\",\"#{options[:uri]}\"]", "status": "ok", "status_origin": user_name} }
   def remove_linked_data
     s = statement_params
-    #  { "statement": {"cache": "[\"#{options[:name]}\",\"#{options[:rdfs_class]}\",\"#{options[:uri]}\"]", "status": "ok", "status_origin": user_name} }
-
     statement_cache = JSON.parse(@statement.cache)
-    uri_to_delete =  JSON.parse(s['cache'])[2]
-    class_to_delete = JSON.parse(s['cache'])[1]
     label_to_delete = JSON.parse(s['cache'])[0]
-
+    class_to_delete = JSON.parse(s['cache'])[1]
+    uri_to_delete =  JSON.parse(s['cache'])[2]
     statement_cache = helpers.process_linked_data_removal(statement_cache, uri_to_delete, class_to_delete, label_to_delete)
-
     s['cache'] = statement_cache.to_s
     respond_to do |format|
       if @statement.update(s)
@@ -260,10 +241,8 @@ class StatementsController < ApplicationController
   # Sets the source of this statement to selected = true, and sets the other sources of the same property/lanague to false.
   # Also switchs selected individual for all events of this website.
   def activate
-
     helpers.activate_source(@statement)
     rdf_uri = @statement.webpage.rdf_uri
-
     respond_to do |format|
         format.html { redirect_to statements_path(rdf_uri: rdf_uri), notice: 'Statement was successfully activated.' }
         format.json { redirect_to show_resources_path(rdf_uri: rdf_uri, format: :json)}
@@ -272,16 +251,13 @@ class StatementsController < ApplicationController
 
   # PATCH/PUT /statements/1/activate_individual
   # PATCH/PUT /statements/1/activate_individual.json
-
   def activate_individual
     #get all statements about this property/language for the resource(individual)
     @statement = Statement.find(params[:id])
     @property = @statement.source.property
     @webpage =  @statement.webpage
- 
     # Get list of statements that share the same source property id and source 
     @statements = Statement.includes({source: [:property]}, :webpage).where(sources: {property: @property}, webpage_id: @webpage)
-   
     #set all statement.selected_individual = false
     @statements.each do |statement|
       if statement != @statement
@@ -295,7 +271,6 @@ class StatementsController < ApplicationController
         statement.update(selected_individual: true)
       end
     end
-
     respond_to do |format|
         format.html { redirect_to statements_path(rdf_uri: @webpage.rdf_uri), notice: 'Statement was successfully activated.' }
         format.json { redirect_to show_resources_path(rdf_uri: @webpage.rdf_uri, format: :json)}
@@ -312,16 +287,13 @@ class StatementsController < ApplicationController
  
     # Get list of statements that share the same source property id and source 
     @statements = Statement.includes({source: [:property]}, :webpage).where(sources: {property: @property}, webpage_id: @webpage)
-  
-     #set all statement.selected_individual = false
-     @statements.each do |statement|
+    @statements.each do |statement|
       if statement.source.selected
         statement.update(selected_individual: true)
       else
         statement.update(selected_individual: false)
       end
     end
-
     respond_to do |format|
         format.html { redirect_to statements_path(rdf_uri: @statement.webpage.rdf_uri), notice: 'Statement was successfully deactivated.' }
         format.json { redirect_to show_resources_path(rdf_uri: @statement.webpage.rdf_uri, format: :json)}
@@ -337,6 +309,44 @@ class StatementsController < ApplicationController
       format.json { head :no_content }
     end
   end
+
+  ##
+  # Refresh all modelled statements for a webpage. Create new ones if needed.
+  # INPUT
+  #   webpage = ActiveRecord webpage
+  #   default_language = default lanuguage of website: en | fr | nil
+  #   scrape_options = {} to pass to Footlight-wringer scrapping service
+  #
+  def refresh_webpage_statements(webpage, default_language = "en", scrape_options={})
+    error_list = []
+    languages = [webpage.language]
+    # if webpage is default_language then add sources with no language to list of languages [webpage.language,'']
+    if webpage.language == default_language
+      languages << ''
+    end
+    #get the properties for the rdfs_class of the webpage recursively
+    property_ids = extract_property_ids(webpage.rdfs_class.name, [])
+    property_ids.each do |property_id|
+      #get the source for each modelled property
+      source = Source.where(website_id: webpage.website, language: languages, property_id: property_id).first
+      next if source.blank?
+
+      statements = Statement.where(webpage_id: webpage.id, source_id: source.id)
+      if statements.blank? # create a new statement
+        source_is_manual = source.algorithm_value.start_with?("manual=") ? true : false
+        new_status = source.auto_review ? 'updated' : 'initial'
+        stat = statements.create(manual: source_is_manual, selected_individual: source.selected, status: new_status, status_origin: 'condenser_create')
+      else
+        stat = statements.first
+        next if stat.manual && ['ok','updated'].include?(stat.status)
+
+      end
+      helpers.refresh_statement_helper(stat, scrape_options)
+      error_list << {"Statement id #{stat.id}" => stat.errors.messages} if stat.errors.any?
+    end
+    return error_list
+  end
+
 
   private
 
@@ -367,34 +377,7 @@ class StatementsController < ApplicationController
     return property_ids
   end
 
-  def refresh_webpage_statements webpage, default_language = "en", scrape_options={}
-    languages = [webpage.language]
-    #if webpage is default_language then add sources with no language to list of languages [webpage.language,'']
-    if webpage.language == default_language
-      languages << ''
-    end
-    #get the properties for the rdfs_class of the webpage recursively
-    property_ids = extract_property_ids webpage.rdfs_class.name, []
-    property_ids.each do |property_id|
-      #get the sources for each property (usually one by may have several steps)
-      sources = Source.where(website_id: webpage.website, language: languages, property_id: property_id).order(:property_id)
-      helpers.scrape_sources sources, webpage, scrape_options
-    end
-  end
-
-  ##
-  # Load the statement's source algorithms unless the statement is manual
-  def refresh_statement(statement)
-    # TODO: This condition is not DRY because it is repeated in scrape_sources helper.
-    return if statement.manual && ["ok","updated"].include?(statement.status)
-
-    # get the webpage and sources (check if more than one sounce with steps)
-    webpage = statement.webpage
-    sources = Source.where(id: statement.source_id)
-    helpers.scrape_sources sources, webpage
-  end
-
-  def build_query(rdf_uri:, seedurl:, prop:, status:, selected: nil, selected_individual: nil, source: nil)
+  def build_query(rdf_uri:, seedurl:, prop:, cache:, manual:, status:, selected: nil, selected_individual: nil, source: nil)
     statements = Statement.all
 
     # filter by a Resource URI
@@ -410,9 +393,21 @@ class StatementsController < ApplicationController
     if prop.present?
       statements = statements.joins(source: :property).where(sources: { properties: {id: prop }} )
     end
+    # filter by source
+    if source.present?
+      statements = statements.where(source: source )
+    end
+    # filter by cache
+    if cache.present?
+      statements = statements.where("cache LIKE ?" , "%#{cache}%" )
+    end
     # filter by status
     if status.present?
       statements = statements.where(status: status)
+    end
+    # filter by manual
+    if manual.present?
+      statements = statements.where(manual: manual)
     end
     # filter by selected
     if selected.present?
@@ -421,10 +416,6 @@ class StatementsController < ApplicationController
      # filter by selected_individual
     if selected_individual.present?
       statements = statements.where(selected_individual: selected_individual )
-    end
-     # filter by source
-    if source.present?
-      statements = statements.where(source: source )
     end
     
     statements
