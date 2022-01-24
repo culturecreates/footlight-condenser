@@ -1,0 +1,81 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: http://localhost:3009/websites/wring?format=raw&include_fragment=true&uri=https://signelaval.com/fr/evenements/14650/du-fond-de-mon-garde-robe.json
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip,deflate,identity
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_2) AppleWebKit/601.3.9 (KHTML,
+        like Gecko) Version/9.0.2 Safari/601.3.9
+      Accept-Charset:
+      - ISO-8859-1,utf-8;q=0.7,*;q=0.7
+      Accept-Language:
+      - en-us,en;q=0.5
+      Host:
+      - localhost:3009
+      Connection:
+      - keep-alive
+      Keep-Alive:
+      - '300'
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - text/html; charset=utf-8
+      Etag:
+      - W/"68154351ec721e41d417749873dc651e"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - 4807f9f1-6fc7-4eff-b999-0a332a6a6d05
+      X-Runtime:
+      - '0.018964'
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: UTF-8
+      string: '{"id":14650,"type":"event","title":"Du fond de mon garde-robe","slug":"du-fond-de-mon-garde-robe","url":"\/fr\/evenements\/14650\/du-fond-de-mon-garde-robe","urls":{"fr":"\/fr\/evenements\/14650\/du-fond-de-mon-garde-robe"},"groups":null,"share":{"title":"Du
+        fond de mon garde-robe","description":"Du fond de mon garde robe\u00a0est
+        \u00e0 la fois le titre de l''\u00e9mission et le lieu de l''enregistrement.
+        Dans ce studio maison, je vous convie \u00e0 une...","image":"https:\/\/cdn.caligram.com\/uploads\/event\/d1p\/606f4305c0a09.jpg","url":"https:\/\/signelaval.com\/fr\/evenements\/14650\/du-fond-de-mon-garde-robe","jsonld":""},"date":{"start":"2021-04-10
+        10:00:00","end":"2021-06-26 10:00:01","formatted":"10 avril au 26 juin 2021"},"venue":{"id":7908,"name":"ProgCore
+        Radio","latitude":0,"longitude":0,"district":null,"room":null,"address":null,"city":null,"postalCode":null,"googleMapsUrl":"https:\/\/www.google.com\/maps\/search\/?api=1&query=ProgCore%20Radio%2C%20QC%2C%20Canada"},"image":{"url":"https:\/\/cdn.caligram.com\/uploads\/event\/d1p\/606f4305c0a09.jpg","sizes":{"thumbnail":"https:\/\/cdn.caligram.com\/uploads\/event\/d1p\/small\/606f4305c0a09.jpg","small":"https:\/\/cdn.caligram.com\/uploads\/event\/d1p\/medium\/606f4305c0a09.jpg","medium":"https:\/\/cdn.caligram.com\/uploads\/event\/d1p\/large\/606f4305c0a09.jpg","large":"https:\/\/cdn.caligram.com\/uploads\/event\/d1p\/xlarge\/606f4305c0a09.jpg"}},"disciplines":[],"isMDA":false,"isFeatured":false,"isFree":true,"description":"<p>Du
+        fond de mon garde robe\u00a0est \u00e0 la fois le titre de l''\u00e9mission
+        et le lieu de l''enregistrement. Dans ce studio maison, je vous convie \u00e0
+        une errance\u00a0 po\u00e9tique o\u00f9 sont abord\u00e9s divers th\u00e8mes,
+        accompagn\u00e9s de ma prose et de ma po\u00e9sie. Partiellement improvis\u00e9e,
+        elle ne cache aucun d\u00e9faut mais vous murmure \u00e0 l''oreille un peu
+        de mon intimit\u00e9. Bienvenue dans ma t\u00eate les samedis matin \u00e0
+        10h, en reprise les mercredis soir \u00e0 18h sur les ondes de <a href=\"https:\/\/progcoreradio.com\/\">ProgCore
+        Radio<\/a>.<\/p>\n<p>2 e\u0301missions a\u0300 e\u0301couter sur le <a href=\"https:\/\/sll-entrevous.org\/partenariat-progcoreradio-leslie-piche\/\">site
+        Web de la Socie\u0301te\u0301 litte\u0301raire de laval\u00a0<\/a><\/p>","ticketUrl":"https:\/\/progcoreradio.com\/","facebookUrl":null,"video":null,"photos":[],"dates":[{"start":"2021-05-15
+        10:00:00","end":null,"formatted":"sam, 15 mai 2021 - 10h"},{"start":"2021-05-22
+        10:00:00","end":null,"formatted":"sam, 22 mai 2021 - 10h"},{"start":"2021-05-29
+        10:00:00","end":null,"formatted":"sam, 29 mai 2021 - 10h"},{"start":"2021-06-05
+        10:00:00","end":null,"formatted":"sam, 5 juin 2021 - 10h"},{"start":"2021-06-12
+        10:00:00","end":null,"formatted":"sam, 12 juin 2021 - 10h"},{"start":"2021-06-19
+        10:00:00","end":null,"formatted":"sam, 19 juin 2021 - 10h"},{"start":"2021-06-26
+        10:00:00","end":null,"formatted":"sam, 26 juin 2021 - 10h"}],"prices":[],"audiences":[],"contact":null,"organisation":null,"parent":{"id":"2","handle":"events","type":"list_events","status":"published","publishAt":null,"title":"\u00c9v\u00e9nements","slug":"evenements","url":"\/fr\/evenements","date":"2018-09-17
+        14:25:04","share":{"title":"\u00c9v\u00e9nements","description":"","image":"https:\/\/signelaval.com\/img\/share.png","url":"https:\/\/signelaval.com\/fr\/evenements","jsonld":""},"hasFeatured":true}}'
+    http_version:
+  recorded_at: Sun, 23 Jan 2022 03:20:29 GMT
+recorded_with: VCR 3.0.3

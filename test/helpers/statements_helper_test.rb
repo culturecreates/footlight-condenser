@@ -3,6 +3,49 @@ require 'test_helper'
 # Part of StatmentsHelper. See other test files for search_cckg and format_datatype tests. 
 class StatementsHelperTest < ActionView::TestCase
 
+
+#process algorithm
+test "process_algorithm manual" do
+  expected = ["Test"]
+  assert_equal expected, process_algorithm(algorithm: "manual=Test", url: "http://culturecreates.com")
+end
+test "process_algorithm xpath" do
+  expected = ["Culture Creates | Digital knowledge management for the arts"]
+  VCR.use_cassette('StatementsHelper:culturecreates.com') do
+    assert_equal expected, process_algorithm(algorithm: "xpath=//title", url: "http://culturecreates.com")
+  end
+end
+test "process_algorithm url and xpath" do
+  expected = ["ArtsdataApi"]
+  VCR.use_cassette('StatementsHelper:process_algorithm url and xpath') do
+    assert_equal expected, process_algorithm(algorithm: "url='http://api.artsdata'+'.ca';xpath=//title", url: "http://culturecreates.com")
+  end
+end
+test "process_algorithm double xpath" do
+  expected = ["Culture Creates | Digital knowledge management for the arts", "IE=edge"]
+  VCR.use_cassette('StatementsHelper:culturecreates.com') do
+    assert_equal expected, process_algorithm(algorithm: "xpath=//title;xpath=(//meta/@content)[1]", url: "http://culturecreates.com")
+  end
+end
+test "process_algorithm url and json and ruby" do
+  expected = ["2021-04-10 10:00:00", "time_zone: 'Eastern Time (US & Canada)'"]
+  algo = "url=$url + '.json';json=$json.dig('date','end');ruby=$array[0] ? [$json.dig('date','start')] : $array;time_zone='Eastern Time (US & Canada)'"
+  VCR.use_cassette('StatementsHelper: process_algorithm url and json and ruby') do
+    assert_equal expected, process_algorithm(algorithm: algo,  url: "https://signelaval.com/fr/evenements/14650/du-fond-de-mon-garde-robe")
+  end
+end
+test "process_algorithm ruby syntax error" do
+  expected = ["abort_update", {:error=>"(eval):1: syntax error, unexpected end-of-input, expecting '}' results_list.each {|a| a ^", :error_type=>SyntaxError, :results_prior=>[], :algorithm_rescued=>"ruby=$array.each {|a| a"}]
+  algo = "ruby=$array.each {|a| a"
+  assert_equal expected, process_algorithm(algorithm: algo,  url: "https://signelaval.com/fr/evenements/14650/du-fond-de-mon-garde-robe")
+end
+test "process_algorithm invalid algorithm prefix" do
+  expected = [["abort_update", {:error=>"Missing valid prefix", :algorithm=>"//title"}]]
+  algo = "//title"
+  assert_equal expected, process_algorithm(algorithm: algo,  url: "https://signelaval.com/fr/evenements/14650/du-fond-de-mon-garde-robe")
+end
+
+
 #scrape
   test "should scrape title from html" do
     source = sources(:one)

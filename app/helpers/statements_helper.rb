@@ -6,147 +6,246 @@ module StatementsHelper
   Page = Struct.new(:text) # Used to simulate Nokogiri object's text method
 
   ##
-  # Input: 
-  #   sources - A list of Active Record Sources
-  #   webpage - The Active Record webpage to crawl
-  #   scrape_options - options such as 23 hr fresh crawl
-  def scrape_sources(sources, webpage, scrape_options = {})
-    logger.info("*** Starting scrape with sources:#{sources.inspect} for webpage: #{webpage.inspect}")
-    sources.each do |source|
-        _scraped_data = scrape(source,  webpage.url, scrape_options) 
-        s = Statement.where(webpage_id: webpage.id, source_id: source.id)
-        if s.count != 1 # create a new statement
-          source_is_manual = source.algorithm_value.start_with?("manual=") ? true : false
-          new_status = source.auto_review ? 'updated' : 'initial'
-          _data = format_datatype(_scraped_data, source.property, webpage)
-          Statement.create!(manual: source_is_manual, cache: _data, selected_individual: source.selected, webpage_id: webpage.id, source_id: source.id, status: new_status, status_origin: 'condenser_refresh', cache_refreshed: Time.new)
-        else # update statement
-          statement =  s.first
-          unless statement.manual && ['ok','updated'].include?(statement.status)
-            # TODO: This condition is not DRY because it is repeated in refresh_statement(statement) controller.
-            # But needed here because refresh_webpage_statements doesn't check
-            _data = format_datatype(_scraped_data, source.property, webpage)
-            # preserve manually added and deleted links of datatype xsd:anyURI
-            if source.property.value_datatype == 'xsd:anyURI'
-                _data = preserve_manual_links _data, s.first.cache
-            end
-            # update database. Model automatically sets cache changed
-            logger.info("***  cache before post-processing: #{_data}")
-            if _data&.to_s&.include?('abort_update')
-              # set errors
-              logger.error "###ERROR IN SCRAPE: Received 'abort_update' during scraping. #{_data}"
-            else
-              statement.cache = _data
-              statement.cache_refreshed = Time.new
-              statement.save
-            end
-          end
+  # Refresh a statement
+  # INPUT
+  #   stat = ActiveRecord Statement 
+  #   scrape_options = {} passesd on to footlight-wringer crawling service in process_algorithm
+  # OUTPUT
+  #   Persists statement in database or sets errors. 
+  #   Check stat.errors in calling method.
+  def refresh_statement_helper(stat, scrape_options = {})
+    return if stat.manual && ["ok","updated"].include?(stat.status)
+
+    data = process_algorithm(algorithm: stat.source.algorithm_value, render_js: stat.source.render_js, language:stat.source.language, url: stat.webpage.url, scrape_options: scrape_options)
+    data = format_datatype(data, stat.source.property, stat.webpage)
+    if data&.to_s&.include?('abort_update')
+      # set errors
+      stat.errors.add(:scrape, message: data)
+    else
+      if stat.cache.present?
+        if  stat.source.property.value_datatype == 'xsd:anyURI'
+          # preserve manually added and deleted links of datatype xsd:anyURI
+          data = preserve_manual_links(data, stat.cache)
         end
-      
+      end
+      stat.cache = data
+      stat.cache_refreshed = Time.new
+      stat.save
     end
   end
 
-  def scrape(source, url, scrape_options = {})
-    algorithm = source.algorithm_value
+
+  ##
+  # Process alorithm for a statement
+  # INPUTS
+  #   statement.source.algorithm
+  #   statement.source.render_js
+  #   statement.webpage.language - language of website set in condenser, not source language which is optional
+  #   statement.webpage.url
+  #   scrape_options - passed on to footlight-wringer scraping service. 
+  #   statement.cache_refreshed - cache refreshed, lastCrawledAt, schema:lastReview
+  #   statement.cache_changed - cache changed, date modified, schema:sdDatePublished
+  # OUTPUT
+  #   [results] array
+  #   Algorithms that generate an error (i.e. ruby syntax) return ["abort_update", {error: e.inspect, results_prior: results_list, algorithm_rescued: a}
+  def process_algorithm(algorithm:, render_js: false, language: "en", url:, scrape_options: {}) #, cache_refreshed:, cache_changed:)
     if algorithm.start_with?('manual=')
       results_list = [algorithm.delete_prefix('manual=')]
     else
-      begin
-        agent = Mechanize.new
-        agent.user_agent_alias = 'Mac Safari'
-        html = agent.get_file  use_wringer(url, source.render_js, scrape_options) unless  algorithm.start_with?('url','ruby','post_url')
-        # If response type is json then load json, otherwise load html in next line
-        page = Nokogiri::HTML html
-        results_list = []
-        json_scraped = nil # needed for eval 'json_scraped'
-        algorithm.split(';').each do |a|
-          if a.start_with? 'url'
-            # replace current page by scraping new url with wringer
-            # using format url='http://example.com'
-            new_url = a.delete_prefix('url=')
-            new_url = new_url.gsub('$array', 'results_list')
-            new_url = new_url.gsub('$url', 'url')
-            new_url = eval(new_url)
+      agent = Mechanize.new
+      agent.user_agent_alias = 'Mac Safari'
+      html = nil
+      page = nil
+      json_scraped = nil # needed for case with ruby using $json in eval with 'json_scraped' scope
+      results_list = []
+      substitue_vars = lambda { |s| s.gsub('$array', 'results_list').gsub('$url', 'url').gsub('$json', 'json_scraped')}
+      algorithm.split(";").each do |a|
+        algo_type = a.partition('=').first
+        algo = a.partition('=').last
+        begin
+          case algo_type 
+          when "url"
+            # replace current page by scraping new url
+            # using format url='http://example.com' or ruby like url=$url + '.json'
+            new_url = eval(substitue_vars.call(algo))
             logger.info "*** New URL formed: #{new_url}"
-            html = agent.get_file use_wringer(new_url, source.render_js, scrape_options)
+            html = agent.get_file(use_wringer(new_url, render_js, scrape_options))
             page = Nokogiri::HTML html
-          elsif a.start_with? 'renderjs_url'
+          when 'renderjs_url'
             # FORCE Render JS -- replace current page by scraping new url with wringer
             # using format renderjs_url='http://example.com'
-            new_url = a.delete_prefix('renderjs_url=')
-            new_url = new_url.gsub('$array', 'results_list')
-            new_url = new_url.gsub('$url', 'url')
-            new_url = eval(new_url)
+            new_url =  eval(substitue_vars.call(algo))
             logger.info "*** New URL formed: #{new_url}"
-            html = agent.get_file use_wringer(new_url, true, scrape_options)
-            page = Nokogiri::HTML html
-          elsif a.start_with? 'json_url'
-            new_url = a.delete_prefix('url_json=')
-            new_url = new_url.gsub('$array', 'results_list')
-            new_url = new_url.gsub('$url', 'url')
-            new_url = eval(new_url)
+            html = agent.get_file(use_wringer(new_url, true, scrape_options))
+            page = Nokogiri::HTML(html)
+          when 'json_url'
+            new_url =  eval(substitue_vars.call(algo))
             logger.info "*** New URL for JSON call: #{new_url}"
-            html = agent.get_file use_wringer(new_url, source.render_js, scrape_options)
-            page = Page.new html  # Do not use Nokogiri because it will remove html
-            #page = Nokogiri::HTML html
-          elsif a.start_with? 'post_url'
+            html = agent.get_file(use_wringer(new_url, render_js, scrape_options))
+            page = Page.new(html)  # Do not use Nokogiri because it will remove html TODO: move struct down here
+          when 'post_url'
             # replace current page data by scraping new url with wringer using POST
             # using format url='http://example.com?param_for_post='
-            new_url = a.delete_prefix('post_url=')
-            new_url = new_url.gsub('$array', 'results_list')
-            new_url = new_url.gsub('$url', 'url')
-            new_url = eval(new_url)
+            new_url =  eval(substitue_vars.call(algo))
             logger.info "*** New POST URL formed: #{new_url}"
             temp_scrape_options = scrape_options.merge(json_post: true)
-            data = agent.get_file use_wringer(new_url, source.render_js, temp_scrape_options)
-            page = Nokogiri::HTML data
-          elsif a.start_with? 'api'
+            data = agent.get_file use_wringer(new_url, render_js, temp_scrape_options)
+            page = Nokogiri::HTML(data)
+          when 'api' # ok
             # Call API without going through wringer
-            new_url = a.delete_prefix('api=')
-            new_url = new_url.gsub('$array', 'results_list')
-            new_url = new_url.gsub('$url', 'url')
-            new_url = eval(new_url)
+            new_url =  eval(substitue_vars.call(algo))
             logger.info "*** New json api URL formed: #{new_url}"
-            data = HTTParty.get new_url
+            data = HTTParty.get(new_url)
             logger.info "*** api response body: #{data.body}"
             results_list = JSON.parse(data.body)
-          elsif a.start_with? 'ruby'
-            command = a.delete_prefix('ruby=')
-            command.gsub!('$array', 'results_list')
-            command.gsub!('$url', 'url')
-            command.gsub!('$json', 'json_scraped')
-            results_list = eval(command)
-          elsif a.start_with? 'xpath_sanitize'
-            page_data = page.xpath(a.delete_prefix('xpath_sanitize='))
+          when 'ruby' # test
+            # Use ruby to process a var
+            # ruby=$array.map{} or ruby=$json['name']
+            results_list = eval(substitue_vars.call(algo))
+          when 'xpath_sanitize' # ok
+            html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+            page ||= Nokogiri::HTML(html)
+            page_data = page.xpath(algo)
             page_data.each { |d| results_list << sanitize(d.to_s, tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href]) }
-          elsif a.start_with? 'if_xpath'
-            page_data = page.xpath(a.delete_prefix('if_xpath='))
+          when 'if_xpath' # ok
+            html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+            page ||= Nokogiri::HTML(html)
+            page_data = page.xpath(algo)
             break if page_data.blank?
             page_data.each { |d| results_list << d.text }
-          elsif a.start_with? 'xpath'
-            algo = a.delete_prefix('xpath=').gsub('$url', url)
+          when 'xpath' # test
+            html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+            # TODO: If response type is json then load json, otherwise load html in next line
+            page ||= Nokogiri::HTML(html)
             page_data = page.xpath(algo)
             page_data.each { |d| results_list << d.text }
-          elsif  a.start_with? 'css'
-            page_data = page.css(a.delete_prefix('css='))
+          when 'css' # ok
+            html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+            page ||= Nokogiri::HTML(html)
+            page_data = page.css(algo)
             page_data.each { |d| results_list << d.text }
-          elsif  a.start_with? 'time_zone'
-            results_list << "time_zone: #{a.delete_prefix('time_zone=')}"
-            logger.info "*** Adding time_zone: #{results_list}"
-          elsif a.start_with? 'json'
-            json_scraped = JSON.parse(page.text)
+          when 'time_zone' # test
+            results_list << "time_zone: #{algo}"
+            logger.info "*** Adding time_zone: #{algo}"
+          when 'json' # ok
             ## use this pattern in source algorithm --> json=$json['name']
-            command = a.delete_prefix('json=')
-            command.gsub!('$json', 'json_scraped')
-            results_list << eval(command)
+            html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+            page ||= Nokogiri::HTML(html)
+            json_scraped = JSON.parse(page.text)
+            algo.gsub!('$json', 'json_scraped')
+            results_list << eval(algo)
+          else 
+            results_list << ['abort_update',{error: "Missing valid prefix", algorithm: a}]
           end
+        rescue SyntaxError => e
+          return ['abort_update', {error: e.message.squish, error_type: e.class, results_prior: results_list, algorithm_rescued: a}]
+        rescue  => e
+          logger.error(" ****************** Error in scrape: #{e.inspect}")
+          return ['abort_update', {error: e.inspect, error_type: e.class, results_prior: results_list, algorithm_rescued: a}]
         end
-      rescue StandardError => e
-        logger.error(" ****************** Error in scrape: #{e.inspect}")
-        results_list = [['abort_update'], ["error: #{e.inspect}"]]
       end
     end
-    results_list
+    results_list 
+  end
+
+  # begin
+  #   agent = Mechanize.new
+  #   agent.user_agent_alias = 'Mac Safari'
+  #   html = agent.get_file  use_wringer(url, source.render_js, scrape_options) unless  algorithm.start_with?('url','ruby','post_url')
+  #   # If response type is json then load json, otherwise load html in next line
+  #   page = Nokogiri::HTML html
+  #   results_list = []
+  #   json_scraped = nil # needed for eval 'json_scraped'
+  #   algorithm.split(';').each do |a|
+  #     if a.start_with? 'url'
+  #       # replace current page by scraping new url with wringer
+  #       # using format url='http://example.com'
+  #       new_url = a.delete_prefix('url=')
+  #       new_url = new_url.gsub('$array', 'results_list')
+  #       new_url = new_url.gsub('$url', 'url')
+  #       new_url = eval(new_url)
+  #       logger.info "*** New URL formed: #{new_url}"
+  #       html = agent.get_file use_wringer(new_url, source.render_js, scrape_options)
+  #       page = Nokogiri::HTML html
+  #     elsif a.start_with? 'renderjs_url'
+  #       # FORCE Render JS -- replace current page by scraping new url with wringer
+  #       # using format renderjs_url='http://example.com'
+  #       new_url = a.delete_prefix('renderjs_url=')
+  #       new_url = new_url.gsub('$array', 'results_list')
+  #       new_url = new_url.gsub('$url', 'url')
+  #       new_url = eval(new_url)
+  #       logger.info "*** New URL formed: #{new_url}"
+  #       html = agent.get_file use_wringer(new_url, true, scrape_options)
+  #       page = Nokogiri::HTML html
+  #     elsif a.start_with? 'json_url'
+  #       new_url = a.delete_prefix('url_json=')
+  #       new_url = new_url.gsub('$array', 'results_list')
+  #       new_url = new_url.gsub('$url', 'url')
+  #       new_url = eval(new_url)
+  #       logger.info "*** New URL for JSON call: #{new_url}"
+  #       html = agent.get_file use_wringer(new_url, source.render_js, scrape_options)
+  #       page = Page.new html  # Do not use Nokogiri because it will remove html
+  #       #page = Nokogiri::HTML html
+  #     elsif a.start_with? 'post_url'
+  #       # replace current page data by scraping new url with wringer using POST
+  #       # using format url='http://example.com?param_for_post='
+  #       new_url = a.delete_prefix('post_url=')
+  #       new_url = new_url.gsub('$array', 'results_list')
+  #       new_url = new_url.gsub('$url', 'url')
+  #       new_url = eval(new_url)
+  #       logger.info "*** New POST URL formed: #{new_url}"
+  #       temp_scrape_options = scrape_options.merge(json_post: true)
+  #       data = agent.get_file use_wringer(new_url, source.render_js, temp_scrape_options)
+  #       page = Nokogiri::HTML data
+  #     elsif a.start_with? 'api'
+  #       # Call API without going through wringer
+  #       new_url = a.delete_prefix('api=')
+  #       new_url = new_url.gsub('$array', 'results_list')
+  #       new_url = new_url.gsub('$url', 'url')
+  #       new_url = eval(new_url)
+  #       logger.info "*** New json api URL formed: #{new_url}"
+  #       data = HTTParty.get new_url
+  #       logger.info "*** api response body: #{data.body}"
+  #       results_list = JSON.parse(data.body)
+  #     elsif a.start_with? 'ruby'
+  #       command = a.delete_prefix('ruby=')
+  #       command.gsub!('$array', 'results_list')
+  #       command.gsub!('$url', 'url')
+  #       command.gsub!('$json', 'json_scraped')
+  #       results_list = eval(command)
+  #     elsif a.start_with? 'xpath_sanitize'
+  #       page_data = page.xpath(a.delete_prefix('xpath_sanitize='))
+  #       page_data.each { |d| results_list << sanitize(d.to_s, tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href]) }
+  #     elsif a.start_with? 'if_xpath'
+  #       page_data = page.xpath(a.delete_prefix('if_xpath='))
+  #       break if page_data.blank?
+  #       page_data.each { |d| results_list << d.text }
+  #     elsif a.start_with? 'xpath'
+  #       algo = a.delete_prefix('xpath=').gsub('$url', url)
+  #       page_data = page.xpath(algo)
+  #       page_data.each { |d| results_list << d.text }
+  #     elsif  a.start_with? 'css'
+  #       page_data = page.css(a.delete_prefix('css='))
+  #       page_data.each { |d| results_list << d.text }
+  #     elsif  a.start_with? 'time_zone'
+  #       results_list << "time_zone: #{a.delete_prefix('time_zone=')}"
+  #       logger.info "*** Adding time_zone: #{results_list}"
+  #     elsif a.start_with? 'json'
+  #       json_scraped = JSON.parse(page.text)
+  #       ## use this pattern in source algorithm --> json=$json['name']
+  #       command = a.delete_prefix('json=')
+  #       command.gsub!('$json', 'json_scraped')
+  #       results_list << eval(command)
+  #     end
+  #   end
+  # rescue StandardError => e
+  #   logger.error(" ****************** Error in scrape: #{e.inspect}")
+  #   results_list = [['abort_update'], ["error: #{e.inspect}"]]
+  # end
+
+
+  def scrape(source, url, scrape_options = {})
+    process_algorithm(algorithm: source.algorithm_value, render_js:source.render_js, language:source.language, url:url, scrape_options: scrape_options) #, cache_refreshed:, cache_changed:)
   end
 
   def is_condenser_formated_array(scraped_data)

@@ -1,0 +1,60 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: http://localhost:3009/websites/wring?format=raw&include_fragment=true&uri=http://api.artsdata.ca
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip,deflate,identity
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_2) AppleWebKit/601.3.9 (KHTML,
+        like Gecko) Version/9.0.2 Safari/601.3.9
+      Accept-Charset:
+      - ISO-8859-1,utf-8;q=0.7,*;q=0.7
+      Accept-Language:
+      - en-us,en;q=0.5
+      Host:
+      - localhost:3009
+      Connection:
+      - keep-alive
+      Keep-Alive:
+      - '300'
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - text/html; charset=utf-8
+      Etag:
+      - W/"b368073c658dbd981b7f4ebf98dec47b"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - dacb5205-6807-475c-93b1-767540f64b75
+      X-Runtime:
+      - '0.008447'
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: ASCII-8BIT
+      string: !binary |-
+        PCFET0NUWVBFIGh0bWw+CjxodG1sPgogIDxoZWFkPgogICAgPHRpdGxlPkFydHNkYXRhQXBpPC90aXRsZT4KICAgIDxtZXRhIG5hbWU9ImNzcmYtcGFyYW0iIGNvbnRlbnQ9ImF1dGhlbnRpY2l0eV90b2tlbiIgLz4KPG1ldGEgbmFtZT0iY3NyZi10b2tlbiIgY29udGVudD0ieDc0L1pheC9QWlJYLzBwV1lFcnhmemdGMllCSTBVdjNKYWxjTnhxQ1RQRStPRks3T1F2bUloc1BpM3ExaW0zeFhHMVNyZE5hRHQxQWJ5UmZJNzRUdGc9PSIgLz4KICAgIAoKICAgIDxsaW5rIHJlbD0ic3R5bGVzaGVldCIgbWVkaWE9ImFsbCIgaHJlZj0iL2Fzc2V0cy9hcHBsaWNhdGlvbi03ZWIxY2NiOWU5YTAyMTZmMTdiOTNiNjU3MGE0ZTUwZDczN2JiYzU3ZGI1ZTgzYzUzYThiN2Q2OWZjN2I3ZTgxLmNzcyIgLz4KICA8L2hlYWQ+CgogIDxib2R5PgogICAgPGgxPkFydHNkYXRhIEFQSSBTZXJ2ZXI8L2gxPgoKVGhpcyBzZXJ2ZXIgY29udGFpbnMgdGhlIGZvbGxvd2luZyBzZXJ2aWNlcy4KCjxoMj4gUmVjb25jaWxpYXRpb24gc2VydmljZTwvaDI+ClNlYXJjaCBmb3IgbmFtZXMgb2YgdGhpbmdzLiAgVXNlIDxhIGhyZWY9J2h0dHBzOi8vcmVjb25jaWxpYXRpb24tYXBpLmdpdGh1Yi5pby90ZXN0YmVuY2gvJz5SZWNvbmNpbGlhdGlvbiBzZXJ2aWNlIHRlc3QgYmVuY2g8L2E+IGFuZCBjbGljayB0aGUgcGxheSBpY29uIG5leHQgdG8gJ0FydHNkYXRhLmNhJyAoYWJvdXQgaGFsZiB3YXkgZG93biB0aGUgbGlzdCkKCjxoMj4gUHJldmlldyBzZXJ2aWNlPC9oMj4KUHJldmlldyBpbmZvIGFib3V0IGEgdGhpbmcgaW4gYW4gaWZyYW1lCgo8dWw+Cgo8bGk+IDxhIGhyZWY9Ii9wZXJzb24iPlBlb3BsZTwvYT4gLSBleGFtcGxlIDxhIGhyZWY9Ii9yZXNvdXJjZS9LMTItMzgyIj5NYXJpYW5hIE1henphIChLMTItMzgyKTwvYT4gPC9saT4KPGxpPiA8YSBocmVmPSIvb3JnYW5pemF0aW9ucyI+T3JnYW5pemF0aW9uczwvYT4gLSBleGFtcGxlIDxhIGhyZWY9Ii9yZXNvdXJjZS9LMTAtNDQwIj5TUEVDIGR1IEhhdXQtUmljaGVsaWV1IChLMTAtNDQwKTwvYT4gPC9saT4KPGxpPiA8YSBocmVmPSIvcGxhY2UiPlBsYWNlczwvYT4gLSBleGFtcGxlIDxhIGhyZWY9Ii9yZXNvdXJjZS9LMTEtMTkwIj5DYWJhcmV0LVRow6nDonRyZSBkdSBWaWV1eC1TYWludC1KZWFuIChLMTEtMTkwKTwvYT4gIDwvbGk+CjxsaT4gPGEgaHJlZj0iL2V2ZW50cyI+RXZlbnRzPC9hPiAtIGV4YW1wbGUgPGEgaHJlZj0iL3Jlc291cmNlL3NwZWMtcWMtY2Ffb2xpdmllci1tYXJ0aW5lYXUiPk9saXZpZXIgTWFydGluZWF1IEBTUEVDIG9uIDIwMjItMDEtMjcgKHNwZWMtcWMtY2Ffb2xpdmllci1tYXJ0aW5lYXUpPC9hPiA8L2xpPiAKPC91bD4KPGgyPiBEYXRhYnVzIHNlcnZpY2UgPC9oMj4KQWRkIGFuZCBzZWFyY2ggZGF0YXNldHMKCjx1bD4KPGxpPjxhIGhyZWY9J2h0dHBzOi8vYXBpLmFydHNkYXRhLmNhL2RhdGFidXM/cHVibGlzaGVyPWh0dHBzOi8vZ3JhcGguY3VsdHVyZWNyZWF0ZXMuY29tL2lkL2NhcGFjaXRvcic+IERhdGFzZXRzIHB1Ymxpc2hlZCBieSBDdWx0dXJlIENyZWF0ZXMgdXNpbmcgQ2FwYWNpdG9yIFNvZnR3YXJlPC9hPgo8L3VsPgoKPGgyPiBHcmFwaCBTdG9yZSBzZXJ2aWNlIDwvaDI+CkxvYWQgUkRGIGRhdGEgZnJvbSBhIFVSTAoKCiAgPC9ib2R5Pgo8L2h0bWw+Cg==
+    http_version:
+  recorded_at: Sun, 23 Jan 2022 03:24:52 GMT
+recorded_with: VCR 3.0.3
