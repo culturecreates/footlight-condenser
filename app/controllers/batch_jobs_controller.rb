@@ -72,20 +72,30 @@ class BatchJobsController < ApplicationController
     end
   end
 
+  # GET /batch_jobs/refresh_webpages?seedurl=
+  # Refresh all webpages of website seedurl
   def refresh_webpages
-    # GET /batch_jobs/refresh_webpages?seedurl=
-    # Call a webhook on Huginn with a list of urls to refresh.
-
     website = Website.where(seedurl: params[:seedurl]).first
     webpages = website.webpages
 
-    urls = []
+   
     webpages.each do |wp|
-      urls << { url: wp.url }
+      RefreshWebpageJob.perform_later(wp.url)
     end
-    puts urls
+  
+    redirect_to website_path(website), notice: "Created batch jobs for #{webpages.count} webpages. "
+  end
 
-    result = helpers.huginn_webhook 'urls', urls, 250
-    redirect_to website_path(website), notice: "Created batch job for #{urls.count} webpages... response: #{result} "
+  # GET /batch_jobs/refresh_webpages?seedurl=
+  # Refresh only upcoming event
+  def refresh_upcoming_events
+    
+    # TODO: get list of upcoming Event URIs for seedurl
+    
+    webpages.each do |wp|
+      RefreshWebpageJob.perform_later(wp.url)
+    end
+  
+    redirect_to website_path(website), notice: "Created batch jobs for #{urls.count} webpages. "
   end
 end
