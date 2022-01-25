@@ -56,6 +56,9 @@ Rails.application.routes.draw do
       get 'website' # Internal Webpages Only
       post 'copy' # Internal Webpages Only
     end
+  end
+
+  resources :properties do
     member do
       patch 'review_all_statements' # API
     end
@@ -89,7 +92,7 @@ Rails.application.routes.draw do
   get 'structured_data/event_markup'
 
   resources :places
-  resources :properties
+  
   resources :rdfs_classes
 
   resources :lists do

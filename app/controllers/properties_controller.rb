@@ -1,5 +1,6 @@
 class PropertiesController < ApplicationController
   before_action :set_property, only: [:show, :edit, :update, :destroy]
+  skip_before_action :verify_authenticity_token
 
   # GET /properties
   # GET /properties.json
@@ -20,6 +21,21 @@ class PropertiesController < ApplicationController
   # GET /properties/1/edit
   def edit
   end
+
+  # Review all statements belonging to a PROPERTY ID (can include en and fr sources) and a website seedurl
+  # PATCH/PUT /properties/1/review_all_statements.json?seedurl=&status_origin=
+  def review_all_statements
+    # get all statements that are linked to source id
+    statements = Statement.includes(source: :website).where(sources: { property_id: params[:id], websites: { seedurl: params[:seedurl] }}, status: ["updated","initial"], selected_individual: true)
+    statements.each do |stat|
+      stat.update(status: 'ok', status_origin: params[:status_origin])
+    end
+    # TODO: Handle errors?
+    respond_to do |format|
+        format.json {  render :plain => { success: true }.to_json, status: 200, content_type: 'application/json' }
+    end
+  end
+
 
   # POST /properties
   # POST /properties.json

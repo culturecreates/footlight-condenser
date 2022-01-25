@@ -98,33 +98,32 @@ class StatementsController < ApplicationController
 
   # PATCH/PUT /statements/review_all
   def review_all 
-    statements = build_query(rdf_uri: params[:rdf_uri], seedurl: params[:seedurl], prop: params[:prop], status: params[:status])
+    statements = build_query
     status_origin = "condenser-admin-review-all"
     statements.each do |statement|
-      next if statement.is_problem?
+      next if statement.is_problem? || statement.status = 'ok'
 
       statement.status = 'ok'
       statement.status_origin = status_origin
       statement.save
     end
     respond_to do |format|
-      format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status]), notice: 'Statements successfully reviewed.' }
-      format.json { redirect_to statements_path(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status], format: :json) }
+      format.html { redirect_to statements_path(request.parameters.except(:authenticity_token)), notice: 'Statements successfully reviewed.' }
+      format.json { redirect_to statements_path(request.parameters.except(:authenticity_token), format: :json) }
     end
   end
 
   # PATCH/PUT /statements/refresh_all
   def refresh_all 
-    statements = build_query(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status])
+    statements = build_query
     error_list = []
-    statements.each do |statement|
-      # TODO: capture errors
-      helpers.refresh_statement_helper(statement)
+    statements.each do |stat|
+      helpers.refresh_statement_helper(stat)
       error_list << {"Statement id #{stat.id}" => stat.errors.messages} if stat.errors.any?
     end
     respond_to do |format|
-      format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status]), notice: "Statements refreshed. #{error_list}" }
-      format.json { redirect_to statements_path(rdf_uri: params[:rdf_uri], seedurl:  params[:seedurl], prop:  params[:prop], status:  params[:status], format: :json) }
+      format.html { redirect_to statements_path(request.parameters.except(:authenticity_token)), notice: "Statements refreshed. #{error_list}" }
+      format.json { redirect_to statements_path(request.parameters.except(:authenticity_token), format: :json) }
     end
   end
   

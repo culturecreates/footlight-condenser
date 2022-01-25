@@ -96,18 +96,6 @@ class SourcesController < ApplicationController
     end
   end
 
-  # PATCH/PUT /sources/1/review_all_statements.json
-  def review_all_statements
-    # get all statements that are linked to source id
-    statements = Statement.includes(:source).where(sources: { property_id: params[:id] }, status: ["updated","initial"], selected_individual: true)
-    statements.each do |stat|
-      stat.update(status: 'ok')
-    end
-    # TODO: Handle errors?
-    respond_to do |format|
-        format.json { render status: :ok }
-    end
-  end
 
   # DELETE /sources/1
   # DELETE /sources/1.json
