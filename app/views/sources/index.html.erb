@@ -13,7 +13,7 @@
 Added sources from website: 
 <% if @website_id %>
   <%= form_tag(copy_sources_path(to_website_id: @website_id )) do -%>
-    <%= select_tag "from_website_id", options_from_collection_for_select(@selectable_websites, "id", "seedurl") %> 
+    <%= select_tag "from_website_id", options_from_collection_for_select(list_of_websites, "id", "seedurl") %> 
     <div><%= submit_tag('Copy', class: "button") %></div>
   <% end -%>
 <% else %>
