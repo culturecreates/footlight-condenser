@@ -1,4 +1,4 @@
-<% @website ||=  params[:seedurl].present? ? Website.where(seedurl: params[:seedurl]).first : list_of_websites.first %>
+<% @website ||=  params[:seedurl].present? &&  params[:seedurl] != "all" ? Website.where(seedurl: params[:seedurl]).first : list_of_websites.first %>
 <%= link_to "all websites", websites_path %> |
 <%= select_tag "filter", options_from_collection_for_select(list_of_websites, "id", "seedurl", @website.id ||= 1) %> 
 <%= link_to "website", website_path(@website.id) if @website.id.present? %> |
