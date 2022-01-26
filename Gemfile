@@ -77,3 +77,4 @@ gem 'will_paginate', '~> 3.1.6'
 gem 'scout_apm'  #used to monitor memory on Heroku
 
 gem 'aws-sdk-s3'
+gem 'sidekiq'
