@@ -11,9 +11,8 @@ class RefreshWebpageJob < ApplicationJob
 
   def perform(url, options = nil)
     webpages = Webpage.includes(:website).where(url: url)
-    puts "Batch refresh url #{url}"
     webpages.each do |webpage|
-      StatementsController.new.refresh_webpage_statements(webpage, webpage.website.default_language, :force_scrape_every_hrs => 23)
+      StatementsController.new.refresh_webpage_statements(webpage, webpage.website.default_language, { :force_scrape_every_hrs => 23 })
     end
   end
 end

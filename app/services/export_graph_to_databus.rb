@@ -53,9 +53,10 @@ class ExportGraphToDatabus
       # ensure that the scheduled time of day has passed
       next unless Time.now.utc.strftime( "%H%M" ) >= website.schedule_time.utc.strftime( "%H%M" )
             
-      # refresh
-      result = export_events(website.seedurl, root_url)
-      Rails.logger.info("Artsdata Export #{website.inspect} Result: #{result.inspect}")
+      # refresh webpages
+      BatchJobsController.new.refresh_upcoming_events_jobs(website.seedurl)
+      BatchJobsController.new.check_for_new_webpages_jobs(website.seedurl)
+      ExportToArtsdataJob.set(wait: 20.minutes).perform_later
       website.last_refresh = Time.now
       website.save
     end

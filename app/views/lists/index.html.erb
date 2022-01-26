@@ -11,9 +11,13 @@
 <td>
      <%= link_to "Statements",  statements_path(rdf_uri: uri) %> | 
      Batch job: 
-    <%= link_to "add list of webpages",  add_webpages_batch_jobs_path(rdf_uri: uri) %> 
+    <%= link_to "add webpages",  add_webpages_batch_jobs_path(rdf_uri: uri) %> 
  </td>
  </tr>  
    
 <% end %>
+
+
 </table>
+<hr>
+<%= link_to 'Refresh lists and add webpages', check_for_new_webpages_batch_jobs_path(seedurl: params[:seedurl]) %>

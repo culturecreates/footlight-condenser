@@ -73,7 +73,7 @@ Rails.application.routes.draw do
 
   resources :batch_jobs do
     collection do
-      get 'add_webpages', 'refresh_webpages'
+      get 'add_webpages', 'refresh_webpages', 'refresh_upcoming_events','check_for_new_webpages'
     end
   end
 

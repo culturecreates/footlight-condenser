@@ -20,14 +20,19 @@
   <%= @website.graph_name %>
 </p>
 
-<%= link_to 'Add webpages from Resource', lists_path(seedurl: @website.seedurl) %> | 
+
 <%= link_to 'Edit', edit_website_path(@website) %> |
 <%= link_to 'Back', websites_path %>
+<hr>
+<h1> Lists</h1>
+<%= link_to 'View resources with lists', lists_path(seedurl: @website.seedurl) %> 
 
-
-<h2>Events</h2>
-
-<%= link_to 'Refresh all past and future events', refresh_webpages_batch_jobs_path(seedurl: @website.seedurl) %> 
+<h1>Batch Jobs</h1>
+<%= link_to 'Refresh upcoming events', refresh_upcoming_events_batch_jobs_path(seedurl: @website.seedurl) %> 
+<br>
+<%= link_to 'Refresh lists and add webpages', check_for_new_webpages_batch_jobs_path(seedurl: params[:seedurl]) %>
+<br>
+<%= link_to 'Refresh all Webpages (all classes, all dates)', refresh_webpages_batch_jobs_path(seedurl: @website.seedurl) %> 
 
 <h3 style="color:red">  DESTROY </h3>
 <div style="display:block;float: left">
