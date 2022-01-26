@@ -10,9 +10,8 @@
 </td>
 <td>
      <%= link_to "Statements",  statements_path(rdf_uri: uri) %> | 
-     Batch job on Huginn: 
-    <%= link_to "add list of webpages",  add_webpages_batch_jobs_path(rdf_uri: uri) %> |
-     <%= link_to "add updated list only",  add_webpages_batch_jobs_path(rdf_uri: uri, only_statements_with_cache_changed: true ) %>
+     Batch job: 
+    <%= link_to "add list of webpages",  add_webpages_batch_jobs_path(rdf_uri: uri) %> 
  </td>
  </tr>  
    

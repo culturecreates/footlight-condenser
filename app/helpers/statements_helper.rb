@@ -7,10 +7,10 @@ module StatementsHelper
 
   ##
   # Refresh a statement
-  # INPUT
+  #   INPUT
   #   stat = ActiveRecord Statement 
   #   scrape_options = {} passesd on to footlight-wringer crawling service in process_algorithm
-  # OUTPUT
+  #   OUTPUT
   #   Persists statement in database or sets errors. 
   #   Check stat.errors in calling method.
   def refresh_statement_helper(stat, scrape_options = {})
@@ -18,9 +18,15 @@ module StatementsHelper
 
     data = process_algorithm(algorithm: stat.source.algorithm_value, render_js: stat.source.render_js, language:stat.source.language, url: stat.webpage.url, scrape_options: scrape_options)
     data = format_datatype(data, stat.source.property, stat.webpage)
+
     if data&.to_s&.include?('abort_update')
       # set errors
       stat.errors.add(:scrape, message: data)
+      # save new statments
+      if stat.new_record?
+        stat.cache = data
+        stat.save 
+      end
     else
       if stat.cache.present?
         if  stat.source.property.value_datatype == 'xsd:anyURI'
