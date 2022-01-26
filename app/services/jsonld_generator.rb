@@ -146,7 +146,7 @@ class JsonldGenerator
     graph = RDF::Graph.new
 
     statements.each do |s|
-      next if s[:status] == 'initial' || s[:status] == 'problem'
+      next if s['status'] == 'initial' || s['status'] == 'problem'
 
       main_class_uri = "http://schema.org/#{s[:webpage_class_name]}"
       subject = s[:subject].sub('adr:', 'http://kg.artsdata.ca/resource/')
