@@ -40,8 +40,8 @@ class BatchJobsController < ApplicationController
   # Refresh only upcoming event
   def refresh_upcoming_events
     website = Website.where(seedurl: params[:seedurl]).first
-    refresh_upcoming_events_jobs(params[:seedurl])
-    redirect_to website_path(website), notice: "Created batch jobs for #{webpages.count} webpages with upcoming events. "
+    webpage_count = refresh_upcoming_events_jobs(params[:seedurl])
+    redirect_to website_path(website), notice: "Created batch jobs for #{webpage_count} webpages with upcoming events. "
   end
 
   ####################
@@ -66,5 +66,6 @@ class BatchJobsController < ApplicationController
     webpages.each do |wp|
       RefreshWebpageJob.perform_later(wp.url)
     end
+    return webpages.count
   end
 end
