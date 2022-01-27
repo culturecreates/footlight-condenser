@@ -341,14 +341,16 @@ class StatementsController < ApplicationController
         statements = Statement.where(webpage_id: webpage.id, source_id: src.id)
         if statements.blank? # create a new statement
           source_is_manual = src.algorithm_value.start_with?("manual=") ? true : false
-          new_status = src.auto_review ? 'updated' : 'initial'
-          stat = statements.new(manual: source_is_manual, selected_individual: src.selected, status: new_status, status_origin: 'condenser_create')
+          stat = statements.new(manual: source_is_manual, selected_individual: src.selected, status: 'initial', status_origin: 'condenser_create')
         else
           stat = statements.first
           next if stat.manual && ['ok','updated'].include?(stat.status)
 
         end
         helpers.refresh_statement_helper(stat, scrape_options)
+        if src.auto_review && stat.status == 'initial'
+          stat.update(status: 'updated')
+        end
         error_list << {"Property id #{property_id}" => stat.errors.messages} if stat.errors.any?
       end
     end
