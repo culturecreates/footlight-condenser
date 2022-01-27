@@ -96,37 +96,37 @@ class StatementsController < ApplicationController
   end
 
 
-  # PATCH/PUT /statements/review_all
-  def review_all 
-    statements = build_query
+  # # PATCH/PUT /statements/review_all
+  # def review_all 
+  #   statements = build_query
     
-    status_origin = "condenser-admin-review-all"
-    statements.each do |statement|
-      next if statement.is_problem? || statement.status == 'ok'
+  #   status_origin = "condenser-admin-review-all"
+  #   statements.each do |statement|
+  #     next if statement.is_problem? || statement.status == 'ok'
 
-      statement.status = 'ok'
-      statement.status_origin = status_origin
-      statement.save
-    end
-    respond_to do |format|
-      format.html { redirect_to statements_path(request.parameters.except(:authenticity_token)), notice: 'Statements successfully reviewed.' }
-      format.json { redirect_to statements_path(request.parameters.except(:authenticity_token), format: :json) }
-    end
-  end
+  #     statement.status = 'ok'
+  #     statement.status_origin = status_origin
+  #     statement.save
+  #   end
+  #   respond_to do |format|
+  #     format.html { redirect_to statements_path(request.parameters.except(:authenticity_token)), notice: 'Statements successfully reviewed.' }
+  #     format.json { redirect_to statements_path(request.parameters.except(:authenticity_token), format: :json) }
+  #   end
+  # end
 
-  # PATCH/PUT /statements/refresh_all
-  def refresh_all 
-    statements = build_query
-    error_list = []
-    statements.each do |stat|
-      helpers.refresh_statement_helper(stat)
-      error_list << {"Statement id #{stat.id}" => stat.errors.messages} if stat.errors.any?
-    end
-    respond_to do |format|
-      format.html { redirect_to statements_path(request.parameters.except(:authenticity_token)), notice: "Statements refreshed. #{error_list}" }
-      format.json { redirect_to statements_path(request.parameters.except(:authenticity_token), format: :json) }
-    end
-  end
+  # # PATCH/PUT /statements/refresh_all
+  # def refresh_all 
+  #   statements = build_query
+  #   error_list = []
+  #   statements.each do |stat|
+  #     helpers.refresh_statement_helper(stat)
+  #     error_list << {"Statement id #{stat.id}" => stat.errors.messages} if stat.errors.any?
+  #   end
+  #   respond_to do |format|
+  #     format.html { redirect_to statements_path(request.parameters.except(:authenticity_token)), notice: "Statements refreshed. #{error_list}" }
+  #     format.json { redirect_to statements_path(request.parameters.except(:authenticity_token), format: :json) }
+  #   end
+  # end
   
 
   # PATCH/PUT /statements/1
@@ -163,6 +163,28 @@ class StatementsController < ApplicationController
       end
       redirect_to statements_path(request.parameters.except(:authenticity_token))
     end
+    if params[:commit] == "Refresh All"
+      statements = build_query
+      error_list = []
+      statements.each do |stat|
+        helpers.refresh_statement_helper(stat)
+        error_list << {"Statement id #{stat.id}" => stat.errors.messages} if stat.errors.any?
+      end
+      redirect_to statements_path(request.parameters.except(:authenticity_token), notice: "Statements refreshed. #{error_list}") 
+    end
+    if params[:commit] == "Review All" 
+      statements = build_query
+      status_origin = "condenser-admin-review-all"
+      statements.each do |statement|
+        next if statement.is_problem? || statement.status == 'ok'
+
+        statement.status = 'ok'
+        statement.status_origin = status_origin
+        statement.save
+      end
+      redirect_to statements_path(request.parameters.except(:authenticity_token),  notice: 'Statements successfully reviewed.' )
+    end
+
   end
 
 

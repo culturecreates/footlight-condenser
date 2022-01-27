@@ -9,15 +9,12 @@
       </p>
 <% end %>
 
-
-<%= link_to "Review all", review_all_statements_path(rdf_uri: params[:rdf_uri], seedurl: params[:seedurl], prop: params[:prop], status: params[:status]), method: :patch %>
-<%= link_to "Refresh all", refresh_all_statements_path(rdf_uri: params[:rdf_uri], seedurl: params[:seedurl], prop: params[:prop], status: params[:status]), method: :patch %>
-<br>
 <br>
 <%= will_paginate @statements %>
-
+<br>
 
 <%= form_tag(batch_update_statements_path) do -%>
+<br>
 seedurl(all): <%= text_field_tag 'seedurl',  params[:seedurl] %> 
 
 rdf_uri:  <%=text_field_tag 'rdf_uri',   params[:rdf_uri], size: 60 %>
@@ -44,6 +41,9 @@ rdf_uri:  <%=text_field_tag 'rdf_uri',   params[:rdf_uri], size: 60 %>
 Update:
 <%= text_field_tag 'update_data','',size: 50, placeholder: 'selected: true, cache: ["one"]' %>
  <%= submit_tag 'Update' %>
+<br>
+ <%= submit_tag 'Review All' %>
+<%= submit_tag 'Refresh All' %>
 <% end -%>
 
   <tbody>
