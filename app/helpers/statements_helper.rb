@@ -19,21 +19,22 @@ module StatementsHelper
     data = process_algorithm(algorithm: stat.source.algorithm_value, render_js: stat.source.render_js, language:stat.source.language, url: stat.webpage.url, scrape_options: scrape_options)
     data = format_datatype(data, stat.source.property, stat.webpage)
 
+    save_record = false
     if data&.to_s&.include?('abort_update')
-      # set errors
       stat.errors.add(:scrape, message: data)
-      # save new statments
-      if stat.new_record?
-        stat.cache = data
-        stat.save 
+    elsif data.blank?
+      if !stat.new_record?
+        stat.errors.add(:blank_detected, message: "Statement not updated because it is blank '#{data}'")
       end
     else
+      save_record = true
       if stat.cache.present?
-        if  stat.source.property.value_datatype == 'xsd:anyURI'
-          # preserve manually added and deleted links of datatype xsd:anyURI
+        if stat.source.property.value_datatype == 'xsd:anyURI'
           data = preserve_manual_links(data, stat.cache)
         end
       end
+    end
+    if save_record || stat.new_record?
       stat.cache = data
       stat.cache_refreshed = Time.new
       stat.save
