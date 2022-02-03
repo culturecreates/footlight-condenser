@@ -155,101 +155,6 @@ module StatementsHelper
     results_list 
   end
 
-  # begin
-  #   agent = Mechanize.new
-  #   agent.user_agent_alias = 'Mac Safari'
-  #   html = agent.get_file  use_wringer(url, source.render_js, scrape_options) unless  algorithm.start_with?('url','ruby','post_url')
-  #   # If response type is json then load json, otherwise load html in next line
-  #   page = Nokogiri::HTML html
-  #   results_list = []
-  #   json_scraped = nil # needed for eval 'json_scraped'
-  #   algorithm.split(';').each do |a|
-  #     if a.start_with? 'url'
-  #       # replace current page by scraping new url with wringer
-  #       # using format url='http://example.com'
-  #       new_url = a.delete_prefix('url=')
-  #       new_url = new_url.gsub('$array', 'results_list')
-  #       new_url = new_url.gsub('$url', 'url')
-  #       new_url = eval(new_url)
-  #       logger.info "*** New URL formed: #{new_url}"
-  #       html = agent.get_file use_wringer(new_url, source.render_js, scrape_options)
-  #       page = Nokogiri::HTML html
-  #     elsif a.start_with? 'renderjs_url'
-  #       # FORCE Render JS -- replace current page by scraping new url with wringer
-  #       # using format renderjs_url='http://example.com'
-  #       new_url = a.delete_prefix('renderjs_url=')
-  #       new_url = new_url.gsub('$array', 'results_list')
-  #       new_url = new_url.gsub('$url', 'url')
-  #       new_url = eval(new_url)
-  #       logger.info "*** New URL formed: #{new_url}"
-  #       html = agent.get_file use_wringer(new_url, true, scrape_options)
-  #       page = Nokogiri::HTML html
-  #     elsif a.start_with? 'json_url'
-  #       new_url = a.delete_prefix('url_json=')
-  #       new_url = new_url.gsub('$array', 'results_list')
-  #       new_url = new_url.gsub('$url', 'url')
-  #       new_url = eval(new_url)
-  #       logger.info "*** New URL for JSON call: #{new_url}"
-  #       html = agent.get_file use_wringer(new_url, source.render_js, scrape_options)
-  #       page = Page.new html  # Do not use Nokogiri because it will remove html
-  #       #page = Nokogiri::HTML html
-  #     elsif a.start_with? 'post_url'
-  #       # replace current page data by scraping new url with wringer using POST
-  #       # using format url='http://example.com?param_for_post='
-  #       new_url = a.delete_prefix('post_url=')
-  #       new_url = new_url.gsub('$array', 'results_list')
-  #       new_url = new_url.gsub('$url', 'url')
-  #       new_url = eval(new_url)
-  #       logger.info "*** New POST URL formed: #{new_url}"
-  #       temp_scrape_options = scrape_options.merge(json_post: true)
-  #       data = agent.get_file use_wringer(new_url, source.render_js, temp_scrape_options)
-  #       page = Nokogiri::HTML data
-  #     elsif a.start_with? 'api'
-  #       # Call API without going through wringer
-  #       new_url = a.delete_prefix('api=')
-  #       new_url = new_url.gsub('$array', 'results_list')
-  #       new_url = new_url.gsub('$url', 'url')
-  #       new_url = eval(new_url)
-  #       logger.info "*** New json api URL formed: #{new_url}"
-  #       data = HTTParty.get new_url
-  #       logger.info "*** api response body: #{data.body}"
-  #       results_list = JSON.parse(data.body)
-  #     elsif a.start_with? 'ruby'
-  #       command = a.delete_prefix('ruby=')
-  #       command.gsub!('$array', 'results_list')
-  #       command.gsub!('$url', 'url')
-  #       command.gsub!('$json', 'json_scraped')
-  #       results_list = eval(command)
-  #     elsif a.start_with? 'xpath_sanitize'
-  #       page_data = page.xpath(a.delete_prefix('xpath_sanitize='))
-  #       page_data.each { |d| results_list << sanitize(d.to_s, tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href]) }
-  #     elsif a.start_with? 'if_xpath'
-  #       page_data = page.xpath(a.delete_prefix('if_xpath='))
-  #       break if page_data.blank?
-  #       page_data.each { |d| results_list << d.text }
-  #     elsif a.start_with? 'xpath'
-  #       algo = a.delete_prefix('xpath=').gsub('$url', url)
-  #       page_data = page.xpath(algo)
-  #       page_data.each { |d| results_list << d.text }
-  #     elsif  a.start_with? 'css'
-  #       page_data = page.css(a.delete_prefix('css='))
-  #       page_data.each { |d| results_list << d.text }
-  #     elsif  a.start_with? 'time_zone'
-  #       results_list << "time_zone: #{a.delete_prefix('time_zone=')}"
-  #       logger.info "*** Adding time_zone: #{results_list}"
-  #     elsif a.start_with? 'json'
-  #       json_scraped = JSON.parse(page.text)
-  #       ## use this pattern in source algorithm --> json=$json['name']
-  #       command = a.delete_prefix('json=')
-  #       command.gsub!('$json', 'json_scraped')
-  #       results_list << eval(command)
-  #     end
-  #   end
-  # rescue StandardError => e
-  #   logger.error(" ****************** Error in scrape: #{e.inspect}")
-  #   results_list = [['abort_update'], ["error: #{e.inspect}"]]
-  # end
-
 
   def scrape(source, url, scrape_options = {})
     process_algorithm(algorithm: source.algorithm_value, render_js:source.render_js, language:source.language, url:url, scrape_options: scrape_options) #, cache_refreshed:, cache_changed:)
@@ -372,6 +277,9 @@ module StatementsHelper
     end
     if str.scan(/\b(Theatre|Théâtre)/i).present?
       result << ['TheaterEvent', 'http://schema.org/TheaterEvent']
+    end
+    if str.scan(/\b(Performance)/i).present?
+      result << ['Performance', 'http://ontology.artsdata.ca/Performance']
     end
     result
   end
