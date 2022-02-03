@@ -176,6 +176,12 @@ class JsonldGenerator
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/address'), build_uri(subject,'PostalAddress')]
         graph << [build_uri(subject, 'PostalAddress'), RDF.type, RDF::URI('http://schema.org/PostalAddress')]
         graph << [build_uri(subject, 'PostalAddress'), RDF::URI(s[:predicate]), s[:value]]
+      elsif s[:rdfs_class_name] == 'WebPage'
+        graph << [RDF::URI(subject), RDF::URI('http://schema.org/mainEntityOfPage'), build_uri(s[:value],'WebPage')]
+        graph << [build_uri(s[:value], 'WebPage'), RDF.type, RDF::URI('http://schema.org/WebPage')]
+        graph << [build_uri(s[:value], 'WebPage'), RDF::URI('http://schema.org/inLanguage'), s[:language]] if s[:language].present?
+        graph << [build_uri(s[:value], 'WebPage'), RDF::URI('http://schema.org/lastReviewed'), s["cache_refreshed"]] if s["cache_refreshed"].present?
+        graph << [build_uri(s[:value], 'WebPage'), RDF::URI(s[:predicate]), s[:value]]
       ## TEMPORARY PATCH  END #########
 
       elsif  s[:datatype] == 'xsd:anyURI'

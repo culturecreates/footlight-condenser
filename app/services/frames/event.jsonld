@@ -35,6 +35,13 @@
             "url":{},
             "alternateName":{}
         },
+    "mainEntityOfPage":{
+        "@type": ["WebPage"],
+        "@explicit": false,
+        "url": {},
+        "inLanguage":{},
+        "lastReviewed":{}
+    },
     "offers": {
         "@type": "Offer",
         "url":{}

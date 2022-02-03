@@ -23,7 +23,7 @@
 
 <p>
   <strong>Rdfs class:</strong>
-  <%= @property.rdfs_class %>
+  <%= @property.rdfs_class.name %> (<%= @property.rdfs_class.id %>)
 </p>
 
 <%= link_to 'Edit', edit_property_path(@property) %> |
