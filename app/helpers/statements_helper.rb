@@ -15,7 +15,7 @@ module StatementsHelper
   #   Check stat.errors in calling method.
   def refresh_statement_helper(stat, scrape_options = {})
     if stat.manual && ["ok","updated"].include?(stat.status)
-      stat.errors.add(:manual, message: "Manual statements only refresh when in 'initial' state.")
+      stat.errors.add(:manual, message: "No update unless 'initial' state.")
       return
     end
 
@@ -27,7 +27,7 @@ module StatementsHelper
       stat.errors.add(:scrape, message: data)
     elsif data.blank?
       if !stat.new_record?
-        stat.errors.add(:blank_detected, message: "Statement not updated because it is blank '#{data}'")
+        stat.errors.add(:blank_detected, message: "No update: '#{data}'")
       end
     else
       save_record = true
