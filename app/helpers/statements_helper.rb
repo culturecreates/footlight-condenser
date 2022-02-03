@@ -14,7 +14,10 @@ module StatementsHelper
   #   Persists statement in database or sets errors. 
   #   Check stat.errors in calling method.
   def refresh_statement_helper(stat, scrape_options = {})
-    return if stat.manual && ["ok","updated"].include?(stat.status)
+    if stat.manual && ["ok","updated"].include?(stat.status)
+      stat.errors.add(:manual, message: "Manual statements only refresh when in 'initial' state.")
+      return
+    end
 
     data = process_algorithm(algorithm: stat.source.algorithm_value, render_js: stat.source.render_js, language:stat.source.language, url: stat.webpage.url, scrape_options: scrape_options)
     data = format_datatype(data, stat.source.property, stat.webpage)
