@@ -152,9 +152,18 @@ class JsonldGenerator
       subject = s[:subject].sub('adr:', 'http://kg.artsdata.ca/resource/')
       graph << [RDF::URI(subject), RDF.type, RDF::URI(main_class_uri)]
 
+      # Add data changed Observation
+      if s['cache_changed']
+        observation_uri = build_uri(subject,"Observation_#{s[:label]}".gsub(" ","-"))
+        graph << [observation_uri, RDF.type, RDF::URI('http://schema.org/Observation')]
+        graph << [observation_uri, RDF::URI('http://schema.org/observedNode'), subject]
+        graph << [observation_uri, RDF::URI('http://schema.org/measuredProperty'), RDF::URI(s[:predicate])]
+        graph << [observation_uri, RDF::URI('http://schema.org/observationDate'), RDF::Literal::DateTime.new(s["cache_changed"])]
+        graph << [observation_uri, RDF::URI('http://schema.org/name'), RDF::Literal("#{s[:label]} property changed")]
+      end
 
       ## TEMPORARY PATCH START #########
-      # TODO: Make generic
+      # TODO: Make generic, maybe use frames to explicit the data strucutre of nested entites?
       # puts "nesting_options unused: #{nesting_options}"
       # Interpret the nesting_options to remove this patch
 
@@ -180,7 +189,7 @@ class JsonldGenerator
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/mainEntityOfPage'), build_uri(s[:value],'WebPage')]
         graph << [build_uri(s[:value], 'WebPage'), RDF.type, RDF::URI('http://schema.org/WebPage')]
         graph << [build_uri(s[:value], 'WebPage'), RDF::URI('http://schema.org/inLanguage'), s[:language]] if s[:language].present?
-        graph << [build_uri(s[:value], 'WebPage'), RDF::URI('http://schema.org/lastReviewed'), s["cache_refreshed"]] if s["cache_refreshed"].present?
+        graph << [build_uri(s[:value], 'WebPage'), RDF::URI('http://schema.org/lastReviewed'), RDF::Literal::DateTime.new(s["cache_refreshed"])] if s["cache_refreshed"].present?
         graph << [build_uri(s[:value], 'WebPage'), RDF::URI(s[:predicate]), s[:value]]
       ## TEMPORARY PATCH  END #########
 
