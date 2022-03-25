@@ -25,7 +25,7 @@ Last 24 hrs:  <%= @statements_errors %> errors
   <tbody>
     <% @websites.each do |website| %>
       <tr>
-        <td><%= website.name %></td>
+        <td><%= link_to  website.name, website %></td>
         <td><%= website.seedurl %></td>
          <td><%= website.default_language %></td>
         <td><%= website.schedule_every_days %></td>

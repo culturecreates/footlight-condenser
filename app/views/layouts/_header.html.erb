@@ -1,16 +1,17 @@
 <% @website ||=  params[:seedurl].present? &&  params[:seedurl] != "all" ? Website.where(seedurl: params[:seedurl]).first : list_of_websites.first %>
-<%= link_to "all websites", websites_path %> |
+<%= link_to "all websites", websites_path %> >
 <%
 =begin%>
  <%= select_tag "filter", options_from_collection_for_select(list_of_websites, "id", "seedurl", @website.id ||= 1) %>  
 <%
 =end%>
-<%= link_to "website", website_path(@website.id) if @website.id.present? %> |
+<b><%= link_to @website.seedurl, website_path(@website.id) if @website.id.present? %></b> |
 <%= link_to "webpages", webpages_path %> |
 <%= link_to "sources", sources_path %> |
 <%= link_to "events", events_websites_path(seedurl:  @website.seedurl) %> |
 <%= link_to "places", places_path(seedurl:  @website.seedurl) %> |
-<%= link_to "statements", statements_path %> ||
+<%= link_to "statements", statements_path %> |
+<%= link_to "console", "#{get_console_url_per_environment}/events?seedurl=#{cookies[:seedurl]}" %> ||
 <%= link_to "properties", properties_path %> |
 <%= link_to "classes", rdfs_classes_path %> |
 <%= link_to "exceptions", search_exceptions_path %> |
