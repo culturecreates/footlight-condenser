@@ -21,7 +21,6 @@ Property.create!(label:  "Location", value_datatype: "xsd:anyURI", rdfs_class_id
 Property.create!(label:  "Organized by", value_datatype: "xsd:anyURI", rdfs_class_id: 1, expected_class: "Organization", uri: "http://schema.org/organizer")
 Property.create!(label:  "Time", value_datatype: "xsd:time", rdfs_class_id: 1, uri: "")
 Property.create!(label:  "Duration", rdfs_class_id: 1, value_datatype: "xsd:duration", uri: "http://schema.org/Duration")
-Property.create!(label:  "Tickets link", rdfs_class_id: 1, uri: "http://schema.org/offer:url")
 Property.create!(label:  "Webpage link", rdfs_class_id: 1, uri: "http://schema.org/url")
 Property.create!(label:  "Produced by",  value_datatype: "xsd:anyURI",rdfs_class_id: 1, expected_class: "Organization", uri: "http://schema.org/composer")
 Property.create!(label:  "Performed by", value_datatype: "xsd:anyURI", rdfs_class_id: 1, expected_class: "Organization", uri: "http://schema.org/performer")

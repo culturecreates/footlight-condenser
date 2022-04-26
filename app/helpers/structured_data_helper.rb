@@ -37,16 +37,6 @@ module StructuredDataHelper
             duration_array.each do |d|
               _jsonld["duration"] << d if d[0..1] == "PT" #needs to be in ISO8601 duration syntax to avoid adding "Duration not available"
             end
-          elsif prop == "offer:url"
-            add_offer _jsonld, "url", statement.cache
-          elsif prop == "offer:price"
-            add_offer _jsonld, "price", statement.cache
-          elsif prop == "CreativeWork:keywords"
-            add_keywords _jsonld, statement.cache
-          elsif prop == "CreativeWork:video"
-            add_video _jsonld, statement.cache
-          elsif prop == "performer:url"
-            add_performer _jsonld, "url", statement.cache
           else
             if prop == "name"
               @creativework_name = statement.cache
@@ -140,18 +130,8 @@ module StructuredDataHelper
                 _jsonld["duration"] << d 
               end
             end
-          elsif prop == "offer:url"
-            add_offer _jsonld, "url", statement.cache
           elsif prop == "price"
             add_offer _jsonld, "price", statement.cache
-          elsif prop == "CreativeWork:keywords"
-            add_keywords _jsonld, statement.cache
-          elsif prop == "CreativeWork:video"
-            add_video _jsonld, statement.cache
-          elsif prop == "performer:url"
-            # Added 15 NOV 2020
-            # skip because performer is being skipped
-            # add_performer _jsonld, "url", statement.cache
           else
             if prop == "name" || prop == "description"
               prop = "#{prop}_#{language}"
