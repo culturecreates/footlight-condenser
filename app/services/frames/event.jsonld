@@ -16,6 +16,7 @@
     "eventStatus":{},
     "eventAttendanceMode":{},
     "image":{},
+    "workPerformed":{},
     "location": {
         "@type":["Place", "VirtualLocation"],
         "@explicit": true,
