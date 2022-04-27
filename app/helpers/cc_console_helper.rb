@@ -4,7 +4,7 @@ module CcConsoleHelper
         if Rails.env.development?  || Rails.env.test?
             "http://localhost:3001"
         else
-            "https://console.artsdata.ca"
+            "https://console.footlight.io"
         end
     end
 

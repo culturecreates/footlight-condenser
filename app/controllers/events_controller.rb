@@ -134,7 +134,7 @@ class EventsController < ApplicationController
     end_date =  if valid_date?(end_date_input)
       Date.parse(end_date_input)
     else
-      Time.now.next_year + 6.months
+      Time.now + 5.years
     end 
     return [start_date..end_date]
   end
