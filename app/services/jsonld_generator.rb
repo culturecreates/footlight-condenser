@@ -156,7 +156,7 @@ class JsonldGenerator
       if s['cache_changed']
         observation_uri = build_uri(subject,"Observation_#{s[:label]}".gsub(" ","-"))
         graph << [observation_uri, RDF.type, RDF::URI('http://schema.org/Observation')]
-        graph << [observation_uri, RDF::URI('http://schema.org/observedNode'), subject]
+        graph << [observation_uri, RDF::URI('http://schema.org/observedNode'), RDF::URI(subject)]
         graph << [observation_uri, RDF::URI('http://schema.org/measuredProperty'), RDF::URI(s[:predicate])]
         graph << [observation_uri, RDF::URI('http://schema.org/observationDate'), RDF::Literal::DateTime.new(s["cache_changed"])]
         graph << [observation_uri, RDF::URI('http://schema.org/name'), RDF::Literal("#{s[:label]} property changed")]
