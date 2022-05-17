@@ -15,6 +15,30 @@ test "process_algorithm xpath" do
     assert_equal expected, process_algorithm(algorithm: "xpath=//title", url: "http://culturecreates.com")
   end
 end
+test "process_algorithm if_xpath continue" do
+  expected = "http://culturecreates.com"
+  VCR.use_cassette('StatementsHelper:culturecreates.com') do
+    assert_equal expected, process_algorithm(algorithm: "if_xpath=//title;ruby=$url", url: "http://culturecreates.com")
+  end
+end
+test "process_algorithm if_xpath break" do
+  expected = []
+  VCR.use_cassette('StatementsHelper:culturecreates.com') do
+    assert_equal expected, process_algorithm(algorithm: "if_xpath=//nothing;ruby=$url", url: "http://culturecreates.com")
+  end
+end
+test "process_algorithm unless_xpath break" do
+  expected = ["Culture Creates | Digital knowledge management for the arts"]
+  VCR.use_cassette('StatementsHelper:culturecreates.com') do
+    assert_equal expected, process_algorithm(algorithm: "unless_xpath=//title;ruby=$url", url: "http://culturecreates.com")
+  end
+end
+test "process_algorithm unless_xpath continue" do
+  expected = "http://culturecreates.com"
+  VCR.use_cassette('StatementsHelper:culturecreates.com') do
+    assert_equal expected, process_algorithm(algorithm: "unless_xpath=//nothing;ruby=$url", url: "http://culturecreates.com")
+  end
+end
 test "process_algorithm url and xpath" do
   expected = ["ArtsdataApi"]
   VCR.use_cassette('StatementsHelper:process_algorithm url and xpath') do

@@ -117,12 +117,18 @@ module StatementsHelper
             page ||= Nokogiri::HTML(html)
             page_data = page.xpath(algo)
             page_data.each { |d| results_list << sanitize(d.to_s, tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href]) }
-          when 'if_xpath' # ok
+          when 'if_xpath' # continue if xpath resolves
             html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
             page ||= Nokogiri::HTML(html)
             page_data = page.xpath(algo)
             break if page_data.blank?
             page_data.each { |d| results_list << d.text }
+          when 'unless_xpath' # continue unless xpath resolves
+            html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+            page ||= Nokogiri::HTML(html)
+            page_data = page.xpath(algo)
+            page_data.each { |d| results_list << d.text }
+            break if page_data.present?
           when 'xpath' # test
             html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
             # TODO: If response type is json then load json, otherwise load html in next line
