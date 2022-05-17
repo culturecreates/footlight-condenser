@@ -175,6 +175,7 @@ module StatementsHelper
   def convert_datetime(scraped_data)
     logger.info("Formatting dateTime with: #{scraped_data}")
     data = []
+    scraped_data = Array(scraped_data)
     # check for time_zone
     time_zone = nil
     scraped_data.each do |t|
@@ -579,4 +580,8 @@ module StatementsHelper
 
     sources
   end
+
+  # def logger
+  #  @logger ||= Logger.new(STDOUT)
+  # end
 end

@@ -226,4 +226,18 @@ end
 
     assert_equal expected_output, process_linked_data_removal(statement_cache, "http://kg.artsdata.ca/resource/K10-16","Organization","Ballet Atlantique Canada")
   end
+
+
+  test "convert_datetime(scraped_data)" do
+    expected_output = ["2002-01-10"]
+    scraped_data = ["10-JAN-2002"]
+    assert_equal expected_output, convert_datetime(scraped_data)
+  end
+
+  test "convert_datetime with string input" do
+    expected_output = ["2002-01-10"]
+    scraped_data = "10-JAN-2002"
+    assert_equal expected_output, convert_datetime(scraped_data)
+  end
+
 end
