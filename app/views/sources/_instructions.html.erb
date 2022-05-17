@@ -4,7 +4,8 @@
 <% dsl = {
   "xpath": "Load xpath and add results to $array.",
     "xpath_sanitize": "Load xpath keeping white listed HTML (tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href])",
-  "if_xpath": "Load xpath and continue if load is not blank, otherwise break.",
+  "if_xpath": "if xpath loads something then continue, otherwise break.",
+   "unless_xpath": "unless xpath loads something then continue, otherwise break.",
     "ruby": "Execute ruby code using block $array.each {}",
   "css": "Load css classes and add results to $array.",
   "url": "Replace current page by scraping new url with wringer. url='http://example.com' or url=$url + '.json'",
