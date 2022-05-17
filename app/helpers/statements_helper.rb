@@ -127,7 +127,6 @@ module StatementsHelper
             html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
             page ||= Nokogiri::HTML(html)
             page_data = page.xpath(algo)
-            page_data.each { |d| results_list << d.text }
             break if page_data.present?
           when 'xpath' # test
             html ||= agent.get_file(use_wringer(url, render_js, scrape_options))

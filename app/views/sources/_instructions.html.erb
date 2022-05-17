@@ -3,14 +3,13 @@
 <hr>
 <% dsl = {
   "xpath": "Load xpath and add results to $array.",
-    "xpath_sanitize": "Load xpath keeping white listed HTML (tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href])",
-  "if_xpath": "if xpath loads something then continue, otherwise break.",
-   "unless_xpath": "unless xpath loads something then continue, otherwise break.",
-    "ruby": "Execute ruby code using block $array.each {}",
+  "xpath_sanitize": "Load xpath keeping white listed HTML (tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href])",
+  "if_xpath": "if xpath loads something then continue, otherwise break. When continues the result is added to $array.",
+  "unless_xpath": "unless xpath loads something then continue, otherwise break. In both cases nothing is added to $array.",
+  "ruby": "Execute ruby code using block $array.each {}",
   "css": "Load css classes and add results to $array.",
   "url": "Replace current page by scraping new url with wringer. url='http://example.com' or url=$url + '.json'",
   "renderjs_url": "FORCE Render JS -- replace current page by scraping new url with wringer",
-  
   "json_url": "Load JSON from URL keeping all HTML codes. json_url=$url + '.json';json=$json['description'] ",
   "post_url": "Replace current page data by scraping new url with wringer using POST using format url='http://example.com?param_for_post=",
   "api": "Call API without going through wringer",

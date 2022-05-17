@@ -16,27 +16,27 @@ test "process_algorithm xpath" do
   end
 end
 test "process_algorithm if_xpath continue" do
-  expected = "http://culturecreates.com"
+  expected = ["Culture Creates | Digital knowledge management for the arts", "Arts metadata compatible with an AI-powered world"]
   VCR.use_cassette('StatementsHelper:culturecreates.com') do
-    assert_equal expected, process_algorithm(algorithm: "if_xpath=//title;ruby=$url", url: "http://culturecreates.com")
+    assert_equal expected, process_algorithm(algorithm: "if_xpath=//title;xpath=(//h1)[1]", url: "http://culturecreates.com")
   end
 end
 test "process_algorithm if_xpath break" do
   expected = []
   VCR.use_cassette('StatementsHelper:culturecreates.com') do
-    assert_equal expected, process_algorithm(algorithm: "if_xpath=//nothing;ruby=$url", url: "http://culturecreates.com")
+    assert_equal expected, process_algorithm(algorithm: "if_xpath=//nothing;xpath=(//h1)[1]", url: "http://culturecreates.com")
   end
 end
 test "process_algorithm unless_xpath break" do
-  expected = ["Culture Creates | Digital knowledge management for the arts"]
+  expected = []
   VCR.use_cassette('StatementsHelper:culturecreates.com') do
-    assert_equal expected, process_algorithm(algorithm: "unless_xpath=//title;ruby=$url", url: "http://culturecreates.com")
+    assert_equal expected, process_algorithm(algorithm: "unless_xpath=//title;xpath=(//h1)[1]", url: "http://culturecreates.com")
   end
 end
 test "process_algorithm unless_xpath continue" do
-  expected = "http://culturecreates.com"
+  expected = ["Arts metadata compatible with an AI-powered world"]
   VCR.use_cassette('StatementsHelper:culturecreates.com') do
-    assert_equal expected, process_algorithm(algorithm: "unless_xpath=//nothing;ruby=$url", url: "http://culturecreates.com")
+    assert_equal expected, process_algorithm(algorithm: "unless_xpath=//nothing;xpath=(//h1)[1]", url: "http://culturecreates.com")
   end
 end
 test "process_algorithm url and xpath" do
