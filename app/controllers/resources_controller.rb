@@ -13,7 +13,7 @@ class ResourcesController < ApplicationController
   #GET /resources/:rdf_uri
   def show
     # get resource by rdf_uri and all statements for all related webpages
-    @resource = Resource.new( params[:rdf_uri])
+    @resource = Resource.new(params[:rdf_uri])
     @statement_keys =  @resource.statements.keys.sort
   end
 
