@@ -13,6 +13,41 @@ class Resource
     @rdfs_class
   end
 
+  # Create a resouces with dummy webpage (uri) and statements
+  # statements shape: { name: {value: "my name", language: "en" }}
+  def save(new_statements = {})
+    page = create_webpage_uri
+    sources = page.website.sources
+    sources.each do |s|
+      puts "source #{s.property.inspect}"
+    end
+    # For each statements loop
+    new_statements.each do |stat_name, stat|
+      prop = Property.where(label: stat_name.to_s.titleize, rdfs_class: page.rdfs_class).first
+      puts "prop #{prop.inspect}"
+      src = sources.where(language: stat[:language], property: prop)
+      if src.count > 0
+        stat = Statement.new(status: "ok", manual: true, selected_individual: true, source: src.first, webpage: page, cache: stat[:value])
+        stat.save 
+        puts "saved #{stat.inspect}"
+      else
+        puts "no source for prop #{prop.inspect}"
+      end
+    end
+
+  end
+
+  # Create a Webpage using rdfs_class, rdf_uri
+  def create_webpage_uri 
+    page = Webpage.new
+    page.website = Website.where(seedurl: @seedurl).first
+    page.rdf_uri =  @rdf_uri
+    page.rdfs_class = RdfsClass.where(name: @rdfs_class).first
+    page.url = @rdf_uri
+    page.save
+    return page
+  end
+
 
   # get all resource statements adjusted for API with nested alternatives
   def statements

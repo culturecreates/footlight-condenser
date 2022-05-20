@@ -32,6 +32,10 @@ Rails.application.routes.draw do
       to: "resources#destroy",
       as: :destroy_resources
 
+  post 'resources',
+      to: "resources#create_resource",
+      as: :create_resource
+
   patch 'resources/:rdf_uri/reviewed_all',
       to: "resources#reviewed_all",
       as: :reviewed_all_resources

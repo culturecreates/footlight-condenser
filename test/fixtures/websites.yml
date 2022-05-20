@@ -24,3 +24,7 @@ four:
   last_refresh: <%= Time.now - 2.days %>
   schedule_time: <%= Time.now + 10.minutes %>
   schedule_every_days: 1
+
+musiconmain:
+  name: test musiconmain-ca
+  seedurl: musiconmain-ca

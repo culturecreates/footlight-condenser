@@ -7,6 +7,7 @@ class ResourcesController < ApplicationController
     @resources["event"] = helpers.get_uris params[:seedurl], "Event"
     @resources["place"] =  helpers.get_uris params[:seedurl], "Place"
     @resources["organization"] =  helpers.get_uris params[:seedurl], "Organisation"
+    @resources["person"] =  helpers.get_uris params[:seedurl], "Person"
     @resources["resource_list"] =  helpers.get_uris params[:seedurl], "ResourceList"
   end
 
@@ -15,6 +16,24 @@ class ResourcesController < ApplicationController
     # get resource by rdf_uri and all statements for all related webpages
     @resource = Resource.new(params[:rdf_uri])
     @statement_keys =  @resource.statements.keys.sort
+  end
+
+  #POST /resources.json
+  # Create a new resouces with URI (fake webpage) and statements
+  # options: 
+  # rdfs_class:"Place", seedurl: "fass-ca",
+  # statements: { "name"=> [{value: "name string", language: "en"}], "address"=>[{value: "address string"}],"same_as"=>[{value: "same as string"}]
+  def create_resource
+    minted_uri = "footlight:#{SecureRandom.uuid}" 
+    @resource = Resource.new(minted_uri)
+    @resource.rdfs_class = params[:rdfs_class]
+    @resource.seedurl = params[:seedurl]
+
+    if @resource.save(params[:statements])
+      render :show, status: :created
+    else
+      render json: @resource.errors, status: :unprocessable_entity
+    end
   end
 
   #GET /resources/:rdf_uri/webpage_urls
@@ -33,7 +52,7 @@ class ResourcesController < ApplicationController
       webpage.destroy
     end
     respond_to do |format|
-      format.html { redirect_to "/websites/events", notice: 'Event was successfully destroyed.' }
+      format.html { redirect_to "/websites/events", notice: 'Resource was successfully destroyed.' }
       format.json { head :no_content }
     end
   end
