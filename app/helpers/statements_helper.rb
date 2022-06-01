@@ -281,7 +281,7 @@ module StatementsHelper
     if str.scan(/\b(Dance|Danse)/i).present?
       result << ['DanceEvent', 'http://schema.org/DanceEvent']
     end
-    if str.scan(/\b(Music|Musique)/i).present?
+    if str.scan(/\b(Music|Musique|Chanson)/i).present?
       result <<  ['MusicEvent', 'http://schema.org/MusicEvent']
     end
     if str.scan(/\b(Theatre|Théâtre)/i).present?
