@@ -27,12 +27,7 @@ class ArtsdataGraph
     @@graph  << [RDF::URI("http://schema.org/EventPostponed"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
     @@graph  << [RDF::URI("http://schema.org/EventMovedOnline"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
     @@graph  << [RDF::URI("http://schema.org/EventCancelled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
-  
-    ## Instances of EventAttendanceModeEnumeration 
-    @@graph  << [RDF::URI("http://schema.org/OfflineEventAttendanceMode"), RDF.type, RDF::URI("http://schema.org/EventAttendanceModeEnumeration")] 
-    @@graph  << [RDF::URI("http://schema.org/OnlineEventAttendanceMode"), RDF.type, RDF::URI("http://schema.org/EventAttendanceModeEnumeration")] 
-    @@graph  << [RDF::URI("http://schema.org/MixedEventAttendanceMode"), RDF.type, RDF::URI("http://schema.org/EventAttendanceModeEnumeration")] 
-  
+
     ## Load local entities (People, Places, Organizations) entered manually into Footlight
     local_graph = LocalGraphGenerator.graph_all
     # puts "Local graph: #{local_graph.dump(:ntriples)}"

@@ -173,10 +173,6 @@ class JsonldGenerator
         s[:value].make_into_array.each do |url|
           graph << [build_uri(subject,'Offer'), RDF::URI(s[:predicate]), RDF::Literal(url)]
         end
-      elsif s[:rdfs_class_name] == 'EventStatus'
-        graph << [RDF::URI(subject), RDF::URI('http://schema.org/eventStatus'), build_uri(subject,'EventStatus')]
-        graph << [build_uri(subject, 'EventStatus'), RDF.type, RDF::URI('http://schema.org/EventStatusType')]
-        graph << [build_uri(subject, 'EventStatus'), RDF::URI(s[:predicate]), RDF::URI()]
       elsif s[:rdfs_class_name] == 'VirtualLocation'
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/location'), build_uri(subject,'VirtualLocation')]
         graph << [build_uri(subject, 'VirtualLocation'), RDF.type, RDF::URI('http://schema.org/VirtualLocation')]

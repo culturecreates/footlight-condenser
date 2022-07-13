@@ -2,7 +2,8 @@
     "@context":
         {
             "@vocab": "http://schema.org/",
-            "additionalType": { "@id":"additionalType", "@type":"@id"}
+            "additionalType": { "@id":"additionalType", "@type":"@id"},
+            "eventAttendanceMode": { "@id":"eventAttendanceMode", "@type":"@id"}
         },
     "@type": "Event",
     "@explicit": true,
