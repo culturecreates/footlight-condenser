@@ -69,6 +69,13 @@ class StatementsController < ApplicationController
   def show
   end
 
+  # GET /statements/search_name.json?str=expected_class=
+  def search_name
+
+    uris = helpers.search_everywhere(params["str"], params["expected_class"])
+    render json: uris
+  end
+
   # GET /statements/new
   def new
     @statement = Statement.new

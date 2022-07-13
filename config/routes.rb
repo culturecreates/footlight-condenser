@@ -48,7 +48,8 @@ Rails.application.routes.draw do
     end
     collection do
       get 'webpage' # Internal Webpages Only
-      patch 'refresh_webpage', 'refresh_rdf_uri' # , 'review_all', 'refresh_all' # Internal Webpages Only
+      get 'search_name' # When manually adding links in Console
+      patch 'refresh_webpage', 'refresh_rdf_uri' #  'review_all', 'refresh_all' # Internal Webpages Only
       post 'batch_update' # Internal Webpages Only
     end
   end

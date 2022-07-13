@@ -312,9 +312,6 @@ module StatementsHelper
 
   def search_for_uri(uri_string, property_obj, current_webpage)
     # data structure of uri = ['name', 'rdfs_class', ['name', 'uri'], ['name','uri'],...]
-    uri_string = uri_string.to_s.squish
-
-    uris = [uri_string]
     # use property object to determine class
     rdfs_class = property_obj.expected_class
 
@@ -324,6 +321,19 @@ module StatementsHelper
       # Patch: for now take first expected class type only
       rdfs_class = rdfs_class.split(',').first
     end
+    uris = search_everywhere(uri_string,rdfs_class)
+    
+    # DO not add the URI of the current URI (can happen when adding sameAs)
+    uris[2..-1].select { |uri| uri unless uri[1] == current_webpage.rdf_uri }
+    
+    uris
+  end
+
+  # Used when refreshing and also when manually adding in Console
+  def search_everywhere(uri_string,rdfs_class)
+
+    uri_string = uri_string.to_s.squish
+    uris = [uri_string]
     uris << rdfs_class
 
     #############################
@@ -363,7 +373,7 @@ module StatementsHelper
       local_results[:data].each do |uri|
         if uri
           http_uri = uri[1].gsub('adr:', 'http://kg.artsdata.ca/resource/')
-          uris << [uri[0], http_uri] if current_webpage.rdf_uri != uri[1]  # DO not add the URI of the current URI (can happen when adding sameAs)
+          uris << [uri[0], http_uri]
         end
       end
     end
