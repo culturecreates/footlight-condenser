@@ -74,7 +74,9 @@ class Statement < ApplicationRecord
 
     @property_label ||= source.property.label
     if ['Performed by','Organized by'].include?(@property_label)
-      self.manual = true
+      if changed_attributes != {"manual"=>true} # Only change allowed is to remove manual setting
+        self.manual = true
+      end
     end
   end
 
