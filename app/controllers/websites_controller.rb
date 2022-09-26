@@ -10,7 +10,7 @@ class WebsitesController < ApplicationController
     @events = []
     event_uris = helpers.get_uris params[:seedurl], "Event"
     event_uris.each do |event_uri|
-      @events << {rdf_uri: event_uri }
+      @events << {rdf_uri: event_uri[:uri] }
     end
     cookies[:seedurl] = params[:seedurl]
   end
@@ -18,9 +18,9 @@ class WebsitesController < ApplicationController
   # GET /webpages/places.json?seedurl=
   def places
     @places = []
-    uris = helpers.get_uris params[:seedurl], "Place"
-    uris.each do |uri|
-      @places << {rdf_uri: uri}
+    place_uris = helpers.get_uris params[:seedurl], "Place"
+    place_uris.each do |place_uri|
+      @places << {rdf_uri: place_uri[:uri]}
     end
   end
 

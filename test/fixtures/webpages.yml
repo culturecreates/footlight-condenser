@@ -50,3 +50,10 @@ seven:
   rdf_uri: adr:seven
   rdfs_class: place
   website: two
+
+eight:
+  url: http://example.com/eight
+  language: en
+  rdf_uri: adr:eight
+  rdfs_class: person
+  website: musiconmain

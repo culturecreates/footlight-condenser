@@ -64,3 +64,12 @@ six:
   cache_changed: 2018-07-30 16:46:00 UTC
   source: thirteen
   webpage: seven
+
+seven:
+  cache: 'My Name'
+  status: ok
+  status_origin: StatusOrigin
+  cache_refreshed: 2018-07-30 16:46:00 UTC
+  cache_changed: 2018-07-30 16:46:00 UTC
+  source: fourteen
+  webpage: eight

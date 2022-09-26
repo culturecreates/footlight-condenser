@@ -1,6 +1,6 @@
 
 class EventsController < ApplicationController
-  include ResourcesHelper # for get_uris method
+  include ResourcesHelper
    
   ##
   # GET statements across a website for a property, or list of properties

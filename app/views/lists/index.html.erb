@@ -3,15 +3,15 @@
 <br>
 <table>
 
-<% @uris.each do |uri| %>
+<% @resource_lists.each do |resource_list| %>
 <tr>
 <td>
-    <%= uri %> 
+    <%= resource_list %> 
 </td>
 <td>
-     <%= link_to "Statements",  statements_path(rdf_uri: uri) %> | 
+     <%= link_to "Statements",  statements_path(rdf_uri: resource_list["uri"]) %> | 
      Batch job: 
-    <%= link_to "add webpages",  add_webpages_batch_jobs_path(rdf_uri: uri) %> 
+    <%= link_to "add webpages",  add_webpages_batch_jobs_path(rdf_uri:  resource_list["uri"]) %> 
  </td>
  </tr>  
    

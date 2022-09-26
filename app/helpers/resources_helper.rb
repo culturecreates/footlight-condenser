@@ -7,6 +7,8 @@ module ResourcesHelper
     if !website.nil?
       rdfs_class = RdfsClass.where(name: rdfs_class_name).first
       uri_list = website.webpages.where(rdfs_class: rdfs_class).pluck(:rdf_uri).uniq
+      name_properties = Property.where(label: "Name")
+      uri_list.map!{ |uri| {uri: uri, name: Statement.includes(:source).where(webpage: Webpage.where(rdf_uri: uri).first, sources: { property: name_properties }).first&.cache}}
     end
     return uri_list
   end
