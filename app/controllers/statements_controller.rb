@@ -137,16 +137,16 @@ class StatementsController < ApplicationController
       end
       redirect_to statements_path(request.parameters.except(:authenticity_token))
     end
-    if params[:commit] == "Refresh All"
+    if params[:commit] == "Refresh all listed"
       statements = build_query
       error_list = []
       statements.each do |stat|
         helpers.refresh_statement_helper(stat)
         error_list << {"Statement id #{stat.id}" => stat.errors.messages} if stat.errors.any?
       end
-      redirect_to statements_path(request.parameters.except(:authenticity_token), notice: "Statements refreshed. #{error_list}") 
+      redirect_to statements_path(request.parameters.except(:authenticity_token)), notice: "Statements refreshed. #{error_list}"
     end
-    if params[:commit] == "Review All" 
+    if params[:commit] == "Review all listed" 
       statements = build_query
       status_origin = "condenser-admin-review-all"
       statements.each do |statement|
@@ -156,7 +156,7 @@ class StatementsController < ApplicationController
         statement.status_origin = status_origin
         statement.save
       end
-      redirect_to statements_path(request.parameters.except(:authenticity_token),  notice: 'Statements successfully reviewed.' )
+      redirect_to statements_path(request.parameters.except(:authenticity_token)), notice: 'Statements successfully reviewed.'
     end
 
   end
