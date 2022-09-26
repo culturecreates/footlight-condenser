@@ -345,14 +345,16 @@ class StatementsController < ApplicationController
   end
 
   def extract_property_ids rdfs_class_name, property_ids
-    # recursive function to traverse tree of properties and add properties of sub-classes with data type of Blank Node or "bnode"
+    # recursive function to traverse tree of properties and add properties of sub-classes
+    # with data type of Blank Node or "bnode"
     class_list = rdfs_class_name.split(',')
     class_list.each do |c|
       rdfs_class = RdfsClass.where(name: c).first
       if rdfs_class
         rdfs_class.properties.each do |property|
           property_ids << property.id
-          if ((property.value_datatype == "bnode" || property.value_datatype == "xsd:anyURI") && property.expected_class != rdfs_class_name)
+         ### TODO: is skipping xsd:uri ok? if ((property.value_datatype == "bnode" || property.value_datatype == "xsd:anyURI") && property.expected_class != rdfs_class_name)
+          if (property.value_datatype == "bnode"  && property.expected_class != rdfs_class_name)
             extract_property_ids property.expected_class, property_ids
           end
         end
