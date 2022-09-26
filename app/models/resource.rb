@@ -37,11 +37,13 @@ class Resource
 
   # Create a Webpage using rdfs_class, rdf_uri
   def create_webpage_uri 
+    website = Website.where(seedurl: @seedurl).first
     page = Webpage.new
-    page.website = Website.where(seedurl: @seedurl).first
+    page.website = website
     page.rdf_uri =  @rdf_uri
     page.rdfs_class = RdfsClass.where(name: @rdfs_class).first
     page.url = @rdf_uri
+    page.language = website.default_language
     page.save
     return page
   end
