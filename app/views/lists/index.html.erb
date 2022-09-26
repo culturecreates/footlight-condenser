@@ -9,9 +9,9 @@
     <%= resource_list %> 
 </td>
 <td>
-     <%= link_to "Statements",  statements_path(rdf_uri: resource_list["uri"]) %> | 
+     <%= link_to "Statements",  statements_path(rdf_uri: resource_list[:uri]) %> | 
      Batch job: 
-    <%= link_to "add webpages",  add_webpages_batch_jobs_path(rdf_uri:  resource_list["uri"]) %> 
+    <%= link_to "add webpages",  add_webpages_batch_jobs_path(rdf_uri:  resource_list[:uri]) %> 
  </td>
  </tr>  
    
