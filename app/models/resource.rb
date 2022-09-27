@@ -17,22 +17,22 @@ class Resource
   # statements shape: { name: {value: "my name", language: "en" }}
   # if statements fail because source missing, then delete fake webpage
   def save(new_statements = {})
-    @webpages = create_webpage_uri
-    sources = @webpages.website.sources
+    webpage = create_webpage_uri
+    sources = webpage.website.sources
   
     # For each statements loop
     webpage_has_atleast_one_statement = false
     new_statements.each do |stat_name, stat|
-      prop = Property.where(label: stat_name.to_s.titleize, rdfs_class: @webpages.rdfs_class).first
+      prop = Property.where(label: stat_name.to_s.titleize, rdfs_class: webpage.rdfs_class).first
       
       src = sources.where(language: stat[:language], property: prop)
       if src.count > 0
-        stat = Statement.new(status: "ok", manual: true, selected_individual: true, source: src.first, webpage: page, cache: stat[:value])
+        stat = Statement.new(status: "ok", manual: true, selected_individual: true, source: src.first, webpage: webpage, cache: stat[:value])
         if stat.save 
           webpage_has_atleast_one_statement = true
         end
       else
-        Rails.logger.error "No source exists. Could not create statement for prop #{stat_name} #{stat.inspect} for page #{@webpages.inspect}."
+        Rails.logger.error "No source exists. Could not create statement for prop #{stat_name} #{stat.inspect} for page #{webpage.inspect}."
       end
     end
     if !webpage_has_atleast_one_statement
