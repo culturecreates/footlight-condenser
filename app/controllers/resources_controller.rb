@@ -19,7 +19,7 @@ class ResourcesController < ApplicationController
   end
 
   #POST /resources.json
-  # Create a new resouces with URI (fake webpage) and statements
+  # Create a new resouces with URI (fake webpage) and statements.
   # options: 
   # rdfs_class:"Place", seedurl: "fass-ca",
   # statements: { "name"=> [{value: "name string", language: "en"}], "address"=>[{value: "address string"}],"same_as"=>[{value: "same as string"}]
@@ -28,10 +28,11 @@ class ResourcesController < ApplicationController
     @resource = Resource.new(minted_uri)
     @resource.rdfs_class = params[:rdfs_class]
     @resource.seedurl = params[:seedurl]
-
     if @resource.save(params[:statements])
       render :show, status: :created
+
     else
+      # failed to create resource, so delete fake webpage
       render json: @resource.errors, status: :unprocessable_entity
     end
   end

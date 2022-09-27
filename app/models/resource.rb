@@ -1,7 +1,7 @@
 class Resource 
   include StatementsHelper
   include ResourcesHelper
-  attr_accessor :rdfs_class, :seedurl, :archive_date, :webpages, :rdf_uri
+  attr_accessor :rdfs_class, :seedurl, :archive_date, :webpages, :rdf_uri, :errors
 
   def initialize(rdf_uri, **extras)
     @rdf_uri = rdf_uri
@@ -15,24 +15,32 @@ class Resource
 
   # Create a resouces with dummy webpage (uri) and statements
   # statements shape: { name: {value: "my name", language: "en" }}
+  # if statements fail because source missing, then delete fake webpage
   def save(new_statements = {})
-    page = create_webpage_uri
-    sources = page.website.sources
+    @webpages = create_webpage_uri
+    sources = @webpages.website.sources
   
     # For each statements loop
+    webpage_has_atleast_one_statement = false
     new_statements.each do |stat_name, stat|
-      prop = Property.where(label: stat_name.to_s.titleize, rdfs_class: page.rdfs_class).first
+      prop = Property.where(label: stat_name.to_s.titleize, rdfs_class: @webpages.rdfs_class).first
       
       src = sources.where(language: stat[:language], property: prop)
       if src.count > 0
         stat = Statement.new(status: "ok", manual: true, selected_individual: true, source: src.first, webpage: page, cache: stat[:value])
-        stat.save 
-      
+        if stat.save 
+          webpage_has_atleast_one_statement = true
+        end
       else
-        puts "no source for prop #{prop.inspect}"
+        Rails.logger.error "No source exists. Could not create statement for prop #{stat_name} #{stat.inspect} for page #{@webpages.inspect}."
       end
     end
-
+    if !webpage_has_atleast_one_statement
+      delete_webpage
+      @errors = { error: "No sources exist for any property. Webpage deleted." }
+      return false
+    end
+    true
   end
 
   # Create a Webpage using rdfs_class, rdf_uri
@@ -46,6 +54,12 @@ class Resource
     page.language = website.default_language
     page.save
     return page
+  end
+
+  def delete_webpage
+    # used when a fake webpage is created when minted Footlight resources, but the resource had an error
+    @webpages.destroy
+    Rails.logger.info "Deleting webpage #{@webpages.inspect}"
   end
 
 
