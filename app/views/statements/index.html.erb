@@ -2,8 +2,10 @@
 
 <h1><%= @statements.count %> Statements</h1>
 <% if params[:rdf_uri].present? %>
-  <p> Showing statements for resource <%= params[:rdf_uri] %> <%=  link_to "Refresh URI", refresh_rdf_uri_statements_path(rdf_uri: params[:rdf_uri]), method: :patch %> | <%=  link_to "Crawl URI(1 hr cache)", refresh_rdf_uri_statements_path(rdf_uri: params[:rdf_uri], force_scrape_every_hrs: 1), method: :patch %> | <%= link_to "Console", "#{get_console_url_per_environment}/events/#{params[:rdf_uri]}" %>
-      </p>
+  <p> Showing statements for resource <%= params[:rdf_uri] %> <%=  link_to "Refresh URI", refresh_rdf_uri_statements_path(rdf_uri: params[:rdf_uri]), method: :patch %>
+    | <%=  link_to "Crawl URI(1 hr cache)", refresh_rdf_uri_statements_path(rdf_uri: params[:rdf_uri], force_scrape_every_hrs: 1), method: :patch %>
+   <% if params[:rdf_uri].starts_with? "adr:" %> |  <%= link_to "Console", "#{get_console_url_per_environment}/events/#{params[:rdf_uri]}" %> <% end %>
+  </p>
 <% elsif params[:seedurl] &&  params[:seedurl] != "all" %>
  <p> Showing statements for website <%= params[:seedurl] %> | <%= link_to "Console", "#{get_console_url_per_environment}/events?seedurl=#{params[:seedurl]}" %>
       </p>
