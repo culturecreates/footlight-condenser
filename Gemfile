@@ -78,3 +78,4 @@ gem 'scout_apm'  #used to monitor memory on Heroku
 
 gem 'aws-sdk-s3'
 gem 'sidekiq'
+gem 'rack-cors'

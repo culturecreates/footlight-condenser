@@ -28,6 +28,10 @@ Rails.application.routes.draw do
       to: "resources#show",
       as: :show_resources
 
+  get 'recon',
+      to: "resources#recon",
+      as: :recon_resources
+
   delete 'resources/:rdf_uri',
       to: "resources#destroy",
       as: :destroy_resources

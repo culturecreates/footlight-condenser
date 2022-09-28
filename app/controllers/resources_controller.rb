@@ -1,6 +1,17 @@
 class ResourcesController < ApplicationController
-    skip_before_action :verify_authenticity_token
-
+  def recon
+    params[:query]
+    params[:type]
+    hits = Statement.joins(source: :property)
+                    .where(status: ['ok','updated'])
+                    .where("lower(cache) LIKE ?", "%" + params[:query].downcase + "%")
+                    .where({ sources: { selected: true, properties: { label: ['Name','alternateName'], rdfs_class: RdfsClass
+                    .where(name: params[:type]) } }  })
+                    .pluck(:cache, :webpage_id)
+  
+    @response = { result: hits.map { |hit| {name: hit[0], id: Webpage.find_by(id: hit[1]).url.gsub("footlight:","")} } }
+    render json: @response, callback: params['callback']
+  end
 
   def index
     @resources = {}
