@@ -6,7 +6,7 @@ class ResourcesController < ApplicationController
     @resources = {}
     @resources["event"] = helpers.get_uris params[:seedurl], "Event"
     @resources["place"] =  helpers.get_uris params[:seedurl], "Place"
-    @resources["organization"] =  helpers.get_uris params[:seedurl], "Organisation"
+    @resources["organization"] =  helpers.get_uris params[:seedurl], "Organization"
     @resources["person"] =  helpers.get_uris params[:seedurl], "Person"
     @resources["resource_list"] =  helpers.get_uris params[:seedurl], "ResourceList"
   end
