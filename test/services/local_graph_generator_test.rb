@@ -8,7 +8,7 @@ class LocalGraphGeneratorTest < ActiveSupport::TestCase
   end
 
   test "generate all local graphs" do
-    expected = 7
+    expected = 14
     actual = LocalGraphGenerator.graph_all.count
     assert_equal expected, actual
   end
