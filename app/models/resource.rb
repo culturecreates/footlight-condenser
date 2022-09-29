@@ -36,7 +36,7 @@ class Resource
       end
     end
     if !webpage_has_atleast_one_statement
-      delete_webpage
+      delete_webpage(webpage)
       @errors = { error: "No sources exist for any property. Webpage deleted." }
       return false
     end
@@ -56,10 +56,10 @@ class Resource
     return page
   end
 
-  def delete_webpage
+  def delete_webpage(webpage)
     # used when a fake webpage is created when minted Footlight resources, but the resource had an error
-    @webpages.destroy
-    Rails.logger.info "Deleting webpage #{@webpages.inspect}"
+    webpage.destroy
+    Rails.logger.info "Deleting webpage #{webpage.inspect}"
   end
 
 
