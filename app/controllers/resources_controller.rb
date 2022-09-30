@@ -9,6 +9,7 @@ class ResourcesController < ApplicationController
                     .where("lower(cache) LIKE ?", "%" + params[:query].downcase + "%")
                     .where({ sources: { selected: true, properties: { label: ['Name','alternateName'], rdfs_class: RdfsClass
                     .where(name: params[:type]) } }  })
+                    .distinct
                     .pluck(:cache, :webpage_id)
   
     @response = { result: hits.map { |hit| {name: hit[0], id: Webpage.find_by(id: hit[1]).url.gsub("footlight:","")} } }
