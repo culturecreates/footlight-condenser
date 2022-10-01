@@ -7,13 +7,28 @@ class ResourcesController < ApplicationController
     hits = Statement.joins(source: :property)
                     .where(status: ['ok','updated'])
                     .where("lower(cache) LIKE ?", "%" + params[:query].downcase + "%")
-                    .where({ sources: { selected: true, properties: { label: ['Name','alternateName'], rdfs_class: RdfsClass
-                    .where(name: params[:type]) } }  })
+                    .where({ sources: { selected: true, properties: { label: ['Name','alternateName'], rdfs_class: RdfsClass.where(name: params[:type]) } }  })
                     .distinct
                     .pluck(:cache, :webpage_id)
   
-    @response = { result: hits.map { |hit| {name: hit[0], id: Webpage.find_by(id: hit[1]).url.gsub("footlight:","")} } }
+    @response = { result: hits.map { |hit| {
+      name: hit[0], 
+      description: Statement.joins(source: :property)
+                            .where( {webpage_id: hit[1], sources: { properties: { label: 'Disambiguating Description'}}} )
+                            .pluck(:cache), 
+      id: Webpage.find_by(id: hit[1]).url.gsub("footlight:","")} } }
+      puts @response.inspect
     render json: @response, callback: params['callback']
+  end
+
+  # GET /resource?uri={uri}
+  def uri
+    if params[:uri] 
+      @resource = Resource.new(params[:uri])
+      @statement_keys =  @resource.statements.keys.sort
+      render 'show'
+    end
+
   end
 
   def index
