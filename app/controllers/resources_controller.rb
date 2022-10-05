@@ -47,11 +47,12 @@ class ResourcesController < ApplicationController
     @statement_keys =  @resource.statements.keys.sort
   end
 
-  #POST /resources.json
+  # POST /resources.json
   # Create a new resouces with URI (fake webpage) and statements.
-  # options: 
-  # rdfs_class:"Place", seedurl: "fass-ca",
-  # statements: { "name"=> [{value: "name string", language: "en"}], "address"=>[{value: "address string"}],"same_as"=>[{value: "same as string"}]
+  # params: 
+  #   rdfs_class:"Place", 
+  #   seedurl: "fass-ca",
+  #   statements: { "name"=> [{value: "name string", language: "en"}], "address"=>[{value: "address string"}],"same_as"=>[{value: "same as string"}]
   def create_resource
     minted_uri = "footlight:#{SecureRandom.uuid}" 
     @resource = Resource.new(minted_uri)
@@ -66,7 +67,7 @@ class ResourcesController < ApplicationController
     end
   end
 
-  #GET /resources/:rdf_uri/webpage_urls
+  # GET /resources/:rdf_uri/webpage_urls
   def webpage_urls
     #this is used by Huginn to get the pages to rescrape based on upcoming event URIs
     if params[:rdf_uri]

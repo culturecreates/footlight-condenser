@@ -14,8 +14,8 @@ class Resource
   end
 
   # Create a resouces with dummy webpage (uri) and statements
-  # statements shape: { name: {value: "my name", language: "en" }}
-  # if statements fail because source missing, then delete fake webpage
+  # statements shape: { name: {value: "my name", language: "en" },  name: {value: "my name", language: "en", rdfs_class_name: "PostalAddress"}}
+  # if statements fail because source missing, then delete dummy webpages
   def save(new_statements = {})
     webpage = create_webpage_uri
     sources = webpage.website.sources
@@ -23,8 +23,15 @@ class Resource
     # For each statements loop
     webpage_has_atleast_one_statement = false
     new_statements.each do |stat_name, stat|
-      prop = Property.where(label: stat_name.to_s.titleize, rdfs_class: webpage.rdfs_class).first
-      
+      # determine the class of the property using the class passed with the property, or else use the webpage class.
+      prop_rdfs_class = if stat["rdfs_class_name"]
+                          RdfsClass.where(name: stat["rdfs_class_name"]).first
+                        else
+                          webpage.rdfs_class
+                        end
+      puts "prop_rdfs_class: #{prop_rdfs_class.inspect}"
+      prop = Property.where(label: stat_name.to_s.titleize, rdfs_class: prop_rdfs_class).first
+      puts "prop: #{prop.inspect}"
       src = sources.where(language: stat[:language], property: prop)
       if src.count > 0
         stat = Statement.new(status: "ok", manual: true, selected_individual: true, source: src.first, webpage: webpage, cache: stat[:value])
