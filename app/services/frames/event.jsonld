@@ -4,7 +4,7 @@
             "@vocab": "http://schema.org/",
             "additionalType": { "@id":"additionalType", "@type":"@id"},
             "eventAttendanceMode": { "@id":"eventAttendanceMode", "@type":"@id"},
-            "footlight":"http://console.footlight.io/resource/"
+            "footlight":"http://kg.footlight.io/resource/"
         },
     "@type": "Event",
     "@explicit": true,
