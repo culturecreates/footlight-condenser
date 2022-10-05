@@ -29,9 +29,7 @@ class Resource
                         else
                           webpage.rdfs_class
                         end
-      puts "prop_rdfs_class: #{prop_rdfs_class.inspect}"
       prop = Property.where(label: stat_name.to_s.titleize, rdfs_class: prop_rdfs_class).first
-      puts "prop: #{prop.inspect}"
       src = sources.where(language: stat[:language], property: prop)
       if src.count > 0
         stat = Statement.new(status: "ok", manual: true, selected_individual: true, source: src.first, webpage: webpage, cache: stat[:value])
