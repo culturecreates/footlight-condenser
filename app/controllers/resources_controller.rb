@@ -16,8 +16,8 @@ class ResourcesController < ApplicationController
       description: Statement.joins(source: :property)
                             .where( {webpage_id: hit[1], sources: { properties: { label: 'Disambiguating Description'}}} )
                             .pluck(:cache), 
-      id: Webpage.find_by(id: hit[1]).url.gsub("footlight:","")} } }
-      puts @response.inspect
+      id: Webpage.find_by(id: hit[1]).rdf_uri.gsub("footlight:","")} } }
+      puts "This is recon : #{@response.inspect}"
     render json: @response, callback: params['callback']
   end
 
