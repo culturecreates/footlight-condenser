@@ -97,24 +97,6 @@ end
     end
   end
 
-  # search_condenser
-  test "search_condenser: should search condenser for uris that match 100%" do
-    expected = {:data=>[["Statement Six Name", "adr:seven"]]}
-    actual = search_condenser("Statement Six Name", "Place")
-    assert_equal expected, actual
-  end
-
-  test "search_condenser: should search condenser for uris by matching name in substring" do
-    expected = {:data=>[["Statement Six Name", "adr:seven"]]}
-    actual = search_condenser("Show is at Statement Six Name", "Place")
-    assert_equal expected, actual
-  end
-
-  test "search_condenser: should search condenser for nowhere" do
-    expected = {data:[]}
-    actual = search_condenser("Show is at nowhere", "Place")
-    assert_equal expected, actual
-  end
 
   # french_to_english_month
   test "french_to_english_month: should covert french month mai to english" do

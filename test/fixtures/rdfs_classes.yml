@@ -17,3 +17,7 @@ person:
 
 url:
   name: Schema URL (http://schema.org/URL)
+
+organization:
+  name: Organization
+

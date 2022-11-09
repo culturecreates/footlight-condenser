@@ -73,3 +73,39 @@ seven:
   cache_changed: 2018-07-30 16:46:00 UTC
   source: fourteen
   webpage: eight
+
+eight:
+  cache: Amphitheatre Cogeco
+  status: updated
+  status_origin: MyString
+  cache_refreshed: 2018-07-30 16:46:00 UTC
+  cache_changed: 2018-07-30 16:46:00 UTC
+  source: fifteen
+  webpage: nine
+
+nine:
+  cache: Theatre C
+  status: updated
+  status_origin: MyString
+  cache_refreshed: 2018-07-30 16:46:00 UTC
+  cache_changed: 2018-07-30 16:46:00 UTC
+  source: fifteen
+  webpage: ten
+
+ten:
+  cache: Louise Antoinette
+  status: updated
+  status_origin: MyString
+  cache_refreshed: 2018-07-30 16:46:00 UTC
+  cache_changed: 2018-07-30 16:46:00 UTC
+  source: personNameSource
+  webpage: louiseAntoinettePerson
+
+eleven:
+  cache: Louise Antoinette Inc
+  status: updated
+  status_origin: MyString
+  cache_refreshed: 2018-07-30 16:46:00 UTC
+  cache_changed: 2018-07-30 16:46:00 UTC
+  source: organizationNameSource
+  webpage: louiseAntoinetteOrg

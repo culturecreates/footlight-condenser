@@ -63,3 +63,29 @@ fourteen:
   property: two
   website: musiconmain
 
+fifteen:
+  algorithm_value: Page with place name Cogeco
+  selected: true
+  selected_by: Gregory
+  language: en
+  render_js: false
+  property: two
+  website: two
+
+personNameSource:
+  algorithm_value: Event page with person name
+  selected: true
+  selected_by: Gregory
+  language: en
+  render_js: false
+  property: personName
+  website: two
+
+organizationNameSource:
+  algorithm_value: Event page with organization name
+  selected: true
+  selected_by: Gregory
+  language: en
+  render_js: false
+  property: organizationName
+  website: two

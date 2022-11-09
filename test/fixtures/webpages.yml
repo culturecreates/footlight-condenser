@@ -57,3 +57,31 @@ eight:
   rdf_uri: adr:eight
   rdfs_class: person
   website: musiconmain
+
+nine:
+  url: CogecoPlaceUrl
+  language: en
+  rdf_uri: adr:K11-1234
+  rdfs_class: place
+  website: two
+
+ten:
+  url: TheatreCPlaceUrl
+  language: en
+  rdf_uri: adr:K11-1234666
+  rdfs_class: place
+  website: two
+
+louiseAntoinettePerson:
+  url: http://sample.com/Louise-Antoinette
+  language: en
+  rdf_uri: adr:Louise-Antoinette
+  rdfs_class: person
+  website: two
+
+louiseAntoinetteOrg:
+  url: http://sample.com/Louise-Antoinette-inc
+  language: en
+  rdf_uri: adr:Louise-Antoinette-inc
+  rdfs_class: organization
+  website: two

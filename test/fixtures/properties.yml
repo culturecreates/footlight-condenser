@@ -90,3 +90,17 @@ AttendanceMode:
   uri: http://schema.org/eventAttendanceMode
   rdfs_class: one
   expected_class: URL
+
+personName:
+  label: Name
+  value_datatype: 
+  uri: http://schema.org/name
+  rdfs_class: person
+
+organizationName:
+  label: Name
+  value_datatype: 
+  uri: http://schema.org/name
+  rdfs_class: organization
+
+
