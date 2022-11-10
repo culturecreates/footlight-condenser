@@ -399,7 +399,7 @@ module StatementsHelper
 
     hits = Statement.joins(source: :property)
                         .where(status: ['ok','updated'])
-                        .where("lower(cache) LIKE ?", "%#{uri_string.downcase}%")
+                        .where("lower(cache) LIKE ?", "#{uri_string.downcase}")
                         .where({ sources: { selected: true, properties: { label: ['Name','alternateName'], rdfs_class: RdfsClass.where(name: expected_class) } }  })
                         .pluck(:cache, :webpage_id)
 

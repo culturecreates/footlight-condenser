@@ -11,8 +11,8 @@ class StatementsHelperSearchCckgTest < ActionView::TestCase
     assert_equal expected, actual
   end
 
-  test "search_condenser: should search condenser for uris by matching search string in entity name substring" do
-    expected = {:data=>[["Statement Six Name", "adr:seven"]]}
+  test "search_condenser: should only match exact string" do
+    expected = {:data=>[]} # ["Statement Six Name", "adr:seven"]
     actual = search_condenser("Statement Six", "Place")
     assert_equal expected, actual
   end
@@ -37,7 +37,7 @@ class StatementsHelperSearchCckgTest < ActionView::TestCase
   end
 
   test "search_condenser: should find Person Louise when type is Organization" do
-    expected = {data:[["Louise Antoinette", "adr:Louise-Antoinette"], ["Louise Antoinette Inc", "adr:Louise-Antoinette-inc"]]}
+    expected = {data:[["Louise Antoinette", "adr:Louise-Antoinette"], ["Louise Antoinette", "adr:Louise-Antoinette-inc"]]}
     actual = search_condenser("Louise Antoinette", "Organization")
     assert_equal expected, actual
   end
