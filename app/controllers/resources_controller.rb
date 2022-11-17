@@ -88,6 +88,18 @@ class ResourcesController < ApplicationController
     end
   end
 
+   # DELETE /resources/delete_uri.json?uri=
+   def delete_uri
+    webpages = Webpage.where(rdf_uri: params[:uri])
+    webpages.each do |webpage|
+      webpage.destroy
+    end
+    respond_to do |format|
+      format.html { redirect_to "/websites/events", notice: 'Resource was successfully destroyed.' }
+      format.json { head :no_content }
+    end
+  end
+
   # PATCH /resources/:rdf_uri/archive
   def archive
       review_all_statements params[:rdf_uri], params[:event][:status_origin]

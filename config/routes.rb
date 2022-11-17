@@ -36,9 +36,15 @@ Rails.application.routes.draw do
       to: "resources#recon",
       as: :recon_resources
 
+  delete 'resources/delete_uri',
+      to: "resources#delete_uri",
+      as: :destroy_resource_uri
+
   delete 'resources/:rdf_uri',
       to: "resources#destroy",
       as: :destroy_resources
+      
+
 
   post 'resources',
       to: "resources#create_resource",
