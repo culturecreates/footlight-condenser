@@ -1,7 +1,8 @@
 {
   "@context":
       {
-          "@vocab": "http://schema.org/"
+          "@vocab": "http://schema.org/",
+          "footlight":"http://kg.footlight.io/resource/"
       },
   "@type": "Place",
   "@explicit": false
