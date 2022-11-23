@@ -150,6 +150,7 @@ class JsonldGenerator
 
       main_class_uri = "http://schema.org/#{s[:webpage_class_name]}"
       subject = s[:subject].sub('adr:', 'http://kg.artsdata.ca/resource/')
+      subject = s[:subject].sub('footlight:', 'http://kg.footlight.io/resource/')
       graph << [RDF::URI(subject), RDF.type, RDF::URI(main_class_uri)]
 
       # Add data changed Observation
