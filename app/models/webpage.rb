@@ -4,6 +4,7 @@ class Webpage < ApplicationRecord
   has_many :statements, dependent: :destroy
 
   validates :url, uniqueness: { scope: :website_id }
+  validates :rdf_uri, presence: true
 
   # for pagination
   self.per_page = 18

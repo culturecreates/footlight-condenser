@@ -23,7 +23,11 @@ class AddWebpagesJob < ApplicationJob
     rdfs_class = rdf_class_statement['cache']
     rdf_uris += JSON.parse(uri_statement['cache'])
     urls += JSON.parse(webpage_url_statement['cache'])
-    
+
+    if rdf_uris.count != urls.count  # exit if list has unapped urls to uris
+      logger.error("Invalid Resource list has unapped urls to uris: #{e.inspect}")
+      return 
+    end
     urls.each_with_index do |webpage_url, index|
       wp = Webpage.new(
         url: webpage_url,
