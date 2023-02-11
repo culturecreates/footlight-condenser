@@ -8,7 +8,7 @@ Rails.application.routes.draw do
     # API: get /websites 
     collection do
       get 'events','places', 'test_api' # Internal Webpages Only
-      delete 'delete_all_statements','delete_all_webpages' # Internal Webpages Only
+      delete 'delete_all_statements','delete_all_webpages', 'delete_all_event_webpages' # Internal Webpages Only
     end
   end
 

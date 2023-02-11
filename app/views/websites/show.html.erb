@@ -39,5 +39,6 @@
 <%=  button_to 'Destroy all statements', delete_all_statements_websites_path(id: @website.id), method: :delete, data: { confirm: "Are you sure to delete all #{@website.seedurl} statements ?" } %> 
 
  <%= button_to 'Destroy all webpages', delete_all_webpages_websites_path(id: @website.id), method: :delete, data: { confirm: "Are you sure to delete all webpages for #{@website.seedurl} ?" } %> 
-    
+ <%= button_to 'Destroy all EVENT webpages', delete_all_event_webpages_websites_path(id: @website.id), method: :delete, data: { confirm: "Are you sure to delete all EVENT webpages for #{@website.seedurl} ?" } %> 
+ 
 

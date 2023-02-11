@@ -110,7 +110,16 @@ class WebsitesController < ApplicationController
   end
 
   def delete_all_webpages
-    @webpages = Webpage.where(website_id: params[:id])
+    @webpages = Webpage.where(website_id: params[:id]) 
+    @webpages.destroy_all
+    respond_to do |format|
+      format.html { redirect_to websites_url, notice: 'ALL webpages were successfully destroyed.' }
+      format.json { head :no_content }
+    end
+  end
+
+  def delete_all_event_webpages
+    @webpages = Webpage.where(website_id: params[:id], rdfs_class_id: RdfsClass.where(name: "Event"))
     @webpages.destroy_all
     respond_to do |format|
       format.html { redirect_to websites_url, notice: 'ALL webpages were successfully destroyed.' }
