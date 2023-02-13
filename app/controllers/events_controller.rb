@@ -75,7 +75,7 @@ class EventsController < ApplicationController
   end
 
   # Return a hash of event uris with grouped statements per event.
-  def website_statements_by_event(seedurl, archive_date_range = [Time.now - 10.years..Time.now + 10.years])
+  def website_statements_by_event(seedurl, archive_date_range = [Time.now - 3000.years..Time.now + 3000.years])
     website_statements =
       Statement
       .includes({ source: [:property, :website] }, :webpage)
