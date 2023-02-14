@@ -46,7 +46,7 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     expected_output<< [uri2, @schema.startDate, RDF::Literal::DateTime.new("2020-07-14T08:00:00-04:00")]
     expected_output << [uri2, RDF.type, @schema.Event]
     
-    actual = JsonldGenerator.make_event_series(g,"http://kg.artsdata.ca/resource/spec-qc-ca_broue")
+    actual = JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue")
     assert_equal expected_output.count, actual.count
   end
 

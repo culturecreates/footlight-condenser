@@ -98,7 +98,7 @@ class JsonldGenerator
   # convert a list of startDates into subEvents
   def self.make_event_series(local_graph, uri)
    # resolve prefix if present
-   full_uri = uri.gsub("adr:", "http://kg.artsdata.ca/resource/")
+   full_uri = uri.gsub("adr:", "http://kg.artsdata.ca/resource/").gsub("footlight:", "http://kg.footlight.io/resource/")
 
     # Check for more than 1 startDate
     query = RDF::Query.new do
