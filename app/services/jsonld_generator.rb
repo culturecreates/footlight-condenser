@@ -126,6 +126,7 @@ class JsonldGenerator
     # jsonld['location']&.delete('@id')
     jsonld['@graph']&.each do |g|
       g&.delete('@id') if g['@id']&.include?('kg.artsdata.ca')
+      g&.delete('@id') if g['@id']&.include?('kg.footlight.io')
       # g['location']&.delete('@id')
       # g['performer']&.delete('@id')
       # g['performer']&.each { |a| a&.delete('@id') }
@@ -196,6 +197,7 @@ class JsonldGenerator
           # check for schema:sameAs and add as string because this is always a string in schema.org
           # but condenser treats it as a URI inorder to link to Artsdata
           # if we don't convert to string we will add back the data from Artsdata in a loop
+          uri.sub!('footlight:', 'http://kg.footlight.io/resource/')
           if s[:predicate].include?('sameAs')
             graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal(uri)]
           else
