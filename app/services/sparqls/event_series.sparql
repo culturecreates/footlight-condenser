@@ -1,5 +1,5 @@
 PREFIX schema: <http://schema.org/>
-PREFIX adr: <http://kg.artsdata.ca/resource/>
+
 delete {
       ?uri  schema:startDate ?dates ;
        a schema:Event .
