@@ -80,14 +80,14 @@ module StatementsHelper
             new_url = eval(substitue_vars.call(algo))
             logger.info "*** New URL formed: #{new_url}"
             html = agent.get_file(use_wringer(new_url, render_js, scrape_options))
-            page = Nokogiri::HTML html
+            page = Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
           when 'renderjs_url'
             # FORCE Render JS -- replace current page by scraping new url with wringer
             # using format renderjs_url='http://example.com'
             new_url =  eval(substitue_vars.call(algo))
             logger.info "*** New URL formed: #{new_url}"
             html = agent.get_file(use_wringer(new_url, true, scrape_options))
-            page = Nokogiri::HTML(html)
+            page = Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
           when 'json_url'
             new_url =  eval(substitue_vars.call(algo))
             logger.info "*** New URL for JSON call: #{new_url}"
@@ -114,29 +114,29 @@ module StatementsHelper
             results_list = eval(substitue_vars.call(algo))
           when 'xpath_sanitize' # ok
             html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
-            page ||= Nokogiri::HTML(html)
+            page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
             page_data = page.xpath(algo)
             page_data.each { |d| results_list << sanitize(d.to_s, tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href]) }
           when 'if_xpath' # continue if xpath resolves
             html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
-            page ||= Nokogiri::HTML(html)
+            page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
             page_data = page.xpath(algo)
             break if page_data.blank?
             page_data.each { |d| results_list << d.text }
           when 'unless_xpath' # continue unless xpath resolves
             html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
-            page ||= Nokogiri::HTML(html)
+            page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
             page_data = page.xpath(algo)
             break if page_data.present?
           when 'xpath' # test
             html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
             # TODO: If response type is json then load json, otherwise load html in next line
-            page ||= Nokogiri::HTML(html)
+            page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
             page_data = page.xpath(algo)
             page_data.each { |d| results_list << d.text }
           when 'css' # ok
             html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
-            page ||= Nokogiri::HTML(html)
+            page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
             page_data = page.css(algo)
             page_data.each { |d| results_list << d.text }
           when 'time_zone' # test
@@ -145,7 +145,7 @@ module StatementsHelper
           when 'json' # ok
             ## use this pattern in source algorithm --> json=$json['name']
             html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
-            page ||= Nokogiri::HTML(html)
+            page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
             json_scraped = JSON.parse(page.text)
             algo.gsub!('$json', 'json_scraped')
             results_list << eval(algo)
