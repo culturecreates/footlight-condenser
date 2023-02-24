@@ -25,7 +25,8 @@
         "name": {}, 
         "address": {
             "@type": ["PostalAddress"],
-            "@explicit": false
+            "@explicit": false,
+            "@omitDefault": true
         },
         "url":{},
         "sameAs":{}
@@ -58,6 +59,7 @@
         "alternateName":{},
         "address": {
             "@type":"PostalAddress",
+            "@omitDefault": true,
             "@explicit": false
         }
     }
