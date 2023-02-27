@@ -17,8 +17,7 @@ class ResourcesController < ApplicationController
                             .where( {webpage_id: hit[1], sources: { properties: { label: 'Disambiguating Description'}}} )
                             .pluck(:cache), 
       id: Webpage.find_by(id: hit[1]).rdf_uri.gsub("footlight:","")} } }
-      puts "This is recon : #{@response.inspect}"
-    render json: @response, callback: params['callback']
+      render json: @response, callback: params['callback']
   end
 
   # GET /resource?uri={uri}
@@ -89,7 +88,7 @@ class ResourcesController < ApplicationController
   end
 
    # DELETE /resources/delete_uri.json?uri=
-   def delete_uri
+  def delete_uri
     webpages = Webpage.where(rdf_uri: params[:uri])
     webpages.each do |webpage|
       webpage.destroy
