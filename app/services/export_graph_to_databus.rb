@@ -21,8 +21,16 @@ class ExportGraphToDatabus
 
     if result # TODO: check for S3 errors
       # Add to Artsdata Databus
-      result = add_to_databus(group: group, artifact: artifact, download_url: download_url, download_file: file, version: version, report_callback_url: report_callback_url)
+      publisher = 'https://graph.culturecreates.com/id/footlight'
+
+      result = add_to_databus(publisher: publisher, group: group, artifact: artifact, download_url: download_url, download_file: file, version: version, report_callback_url: report_callback_url)
       puts "Result of add_to_databus: #{result.inspect}"
+
+      # Mint new IDs
+      if ["toutculture-ca"].includes? artifact
+        result = request_minting(publisher: publisher, download_url: download_url, k_number: "4", mint_class: "Event" , report_callback_url: report_callback_url)
+        puts "Result of request_minting: #{result.inspect}"
+      end
     end
 
     result
@@ -84,9 +92,7 @@ class ExportGraphToDatabus
     end
   end
 
-  def self.add_to_databus(group:, artifact:, download_url:, download_file:, version:, report_callback_url:, shacl_file: 'artsdata')
-    publisher = 'https://graph.culturecreates.com/id/footlight'
-
+  def self.add_to_databus(publisher:, group:, artifact:, download_url:, download_file:, version:, report_callback_url:, shacl_file: 'artsdata')
     HTTParty.post(artsdata_databus_api_url,
       query: {
         publisher: publisher,
@@ -101,6 +107,21 @@ class ExportGraphToDatabus
     )
   end
 
+  def self.request_minting(publisher:, download_url:, k_number: '4', mint_class: 'Event',  report_callback_url:)
+    # TODO: add schacl_file?
+
+    HTTParty.post(artsdata_databus_api_url,
+      query: {
+        publisher: publisher,
+        downloadUrl: download_url,
+        kNumber: k_number,
+        mintClass: mint_class,
+        reportCallbackUrl: report_callback_url
+      } 
+    )
+  end
+
+
   def self.artsdata_databus_api_url
     if Rails.env.development?  || Rails.env.test?
       "http://localhost:#{ARTSDATA_API_PORT}/databus"
@@ -108,4 +129,13 @@ class ExportGraphToDatabus
       'http://api.artsdata.ca/databus'
     end
   end
+
+  def self.artsdata_minting_api_url
+    if Rails.env.development?  || Rails.env.test?
+      "http://localhost:#{ARTSDATA_API_PORT}/databus"
+    else
+      'http://api.artsdata.ca/databus'
+    end
+  end
+
 end
