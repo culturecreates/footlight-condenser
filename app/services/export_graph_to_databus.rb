@@ -21,8 +21,6 @@ class ExportGraphToDatabus
 
     if result # TODO: check for S3 errors
       # Add to Artsdata Databus
-      publisher = 'https://graph.culturecreates.com/id/footlight'
-
       result = add_to_databus(publisher: publisher, group: group, artifact: artifact, download_url: download_url, download_file: file, version: version, report_callback_url: report_callback_url)
       puts "Result of add_to_databus: #{result.inspect}"
 
@@ -92,7 +90,8 @@ class ExportGraphToDatabus
     end
   end
 
-  def self.add_to_databus(publisher:, group:, artifact:, download_url:, download_file:, version:, report_callback_url:, shacl_file: 'artsdata')
+  def self.add_to_databus(group:, artifact:, download_url:, download_file:, version:, report_callback_url:, shacl_file: 'artsdata')
+    publisher = 'https://graph.culturecreates.com/id/footlight'
     HTTParty.post(artsdata_databus_api_url,
       query: {
         publisher: publisher,
@@ -107,7 +106,7 @@ class ExportGraphToDatabus
     )
   end
 
-  # old approac to delete
+  # old approach to delete
   # def self.request_minting(publisher:, download_url:, mint_class: 'Event',  report_callback_url:)
   #   # TODO: add schacl_file?
 
