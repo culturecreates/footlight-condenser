@@ -337,21 +337,24 @@ module StatementsHelper
     uris << rdfs_class
 
     #############################
-    # search KG
+    # search Local Condenser DB
     #############################
-    cckg_results = search_cckg(uri_string, rdfs_class)
+    local_results = search_condenser(uri_string, rdfs_class)
 
-    if cckg_results[:error]
-      logger.error("*** search kg ERROR:  #{cckg_results}")
-      uris << 'abort_update' # this forces the update to skip when the KG server is down and avoids setting everything to blank
-    else
-      cckg_results[:data].each do |uri|
-        uris << uri if uri
+    local_results[:data].each do |uri|
+      if uri
+        http_uri = uri[1].gsub('adr:', 'http://kg.artsdata.ca/resource/')
+        uris << [uri[0], http_uri]
       end
     end
 
-    if rdfs_class == 'Organization'
-      cckg_results = search_cckg(uri_string, 'Person')
+    # When nothing is found locally then search in artsdata.ca CC KG 
+    if uris.count == 2  
+      #############################
+      # search KG
+      #############################
+      cckg_results = search_cckg(uri_string, rdfs_class)
+
       if cckg_results[:error]
         logger.error("*** search kg ERROR:  #{cckg_results}")
         uris << 'abort_update' # this forces the update to skip when the KG server is down and avoids setting everything to blank
@@ -360,20 +363,16 @@ module StatementsHelper
           uris << uri if uri
         end
       end
-    end
 
-
-    # When nothing is found in artsdata.ca CC KG then try locally
-    if uris.count == 2  
-      #############################
-      # search Local Condenser DB
-      #############################
-      local_results = search_condenser(uri_string, rdfs_class)
-
-      local_results[:data].each do |uri|
-        if uri
-          http_uri = uri[1].gsub('adr:', 'http://kg.artsdata.ca/resource/')
-          uris << [uri[0], http_uri]
+      if rdfs_class == 'Organization'
+        cckg_results = search_cckg(uri_string, 'Person')
+        if cckg_results[:error]
+          logger.error("*** search kg ERROR:  #{cckg_results}")
+          uris << 'abort_update' # this forces the update to skip when the KG server is down and avoids setting everything to blank
+        else
+          cckg_results[:data].each do |uri|
+            uris << uri if uri
+          end
         end
       end
     end
