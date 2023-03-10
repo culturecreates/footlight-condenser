@@ -82,7 +82,7 @@ class JsonldGenerator
   def self.add_triples_from_footlight(local_graph)
 
     ## Refresh local entities (People, Places, Organizations) entered manually into Footlight
-    @@graph << LocalGraphGenerator.graph_all
+    # ArtsdataGraph.graph << LocalGraphGenerator.graph_all
 
     uris = extract_object_uris(local_graph)
     uris.each do |uri|
