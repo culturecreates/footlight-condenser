@@ -9,7 +9,7 @@ class JsonldGenerator
       statements_hash = statements.map{ |stat| adjust_labels_for_api(stat, subject: stat.webpage.rdf_uri, webpage_class_name: stat.webpage.rdfs_class.name  ) }
       graph = build_graph(statements_hash, {})
       graph = make_event_series(graph, uri)
-      graph = add_triples_from_artsdata(graph)
+      graph = add_triples_from_footlight(graph)
       graphs << graph
     end
     graphs.dump(:jsonld)
@@ -67,7 +67,7 @@ class JsonldGenerator
     graph_json
   end
 
-  # Add triples from artsdata.ca using URIs of people, places and organizations
+  # Add triples from artsdata.ca AND Footlight database using URIs of people, places and organizations
   def self.add_triples_from_artsdata(local_graph)
     uris = extract_object_uris(local_graph)
     uris.each do |uri|
@@ -77,6 +77,23 @@ class JsonldGenerator
     end
     local_graph
   end
+
+  # Add triples ONLY from Footlight database using URIs of people, places and organizations
+  def self.add_triples_from_footlight(local_graph)
+
+    ## Refresh local entities (People, Places, Organizations) entered manually into Footlight
+    @@graph << LocalGraphGenerator.graph_all
+
+    uris = extract_object_uris(local_graph)
+    uris.each do |uri|
+      if !uri.value.include?("http://kg.artsdata.ca/resource/K")
+        additional_graph = describe_uri(uri)
+        local_graph << additional_graph
+      end
+    end
+    local_graph
+  end
+
 
   # coalesce languages to best match before JSON-LD Framing
   def self.coalesce_language(local_graph, lang = '')
