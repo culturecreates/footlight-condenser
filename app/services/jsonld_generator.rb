@@ -78,7 +78,7 @@ class JsonldGenerator
     local_graph
   end
 
-  # Add triples ONLY from Footlight database using URIs of people, places and organizations
+  # Add triples ONLY from Footlight database (not Artsdata) using URIs of people, places and organizations
   def self.add_triples_from_footlight(local_graph)
 
     ## Refresh local entities (People, Places, Organizations) entered manually into Footlight
