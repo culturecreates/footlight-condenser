@@ -246,4 +246,16 @@ end
     assert_equal expected_output, convert_datetime(scraped_data)
   end
 
+  test "convert_datetime with array input" do
+    expected_output = ["2002-01-10T20:00:00-05:00","2002-01-11"]
+    scraped_data = ["10-JAN-2002 at 8pm","11-JAN-2002"]
+    assert_equal expected_output, convert_datetime(scraped_data)
+  end
+
+  test "convert_datetime with array input duplicates using different text" do
+    expected_output = ["2002-01-10","2002-01-11T20:00:00-05:00"]
+    scraped_data = ["10-JAN-2002","11-JAN-2002  at 8pm","11-JAN-2002 8 pm"]
+    assert_equal expected_output, convert_datetime(scraped_data)
+  end
+
 end

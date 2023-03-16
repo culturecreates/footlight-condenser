@@ -197,6 +197,7 @@ module StatementsHelper
                 ISO_dateTime(t)
               end
     end
+    data.uniq!
     data
   end
 
