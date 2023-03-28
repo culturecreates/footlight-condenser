@@ -288,6 +288,9 @@ module StatementsHelper
     if str.scan(/\b(Theatre|Théâtre)/i).present?
       result << ['TheaterEvent', 'http://schema.org/TheaterEvent']
     end
+    if str.scan(/\b(Screening|Movie|Cinéma)/i).present?
+      result << ['TheaterEvent', 'http://schema.org/ScreeningEvent']
+    end
     if str.scan(/\b(Performance)/i).present?
       result << ['Performance', 'http://ontology.artsdata.ca/Performance']
     end
