@@ -200,7 +200,12 @@ class JsonldGenerator
       elsif s[:rdfs_class_name] == 'PostalAddress'
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/address'), build_uri(subject,'PostalAddress')]
         graph << [build_uri(subject, 'PostalAddress'), RDF.type, RDF::URI('http://schema.org/PostalAddress')]
-        graph << [build_uri(subject, 'PostalAddress'), RDF::URI(s[:predicate]), s[:value]]
+        object = if s[:language].present?
+          RDF::Literal(s[:value], language: s[:language])
+        else
+          RDF::Literal(s[:value])
+        end
+        graph << [build_uri(subject, 'PostalAddress'), RDF::URI(s[:predicate]), object]
       elsif s[:rdfs_class_name] == 'WebPage'
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/mainEntityOfPage'), build_uri(s[:value],'WebPage')]
         graph << [build_uri(s[:value], 'WebPage'), RDF.type, RDF::URI('http://schema.org/WebPage')]
