@@ -8,6 +8,7 @@ class LocalGraphGenerator
     graphs << graph_class('Place')
     graphs << graph_class('Organization')
     graphs << graph_class('Person')
+    graphs << graph_class('EventType')
     graphs
   end
 
