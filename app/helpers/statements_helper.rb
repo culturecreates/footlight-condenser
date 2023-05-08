@@ -220,11 +220,11 @@ module StatementsHelper
       data = convert_date(scraped_data)
     elsif property.value_datatype == 'xsd:anyURI'
       unless scraped_data.blank?
-        if property.uri == 'http://schema.org/eventStatus'
+        if property.expected_class == 'EventStatusType'
           data << reconcile_event_status(scraped_data)
-        elsif property.uri == 'http://schema.org/additionalType'
+        elsif property.expected_class == 'EventTypeEnumeration'
           data << reconcile_additional_type(scraped_data)
-        elsif property.uri == 'http://schema.org/eventAttendanceMode'
+        elsif property.expected_class == 'EventAttendanceModeEnumeration'
           data << reconcile_attendance_mode(scraped_data)
         else
           if scraped_data.class == Array
@@ -335,7 +335,6 @@ module StatementsHelper
 
   # Used when refreshing and also when manually adding in Console
   def search_everywhere(uri_string,rdfs_class)
-
     uri_string = uri_string.to_s.squish
     uris = [uri_string]
     uris << rdfs_class
@@ -425,9 +424,16 @@ module StatementsHelper
   def search_cckg(str, rdfs_class) # returns a HASH
     if str.length > 3
 
+      # setup recon variables
+      recon_type =  if rdfs_class == "EventType"
+                      "ado:EventType"
+                    else
+                      rdfs_class
+                    end
+
       # call Reconciliation service
       begin
-        results = HTTParty.get("#{artsdata_recon_url}?query=#{CGI.escape(CGI.unescapeHTML(str))}&type=#{rdfs_class}")
+        results = HTTParty.get("#{artsdata_recon_url}?query=#{CGI.escape(CGI.unescapeHTML(str))}&type=#{recon_type}")
       rescue StandardError => e
         results = { error: "No server running at #{artsdata_recon_url}", method: 'search_cckg', message: "#{e.inspect}"}
         return results

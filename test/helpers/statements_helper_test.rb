@@ -59,7 +59,7 @@ test "process_algorithm url and json and ruby" do
   end
 end
 test "process_algorithm ruby syntax error" do
-  expected = ["abort_update", {:error=>"(eval):1: syntax error, unexpected end-of-input, expecting '}' results_list.each {|a| a ^", :error_type=>SyntaxError, :results_prior=>[], :algorithm_rescued=>"ruby=$array.each {|a| a"}]
+  expected = ["abort_update", {:error=>"(eval):1: syntax error, unexpected end-of-input, expecting '}'", :error_type=>SyntaxError, :results_prior=>[], :algorithm_rescued=>"ruby=$array.each {|a| a"}]
   algo = "ruby=$array.each {|a| a"
   assert_equal expected, process_algorithm(algorithm: algo,  url: "https://signelaval.com/fr/evenements/14650/du-fond-de-mon-garde-robe")
 end

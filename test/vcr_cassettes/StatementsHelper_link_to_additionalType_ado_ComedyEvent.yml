@@ -1,0 +1,53 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: http://localhost:3003/recon?query=Humour%20%7C%20Programmation%20distanci%C3%A9e&type=ado:EventType
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - application/json; charset=utf-8
+      Etag:
+      - W/"92b6dc45683ea9d6eb9352193764358f"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - 9592071d-06a3-46bf-addc-2304791d5c83
+      X-Runtime:
+      - '0.118431'
+      Vary:
+      - Accept, Origin
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: UTF-8
+      string: '{"result":[{"id":"ComedyPerformance","name":"Humour","description":"","score":83.87917,"match":true,"type":[{"id":"http://kg.artsdata.ca/ontology/EventType","name":"Artsdata
+        Event types"}]},{"id":"ComedyPerformance","name":"Comedy","description":"","score":0.8387917,"match":false,"type":[{"id":"http://kg.artsdata.ca/ontology/EventType","name":"Artsdata
+        Event types"}]}]}'
+  recorded_at: Mon, 08 May 2023 17:24:33 GMT
+recorded_with: VCR 6.0.0

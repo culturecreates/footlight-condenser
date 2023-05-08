@@ -147,6 +147,16 @@ class StatementsHelperTest < ActionView::TestCase
     assert_equal expected, actual
   end
 
+  test "link to additionalType ado:ComedyEvent" do
+    property = properties(:additionalTypeADO)
+    scraped_data = ["Humour | Programmation distanciée"]
+    webpage = webpages(:one)
+    expected = ["Humour | Programmation distanciée", "EventType", ["Humour", "http://kg.artsdata.ca/resource/ComedyPerformance"]]
+    VCR.use_cassette('StatementsHelper link to additionalType ado:ComedyEvent') do
+      assert_equal expected, format_datatype(scraped_data, property, webpage)
+    end
+  end
+
   test "link to attendanceMode In-person" do
     property = properties(:AttendanceMode)
     scraped_data = ["OfflineEventAttendanceMode detected in event"]

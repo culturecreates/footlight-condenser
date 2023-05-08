@@ -82,14 +82,21 @@ additionalType:
   value_datatype: xsd:anyURI
   uri: http://schema.org/additionalType
   rdfs_class: one
-  expected_class: URL
+  expected_class: EventTypeEnumeration
+
+additionalTypeADO:
+  label: Event Type
+  value_datatype: xsd:anyURI
+  uri: http://schema.org/additionalType
+  rdfs_class: one
+  expected_class: EventType
 
 AttendanceMode:
   label: Attendance Mode
   value_datatype: xsd:anyURI
   uri: http://schema.org/eventAttendanceMode
   rdfs_class: one
-  expected_class: URL
+  expected_class: EventAttendanceModeEnumeration
 
 personName:
   label: Name
