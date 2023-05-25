@@ -21,14 +21,10 @@ class ExportGraphToDatabus
 
     if result # TODO: check for S3 errors
       # Add to Artsdata Databus
-      result = add_to_databus(publisher: publisher, group: group, artifact: artifact, download_url: download_url, download_file: file, version: version, report_callback_url: report_callback_url)
+      result = add_to_databus(group: group, artifact: artifact, download_url: download_url, download_file: file, version: version, report_callback_url: report_callback_url)
       puts "Result of add_to_databus: #{result.inspect}"
 
-      # # Mint new IDs - old approach
-      # if ["toutculture-ca"].includes? artifact
-      #   result = request_minting(publisher: publisher, download_url: download_url, mint_class: "Event" , report_callback_url: report_callback_url)
-      #   puts "Result of request_minting: #{result.inspect}"
-      # end
+
     end
 
     result
