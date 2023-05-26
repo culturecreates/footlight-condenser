@@ -19,8 +19,8 @@ module EventsHelper
 
             begin
                 date_time = DateTime.parse(date_str)
-            rescue => exception
-                logger.info("Invalid Event Date: #{exception}")
+            rescue
+                # logger.info("Invalid Event Date")
                 date_time = nil
             end
         end   
