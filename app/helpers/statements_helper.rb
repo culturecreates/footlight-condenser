@@ -98,7 +98,7 @@ module StatementsHelper
             # using format url='http://example.com?param_for_post='
             new_url =  eval(substitue_vars.call(algo))
             logger.info "*** New POST URL formed: #{new_url}"
-            temp_scrape_options = scrape_options.merge(json_post: true)
+            temp_scrape_options = scrape_options.merge(json_post: true).merge(force_scrape_every_hrs: 1)
             data = agent.get_file use_wringer(new_url, render_js, temp_scrape_options)
             page = Nokogiri::HTML(data)
           when 'api' # ok

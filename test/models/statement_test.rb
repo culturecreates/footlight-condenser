@@ -53,4 +53,21 @@ class StatementTest < ActiveSupport::TestCase
   test 'invalid iso date' do
     assert_not @statement.valid_iso_date?('error')
   end
+
+  test 'check_mandatory_properties no change' do
+
+    @statement.status = 'updated'
+    expected = 'updated'
+    @statement.check_mandatory_properties
+    assert_equal expected, @statement.status
+  end
+  
+  test 'check_mandatory_properties bad date' do
+
+    @statement.cache = "2020-05-23T"
+    @statement.check_mandatory_properties
+    expected = 'missing'
+    assert_equal expected, @statement.status
+
+  end
 end
