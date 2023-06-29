@@ -2,6 +2,7 @@ require 'test_helper'
 
 class JsonldGeneratorTest < ActiveSupport::TestCase
   include ResourcesHelper
+  include JsonUtilities
 
   # test method build_graph
   test "build_graph" do
@@ -15,38 +16,18 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
   # test make_event_series
   ############################
 
+  test "basic graph" do 
+    g =  RDF::Graph.load("test/fixtures/files/event_2_places_input.ttl", format: :ttl, rdfstar: true)
+    # puts g.dump(:turtle, rdfstar: true)
+    assert_equal 9, g.count
+  end
+
   test "convert startDates to subEvents" do
-    @schema = RDF::Vocabulary.new("http://schema.org/")
-    g = RDF::Graph.new
-    uri = RDF::URI.new("http://kg.artsdata.ca/resource/spec-qc-ca_broue")
-    g << [uri, @schema.location, RDF::Literal.new("My Place")]
-    g << [uri, @schema.name, RDF::Literal.new("Test Event Series")]
-    g << [uri, @schema.startDate, RDF::Literal::DateTime.new("2020-07-14T08:00:00-04:00")]
-    g << [uri, @schema.startDate, RDF::Literal::DateTime.new("2020-07-15T08:00:00-04:00")]
-
-    uri2 =  RDF::URI.new("http://kg.artsdata.ca/resource/spec-qc-ca_broue2020-07-14T080000-0400")
-    uri3 =  RDF::URI.new("http://kg.artsdata.ca/resource/spec-qc-ca_broue2020-07-15T080000-0400")
-    expected_output = RDF::Graph.new
- 
-    expected_output << [uri, @schema.location, RDF::Literal.new("My Place")]
-    expected_output << [uri, @schema.name, RDF::Literal.new("Test Event Series")]
-    expected_output << [uri, @schema.startDate, RDF::Literal::DateTime.new("2020-07-14T08:00:00-04:00")]
-    expected_output << [uri, @schema.subEvent, uri3]
-    expected_output << [uri, @schema.subEvent, uri2]
-
-    expected_output << [uri, RDF.type, @schema.EventSeries]
-   
-    expected_output << [uri3, @schema.location, RDF::Literal.new("My Place")]
-    expected_output << [uri3, @schema.name, RDF::Literal.new("Test Event Series")]
-    expected_output << [uri3, @schema.startDate, RDF::Literal::DateTime.new("2020-07-15T08:00:00-04:00")]
-    expected_output << [uri3, RDF.type, @schema.Event]
-  
-    expected_output << [uri2, @schema.location, RDF::Literal.new("My Place")]
-    expected_output << [uri2, @schema.name, RDF::Literal.new("Test Event Series")]
-    expected_output<< [uri2, @schema.startDate, RDF::Literal::DateTime.new("2020-07-14T08:00:00-04:00")]
-    expected_output << [uri2, RDF.type, @schema.Event]
-    
+    g =  RDF::Graph.load("test/fixtures/files/event_2_dates_input.ttl", format: :ttl, rdfstar: true)
+    expected_output = RDF::Graph.load("test/fixtures/files/event_2_dates_output.ttl", format: :ttl, rdfstar: true)
     actual = JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue")
+
+    # pp JSON.parse(actual.dump(:jsonld, rdfstar: true))
     assert_equal expected_output.count, actual.count
   end
 
@@ -60,6 +41,26 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     expected_output = g
     assert_equal expected_output.dump(:ntriples), JsonldGenerator.make_event_series(g,"http://kg.artsdata.ca/resource/spec-qc-ca_broue").dump(:ntriples)
   end
+
+  test "convert startDates and endDates to subEvents" do
+    g =  RDF::Graph.load("test/fixtures/files/event_2_end_dates_input.ttl", format: :ttl, rdfstar: true)
+    expected_output = RDF::Graph.load("test/fixtures/files/event_2_end_dates_output.ttl", format: :ttl, rdfstar: true)
+    actual = JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue")
+
+   #  pp JSON.parse(actual.dump(:jsonld, rdfstar: true))
+    assert_equal expected_output.count, actual.count
+  end
+
+  test "convert multiple locations to subEvents" do
+
+    g =  RDF::Graph.load("test/fixtures/files/event_2_places_input.ttl", format: :ttl, rdfstar: true)
+    expected_output = RDF::Graph.load("test/fixtures/files/event_2_places_output.ttl", format: :ttl, rdfstar: true)
+    actual = JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue")
+
+    # pp JSON.parse(actual.dump(:jsonld, rdfstar: true))
+    assert_equal expected_output.count, actual.count
+  end
+
 
   ############################
   # test coalesce_language

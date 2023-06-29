@@ -122,9 +122,29 @@ class JsonldGenerator
       pattern [RDF::URI.new(full_uri),RDF::URI.new("http://schema.org/startDate"), :o] 
     end
     result = query.execute(local_graph)
-    return local_graph unless result.count > 1
+    number_of_startDates = result.count
+    # puts "num startdates: #{result.count}"
+    return local_graph unless number_of_startDates > 1
 
-    sparql = RDFLoader.load_sparql('event_series.sparql',["http://kg.artsdata.ca/resource/spec-qc-ca_broue", full_uri])
+    # Check for more than 1 location
+    # one location -> 'event_series_dates.sparql'
+    # many locations -> 'event_series_locations.sparql'
+    query = RDF::Query.new do
+      pattern [RDF::URI.new(full_uri),RDF::URI.new("http://schema.org/location"), :o] 
+    end
+    result = query.execute(local_graph)
+    number_of_locations = result.count
+    # puts "num locations: #{result.count}"
+    filename =  if number_of_locations > 1 
+                  if number_of_locations != number_of_startDates
+                    Rails.logger.error "ERROR: converting #{full_uri} to EventSeries. Unequal number_of_locations:#{number_of_locations} and number_of_startDates:#{number_of_startDates}."
+                  end
+                  'event_series_locations.sparql'
+                else
+                  'event_series_dates.sparql'
+                end
+    sparql = RDFLoader.load_sparql(filename,["http://kg.artsdata.ca/resource/spec-qc-ca_broue", full_uri])
+
     begin
       sse = SPARQL.parse(sparql, update: true)
       local_graph.query(sse)
@@ -215,35 +235,47 @@ class JsonldGenerator
       ## TEMPORARY PATCH  END #########
 
       elsif  s[:datatype] == 'xsd:anyURI'
-        s[:value].each do |uri|
+        s[:value].each_with_index do |uri, index|
           # check for schema:sameAs and add as string because this is always a string in schema.org
           # but condenser treats it as a URI inorder to link to Artsdata
           # if we don't convert to string we will add back the data from Artsdata in a loop
           uri.sub!('footlight:', 'http://kg.footlight.io/resource/')
           if s[:predicate].include?('sameAs')
             graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal(uri)]
+          elsif s[:predicate].include?('location')
+            statement = RDF::Statement(RDF::URI(subject), RDF::URI(s[:predicate]), RDF::URI(uri))
+            graph << statement
+            graph << [statement,  RDF::URI('http://schema.org/position'), index]
           else
-            graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::URI(uri)]
+            graph << RDF::Statement(RDF::URI(subject), RDF::URI(s[:predicate]), RDF::URI(uri))
           end
         end
       elsif  s[:datatype] == 'xsd:dateTime'
         # Test value and adjust datatype to either xsd:dateTime or xsd:date
-        s[:value].make_into_array.each do |date_time|
+        s[:value].make_into_array.each_with_index do |date_time, index|
           if RDF::Literal::DateTime.new(date_time).valid?
-            graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::DateTime.new(date_time)] 
+            statement = RDF::Statement(RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::DateTime.new(date_time))
+            graph << statement
+            graph << [statement,  RDF::URI('http://schema.org/position'), index]
           elsif RDF::Literal::Date.new(date_time).valid?
-            graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::Date.new(date_time)] 
+            statement = RDF::Statement(RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::Date.new(date_time))
+            graph << statement
+            graph << [statement,  RDF::URI('http://schema.org/position'), index]
           else
             # graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal(date_time)] 
           end
         end
       elsif  s[:datatype] == 'xsd:date'
         # Test value and adjust datatype to either xsd:dateTime or xsd:date
-        s[:value].make_into_array.each do |date_time|
+        s[:value].make_into_array.each_with_index do |date_time, index|
           if RDF::Literal::DateTime.new(date_time).valid?
-            graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::DateTime.new(date_time)] 
+            statement = RDF::Statement(RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::DateTime.new(date_time))
+            graph << statement
+            graph << [statement,  RDF::URI('http://schema.org/position'), index]
           elsif RDF::Literal::Date.new(date_time).valid?
-            graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::Date.new(date_time)] 
+            statement = RDF::Statement(RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::Date.new(date_time))
+            graph << statement
+            graph << [statement,  RDF::URI('http://schema.org/position'), index]
           else
             # graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal(date_time)] 
           end

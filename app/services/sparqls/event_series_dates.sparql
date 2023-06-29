@@ -1,0 +1,37 @@
+PREFIX schema: <http://schema.org/>
+
+delete {
+    ?uri schema:startDate ?startDates ;
+       schema:endDate ?endDates ;
+       a schema:Event .
+}
+insert {
+    ?uri schema:startDate ?firstDate ;
+        schema:endDate ?lastDate ;
+        a schema:EventSeries ;
+        schema:subEvent ?subEventUri .
+    ?subEventUri a schema:Event  ;
+        schema:startDate ?startDates ;
+        schema:endDate ?endDates .
+}
+where {
+    values ?uri { <http://kg.artsdata.ca/resource/spec-qc-ca_broue> }
+   ?uri schema:location ?location .
+    << ?uri schema:startDate ?startDates >> schema:position ?pos .
+    OPTIONAL {
+        << ?uri schema:endDate ?endDates >> schema:position ?pos .
+    }
+    {
+        select ?firstDate where {
+            values ?uri { <http://kg.artsdata.ca/resource/spec-qc-ca_broue> }
+            ?uri  schema:startDate ?firstDate
+        }  order by ?firstDate limit 1 
+    } 
+    {
+        select ?lastDate where {       
+            values ?uri { <http://kg.artsdata.ca/resource/spec-qc-ca_broue> }
+            ?uri schema:startDate ?lastDate
+        }  order by desc(?lastDate) limit 1 
+    } 
+    bind(URI(CONCAT(str(?uri),"#",REPLACE(str(?startDates),":",""))) as ?subEventUri)
+}

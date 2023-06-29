@@ -128,19 +128,27 @@ Rails.application.routes.draw do
     end
   end
 
+  get 'graphs/website/:seedurl',
+    to: 'graphs#website',
+    as: :graphs_website
+
+
+  get 'graphs/webpage/event-artsdata',
+    to: 'graphs#webpage_event_artsdata',
+    as: :graphs_webpage_event_artsdasta
+
   get 'graphs/webpage/event',
-      to: 'graphs#webpage_event',
-      as: :graphs_webpage_event
+    to: 'graphs#webpage_event',
+    as: :graphs_webpage_event
+
+
+
 
   resources :reports do
     collection do
       get 'source' 
     end
   end
-
-  get 'graphs/website/:seedurl',
-      to: 'graphs#website',
-      as: :graphs_website
 
 ### eventually replace these with resouces websites, param: :seedurl
 

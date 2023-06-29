@@ -23,6 +23,18 @@ class GraphsController < ApplicationController
     @dump = JsonldGenerator.dump_events(@publishable)
   end
 
+  # GET /graphs/webpage/event-artsdata?url=
+  def webpage_event_artsdata 
+    webpage = Webpage.where(url: CGI.unescape(params[:url]))
+    @dump = {}
+    if webpage.count.positive?
+      @dump = JsonldGenerator.dump_events([webpage.first.rdf_uri])
+    end
+    respond_to do |format|
+      format.jsonld { render inline: @dump, content_type: 'application/ld+json' }
+    end
+  end
+
   # GET /graphs/webpage/event?url=
   def webpage_event
     webpage = Webpage.where(url: CGI.unescape(params[:url]))

@@ -50,6 +50,7 @@ end
 group :test do
   gem 'webmock'
   gem 'vcr'
+  gem 'rdf-turtle'
 end
 
 group :development do
@@ -65,13 +66,15 @@ group :development do
   gem 'solargraph' #used by visual studio code plugins
 
   gem 'derailed' #memory usage
+
+  gem 'rdf-turtle'
 end
 
 # Windows does not include zoneinfo files, so bundle the tzinfo-data gem
 gem 'tzinfo-data', platforms: [:mingw, :mswin, :x64_mingw, :jruby]
-gem 'rdf', '~> 3.1.1'
-gem 'json-ld', '~> 3.0.2'
-gem 'sparql', '~> 3.1.3'
+gem 'rdf', '~> 3.2.11'
+gem 'json-ld', '~> 3.2.5'
+gem 'sparql', '~> 3.2.5'
 gem 'will_paginate', '~> 3.1.6'
 
 gem 'scout_apm'  #used to monitor memory on Heroku

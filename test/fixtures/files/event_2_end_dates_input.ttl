@@ -1,0 +1,18 @@
+PREFIX schema: <http://schema.org/>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX adr: <http://kg.artsdata.ca/resource/>
+
+adr:spec-qc-ca_broue a schema:Event .
+adr:spec-qc-ca_broue  schema:location <http://place.com/1> .
+
+adr:spec-qc-ca_broue schema:startDate "2023-01-01T20:00:00-04:00"^^xsd:dateTime .
+<< adr:spec-qc-ca_broue schema:startDate "2023-01-01T20:00:00-04:00"^^xsd:dateTime   >> schema:position "1"^^xsd:integer .
+
+adr:spec-qc-ca_broue schema:startDate "2023-02-02T20:00:00-04:00"^^xsd:dateTime .
+<< adr:spec-qc-ca_broue schema:startDate "2023-02-02T20:00:00-04:00"^^xsd:dateTime >> schema:position "2"^^xsd:integer .
+
+adr:spec-qc-ca_broue schema:endDate "2023-01-01T23:00:00-04:00"^^xsd:dateTime .
+<< adr:spec-qc-ca_broue schema:endDate "2023-01-01T23:00:00-04:00"^^xsd:dateTime   >> schema:position "1"^^xsd:integer .
+
+adr:spec-qc-ca_broue schema:endDate "2023-02-02T23:00:00-04:00"^^xsd:dateTime .
+<< adr:spec-qc-ca_broue schema:endDate "2023-02-02T23:00:00-04:00"^^xsd:dateTime >> schema:position "2"^^xsd:integer .
