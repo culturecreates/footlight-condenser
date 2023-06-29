@@ -56,8 +56,7 @@ class Statement < ApplicationRecord
 
     @property_label ||= source.property.label
     if @property_label == 'Location'
-      urls = JsonUriWrapper.extract_uris_from_cache(cache)
-      self.status = 'missing' unless (urls.to_s.include?('http') || urls.to_s.include?('footlight:'))
+      self.status = 'missing' if JsonUriWrapper.check_for_multiple_missing_links(cache) 
     elsif @property_label == 'Dates'
       self.status = 'missing' unless valid_date?
     elsif @property_label == 'Title'

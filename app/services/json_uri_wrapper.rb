@@ -4,8 +4,8 @@ class JsonUriWrapper
   # Extract only the URIs from the linked data stored in the cache property
   # Condenser stores linked data as:
   # {search: "source text", class: "Expected Class", links: [ {label: "Entity label",uri: "URI" }] }
+
   def self.extract_uris_from_cache(cache)
-    
     cache_obj = build_json_from_anyURI(cache)
     uris = []
     deleted_uris = []
@@ -20,11 +20,39 @@ class JsonUriWrapper
     uris.flatten - deleted_uris.flatten
   end
 
+  def self.check_for_multiple_missing_links(cache)
+    cache_obj = build_json_from_anyURI(cache)
+    uris = []
+    cache_obj.each do |item|
+      if item[:search] != 'Manually deleted' && item[:search] != 'Manually added'
+        uris << item[:links].flatten.pluck(:uri) 
+      end
+    end
+    if uris.flatten.empty? 
+      # allow manually added place when all others are missing
+      manual = cache_obj.select { |item| item[:search] ==  'Manually added' }.first
+      if manual 
+        return false if !invalid_uri?(manual[:links].first[:uri])
+      end
+      true 
+    else
+      # check that all uris are valid
+      uris.each do |uri|
+        return true if invalid_uri?(uri.first)
+      end
+      false
+    end
+  end
+
+  def self.invalid_uri?(uri)
+    uri.blank? || !( uri.starts_with?('http') || uri.starts_with?('footlight:') )
+  end
+
   def self.build_json_from_anyURI(cache_str)
     return cache_str unless cache_str.class == String
     begin
       value_array = JSON.parse(cache_str)
-    rescue => exception
+    rescue 
       value_array = []
     end
 

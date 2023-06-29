@@ -58,4 +58,59 @@ class JsonUriWrapperTest < ActiveSupport::TestCase
     input = "[[\"\", \"Organization\", \"abort_update\"], [\"\", \"Organization\", \"abort_update\"]]"
     assert_equal expected_output, JsonUriWrapper.build_json_from_anyURI(input)
   end
+
+  test "check_for_multiple_missing_links simple case is false" do 
+    expected_output = false
+    input = '["Parc de Neuville", "Place", ["Parc de Neuville", "http://example.com/123"]]'
+    assert_equal expected_output, JsonUriWrapper.check_for_multiple_missing_links(input)
+  end
+
+  test "check_for_multiple_missing_links bad URI is true" do 
+    expected_output = true
+    input = '["Parc de Neuville", "Place", ["Parc de Neuville", "example.com/123"]]'
+    assert_equal expected_output, JsonUriWrapper.check_for_multiple_missing_links(input)
+  end
+
+  test "check_for_multiple_missing_links false" do 
+    expected_output = false
+    input = '[["Parc de Neuville", "Place", ["Parc de Neuville", "footlight:cd2df386-bf9c-4624-a468-56daa91d4c2b"]], ["Parc Jack-Eyamie", "Place", ["Parc Jack-Eyamie", "footlight:e188af8e-0ba9-4681-b443-a3e7ffeba39b"]], ["Manually added", "Place", ["Parc de Neuville", "footlight:cd2df386-bf9c-4624-a468-56daa91d4c2b"], ["Parc Jack-Eyamie", "footlight:e188af8e-0ba9-4681-b443-a3e7ffeba39b"]]]'
+    assert_equal expected_output, JsonUriWrapper.check_for_multiple_missing_links(input)
+  end
+
+  test "check_for_multiple_missing_links is true" do 
+    expected_output = true
+    input = '["Lac Beauchamp", "Place"]'
+    assert_equal expected_output, JsonUriWrapper.check_for_multiple_missing_links(input)
+  end
+  
+  test "check_for_multiple_missing_links missing first is true" do 
+    expected_output = true
+    input = '[["Parc de Neuville", "Place"], ["Parc Jack-Eyamie", "Place", ["Parc Jack-Eyamie", "footlight:e188af8e-0ba9-4681-b443-a3e7ffeba39b"]], ["Manually added", "Place", ["Parc de Neuville", "footlight:cd2df386-bf9c-4624-a468-56daa91d4c2b"], ["Parc Jack-Eyamie", "footlight:e188af8e-0ba9-4681-b443-a3e7ffeba39b"]]]'
+    assert_equal expected_output, JsonUriWrapper.check_for_multiple_missing_links(input)
+  end
+
+  test "check_for_multiple_missing_links in double array is true" do 
+    expected_output = true
+    input = '[["Lac Beauchamp", "Place"]]'
+    assert_equal expected_output, JsonUriWrapper.check_for_multiple_missing_links(input)
+  end
+
+  test "check_for_multiple_missing_links is false with manually added single place" do 
+    expected_output = false
+    input = '[["Parc du 8 octobre 1906", "Place"],["Parc du 8 octobre 1906", "Place"], ["Parc du 8 octobre 1906", "Place"], ["Manually added", "Place", ["Parc du 8 octobre", "footlight:1ab78ede-28b4-4f7a-80c9-78023e75cbe1"]]]'
+    assert_equal expected_output, JsonUriWrapper.check_for_multiple_missing_links(input)
+  end
+
+  test "invalid_uri is false" do
+    assert_equal false, JsonUriWrapper.invalid_uri?("http://example.com")
+  end
+
+  test "invalid_uri" do
+    assert_equal true, JsonUriWrapper.invalid_uri?("example.com")
+  end
+
+  test "invalid_uri when empty" do
+    assert_equal true, JsonUriWrapper.invalid_uri?("")
+  end
+
 end
