@@ -17,6 +17,7 @@ insert {
 }
 where {
     values ?uri { <http://kg.artsdata.ca/resource/spec-qc-ca_broue> }
+    ?uri schema:location ?location ; schema:name ?name ; a schema:Event .
    ?uri schema:location ?location  ; schema:name ?name .
     << ?uri schema:startDate ?startDates >> schema:position ?pos .
     OPTIONAL {
