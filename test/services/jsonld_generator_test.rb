@@ -17,14 +17,14 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
   ############################
 
   test "basic graph" do 
-    g =  RDF::Graph.load("test/fixtures/files/event_2_places_input.ttl", format: :ttl, rdfstar: true)
+    g =  RDF::Graph.load("test/fixtures/files/event_2_places_input.ttls", format: :ttl, rdfstar: true)
     # puts g.dump(:turtle, rdfstar: true)
     assert_equal 9, g.count
   end
 
   test "convert startDates to subEvents" do
-    g =  RDF::Graph.load("test/fixtures/files/event_2_dates_input.ttl", format: :ttl, rdfstar: true)
-    expected_output = RDF::Graph.load("test/fixtures/files/event_2_dates_output.ttl", format: :ttl, rdfstar: true)
+    g =  RDF::Graph.load("test/fixtures/files/event_2_dates_input.ttls", format: :ttl, rdfstar: true)
+    expected_output = RDF::Graph.load("test/fixtures/files/event_2_dates_output.ttls", format: :ttl, rdfstar: true)
     actual = JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue")
 
     # pp JSON.parse(actual.dump(:jsonld, rdfstar: true))
@@ -43,8 +43,8 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
   end
 
   test "convert startDates and endDates to subEvents" do
-    g =  RDF::Graph.load("test/fixtures/files/event_2_end_dates_input.ttl", format: :ttl, rdfstar: true)
-    expected_output = RDF::Graph.load("test/fixtures/files/event_2_end_dates_output.ttl", format: :ttl, rdfstar: true)
+    g =  RDF::Graph.load("test/fixtures/files/event_2_end_dates_input.ttls", format: :ttl, rdfstar: true)
+    expected_output = RDF::Graph.load("test/fixtures/files/event_2_end_dates_output.ttls", format: :ttl, rdfstar: true)
     actual = JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue")
 
    #  pp JSON.parse(actual.dump(:jsonld, rdfstar: true))
@@ -53,8 +53,8 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
 
   test "convert multiple locations to subEvents" do
 
-    g =  RDF::Graph.load("test/fixtures/files/event_2_places_input.ttl", format: :ttl, rdfstar: true)
-    expected_output = RDF::Graph.load("test/fixtures/files/event_2_places_output.ttl", format: :ttl, rdfstar: true)
+    g =  RDF::Graph.load("test/fixtures/files/event_2_places_input.ttls", format: :ttl, rdfstar: true)
+    expected_output = RDF::Graph.load("test/fixtures/files/event_2_places_output.ttls", format: :ttl, rdfstar: true)
     actual = JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue")
 
     # pp JSON.parse(actual.dump(:jsonld, rdfstar: true))
@@ -216,7 +216,7 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
   ############################
   
   test "remove_annotations" do
-    g =  RDF::Graph.load("test/fixtures/files/event_2_dates_input.ttl", format: :ttl, rdfstar: true)
+    g =  RDF::Graph.load("test/fixtures/files/event_2_dates_input.ttls", format: :ttl, rdfstar: true)
     expected_output = RDF::Graph.load("test/fixtures/files/event_2_dates_output_no_annotations.ttl", format: :ttl, rdfstar: true)
     actual = JsonldGenerator.remove_annotations(g)
 
