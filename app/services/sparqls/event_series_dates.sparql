@@ -11,12 +11,14 @@ insert {
         a schema:EventSeries ;
         schema:subEvent ?subEventUri .
     ?subEventUri a schema:Event  ;
+        schema:name ?name ;
+        schema:location ?location ;
         schema:startDate ?startDates ;
         schema:endDate ?endDates .
 }
 where {
     values ?uri { <http://kg.artsdata.ca/resource/spec-qc-ca_broue> }
-   ?uri schema:location ?location .
+   ?uri schema:location ?location ; schema:name ?name .
     << ?uri schema:startDate ?startDates >> schema:position ?pos .
     OPTIONAL {
         << ?uri schema:endDate ?endDates >> schema:position ?pos .

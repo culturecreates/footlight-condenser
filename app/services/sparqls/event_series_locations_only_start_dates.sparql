@@ -15,7 +15,6 @@ insert {
     ?subEventUri a schema:Event  ;
         schema:name ?name ;
         schema:startDate ?startDates ;
-        schema:endDate ?endDates ;
         schema:location ?location .
 }
 where {

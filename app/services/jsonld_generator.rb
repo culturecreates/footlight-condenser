@@ -126,16 +126,21 @@ class JsonldGenerator
    # resolve prefix if present
    full_uri = uri.gsub("adr:", "http://kg.artsdata.ca/resource/").gsub("footlight:", "http://kg.footlight.io/resource/")
 
+    ################################
     # Check for more than 1 startDate
+    ################################
     query = RDF::Query.new do
       pattern [RDF::URI.new(full_uri),RDF::URI.new("http://schema.org/startDate"), :o] 
     end
     result = query.execute(local_graph)
-    number_of_startDates = result.count
+    number_of_start_dates = result.count
     # puts "num startdates: #{result.count}"
-    return local_graph unless number_of_startDates > 1
 
+    return local_graph unless number_of_start_dates > 1
+
+    ################################
     # Check for more than 1 location
+    ################################
     # one location -> 'event_series_dates.sparql'
     # many locations -> 'event_series_locations.sparql'
     query = RDF::Query.new do
@@ -144,14 +149,38 @@ class JsonldGenerator
     result = query.execute(local_graph)
     number_of_locations = result.count
     # puts "num locations: #{result.count}"
-    filename =  if number_of_locations > 1 
-                  if number_of_locations != number_of_startDates
-                    Rails.logger.error "ERROR: converting #{full_uri} to EventSeries. Unequal number_of_locations:#{number_of_locations} and number_of_startDates:#{number_of_startDates}."
-                  end
+
+    ################################
+    # Check number of end dates
+    ################################
+    query = RDF::Query.new do
+      pattern [RDF::URI.new(full_uri),RDF::URI.new("http://schema.org/endDate"), :o] 
+    end
+    result = query.execute(local_graph)
+    number_of_end_dates = result.count
+
+    ##################################
+    # Log bad situations
+    ##################################
+    if number_of_locations != number_of_start_dates
+      Rails.logger.error "ERROR: converting #{full_uri} to EventSeries. Unequal number_of_locations:#{number_of_locations} and number_of_start_dates:#{number_of_start_dates}."
+    end
+    if number_of_end_dates > 0 && number_of_end_dates != number_of_start_dates
+      Rails.logger.info "INFO: warning converting #{full_uri} to EventSeries. Unequal number_of_end_dates:#{number_of_end_dates} and number_of_start_dates:#{number_of_start_dates}."
+    end    
+
+    filename =  if number_of_locations > 1 && (number_of_start_dates == number_of_end_dates)
                   'event_series_locations.sparql'
-                else
+                elsif  number_of_locations > 1  && (number_of_start_dates != number_of_end_dates)
+                  'event_series_locations_only_start_dates.sparql'
+                elsif number_of_locations == 1 && (number_of_end_dates != number_of_start_dates)
+                  'event_series_dates_only_start_dates.sparql'
+                elsif number_of_locations == 1 && (number_of_end_dates == number_of_start_dates)  
                   'event_series_dates.sparql'
                 end
+    
+    return local_graph unless filename
+
     sparql = RDFLoader.load_sparql(filename,["http://kg.artsdata.ca/resource/spec-qc-ca_broue", full_uri])
 
     begin

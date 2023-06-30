@@ -19,15 +19,15 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
   test "basic graph" do 
     g =  RDF::Graph.load("test/fixtures/files/event_2_places_input.ttls", format: :ttl, rdfstar: true)
     # puts g.dump(:turtle, rdfstar: true)
-    assert_equal 9, g.count
+    assert_equal 10, g.count
   end
 
-  test "convert startDates to subEvents" do
+  test "convert only startDates to subEvents" do
     g =  RDF::Graph.load("test/fixtures/files/event_2_dates_input.ttls", format: :ttl, rdfstar: true)
     expected_output = RDF::Graph.load("test/fixtures/files/event_2_dates_output.ttls", format: :ttl, rdfstar: true)
     actual = JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue")
 
-    # pp JSON.parse(actual.dump(:jsonld, rdfstar: true))
+    # puts actual.dump(:turtle, rdfstar: true)
     assert_equal expected_output.count, actual.count
   end
 
@@ -42,7 +42,7 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     assert_equal expected_output.dump(:ntriples), JsonldGenerator.make_event_series(g,"http://kg.artsdata.ca/resource/spec-qc-ca_broue").dump(:ntriples)
   end
 
-  test "convert startDates and endDates to subEvents" do
+  test "convert 2 startDates and 2 endDates to subEvents" do
     g =  RDF::Graph.load("test/fixtures/files/event_2_end_dates_input.ttls", format: :ttl, rdfstar: true)
     expected_output = RDF::Graph.load("test/fixtures/files/event_2_end_dates_output.ttls", format: :ttl, rdfstar: true)
     actual = JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue")
@@ -51,7 +51,16 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     assert_equal expected_output.count, actual.count
   end
 
-  test "convert multiple locations to subEvents" do
+  test "convert 2 startDates and mismatched endDates to subEvents" do
+    g =  RDF::Graph.load("test/fixtures/files/event_end_dates_mismatch_input.ttls", format: :ttl, rdfstar: true)
+    expected_output = RDF::Graph.load("test/fixtures/files/event_end_dates_mismatch_output.ttls", format: :ttl, rdfstar: true)
+    actual = JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue")
+
+   #  pp JSON.parse(actual.dump(:jsonld, rdfstar: true))
+    assert_equal expected_output.count, actual.count
+  end
+
+  test "convert multiple locations only start dates to subEvents" do
 
     g =  RDF::Graph.load("test/fixtures/files/event_2_places_input.ttls", format: :ttl, rdfstar: true)
     expected_output = RDF::Graph.load("test/fixtures/files/event_2_places_output.ttls", format: :ttl, rdfstar: true)
@@ -61,6 +70,25 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     assert_equal expected_output.count, actual.count
   end
 
+  test "convert multiple locations to subEvents" do
+
+    g =  RDF::Graph.load("test/fixtures/files/event_2_places_input.ttls", format: :ttl, rdfstar: true)
+    expected_output = RDF::Graph.load("test/fixtures/files/event_2_places_output.ttls", format: :ttl, rdfstar: true)
+    actual = JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue")
+
+    # puts actual.dump(:turtle, rdfstar: true)
+    assert_equal expected_output.count, actual.count
+  end
+
+  test "convert 2 places 2 endDates to subEvents" do
+
+    g =  RDF::Graph.load("test/fixtures/files/event_2_places_2_end_dates_input.ttls", format: :ttl, rdfstar: true)
+    expected_output = RDF::Graph.load("test/fixtures/files/event_2_places_2_end_dates_output.ttls", format: :ttl, rdfstar: true)
+    actual = JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue")
+
+    # puts actual.dump(:turtle, rdfstar: true)
+    assert_equal expected_output.count, actual.count
+  end
 
   ############################
   # test coalesce_language

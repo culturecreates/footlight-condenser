@@ -12,7 +12,6 @@ adr:spec-qc-ca_broue a schema:EventSeries ;
 
 << adr:spec-qc-ca_broue schema:startDate "2023-01-01T20:00:00-04:00"^^xsd:dateTime >> schema:position "1"^^xsd:integer .
 
-
 <http://kg.artsdata.ca/resource/spec-qc-ca_broue#2023-01-01> a schema:Event ;
   schema:name "Event Name" ;
   schema:location <http://place.com/1> ;
@@ -25,3 +24,4 @@ adr:spec-qc-ca_broue a schema:EventSeries ;
 
 << adr:spec-qc-ca_broue schema:startDate "2023-02-02T20:00:00-04:00"^^xsd:dateTime >> schema:position "2"^^xsd:integer .
 
+<< adr:spec-qc-ca_broue schema:endDate "2023-02-02T23:00:00-04:00"^^xsd:dateTime >> schema:position "2"^^xsd:integer .
