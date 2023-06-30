@@ -1,6 +1,7 @@
 # Class to convert data in the Condensor data model to JSON-LD
 class JsonldGenerator
   extend ResourcesHelper # for method adjust_labels_for_api
+  
   # main method to dump all statements into a graph to push to artsdata
   def self.dump_events(events) # list of event uris
     graphs = RDF::Graph.new
@@ -12,6 +13,7 @@ class JsonldGenerator
       graph = add_triples_from_footlight(graph)
       graphs << graph
     end
+    graphs = remove_annotations(graphs)
     graphs.dump(:jsonld)
   end
 
@@ -107,6 +109,13 @@ class JsonldGenerator
   # make Google SDTT pass by removing data types like xsd:dateTime and xsd:date
   def self.make_google_graph(local_graph)
     sparql = RDFLoader.load_sparql('remove_date_datatypes.sparql')
+    sse = SPARQL.parse(sparql, update: true)
+    local_graph.query(sse)
+    local_graph
+  end
+
+  def self.remove_annotations(local_graph)
+    sparql = RDFLoader.load_sparql('remove_annotations.sparql')
     sse = SPARQL.parse(sparql, update: true)
     local_graph.query(sse)
     local_graph

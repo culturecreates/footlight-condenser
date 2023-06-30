@@ -211,5 +211,18 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     assert_equal JSON.parse(expected_output.dump(:jsonld)), JSON.parse(JsonldGenerator.make_google_graph(input_graph).dump(:jsonld))
   end
 
+  ############################
+  # test remove_annotations
+  ############################
+  
+  test "remove_annotations" do
+    g =  RDF::Graph.load("test/fixtures/files/event_2_dates_input.ttl", format: :ttl, rdfstar: true)
+    expected_output = RDF::Graph.load("test/fixtures/files/event_2_dates_output_no_annotations.ttl", format: :ttl, rdfstar: true)
+    actual = JsonldGenerator.remove_annotations(g)
+
+    #pp JSON.parse(actual.dump(:jsonld, rdfstar: true))
+    assert_equal JSON.parse(expected_output.dump(:jsonld)), JSON.parse(actual.dump(:jsonld))
+  end
+
 
 end
