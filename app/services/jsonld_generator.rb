@@ -7,7 +7,7 @@ class JsonldGenerator
     events.each do |uri|
       statements = load_uri_statements(uri)
       statements_hash = statements.map{ |stat| adjust_labels_for_api(stat, subject: stat.webpage.rdf_uri, webpage_class_name: stat.webpage.rdfs_class.name  ) }
-      graph = build_graph(statements_hash, {})
+      graph = build_graph(statements_hash, {for_artsdata: true})
       graph = make_event_series(graph, uri)
       graph = add_triples_from_footlight(graph)
       graphs << graph
@@ -245,7 +245,7 @@ class JsonldGenerator
           elsif s[:predicate].include?('location')
             statement = RDF::Statement(RDF::URI(subject), RDF::URI(s[:predicate]), RDF::URI(uri))
             graph << statement
-            graph << [statement,  RDF::URI('http://schema.org/position'), index]
+            graph << [statement,  RDF::URI('http://schema.org/position'), index] if nesting_options[:for_artsdata]
           else
             graph << RDF::Statement(RDF::URI(subject), RDF::URI(s[:predicate]), RDF::URI(uri))
           end
@@ -256,11 +256,11 @@ class JsonldGenerator
           if RDF::Literal::DateTime.new(date_time).valid?
             statement = RDF::Statement(RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::DateTime.new(date_time))
             graph << statement
-            graph << [statement,  RDF::URI('http://schema.org/position'), index]
+            graph << [statement,  RDF::URI('http://schema.org/position'), index]  if nesting_options[:for_artsdata]
           elsif RDF::Literal::Date.new(date_time).valid?
             statement = RDF::Statement(RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::Date.new(date_time))
             graph << statement
-            graph << [statement,  RDF::URI('http://schema.org/position'), index]
+            graph << [statement,  RDF::URI('http://schema.org/position'), index]  if nesting_options[:for_artsdata]
           else
             # graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal(date_time)] 
           end
@@ -271,11 +271,11 @@ class JsonldGenerator
           if RDF::Literal::DateTime.new(date_time).valid?
             statement = RDF::Statement(RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::DateTime.new(date_time))
             graph << statement
-            graph << [statement,  RDF::URI('http://schema.org/position'), index]
+            graph << [statement,  RDF::URI('http://schema.org/position'), index]  if nesting_options[:for_artsdata]
           elsif RDF::Literal::Date.new(date_time).valid?
             statement = RDF::Statement(RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::Date.new(date_time))
             graph << statement
-            graph << [statement,  RDF::URI('http://schema.org/position'), index]
+            graph << [statement,  RDF::URI('http://schema.org/position'), index]  if nesting_options[:for_artsdata]
           else
             # graph << [RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal(date_time)] 
           end
