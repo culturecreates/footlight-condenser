@@ -142,24 +142,26 @@ class JsonldGenerator
     ##################################
     # Log bad situations
     ##################################
-    if number_of_locations != number_of_start_dates
+    if number_of_locations > 1 && number_of_locations != number_of_start_dates
       Rails.logger.error "ERROR: converting #{full_uri} to EventSeries. Unequal number_of_locations:#{number_of_locations} and number_of_start_dates:#{number_of_start_dates}."
     end
     if number_of_end_dates > 0 && number_of_end_dates != number_of_start_dates
       Rails.logger.info "INFO: warning converting #{full_uri} to EventSeries. Unequal number_of_end_dates:#{number_of_end_dates} and number_of_start_dates:#{number_of_start_dates}."
     end    
 
-    filename =  if number_of_locations > 1 && (number_of_start_dates == number_of_end_dates)
+    filename =  if number_of_locations > 1 && number_of_start_dates == number_of_locations && number_of_start_dates == number_of_end_dates
                   'event_series_locations.sparql'
-                elsif  number_of_locations > 1  && (number_of_start_dates != number_of_end_dates)
+                elsif  number_of_locations > 1  && number_of_start_dates != number_of_end_dates && number_of_start_dates == number_of_locations
                   'event_series_locations_only_start_dates.sparql'
-                elsif number_of_end_dates != number_of_start_dates
+                elsif  number_of_locations < 2 && number_of_end_dates != number_of_start_dates
                   'event_series_dates_only_start_dates.sparql'
-                elsif  number_of_end_dates == number_of_start_dates  
+                elsif  number_of_locations < 2 && number_of_end_dates == number_of_start_dates  
                   'event_series_dates.sparql'
                 end
     
-    return local_graph unless filename
+    
+    # TODO: Better handling of error 
+    return RDF::Graph.new unless filename
 
     sparql = RDFLoader.load_sparql(filename,["http://kg.artsdata.ca/resource/spec-qc-ca_broue", full_uri])
 
