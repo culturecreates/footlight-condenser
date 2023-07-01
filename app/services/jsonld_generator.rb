@@ -121,43 +121,23 @@ class JsonldGenerator
     local_graph
   end
 
+  def self.count_quoted_triples(local_graph, prop)
+    sparql = SPARQL.parse("SELECT * WHERE { <<?s <http://schema.org/#{prop}> ?o>> <http://schema.org/position> ?pos }")
+    result = local_graph.query(sparql)
+    result.count
+  end
+
   # convert a list of startDates into subEvents
   def self.make_event_series(local_graph, uri)
-   # resolve prefix if present
-   full_uri = uri.gsub("adr:", "http://kg.artsdata.ca/resource/").gsub("footlight:", "http://kg.footlight.io/resource/")
+    # resolve prefix if present
+    full_uri = uri.gsub("adr:", "http://kg.artsdata.ca/resource/").gsub("footlight:", "http://kg.footlight.io/resource/")
 
-    ################################
-    # Check for more than 1 startDate
-    ################################
-    query = RDF::Query.new do
-      pattern [RDF::URI.new(full_uri),RDF::URI.new("http://schema.org/startDate"), :o] 
-    end
-    result = query.execute(local_graph)
-    number_of_start_dates = result.count
-    # puts "num startdates: #{result.count}"
+    number_of_start_dates = count_quoted_triples(local_graph,'startDate')
 
     return local_graph unless number_of_start_dates > 1
 
-    ################################
-    # Check for more than 1 location
-    ################################
-    # one location -> 'event_series_dates.sparql'
-    # many locations -> 'event_series_locations.sparql'
-    query = RDF::Query.new do
-      pattern [RDF::URI.new(full_uri),RDF::URI.new("http://schema.org/location"), :o] 
-    end
-    result = query.execute(local_graph)
-    number_of_locations = result.count
-    # puts "num locations: #{result.count}"
-
-    ################################
-    # Check number of end dates
-    ################################
-    query = RDF::Query.new do
-      pattern [RDF::URI.new(full_uri),RDF::URI.new("http://schema.org/endDate"), :o] 
-    end
-    result = query.execute(local_graph)
-    number_of_end_dates = result.count
+    number_of_locations = count_quoted_triples(local_graph,'location')
+    number_of_end_dates = count_quoted_triples(local_graph,'endDate')
 
     ##################################
     # Log bad situations
@@ -173,9 +153,9 @@ class JsonldGenerator
                   'event_series_locations.sparql'
                 elsif  number_of_locations > 1  && (number_of_start_dates != number_of_end_dates)
                   'event_series_locations_only_start_dates.sparql'
-                elsif number_of_locations == 1 && (number_of_end_dates != number_of_start_dates)
+                elsif number_of_end_dates != number_of_start_dates
                   'event_series_dates_only_start_dates.sparql'
-                elsif number_of_locations == 1 && (number_of_end_dates == number_of_start_dates)  
+                elsif  number_of_end_dates == number_of_start_dates  
                   'event_series_dates.sparql'
                 end
     

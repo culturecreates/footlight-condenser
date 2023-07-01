@@ -16,6 +16,20 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
   # test make_event_series
   ############################
 
+  test "count_locations" do
+    g =  RDF::Graph.load("test/fixtures/files/event_2_places_input.ttls", format: :ttl, rdfstar: true)
+    locations = JsonldGenerator.count_quoted_triples(g,'location')
+    # puts actual.dump(:turtle, rdfstar: true)
+    assert_equal 2, locations
+  end
+
+  test "count_repeating_locations" do
+    g =  RDF::Graph.load("test/fixtures/files/event_4_places_input.ttls", format: :ttl, rdfstar: true)
+    locations = JsonldGenerator.count_quoted_triples(g,'location')
+    # puts actual.dump(:turtle, rdfstar: true)
+    assert_equal 4, locations
+  end
+
   test "basic graph" do 
     g =  RDF::Graph.load("test/fixtures/files/event_2_places_input.ttls", format: :ttl, rdfstar: true)
     # puts g.dump(:turtle, rdfstar: true)
