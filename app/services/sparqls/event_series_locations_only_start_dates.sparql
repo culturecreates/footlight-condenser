@@ -34,7 +34,7 @@ where {
     {
         select ?firstPlace where {
             values ?uri { <http://kg.artsdata.ca/resource/spec-qc-ca_broue> }
-            ?uri  schema:location ?location
+            ?uri  schema:location ?firstPlace
         } limit 1 
     } 
     {

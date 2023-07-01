@@ -29,4 +29,4 @@ adr:spec-qc-ca_broue a schema:EventSeries ;
 
 << adr:spec-qc-ca_broue schema:endDate "2023-01-01T22:00:00-04:00"^^xsd:dateTime >> schema:position "1"^^xsd:integer .
 << adr:spec-qc-ca_broue schema:endDate "2023-02-02T22:00:00-04:00"^^xsd:dateTime >> schema:position "2"^^xsd:integer .
-
+<< adr:spec-qc-ca_broue schema:startDate "2023-02-02T20:00:00-04:00"^^xsd:dateTime >> schema:position "2"^^xsd:integer .

@@ -80,7 +80,7 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     expected_output = RDF::Graph.load("test/fixtures/files/event_2_places_output.ttls", format: :ttl, rdfstar: true)
     actual = JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue")
 
-    # pp JSON.parse(actual.dump(:jsonld, rdfstar: true))
+    puts actual.dump(:turtle, rdfstar: true)
     assert_equal expected_output.count, actual.count
   end
 
