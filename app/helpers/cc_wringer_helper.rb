@@ -18,28 +18,26 @@ module CcWringerHelper
   end
 
 
-  def update_jsonld_on_wringer url, graph_uri, jsonld
-    # if is_publishable?(jsonld)
-       #update condensed JSON-LD in wringer to update KG
-       wringer_api = "/condensers/condense.json"
+  # def update_jsonld_on_wringer url, graph_uri, jsonld
+  #   # if is_publishable?(jsonld)
+  #      #update condensed JSON-LD in wringer to update KG
+  #      wringer_api = "/condensers/condense.json"
 
-       data = HTTParty.patch(get_wringer_url_per_environment() + wringer_api,
-         body: {'url' => url, 'graph_uri' => graph_uri, 'jsonld' => jsonld.to_json},
-         headers: { 'Content-Type' => 'application/x-www-form-urlencoded',
-                   'Accept' => 'application/json'} )
+  #      data = HTTParty.patch(get_wringer_url_per_environment() + wringer_api,
+  #        body: {'url' => url, 'graph_uri' => graph_uri, 'jsonld' => jsonld.to_json},
+  #        headers: { 'Content-Type' => 'application/x-www-form-urlencoded',
+  #                  'Accept' => 'application/json'} )
 
-       if data.response.code[0] == '2'
-          result = {message: "Successfully updated JSON-LD in wringer"}
-       else
-         result =  {error: data.response.code, message: data.response.message}
-       end
+  #      if data.response.code[0] == '2'
+  #         result = {message: "Successfully updated JSON-LD in wringer"}
+  #      else
+  #        result =  {error: data.response.code, message: data.response.message}
+  #      end
+  #   # else
+  #   #   #delete condensed JSON-LD in wringe to delete triples in KG
+  #   # end
 
-
-    # else
-    #   #delete condensed JSON-LD in wringe to delete triples in KG
-    # end
-
-  end
+  # end
 
 
   def get_wringer_url_per_environment
