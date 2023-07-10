@@ -100,7 +100,7 @@ module StatementsHelper
             logger.info "*** New POST URL formed: #{new_url}"
             temp_scrape_options = scrape_options.merge(json_post: true).merge(force_scrape_every_hrs: 1)
             data = agent.get_file use_wringer(new_url, render_js, temp_scrape_options)
-            page = Nokogiri::HTML(data)
+            page = Nokogiri::HTML(data, nil, Encoding::UTF_8.to_s)
           when 'api' # ok
             # Call API without going through wringer
             new_url =  eval(substitue_vars.call(algo))
