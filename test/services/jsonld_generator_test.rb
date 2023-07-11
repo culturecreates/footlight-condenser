@@ -104,6 +104,17 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     assert_equal expected_output.count, actual.count
   end
 
+
+  test "convert 2 startDates on same day to subEvents" do
+
+    g =  RDF::Graph.load("test/fixtures/files/event_2_dates_sameday_input.ttls", format: :ttl, rdfstar: true)
+    expected_output = RDF::Graph.load("test/fixtures/files/event_2_dates_sameday_output.ttls", format: :ttl, rdfstar: true)
+    actual = JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue")
+
+    puts actual.dump(:turtle, rdfstar: true)
+    assert_equal expected_output.count, actual.count
+  end
+
   ############################
   # test coalesce_language
   ############################
