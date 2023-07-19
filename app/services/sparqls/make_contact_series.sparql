@@ -1,0 +1,21 @@
+PREFIX schema: <http://schema.org/>
+
+delete {
+    <http://kg.artsdata.ca/resource/spec-qc-ca_broue> schema:contactPoint ?cp .
+     ?cp a schema:ContactPoint .
+    ?cp  ?cp_prop ?cp_value .
+}
+insert {
+    <http://kg.artsdata.ca/resource/spec-qc-ca_broue> schema:contactPoint ?cp_series .
+    ?cp_series ?cp_prop ?cp_value .
+     ?cp_series a schema:ContactPoint .
+}
+where {
+   
+    ?cp  ^schema:contactPoint <http://kg.artsdata.ca/resource/spec-qc-ca_broue> ; 
+        a schema:ContactPoint ;
+         ?cp_prop ?cp_value .
+    << ?cp ?cp_prop ?cp_value >> schema:position ?pos .
+     
+    bind(URI(CONCAT(str(?cp),"_",str(?pos))) as ?cp_series)
+}

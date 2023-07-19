@@ -80,7 +80,7 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     expected_output = RDF::Graph.load("test/fixtures/files/event_2_places_output.ttls", format: :ttl, rdfstar: true)
     actual = JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue")
 
-    puts actual.dump(:turtle, rdfstar: true)
+    # puts actual.dump(:turtle, rdfstar: true)
     assert_equal expected_output.count, actual.count
   end
 
@@ -111,9 +111,24 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     expected_output = RDF::Graph.load("test/fixtures/files/event_2_dates_sameday_output.ttls", format: :ttl, rdfstar: true)
     actual = JsonldGenerator.make_event_series(g,"adr:spec-qc-ca_broue")
 
-    puts actual.dump(:turtle, rdfstar: true)
+    # puts actual.dump(:turtle, rdfstar: true)
     assert_equal expected_output.count, actual.count
   end
+
+  ############################
+  # test convert contacts
+  ############################
+
+  test "convert 2 contacts" do
+
+    g =  RDF::Graph.load("test/fixtures/files/event_contactpoint_input.ttls", format: :ttl, rdfstar: true)
+    expected_output = RDF::Graph.load("test/fixtures/files/event_contactpoint_output.ttls", format: :ttl, rdfstar: true)
+    actual = JsonldGenerator.make_contact_series(g,"adr:spec-qc-ca_broue")
+
+    # puts actual.dump(:turtle, rdfstar: true)
+    assert_equal expected_output.count, actual.count
+  end
+
 
   ############################
   # test coalesce_language

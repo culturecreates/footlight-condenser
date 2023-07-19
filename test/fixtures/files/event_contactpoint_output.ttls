@@ -1,0 +1,27 @@
+PREFIX schema: <http://schema.org/>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX adr: <http://kg.artsdata.ca/resource/>
+
+adr:spec-qc-ca_broue a schema:Event .
+adr:spec-qc-ca_broue schema:name "Event Name" .
+adr:spec-qc-ca_broue  schema:location <http://place.com/1> .
+
+adr:spec-qc-ca_broue schema:startDate "2023-01-01T20:00:00-04:00"^^xsd:dateTime .
+
+adr:spec-qc-ca_broue schema:contactPoint adr:contactPointA1 .
+
+adr:contactPointA1 a  schema:ContactPoint .
+adr:contactPointA1 schema:name "Name 1" .
+<< adr:contactPointA schema:name "Name 1" >> schema:position "1"^^xsd:integer .
+adr:contactPointA1 schema:telephone "Phone 1" .
+<< adr:contactPointA schema:telephone "Phone 1" >> schema:position "1"^^xsd:integer .
+
+
+
+adr:spec-qc-ca_broue schema:contactPoint adr:contactPointA2 .
+
+adr:contactPointA2 a  schema:ContactPoint .
+adr:contactPointA2 schema:name "Name 2" .
+<< adr:contactPointA schema:name "Name 2" >> schema:position "2"^^xsd:integer .
+adr:contactPointA2 schema:telephone "Phone 2" .
+<< adr:contactPointA schema:telephone "Phone 2" >> schema:position "2"^^xsd:integer .

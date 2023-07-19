@@ -9,6 +9,7 @@ class JsonldGenerator
       statements = load_uri_statements(uri)
       statements_hash = statements.map{ |stat| adjust_labels_for_api(stat, subject: stat.webpage.rdf_uri, webpage_class_name: stat.webpage.rdfs_class.name  ) }
       graph = build_graph(statements_hash, {for_artsdata: true})
+      graph = make_contact_series(graph, uri)
       graph = make_event_series(graph, uri)
       graph = add_triples_from_footlight(graph)
       graphs << graph
@@ -127,11 +128,26 @@ class JsonldGenerator
     result.count
   end
 
+  # resolve prefix if present
+  def self.full_uri(uri)
+    uri.gsub("adr:", "http://kg.artsdata.ca/resource/").gsub("footlight:", "http://kg.footlight.io/resource/")
+  end
+
+  # convert a list of ContactPoint names and phones into seperate ContactPoints
+  def self.make_contact_series(local_graph, uri)
+    filename = "make_contact_series.sparql"
+    sparql = RDFLoader.load_sparql(filename,["http://kg.artsdata.ca/resource/spec-qc-ca_broue", full_uri(uri)])
+    begin
+      sse = SPARQL.parse(sparql, update: true)
+      local_graph.query(sse)
+    rescue => exception
+      Rails.logger.error "ERROR: #{exception}"
+    end
+    local_graph
+  end
+
   # convert a list of startDates into subEvents
   def self.make_event_series(local_graph, uri)
-    # resolve prefix if present
-    full_uri = uri.gsub("adr:", "http://kg.artsdata.ca/resource/").gsub("footlight:", "http://kg.footlight.io/resource/")
-
     number_of_start_dates = count_quoted_triples(local_graph,'startDate')
 
     return local_graph unless number_of_start_dates > 1
@@ -143,10 +159,10 @@ class JsonldGenerator
     # Log bad situations
     ##################################
     if number_of_locations > 1 && number_of_locations != number_of_start_dates
-      Rails.logger.error "ERROR: converting #{full_uri} to EventSeries. Unequal number_of_locations:#{number_of_locations} and number_of_start_dates:#{number_of_start_dates}."
+      Rails.logger.error "ERROR: converting #{full_uri(uri)} to EventSeries. Unequal number_of_locations:#{number_of_locations} and number_of_start_dates:#{number_of_start_dates}."
     end
     if number_of_end_dates > 0 && number_of_end_dates != number_of_start_dates
-      Rails.logger.info "INFO: warning converting #{full_uri} to EventSeries. Unequal number_of_end_dates:#{number_of_end_dates} and number_of_start_dates:#{number_of_start_dates}."
+      Rails.logger.info "INFO: warning converting #{full_uri(uri)} to EventSeries. Unequal number_of_end_dates:#{number_of_end_dates} and number_of_start_dates:#{number_of_start_dates}."
     end    
 
     filename =  if number_of_locations > 1 && number_of_start_dates == number_of_locations && number_of_start_dates == number_of_end_dates
@@ -163,7 +179,7 @@ class JsonldGenerator
     # TODO: Better handling of error 
     return RDF::Graph.new unless filename
 
-    sparql = RDFLoader.load_sparql(filename,["http://kg.artsdata.ca/resource/spec-qc-ca_broue", full_uri])
+    sparql = RDFLoader.load_sparql(filename,["http://kg.artsdata.ca/resource/spec-qc-ca_broue", full_uri(uri)])
 
     begin
       sse = SPARQL.parse(sparql, update: true)
@@ -206,9 +222,10 @@ class JsonldGenerator
     statements.each do |s|
       next if s['status'] == 'initial' || s['status'] == 'problem'
 
+      next if s[:predicate].empty? 
+
       main_class_uri = "http://schema.org/#{s[:webpage_class_name]}"
-      subject = s[:subject].sub('adr:', 'http://kg.artsdata.ca/resource/')
-                           .sub('footlight:', 'http://kg.footlight.io/resource/')
+      subject = full_uri(s[:subject])
       
       graph << [RDF::URI(subject), RDF.type, RDF::URI(main_class_uri)]
 
@@ -230,8 +247,10 @@ class JsonldGenerator
       if s[:rdfs_class_name] == 'Offer'
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/offers'), build_uri(subject,'Offer')]
         graph << [build_uri(subject,'Offer'), RDF.type, RDF::URI('http://schema.org/Offer')]
-        s[:value].make_into_array.each do |url|
-          graph << [build_uri(subject,'Offer'), RDF::URI(s[:predicate]), RDF::Literal(url)]
+        s[:value].make_into_array.each_with_index do |str, index|
+          statement = RDF::Statement(build_uri(subject,'Offer'), RDF::URI(s[:predicate]), RDF::Literal(str))
+          graph << statement
+          graph << [statement,  RDF::URI('http://schema.org/position'), index] if nesting_options[:for_artsdata]
         end
       elsif s[:rdfs_class_name] == 'VirtualLocation'
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/location'), build_uri(subject,'VirtualLocation')]
@@ -252,6 +271,20 @@ class JsonldGenerator
         graph << [build_uri(s[:value], 'WebPage'), RDF::URI('http://schema.org/inLanguage'), s[:language]] if s[:language].present?
         graph << [build_uri(s[:value], 'WebPage'), RDF::URI('http://schema.org/lastReviewed'), RDF::Literal::DateTime.new(s["cache_refreshed"])] if s["cache_refreshed"].present?
         graph << [build_uri(s[:value], 'WebPage'), RDF::URI(s[:predicate]), s[:value]]
+      elsif s[:rdfs_class_name] == 'ContactPoint'
+        graph << [RDF::URI(subject), RDF::URI('http://schema.org/contactPoint'), build_uri(subject,'ContactPoint')]
+        graph << [build_uri(subject, 'ContactPoint'), RDF.type, RDF::URI('http://schema.org/ContactPoint')]
+        s[:value].make_into_array.each_with_index do |str, index|
+          statement = RDF::Statement(build_uri(subject,'ContactPoint'), RDF::URI(s[:predicate]), RDF::Literal(str))
+          graph << statement
+          graph << [statement,  RDF::URI('http://schema.org/position'), index] if nesting_options[:for_artsdata]
+        end
+      elsif s[:rdfs_class_name] == 'AggregateOffer'
+        graph << [RDF::URI(subject), RDF::URI('http://schema.org/offers'), build_uri(subject,'AggregateOffer')]
+        graph << [build_uri(subject,'AggregateOffer'), RDF.type, RDF::URI('http://schema.org/AggregateOffer')]
+        s[:value].make_into_array.each do |str|
+          graph << [build_uri(subject,'AggregateOffer'), RDF::URI(s[:predicate]), RDF::Literal(str)]
+        end
       ## TEMPORARY PATCH  END #########
 
       elsif  s[:datatype] == 'xsd:anyURI'
@@ -274,9 +307,11 @@ class JsonldGenerator
         # Test value and adjust datatype to either xsd:dateTime or xsd:date
         s[:value].make_into_array.each_with_index do |date_time, index|
           if RDF::Literal::DateTime.new(date_time).valid?
+           
             statement = RDF::Statement(RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::DateTime.new(date_time))
             graph << statement
             graph << [statement,  RDF::URI('http://schema.org/position'), index]  if nesting_options[:for_artsdata]
+            puts "adding dateTime #{statement.inspect}"
           elsif RDF::Literal::Date.new(date_time).valid?
             statement = RDF::Statement(RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::Date.new(date_time))
             graph << statement
