@@ -172,7 +172,7 @@ module StatementsHelper
     # check if scraped_data is already formated for condenser as an array in the case of hard coding (like event category).
     # example: scraped_data = ["[\"Manually added\",\"Category\",[\"Performance\" , \"http://ontology.artsdata.ca/Performance\"]]"]
     scraped_data[0][0] == '['
-  rescue StandardError => e
+  rescue StandardError
     false
   end
 
@@ -553,7 +553,7 @@ module StatementsHelper
     _data = [_data] if _data[0].class != Array
     begin
       _old_cache = JSON.parse(old_data)
-    rescue StandardError => e
+    rescue StandardError
       _old_cache = old_data
     end
     _old_cache = [_old_cache] if _old_cache[0].class != Array

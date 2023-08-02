@@ -10,6 +10,7 @@ class JsonldGenerator
       statements_hash = statements.map{ |stat| adjust_labels_for_api(stat, subject: stat.webpage.rdf_uri, webpage_class_name: stat.webpage.rdfs_class.name  ) }
       graph = build_graph(statements_hash, {for_artsdata: true})
       graph = make_contact_series(graph, uri)
+      graph = make_offer_series(graph, uri)
       graph = make_event_series(graph, uri)
       graph = add_triples_from_footlight(graph)
       graphs << graph
@@ -146,6 +147,19 @@ class JsonldGenerator
     local_graph
   end
 
+  # convert a list of Offer prices and descriptions into seperate Offers
+  def self.make_offer_series(local_graph, uri)
+    filename = "make_offer_series.sparql"
+    sparql = RDFLoader.load_sparql(filename,["http://kg.artsdata.ca/resource/spec-qc-ca_broue", full_uri(uri)])
+    begin
+      sse = SPARQL.parse(sparql, update: true)
+      local_graph.query(sse)
+    rescue => exception
+      Rails.logger.error "ERROR: #{exception}"
+    end
+    local_graph
+  end
+
   # convert a list of startDates into subEvents
   def self.make_event_series(local_graph, uri)
     number_of_start_dates = count_quoted_triples(local_graph,'startDate')
@@ -248,7 +262,12 @@ class JsonldGenerator
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/offers'), build_uri(subject,'Offer')]
         graph << [build_uri(subject,'Offer'), RDF.type, RDF::URI('http://schema.org/Offer')]
         s[:value].make_into_array.each_with_index do |str, index|
-          statement = RDF::Statement(build_uri(subject,'Offer'), RDF::URI(s[:predicate]), RDF::Literal(str))
+          object = if s[:language].present?
+            RDF::Literal(str, language: s[:language])
+          else
+            RDF::Literal(str)
+          end
+          statement = RDF::Statement(build_uri(subject,'Offer'), RDF::URI(s[:predicate]), object)
           graph << statement
           graph << [statement,  RDF::URI('http://schema.org/position'), index] if nesting_options[:for_artsdata]
         end
@@ -288,7 +307,12 @@ class JsonldGenerator
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/offers'), build_uri(subject,'AggregateOffer')]
         graph << [build_uri(subject,'AggregateOffer'), RDF.type, RDF::URI('http://schema.org/AggregateOffer')]
         s[:value].make_into_array.each do |str|
-          graph << [build_uri(subject,'AggregateOffer'), RDF::URI(s[:predicate]), RDF::Literal(str)]
+          object = if s[:language].present?
+            RDF::Literal(str, language: s[:language])
+          else
+            RDF::Literal(str)
+          end
+          graph << [build_uri(subject,'AggregateOffer'), RDF::URI(s[:predicate]), object]
         end
       ## TEMPORARY PATCH  END #########
 

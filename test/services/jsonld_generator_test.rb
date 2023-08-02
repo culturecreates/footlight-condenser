@@ -129,6 +129,20 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     assert_equal expected_output.count, actual.count
   end
 
+  ############################
+  # test convert offers
+  ############################
+
+  test "convert 2 offers" do
+
+    g =  RDF::Graph.load("test/fixtures/files/event_offers_input.ttls", format: :ttl, rdfstar: true)
+    expected_output = RDF::Graph.load("test/fixtures/files/event_offers_output.ttls", format: :ttl, rdfstar: true)
+    actual = JsonldGenerator.make_offer_series(g,"adr:spec-qc-ca_broue")
+
+    # puts actual.dump(:turtle, rdfstar: true)
+    assert_equal expected_output.count, actual.count
+  end
+
 
   ############################
   # test coalesce_language

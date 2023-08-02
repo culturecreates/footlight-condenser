@@ -1,0 +1,19 @@
+PREFIX schema: <http://schema.org/>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+PREFIX adr: <http://kg.artsdata.ca/resource/>
+
+adr:spec-qc-ca_broue a schema:Event ;
+  schema:offers <http://offer.com/1> .
+
+<http://offer.com/1> a schema:Offer .
+<http://offer.com/1> schema:price "123" .
+<< <http://offer.com/1> schema:price "123"  >>  schema:position "1"^^xsd:integer .
+
+<http://offer.com/1> schema:price "456" .
+<< <http://offer.com/1> schema:price "456"  >>  schema:position "2"^^xsd:integer .
+
+<http://offer.com/1> schema:name "kids"@fr .
+<< <http://offer.com/1> schema:name "kids"@fr  >>  schema:position "1"^^xsd:integer .
+
+<http://offer.com/1> schema:name "adults"@fr .
+<< <http://offer.com/1> schema:name "adults"@fr   >>  schema:position "2"^^xsd:integer .

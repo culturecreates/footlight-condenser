@@ -1,0 +1,21 @@
+PREFIX schema: <http://schema.org/>
+
+delete {
+    <http://kg.artsdata.ca/resource/spec-qc-ca_broue> schema:offers ?offer .
+    ?offer a schema:Offer .
+    ?offer  ?offer_prop ?offer_value .
+}
+insert {
+    <http://kg.artsdata.ca/resource/spec-qc-ca_broue> schema:offers ?offer_series .
+    ?offer_series ?offer_prop ?offer_value .
+    ?offer_series a schema:Offer .
+}
+where {
+   
+    ?offer  ^schema:offers  <http://kg.artsdata.ca/resource/spec-qc-ca_broue> ; 
+        a schema:Offer ;
+         ?offer_prop ?offer_value .
+    << ?offer  ?offer_prop ?offer_value >> schema:position ?pos .
+     
+    bind(URI(CONCAT(str(?offer),"_",str(?pos))) as ?offer_series)
+}
