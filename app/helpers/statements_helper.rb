@@ -256,7 +256,7 @@ module StatementsHelper
   end
 
   def reconcile_event_status(scraped_data)
-    str = scraped_data.join(' - ')
+    str = ensure_array(scraped_data).join(' - ')
     result = [str, 'EventStatusType']
     if str.scan(/\b(Cancelled|Annulé|Annule)/i).present?
       result << ['EventCancelled', 'http://schema.org/EventCancelled']
@@ -298,7 +298,7 @@ module StatementsHelper
   end
 
   def reconcile_attendance_mode(scraped_data)
-    str = scraped_data.join(' - ')
+    str = ensure_array(scraped_data).join(' - ')
     result =  [str, 'EventAttendanceModeEnumeration']
     if str.scan(/\b(OfflineEventAttendanceMode)/i).present?
       result << ['In-person', 'http://schema.org/OfflineEventAttendanceMode']
@@ -608,6 +608,21 @@ module StatementsHelper
     end
 
     sources
+  end
+
+  # Ensure an unknown parameter is an Array
+  # "one" => ["one"]
+  # "[\"one\"],[\"two\"]" => ["one","two"]
+  # ["one","two"] => ["one","two"]
+  def ensure_array(unknown)
+    return unknown if unknown.class == Array
+    begin
+      # try to convert unknown string to array
+      JSON.parse(unknown.to_s)
+    rescue JSON::ParserError
+      # make string or existing array to array
+      Array(unknown)
+    end
   end
 
   # def logger

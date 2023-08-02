@@ -258,4 +258,51 @@ end
     assert_equal expected_output, convert_datetime(scraped_data)
   end
 
+
+  # reconcile_attendance_mode
+
+  test "reconcile_attendance_mode online" do
+    scraped_data = ["The Show","OnlineEventAttendanceMode"]
+    expected_output = ["The Show - OnlineEventAttendanceMode", "EventAttendanceModeEnumeration", ["Online", "http://schema.org/OnlineEventAttendanceMode"]]
+    assert_equal expected_output, reconcile_attendance_mode(scraped_data)
+  end
+
+  test "reconcile_attendance_mode offline" do
+    scraped_data = ["The Show","OfflineEventAttendanceMode"]
+    expected_output = ["The Show - OfflineEventAttendanceMode", "EventAttendanceModeEnumeration",  ["In-person", "http://schema.org/OfflineEventAttendanceMode"]]
+    assert_equal expected_output, reconcile_attendance_mode(scraped_data)
+  end
+
+  test "reconcile_attendance_mode mixed" do
+    scraped_data = ["The Show","MixedEventAttendanceMode"]
+    expected_output = ["The Show - MixedEventAttendanceMode", "EventAttendanceModeEnumeration", ["Mixed", "http://schema.org/MixedEventAttendanceMode"]]
+    assert_equal expected_output, reconcile_attendance_mode(scraped_data)
+  end
+
+
+  test "reconcile_attendance_mode string input instead of array" do
+    scraped_data = "The Show"
+    expected_output = ["The Show", "EventAttendanceModeEnumeration"]
+    assert_equal expected_output, reconcile_attendance_mode(scraped_data)
+  end
+
+  # reconcile_event_status
+
+  test "reconcile_event_status cancelled in string" do
+    scraped_data = "The Show is cancelled"
+    expected_output = ["The Show is cancelled", "EventStatusType", ["EventCancelled", "http://schema.org/EventCancelled"]]
+    assert_equal expected_output, reconcile_event_status(scraped_data)
+  end
+
+  test "reconcile_event_status cancelled in array" do
+    scraped_data = ["The Show","cancelled"]
+    expected_output = ["The Show - cancelled", "EventStatusType", ["EventCancelled", "http://schema.org/EventCancelled"]]
+    assert_equal expected_output, reconcile_event_status(scraped_data)
+  end
+
+  test "reconcile_event_status reporté in array" do
+    scraped_data = ["The Show Reporté","again"]
+    expected_output = ["The Show Reporté - again", "EventStatusType", ["EventRescheduled", "http://schema.org/EventRescheduled"]]
+    assert_equal expected_output, reconcile_event_status(scraped_data)
+  end
 end
