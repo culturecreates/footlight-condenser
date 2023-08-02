@@ -1,0 +1,52 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: http://localhost:3003/recon?query=Dance&type=ado:EventType
+    body:
+      encoding: US-ASCII
+      string: ''
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Xss-Protection:
+      - 1; mode=block
+      X-Content-Type-Options:
+      - nosniff
+      X-Download-Options:
+      - noopen
+      X-Permitted-Cross-Domain-Policies:
+      - none
+      Referrer-Policy:
+      - strict-origin-when-cross-origin
+      Content-Type:
+      - application/json; charset=utf-8
+      Etag:
+      - W/"31054f7186e3e7e8a4c6c2524c7a41d5"
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      X-Request-Id:
+      - ed6ca79b-3baf-437f-89c2-62367fbbff96
+      X-Runtime:
+      - '0.749112'
+      Vary:
+      - Accept, Origin
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: ASCII-8BIT
+      string: !binary |-
+        eyJyZXN1bHQiOlt7ImlkIjoiRGFuY2VQZXJmb3JtYW5jZSIsIm5hbWUiOiJEYW5jZSIsImRlc2NyaXB0aW9uIjoiQSBkYW5jZSBwZXJmb3JtYW5jZSBpcyBkYW5jZSBwZXJmb3JtZWQgZm9yIGFuIGF1ZGllbmNlLiAoc2tvczppblNjaGVtZSBhZHI6QXJ0c2RhdGFFdmVudFR5cGVzKSIsInNjb3JlIjo0NTMuNTUzNzIsIm1hdGNoIjp0cnVlLCJ0eXBlIjpbeyJpZCI6Imh0dHA6Ly9rZy5hcnRzZGF0YS5jYS9vbnRvbG9neS9FdmVudFR5cGUiLCJuYW1lIjoiQXJ0c2RhdGEgRXZlbnQgdHlwZXMifV19LHsiaWQiOiJEYW5jZVBlcmZvcm1hbmNlIiwibmFtZSI6IkRhbnNlIiwiZGVzY3JpcHRpb24iOiJVbiBzcGVjdGFjbGUgZGUgZGFuc2UgZXN0IHVuZSBkYW5zZSBleMOpY3V0w6llIHBvdXIgdW4gcHVibGljLiAoc2tvczppblNjaGVtZSBhZHI6QXJ0c2RhdGFFdmVudFR5cGVzKSIsInNjb3JlIjo0LjUzNTUzNzIsIm1hdGNoIjpmYWxzZSwidHlwZSI6W3siaWQiOiJodHRwOi8va2cuYXJ0c2RhdGEuY2Evb250b2xvZ3kvRXZlbnRUeXBlIiwibmFtZSI6IkFydHNkYXRhIEV2ZW50IHR5cGVzIn1dfV19
+  recorded_at: Wed, 02 Aug 2023 15:12:35 GMT
+recorded_with: VCR 6.2.0

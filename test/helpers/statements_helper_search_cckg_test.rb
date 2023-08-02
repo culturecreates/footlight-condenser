@@ -119,4 +119,15 @@ class StatementsHelperSearchCckgTest < ActionView::TestCase
       assert_equal expected, actual
     end
   end
+
+
+  test "search_cckg: find additional type using artsdata" do
+    VCR.use_cassette('StatementsHelperSearchCckgTest: find additional types') do
+      expected = {data:[["Dance", "http://kg.artsdata.ca/resource/DancePerformance"]]}
+      actual = search_cckg("Dance", "EventType")
+      assert_equal expected, actual
+    end
+  end
+
+
 end

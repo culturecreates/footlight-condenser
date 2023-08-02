@@ -223,6 +223,7 @@ module StatementsHelper
         if property.expected_class == 'EventStatusType'
           data << reconcile_event_status(scraped_data)
         elsif property.expected_class == 'EventTypeEnumeration'
+          # Note: in properties UI switch Expected Class to EventType to use Artsdata
           data << reconcile_additional_type(scraped_data)
         elsif property.expected_class == 'EventAttendanceModeEnumeration'
           data << reconcile_attendance_mode(scraped_data)
@@ -271,7 +272,7 @@ module StatementsHelper
   end
 
   def reconcile_additional_type(scraped_data)
-    str = scraped_data.join(' - ')
+    str = ensure_array(scraped_data).join(' - ')
     result =  [str, 'EventTypeEnumeration']
     if str.scan(/\b(Young public|Jeune public)/i).present?
       result << ['ChildrensEvent', 'http://schema.org/ChildrensEvent']
