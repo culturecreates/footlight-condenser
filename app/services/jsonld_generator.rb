@@ -275,7 +275,12 @@ class JsonldGenerator
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/contactPoint'), build_uri(subject,'ContactPoint')]
         graph << [build_uri(subject, 'ContactPoint'), RDF.type, RDF::URI('http://schema.org/ContactPoint')]
         s[:value].make_into_array.each_with_index do |str, index|
-          statement = RDF::Statement(build_uri(subject,'ContactPoint'), RDF::URI(s[:predicate]), RDF::Literal(str))
+          object = if s[:language].present?
+            RDF::Literal(str, language: s[:language])
+          else
+            RDF::Literal(str)
+          end
+          statement = RDF::Statement(build_uri(subject,'ContactPoint'), RDF::URI(s[:predicate]), object)
           graph << statement
           graph << [statement,  RDF::URI('http://schema.org/position'), index] if nesting_options[:for_artsdata]
         end
