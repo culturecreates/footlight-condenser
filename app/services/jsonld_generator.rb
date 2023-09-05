@@ -274,7 +274,12 @@ class JsonldGenerator
       elsif s[:rdfs_class_name] == 'VirtualLocation'
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/location'), build_uri(subject,'VirtualLocation')]
         graph << [build_uri(subject, 'VirtualLocation'), RDF.type, RDF::URI('http://schema.org/VirtualLocation')]
-        graph << [build_uri(subject, 'VirtualLocation'), RDF::URI(s[:predicate]), s[:value]]
+        object = if s[:language].present?
+          RDF::Literal(s[:value], language: s[:language])
+        else
+          RDF::Literal(s[:value])
+        end
+        graph << [build_uri(subject, 'VirtualLocation'), RDF::URI(s[:predicate]), object]
       elsif s[:rdfs_class_name] == 'PostalAddress'
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/address'), build_uri(subject,'PostalAddress')]
         graph << [build_uri(subject, 'PostalAddress'), RDF.type, RDF::URI('http://schema.org/PostalAddress')]
