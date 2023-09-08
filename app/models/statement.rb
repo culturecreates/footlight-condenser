@@ -152,9 +152,24 @@ class Statement < ApplicationRecord
   end
 
 
-
+  # Check that the scrapped string/array can be converted to one or more integers or floats.
   def integer_or_float?(str)
-    begin !!Float(str) rescue false end
+    convert_array(str).each do |price|
+      begin 
+        !!Float(price)  #-> this is a string that is forced into a boolean 
+        #   context (true), and then negated (false), and then 
+        #   negated again (true)
+      rescue 
+        return false 
+      end
+    end
   end
+
+  # ensure we have an Array
+  def convert_array(str)
+    return str if str.class == Array
+    begin [*JSON[str]] rescue Array(str) end
+  end
+
 
 end
