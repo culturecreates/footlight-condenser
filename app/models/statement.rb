@@ -22,6 +22,8 @@ class Statement < ApplicationRecord
   before_save :check_mandatory_properties
   before_save :update_archive_date
   before_save :set_manual_performer_organizer
+  before_save :check_no_abort_update
+  before_save :check_for_invalid_price
 
   # For pagination
   self.per_page = 100
@@ -63,6 +65,18 @@ class Statement < ApplicationRecord
       self.status = 'missing' unless cache.present?
     elsif @property_label == 'Virtual Location'
       self.status = 'missing' unless (cache.present? && cache != '[]')
+    end
+  end
+
+  def check_no_abort_update
+    self.status = 'problem' if cache.include?('abort_update') 
+  end
+
+  def check_for_invalid_price 
+    return if self.status == 'problem'
+    @property_label ||= source.property.label
+    if ['Price'].include?(@property_label)
+      self.status = 'problem' if !self.integer_or_float?(cache)
     end
   end
 
@@ -136,4 +150,11 @@ class Statement < ApplicationRecord
       end
     end
   end
+
+
+
+  def integer_or_float?(str)
+    begin !!Float(str) rescue false end
+  end
+
 end

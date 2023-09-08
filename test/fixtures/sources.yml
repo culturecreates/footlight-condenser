@@ -89,3 +89,11 @@ organizationNameSource:
   render_js: false
   property: organizationName
   website: two
+
+priceSource:
+  algorithm_value: Event page with price
+  selected: true
+  selected_by: Gregory
+  render_js: false
+  property: price
+  website: two

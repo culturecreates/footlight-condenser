@@ -110,4 +110,8 @@ organizationName:
   uri: http://schema.org/name
   rdfs_class: organization
 
-
+price:
+  label: Price
+  value_datatype: 
+  uri: http://schema.org/price
+  rdfs_class: event

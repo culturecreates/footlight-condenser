@@ -55,7 +55,6 @@ class StatementTest < ActiveSupport::TestCase
   end
 
   test 'check_mandatory_properties no change' do
-
     @statement.status = 'updated'
     expected = 'updated'
     @statement.check_mandatory_properties
@@ -63,11 +62,63 @@ class StatementTest < ActiveSupport::TestCase
   end
   
   test 'check_mandatory_properties bad date' do
-
     @statement.cache = "2020-05-23T"
     @statement.check_mandatory_properties
     expected = 'missing'
     assert_equal expected, @statement.status
 
   end
+
+  test 'check_no_abort_update detected' do
+    @statement.cache = "long message with abort_update."
+    @statement.check_no_abort_update
+    expected = 'problem'
+    assert_equal expected, @statement.status
+  end
+
+  test 'check_no_abort_update not present' do
+    @statement.cache = "long message looking good."
+    @statement.check_no_abort_update
+    assert_nil  @statement.status
+  end
+
+  test 'check_no_abort_update not in array' do
+    @statement.cache = ["array"]
+    @statement.check_no_abort_update
+    assert_nil @statement.status
+  end
+
+  test 'check_no_abort_update in array' do
+    @statement.cache = ["array","abort_update"]
+    @statement.check_no_abort_update
+    expected = 'problem'
+    assert_equal expected, @statement.status
+  end
+
+  test 'check_for_invalid_price' do
+    @statement = Statement.new(source: sources(:priceSource))
+    @statement.cache = '123.50'
+    @statement.check_for_invalid_price
+   
+    assert_nil @statement.status
+  end
+
+  test 'check_for_invalid_price NaN' do
+    @statement = Statement.new(source: sources(:priceSource))
+    @statement.cache = 'NaN'  
+    @statement.check_for_invalid_price
+    expected = 'problem'
+    assert_equal expected, @statement.status
+  end
+
+  test 'check_for_invalid_price with comma' do
+    @statement = Statement.new(source: sources(:priceSource))
+    @statement.cache = "12,3"
+    @statement.check_for_invalid_price
+    expected = 'problem'
+    assert_equal expected, @statement.status
+  end
+
+
+
 end
