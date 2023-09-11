@@ -134,6 +134,16 @@ class StatementTest < ActiveSupport::TestCase
     assert_nil  @statement.status
   end
 
+  # This test is when the second ticket is out of stock, 
+  # and the position needs to be maintained with a blank,
+  # in order to align the price array with the availability array.
+  test 'check_for_invalid_price with array of string and null string' do
+    @statement = Statement.new(source: sources(:priceSource))
+    @statement.cache = "[\"42\", \"\", \"38.4\"]"
+    @statement.check_for_invalid_price
+    assert_nil  @statement.status
+  end
+
   test 'ensure we have an array' do
     assert_equal ["one"], @statement.convert_array("[\"one\"]")
   end
