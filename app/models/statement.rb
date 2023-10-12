@@ -69,7 +69,7 @@ class Statement < ApplicationRecord
   end
 
   def check_no_abort_update
-    self.status = 'problem' if cache.include?('abort_update') 
+    self.status = 'problem' if cache.include?('abort_update') if cache
   end
 
   def check_for_invalid_price 

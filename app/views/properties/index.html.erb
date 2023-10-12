@@ -20,7 +20,7 @@
     <% @properties.each do |property| %>
       <tr>
         <td><%= property.id %></td>
-        <td><%= property.rdfs_class.name %></td>
+        <td><%= property.rdfs_class.name if property.rdfs_class %></td>
         <td><%= property.label %></td>
         <td><%= property.value_datatype %></td>
         <td><%= property.expected_class %></td>

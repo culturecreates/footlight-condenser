@@ -20,7 +20,7 @@
       <tr <%= "style=color:red;" if !source.selected %>>
         <td><%= source.id %></td>
 
-        <td><%= source.property.rdfs_class.name %> <%= source.property.label  + "(#{source.property_id})" %> <%= "@" + source.language if !source.language.blank?%></td>
+        <td><%= source.property.rdfs_class.name if  source.property.rdfs_class %> <%= source.property.label  + "(#{source.property_id})" %> <%= "@" + source.language if !source.language.blank?%></td>
         <td><%= source.label %></td>
         <td><%= source.algorithm_value %></td>
         <td <%= "style=bakground-color:pink;" if !source.selected %>><%= source.selected %></td>
