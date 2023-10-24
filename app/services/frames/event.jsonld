@@ -5,6 +5,7 @@
             "additionalType": { "@id":"additionalType", "@type":"@id"},
             "sameAs": { "@id":"sameAs", "@type":"@id"},
             "eventAttendanceMode": { "@id":"eventAttendanceMode", "@type":"@id"},
+            "eventStatus": { "@id":"eventStatus", "@type":"@id"},
             "footlight":"http://kg.footlight.io/resource/"
         },
     "@type": "Event",

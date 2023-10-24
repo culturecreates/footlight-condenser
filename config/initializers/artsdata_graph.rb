@@ -22,11 +22,11 @@ class ArtsdataGraph
   
     ## replace this with loading schema.org ontology in the future
     ## Instances of EventStatusType
-    @@graph  << [RDF::URI("http://schema.org/EventScheduled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
-    @@graph  << [RDF::URI("http://schema.org/EventRescheduled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
-    @@graph  << [RDF::URI("http://schema.org/EventPostponed"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
-    @@graph  << [RDF::URI("http://schema.org/EventMovedOnline"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
-    @@graph  << [RDF::URI("http://schema.org/EventCancelled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
+    # @@graph  << [RDF::URI("http://schema.org/EventScheduled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
+    # @@graph  << [RDF::URI("http://schema.org/EventRescheduled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
+    # @@graph  << [RDF::URI("http://schema.org/EventPostponed"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
+    # @@graph  << [RDF::URI("http://schema.org/EventMovedOnline"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
+    # @@graph  << [RDF::URI("http://schema.org/EventCancelled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
 
     ## Load local entities (People, Places, Organizations) entered manually into Footlight
     local_graph = LocalGraphGenerator.graph_all
