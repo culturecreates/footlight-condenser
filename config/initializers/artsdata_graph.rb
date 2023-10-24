@@ -14,7 +14,7 @@ class ArtsdataGraph
     else
       # Load artsdata.ca graphs for places, people and organizations
       @@graph =
-        RDF::Graph.load('https://db.artsdata.ca/repositories/artsdata/statements?context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FPlace%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FOrganization%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FPerson%3E',
+        RDF::Graph.load('https://db.artsdata.ca/repositories/artsdata/statements?context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2Fminted%2FK11%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FOrganization%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2FPerson%3E',
                         format: :nquads)
       # To create a new dump use:
       # File.open("artsdata-dump.nt", "w") {|f| f << @@artsdata_graph.dump(:ntriples)}
