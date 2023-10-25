@@ -415,7 +415,7 @@ class JsonldGenerator
       graph << [uri, s.to_h[:p], s.to_h[:o]]
 
       # If object is a URI then add one level deep to capture location address etc.
-      if s.to_h[:o].uri?
+      if s.to_h[:o].uri? && !s.to_h[:o].value.start_with?("http://kg.artsdata.ca/resource/K")
         query3 = RDF::Query.new do
           pattern [s.to_h[:o], :b, :c]
         end
