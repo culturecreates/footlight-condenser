@@ -46,8 +46,8 @@ class DatabusController < ApplicationController
       version: version, 
       report_callback_url: webhook_messages_url(artifact: artifact, format: :json),
       shacl_file: shacl_file)
-    if data.code[0] == 2
-      render json: { message: data }.to_json
+    if data.code == 201
+      render json: { data: data }.to_json
     else
       render json: { error: data }.to_json
     end
