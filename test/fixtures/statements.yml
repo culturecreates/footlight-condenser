@@ -109,3 +109,23 @@ eleven:
   cache_changed: 2018-07-30 16:46:00 UTC
   source: organizationNameSource
   webpage: louiseAntoinetteOrg
+
+startDate:
+  cache: "[\"2018-07-30T16:46:00Z\"]"
+  status: updated
+  status_origin: Gregory
+  cache_refreshed: 2018-07-30 16:46:00 UTC
+  cache_changed: 2018-07-30 16:46:00 UTC
+  source: startDateTest
+  webpage: eventPage
+  selected_individual: true
+
+validFrom:
+  cache: "[\"2018-07-30T16:46:00Z\"]"
+  status: updated
+  status_origin: Gregory
+  cache_refreshed: 2018-07-30 16:46:00 UTC
+  cache_changed: 2018-07-30 16:46:00 UTC
+  source: validFromSource
+  webpage: eventPage
+  selected_individual: true

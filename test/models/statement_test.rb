@@ -91,6 +91,23 @@ class StatementTest < ActiveSupport::TestCase
     assert_equal 'problem', @statement.status
   end
 
+  #  set archive date 
+  test 'set archive date with startTime' do
+    @statement = statements(:startDate)
+    @statement.update_archive_date
+    expected = @statement.cache.to_datetime - 24.hours
+    actual = Webpage.where(rdf_uri: "uri1").first.archive_date
+    assert_equal expected, actual
+  end
+
+  test 'does not set archive date with validFrom' do
+    @statement = statements(:validFrom)
+    @statement.update_archive_date
+    expected = @statement.cache.to_datetime - 24.hours
+    actual = Webpage.where(rdf_uri: "uri1").first.archive_date
+    assert_not_equal expected, actual
+  end
+
   # check_for_invalid_price
   test 'check_for_invalid_price' do
     @statement = Statement.new(source: sources(:priceSource))

@@ -85,3 +85,11 @@ louiseAntoinetteOrg:
   rdf_uri: adr:Louise-Antoinette-inc
   rdfs_class: organization
   website: two
+
+eventPage:
+  url: http://sample.com/event1
+  language: en
+  rdf_uri: uri1
+  rdfs_class: one
+  website: one
+  archive_date: 2020-01-01 16:46:00 UTC

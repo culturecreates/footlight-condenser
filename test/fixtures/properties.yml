@@ -115,3 +115,9 @@ price:
   value_datatype: 
   uri: http://schema.org/price
   rdfs_class: event
+
+validFromProp:
+  label: validFromProp
+  value_datatype: xsd:dateTime
+  uri: http://schema.org/validFrom
+  rdfs_class: offer

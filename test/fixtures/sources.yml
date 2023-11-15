@@ -97,3 +97,19 @@ priceSource:
   render_js: false
   property: price
   website: two
+
+startDateTest:
+  algorithm_value: Start Date
+  selected: true
+  selected_by: Gregory
+  render_js: false
+  property: ten
+  website: one
+
+validFromSource:
+  algorithm_value: Offer Valid From Date
+  selected: true
+  selected_by: Gregory
+  render_js: false
+  property: validFromProp
+  website: one

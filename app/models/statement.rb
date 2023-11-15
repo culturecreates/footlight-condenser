@@ -135,8 +135,9 @@ class Statement < ApplicationRecord
   # including when the statement is manually edited
   def update_archive_date
     return unless selected_individual
-    @value_datatype ||= source.property.value_datatype
-    if @value_datatype == 'xsd:dateTime' || @value_datatype == 'xsd:date'
+
+    @property_uri ||= source.property.uri
+    if @property_uri.include?('startDate') || @property_uri.include?('endDate')
       return if cache.nil?
 
       return if cache.include?('error') || cache.include?('bad')
