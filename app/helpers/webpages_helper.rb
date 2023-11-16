@@ -8,7 +8,7 @@ module WebpagesHelper
     problem_statements = event_statement_collection.select{ |s|  mandatory_schema.include?(s['uri']) && (( s['status'] != "ok" && s['status']  != "updated")  || s['value'] == "[]" ||  s['value'].blank? ) }
 
     # Virtual Location removes location error if valid
-    if event_statement_collection.select { |s| s['label'] == "Virtual Location" && (( s['status'] == "ok" || s['status']  == "updated")  && s['value'] != "[]" &&  !s['value'].blank? )}
+    if event_statement_collection.select { |s| s['label'] == "VirtualLocation" && (( s['status'] == "ok" || s['status']  == "updated")  && s['value'] != "[]" &&  !s['value'].blank? )}
       problem_statements.reject! { |s| s['uri'] == "http://schema.org/location" }
     end
 
