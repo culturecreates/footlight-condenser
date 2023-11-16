@@ -63,7 +63,7 @@ class Statement < ApplicationRecord
       self.status = 'missing' unless valid_date?
     elsif @property_label == 'Title'
       self.status = 'missing' unless cache.present?
-    elsif @property_label == 'Virtual Location'
+    elsif @property_label == 'VirtualLocation'
       self.status = 'missing' unless (cache.present? && cache != '[]')
     end
   end

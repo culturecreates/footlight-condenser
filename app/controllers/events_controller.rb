@@ -98,7 +98,7 @@ class EventsController < ApplicationController
     publishable_states = ['ok','updated']
     return false unless publishable_states.include?(data.dig('Dates',:status))
     return false unless publishable_states.include?(data.dig('Location',:status)) ||
-                        publishable_states.include?(data.dig('Virtual Location',:status))
+                        publishable_states.include?(data.dig('VirtualLocation',:status))
     return false unless publishable_states.include?(data.dig('Title',:status))
 
     true
