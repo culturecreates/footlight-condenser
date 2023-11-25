@@ -6,10 +6,11 @@ class ExportGraphToDatabus
     dump = JsonldGenerator.dump_events(publishable)
     resources_controller = ResourcesController.new
     other_entities = resources_controller.other_entities(seedurl) # other than events
-    dump << JsonldGenerator.dump_resources_besides_events(other_entities)
+    dump_other_entities = JsonldGenerator.dump_resources_besides_events(other_entities)
+    # combine dumps
+    dump = (JSON.parse(dump) + JSON.parse(dump_other_entities)).to_json
 
     # Databus variables
-
     helpers = ApplicationController.helpers
     file = helpers.make_databus_file(seedurl)
     artifact = helpers.make_databus_artifact(seedurl)

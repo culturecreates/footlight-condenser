@@ -41,7 +41,7 @@ class ResourcesController < ApplicationController
   end
 
   def other_entities(seedurl)
-    rdfs_classes = RdfsClass.all.select{ |c| c.name != 'Event'}
+    rdfs_classes = RdfsClass.all.select{ |c| c.name != 'Event'} 
     statements =
       Statement
       .includes({ source: [:property, :website] }, :webpage)
