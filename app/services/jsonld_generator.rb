@@ -2,7 +2,7 @@
 class JsonldGenerator
   extend ResourcesHelper # for method adjust_labels_for_api
   
-  # main method to dump all statements into a graph to push to artsdata
+  # main method to dump all event statements into a graph to push to artsdata
   def self.dump_events(events) # list of event uris
     graphs = RDF::Graph.new
     events.each do |uri|
@@ -15,9 +15,23 @@ class JsonldGenerator
       graph = add_triples_from_footlight(graph)
       graphs << graph
     end
+    graphs = remove_annotations(graphs) # annotations from rdf-star
+    graphs.dump(:jsonld)
+  end
+
+  # main method to dump all statements bedsides events into a graph to push to artsdata
+  def self.dump_resources_besides_events(uri_list) 
+    graphs = RDF::Graph.new
+    uri_list.each do |uri|
+      statements = load_uri_statements(uri)
+      statements_hash = statements.map{ |stat| adjust_labels_for_api(stat, subject: stat.webpage.rdf_uri, webpage_class_name: stat.webpage.rdfs_class.name  ) }
+      graph = build_graph(statements_hash, {for_artsdata: true})
+      graphs << graph
+    end
     graphs = remove_annotations(graphs)
     graphs.dump(:jsonld)
   end
+
 
   # Load all ActiveRecord Statements for a URI that are selected_individual 'true'
   def self.load_uri_statements(rdf_uri)

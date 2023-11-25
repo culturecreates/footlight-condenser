@@ -40,6 +40,17 @@ class ResourcesController < ApplicationController
     @resources["resource_list"] =  helpers.get_uris params[:seedurl], "ResourceList"
   end
 
+  def other_entities(seedurl)
+    rdfs_classes = RdfsClass.all.select{ |c| c.name != 'Event'}
+    statements =
+      Statement
+      .includes({ source: [:property, :website] }, :webpage)
+      .where({ sources: { websites: { seedurl: seedurl }, webpages: { rdfs_class_id: rdfs_classes  } } })
+      .where(selected_individual: true)
+    entities = statements.pluck(:rdf_uri).uniq
+    entities
+  end
+
   #GET /resources/:rdf_uri
   def show
     # get resource by rdf_uri and all statements for all related webpages

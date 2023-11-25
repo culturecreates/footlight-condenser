@@ -132,6 +132,9 @@ Rails.application.routes.draw do
     to: 'graphs#website',
     as: :graphs_website
 
+  get 'graphs/website_queue/:seedurl',
+    to: 'graphs#website_queue',
+    as: :graphs_website_queue
 
   get 'graphs/webpage/event-artsdata',
     to: 'graphs#webpage_event_artsdata',

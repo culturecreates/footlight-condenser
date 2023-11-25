@@ -16,6 +16,16 @@ class GraphsController < ApplicationController
   # end
 
   # GET /graphs/website/[:seedurl]
+  # Queue website to publish to Artsdata 
+  def website_queue
+    @site = params[:seedurl]
+    url_for_messages =  'https://footlight-condenser.herokuapp.com'
+    result = ExportToArtsdataJob.perform_later(@site, url_for_messages)
+    flash[:info] = "Queued #{@site} for export to Artsdata. Check messages on #{url_for_messages}. Result: #{result}"
+    redirect_to root_url
+  end
+
+  # Load the website dump and manually go step by step to publish to Artsdata
   def website
     @site = params[:seedurl]
     event_controller = EventsController.new
