@@ -2,7 +2,8 @@
   "@context":
       {
           "@vocab": "http://schema.org/",
-          "footlight":"http://kg.footlight.io/resource/"
+          "footlight":"http://kg.footlight.io/resource/",
+          "sameAs": { "@id":"sameAs", "@type":"@id"}
       },
   "@type": "Place",
   "@explicit": false
