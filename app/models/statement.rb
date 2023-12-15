@@ -29,7 +29,7 @@ class Statement < ApplicationRecord
   self.per_page = 100
 
   def check_if_cache_changed
-    return unless changed_attributes[:cache].present?  || self.status == 'missing' 
+    return unless changed_attributes[:cache].present?  
     
     # Check 'xsd:anyURI' datatypes for a change in URIs
     # Changes in URI search strings should not count as a change
