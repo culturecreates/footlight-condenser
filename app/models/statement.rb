@@ -29,16 +29,19 @@ class Statement < ApplicationRecord
   self.per_page = 100
 
   def check_if_cache_changed
-    return unless changed_attributes[:cache].present?
-
+    return unless changed_attributes[:cache].present?  || self.status == 'missing' 
+    
     # Check 'xsd:anyURI' datatypes for a change in URIs
     # Changes in URI search strings should not count as a change
     @value_datatype ||= source.property.value_datatype
     if @value_datatype == 'xsd:anyURI'
-      previous_uris = JsonUriWrapper.extract_uris_from_cache(changed_attributes[:cache])
+
+      previous_uris = if changed_attributes[:cache] 
+                        JsonUriWrapper.extract_uris_from_cache(changed_attributes[:cache])
+                      end
       
       new_uris = JsonUriWrapper.extract_uris_from_cache(cache)
-      return if previous_uris.sort == new_uris.sort
+      return if previous_uris&.sort == new_uris&.sort
     end
 
     self.cache_changed = Time.new
