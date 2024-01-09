@@ -60,7 +60,7 @@ class GraphsController < ApplicationController
       else
         problems_summary =
           problem_statements
-          .map { |s| s['label'] }
+          .map { |s| s[:label] }
           .join(', ')
         @google_jsonld = {
           'message' => "Event needs review in Footlight console. Issues with #{problems_summary}." 
