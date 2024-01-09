@@ -203,7 +203,7 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
   # test method describe_uri
   test "should return graph" do
     uri = RDF::URI.new("http://kg.artsdata.ca/resource/K10-344")
-    expected_output = 18
+    expected_output = 21
     assert_equal expected_output, JsonldGenerator.describe_uri(uri).count
   end
 
