@@ -406,7 +406,7 @@ DEPENDENCIES
   pg (~> 0.18)
   puma (~> 3.7)
   rack-cors
-  rails (~> 5.1)
+  rails (~> 5.2)
   rdf (~> 3.2.11)
   rdf-turtle
   sass-rails (~> 5.0)
