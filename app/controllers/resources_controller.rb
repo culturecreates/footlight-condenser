@@ -1,5 +1,5 @@
 class ResourcesController < ApplicationController
-  skip_before_action :verify_authenticity_token
+  skip_before_action :verify_authenticity_token, :authenticate
 
   def recon
     params[:query]
