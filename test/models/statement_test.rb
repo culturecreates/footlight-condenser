@@ -50,6 +50,10 @@ class StatementTest < ActiveSupport::TestCase
     assert @statement.valid_iso_date?('2020-05-23T13:30:00-04:00')
   end
 
+  test 'invalid iso date with array instead of string' do
+    assert_not @statement.valid_iso_date?([["samedi 17 février 2024"], []])
+  end
+
   test 'invalid iso date' do
     assert_not @statement.valid_iso_date?('error')
   end

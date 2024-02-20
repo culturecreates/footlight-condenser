@@ -113,7 +113,8 @@ class Statement < ApplicationRecord
     begin
       Date.iso8601(date_string)
       true
-    rescue ArgumentError
+    rescue => exception
+      logger.debug("*** invalid date: #{date_string} ***")
       false
     end
   end
