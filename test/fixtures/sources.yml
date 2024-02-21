@@ -27,6 +27,15 @@ three:
   property: two
   website: two
 
+threeBlank:
+  algorithm_value: Gives blank
+  selected: false
+  selected_by: MyString
+  language: en
+  render_js: false
+  property: two
+  website: two
+
 eleven:
   algorithm_value: MyString
   selected: true

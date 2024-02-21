@@ -166,7 +166,11 @@ class StatementsController < ApplicationController
   # Structure of statement_params { "statement": {"cache": "[\"#{options[:name]}\",\"#{options[:rdfs_class]}\",\"#{options[:uri]}\"]", "status": "ok", "status_origin": user_name} }
   def add_linked_data
     s = statement_params
-    statement_cache = JSON.parse(@statement.cache)
+    statement_cache = if @statement.cache.blank?
+                        [] 
+                      else
+                        JSON.parse(@statement.cache) 
+                      end
     if statement_cache[0].class != Array
       statement_cache = [statement_cache]
     end
