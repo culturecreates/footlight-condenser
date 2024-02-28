@@ -1,6 +1,7 @@
 class StatementsController < ApplicationController
   before_action :set_statement, only: [:refresh, :show, :edit, :update, :destroy, :add_linked_data, :remove_linked_data, :activate]
   skip_before_action :verify_authenticity_token
+  skip_before_action :authenticate, only: [:show, :index]
 
   MANUALLY_ADDED = "Manually added"
 
