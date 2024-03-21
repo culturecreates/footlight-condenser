@@ -457,7 +457,8 @@ module StatementsHelper
         { error: "#{results.response.code}: #{results.response.message}", method: 'search_cckg' } # with error message
       end
     else
-      { error: "String '#{str} is too short. Needs to be londer than 2 characters", method: 'search_cckg' } # with error message
+     ## { error: "String '#{str} is too short. Needs to be londer than 2 characters", method: 'search_cckg' } # with error message
+     { data: [] } # return nil wihtout causing an error
     end
   end
 
