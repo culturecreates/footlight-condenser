@@ -23,14 +23,16 @@ module StatementsHelper
     data = format_datatype(data, stat.source.property, stat.webpage)
 
     save_record = false
-    if data&.to_s&.include?('abort_update')
-      stat.errors.add(:scrape, message: data)
-    elsif data.blank?
-      if stat.cache&.include?('abort_update')
-        save_record = true
-      elsif !stat.new_record?
+
+    # Always save if the cache has 'abort_update' in it
+    # even if the new data is blank or has another 'abort_update'
+    save_record = true if stat.cache&.include?('abort_update')
+   
+    # Set errors if the cache has 'abort_update' in it
+    stat.errors.add(:scrape, message: data) if data&.to_s&.include?('abort_update')
+
+    if data.blank? && !stat.new_record?
         stat.errors.add(:blank_detected, message: "No update: '#{data}'")
-      end
     else
       save_record = true
       if stat.cache.present?
@@ -39,6 +41,7 @@ module StatementsHelper
         end
       end
     end
+
     if save_record || stat.new_record?
       stat.cache = data
       stat.cache_refreshed = Time.new
