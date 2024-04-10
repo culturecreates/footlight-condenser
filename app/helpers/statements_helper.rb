@@ -26,7 +26,9 @@ module StatementsHelper
     if data&.to_s&.include?('abort_update')
       stat.errors.add(:scrape, message: data)
     elsif data.blank?
-      if !stat.new_record?
+      if stat.cache&.include?('abort_update')
+        save_record = true
+      elsif !stat.new_record?
         stat.errors.add(:blank_detected, message: "No update: '#{data}'")
       end
     else
