@@ -8,44 +8,59 @@ module StatementsHelper
   ##
   # Refresh a statement
   #   INPUT
-  #   stat = ActiveRecord Statement 
-  #   scrape_options = {} passesd on to footlight-wringer crawling service in process_algorithm
+  #     stat = ActiveRecord Statement 
+  #     scrape_options = {} passesd on to footlight-wringer crawling service in process_algorithm
   #   OUTPUT
-  #   Persists statement in database or sets errors. 
-  #   Check stat.errors in calling method.
+  #     Persists statement in database or sets errors. 
+  #     Check stat.errors in calling method.
   def refresh_statement_helper(stat, scrape_options = {})
+
+    # check manual conditions
     if stat.manual && ["ok","updated"].include?(stat.status)
-      stat.errors.add(:manual, message: "No update unless 'initial' state.")
+      stat.errors.add(:manual, message: "No update unless 'initial','problem' or 'missing' state.")
       return
     end
-
     data = process_algorithm(algorithm: stat.source.algorithm_value, render_js: stat.source.render_js, language:stat.source.language, url: stat.webpage.url, scrape_options: scrape_options)
     data = format_datatype(data, stat.source.property, stat.webpage)
 
-    save_record = false
-
-    # Always save if the cache has 'abort_update' in it
-    # even if the new data is blank or has another 'abort_update'
-    save_record = true if stat.cache&.include?('abort_update')
-   
-    # Set errors if the cache has 'abort_update' in it
-    stat.errors.add(:scrape, message: data) if data&.to_s&.include?('abort_update')
-
-    if data.blank? && !stat.new_record?
-        stat.errors.add(:blank_detected, message: "No update: '#{data}'")
-    else
-      save_record = true
-      if stat.cache.present?
-        if stat.source.property.value_datatype == 'xsd:anyURI'
-          data = preserve_manual_links(data, stat.cache)
-        end
-      end
+    if data&.to_s&.include?('abort_update')
+      stat.errors.add(:scrape, message: data)
     end
 
-    if save_record || stat.new_record?
+    if data.blank? && !stat.new_record? && !stat.cache&.include?('abort_update')
+      stat.errors.add(:blank_detected, message: "Not updated with blank.")
+    end
+
+    if save_record?(data&.to_s,stat.status,stat.cache, stat.new_record?)
+      data = preserve_manual_links(data, stat.cache) if stat.source.property.value_datatype == 'xsd:anyURI' 
       stat.cache = data
       stat.cache_refreshed = Time.new
       stat.save
+    end
+  end
+
+  ## Core logic of when to update records
+  ## but safeguard against blank data and errors
+  ## from unreliable internet sources
+  def save_record?(data_str,stat_status,stat_cache, new_record)
+    if data_str.include?('abort_update')
+      if ['initial','problem','missing'].include?(stat_status)
+        true
+      elsif stat_cache.include?('abort_update')  # update cache with new error
+        true
+      else # preseve cache when status is ok or updated
+        false
+      end
+    elsif data_str.blank? # blank and not an abort_update
+      if new_record
+        true
+      elsif stat_cache.include?('abort_update')
+        true # replace previous abort_update with blank
+      else
+        false 
+      end
+    else
+      true
     end
   end
 
@@ -556,6 +571,8 @@ module StatementsHelper
   end
 
   def preserve_manual_links _data, old_data
+    return unless old_data.present?
+
     _data = [_data] if _data[0].class != Array
     begin
       _old_cache = JSON.parse(old_data)
