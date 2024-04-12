@@ -114,4 +114,10 @@ class StatementsHelperRefreshTest < ActionView::TestCase
     assert_equal expected, actual
   end
 
+  test "true when data is nil and cache contains abort_update" do
+    expected = true
+    actual = save_record?(nil,'ok','previous abort_update', false)
+    assert_equal expected, actual
+  end
+
 end

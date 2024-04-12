@@ -43,7 +43,7 @@ module StatementsHelper
   ## but safeguard against blank data and errors
   ## from unreliable internet sources
   def save_record?(data_str,stat_status,stat_cache, new_record)
-    if data_str.include?('abort_update')
+    if data_str&.include?('abort_update')
       if ['initial','problem','missing'].include?(stat_status)
         true
       elsif stat_cache.include?('abort_update')  # update cache with new error
