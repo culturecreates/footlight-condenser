@@ -10,7 +10,7 @@ end
 # Bundle edge Rails instead: gem 'rails', github: 'rails/rails'
 gem 'rails', '~> 5.2'
 # Use postgresql as the database for Active Record
-gem 'pg', '~> 0.18'
+gem 'pg', '~> 1.2'
 # Use Puma as the app server
 gem 'puma', '~> 3.7'
 # Use SCSS for stylesheets
@@ -66,9 +66,10 @@ end
 
 # Windows does not include zoneinfo files, so bundle the tzinfo-data gem
 gem 'tzinfo-data', platforms: [:mingw, :mswin, :x64_mingw, :jruby]
-gem 'rdf', '~> 3.2.11'
-gem 'json-ld', '~> 3.2.5'
-gem 'sparql', '~> 3.2.5'
+# gem 'rdf', '~> 3.2.11'
+# gem 'json-ld', '~> 3.2.5'
+# gem 'sparql', '~> 3.2.5'
+gem 'linkeddata', '3.2.0'
 gem 'will_paginate', '~> 3.1.6'
 
 gem 'scout_apm'  #used to monitor memory on Heroku
