@@ -6,6 +6,7 @@ class JsonUriWrapper
   # {search: "source text", class: "Expected Class", links: [ {label: "Entity label",uri: "URI" }] }
 
   def self.extract_uris_from_cache(cache)
+    return [] if cache.blank?
     cache_obj = build_json_from_anyURI(cache)
     uris = []
     deleted_uris = []
