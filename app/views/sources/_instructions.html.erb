@@ -2,6 +2,7 @@
 <br>
 <hr>
 <% dsl = {
+  "sparql": "Query JSON-LD on the webpage with SPARQL to get ?answer. Avoid semicolons. Does not go through wringer. sparql={?s a schema:Event. ?s schema:name ?answer}",
   "xpath": "Load xpath and add results to $array.",
   "xpath_sanitize": "Load xpath keeping white listed HTML (tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href])",
   "if_xpath": "if xpath loads something then continue, otherwise break. When continues the result is added to $array.",

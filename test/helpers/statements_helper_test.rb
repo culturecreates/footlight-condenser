@@ -5,6 +5,12 @@ class StatementsHelperTest < ActionView::TestCase
 
 
 #process algorithm
+test "process_algorithm sparql" do
+  expected = ["DOMINIC PAQUET • LAISSE-MOI PARTIR"]
+  VCR.use_cassette('StatementsHelper:complexeculturelfelixleclerc') do
+    assert_equal expected, process_algorithm(algorithm: "sparql={?s a schema:Event. ?s schema:name ?answer}", url: "https://www.complexeculturelfelixleclerc.com/event-details/dominic-paquet-laisse-moi-partir")
+  end
+end
 test "process_algorithm manual" do
   expected = ["Test"]
   assert_equal expected, process_algorithm(algorithm: "manual=Test", url: "http://culturecreates.com")

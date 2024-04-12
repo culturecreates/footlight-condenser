@@ -94,6 +94,16 @@ module StatementsHelper
         algo = a.partition('=').last
         begin
           case algo_type 
+          when "sparql"
+            graph ||= RDF::Graph.load(url)
+            sparql = "PREFIX schema: <http://schema.org/> select * where " + algo
+            results = SPARQL.execute(sparql,graph)
+
+            results_list << if results.count == 1
+                            results.first.answer.value
+                          else
+                            results.map {|result| result.answer.value}
+                          end
           when "url"
             # replace current page by scraping new url
             # using format url='http://example.com' or ruby like url=$url + '.json'
