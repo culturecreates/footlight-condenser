@@ -46,7 +46,7 @@ module StatementsHelper
     if data_str&.include?('abort_update')
       if ['initial','problem','missing'].include?(stat_status)
         true
-      elsif stat_cache.include?('abort_update')  # update cache with new error
+      elsif stat_cache&.include?('abort_update')  # update cache with new error
         true
       else # preseve cache when status is ok or updated
         false
@@ -54,7 +54,7 @@ module StatementsHelper
     elsif data_str.blank? # blank and not an abort_update
       if new_record
         true
-      elsif stat_cache.include?('abort_update')
+      elsif stat_cache&.include?('abort_update')
         true # replace previous abort_update with blank
       else
         false 
@@ -256,7 +256,9 @@ module StatementsHelper
           # Note: in properties UI switch Expected Class to EventType to use Artsdata
           data << reconcile_additional_type(scraped_data)
         elsif property.expected_class == 'EventAttendanceModeEnumeration'
+          puts "EventAttendanceModeEnumeration detected"
           data << reconcile_attendance_mode(scraped_data)
+          puts "data: #{data}"
         else
           if scraped_data.class == Array
             # Always reconcile when the state is "initial","missing","problem"
