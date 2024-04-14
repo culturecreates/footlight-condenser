@@ -50,6 +50,7 @@ class JsonUriWrapper
   end
 
   def self.build_json_from_anyURI(cache_str)
+    return [] if cache_str.blank?
     return cache_str unless cache_str.class == String
     begin
       value_array = JSON.parse(cache_str)

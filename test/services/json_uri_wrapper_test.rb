@@ -58,6 +58,11 @@ class JsonUriWrapperTest < ActiveSupport::TestCase
     input = "[[\"\", \"Organization\", \"abort_update\"], [\"\", \"Organization\", \"abort_update\"]]"
     assert_equal expected_output, JsonUriWrapper.build_json_from_anyURI(input)
   end
+  test "build_json_from_anyURI with nil" do
+    expected_output = []
+    input = nil
+    assert_equal expected_output, JsonUriWrapper.build_json_from_anyURI(input)
+  end
 
   test "check_for_multiple_missing_links simple case is false" do 
     expected_output = false
