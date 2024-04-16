@@ -583,7 +583,7 @@ module StatementsHelper
   end
 
   def preserve_manual_links _data, old_data
-    return unless old_data.present?
+    return _data unless old_data.present?
 
     _data = [_data] if _data[0].class != Array
     begin

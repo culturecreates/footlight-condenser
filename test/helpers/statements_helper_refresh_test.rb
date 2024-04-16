@@ -63,7 +63,7 @@ class StatementsHelperRefreshTest < ActionView::TestCase
 
 
   
-  # save_record?(data_str,stat_status,stat_cache )
+  # save_record?(data_str,stat_status,stat_cache, new_record)
   test "true when data has abort_update" do
     expected = true
     actual = save_record?('There is an abort_update','initial',nil, true)
@@ -117,6 +117,29 @@ class StatementsHelperRefreshTest < ActionView::TestCase
   test "true when data is nil and cache contains abort_update" do
     expected = true
     actual = save_record?(nil,'ok','previous abort_update', false)
+    assert_equal expected, actual
+  end
+
+  test "true when cache is nil" do
+    expected = true
+    actual = save_record?(['test','Organization',['Organization','http://test.org']],'ok',nil, false)
+    assert_equal expected, actual
+  end
+
+  # preserve_manual_links(data, stat.cache)
+  test "cache is updated" do
+    expected = [['updated org','Organization',['Organization','http://test2.org']]]
+    actual = preserve_manual_links(['updated org','Organization',['Organization','http://test2.org']],['updated org','Organization',['Organization','http://test.org']])
+    assert_equal expected, actual
+  end
+  test "cache is updated and manual links preserved" do
+    expected = [["updated org", "Organization", ["Organization", "http://test2.org"]], ["Manually added", "Organization", ["Organization", "http://test.org"]]]
+    actual = preserve_manual_links(['updated org','Organization',['Organization','http://test2.org']],['Manually added','Organization',['Organization','http://test.org']])
+    assert_equal expected, actual
+  end
+  test "cache is updated when old cache is nil" do
+    expected = ['updated org','Organization',['Organization','http://test2.org']]
+    actual = preserve_manual_links(['updated org','Organization',['Organization','http://test2.org']],nil)
     assert_equal expected, actual
   end
 
