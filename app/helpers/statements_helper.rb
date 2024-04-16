@@ -95,7 +95,7 @@ module StatementsHelper
         begin
           case algo_type 
           when "sparql"
-            graph ||= RDF::Graph.load(url)
+            graph ||= RDF::Graph.load(use_wringer(url, render_js, scrape_options))
             sparql = "PREFIX schema: <http://schema.org/> select * where " + algo
             results = SPARQL.execute(sparql,graph)
 
