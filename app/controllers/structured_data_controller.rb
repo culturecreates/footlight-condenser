@@ -23,11 +23,9 @@ class StructuredDataController < ApplicationController
           condensor_statements << s
         end
       end
-      if  webpage.website.seedurl == "canadianstage-com"
-        @events = helpers.build_jsonld_canadianstage  condensor_statements, lang, webpage.rdf_uri,   params[:adr_prefix]
-      else
-        @events = helpers.build_jsonld  condensor_statements, lang, webpage.rdf_uri,   params[:adr_prefix]
-      end
+   
+      @events = helpers.build_jsonld  condensor_statements, lang, webpage.rdf_uri,   params[:adr_prefix]
+      
 
       if @events
         render :event_markup, formats: :json
