@@ -53,22 +53,6 @@ class StatementsHelperSearchCckgTest < ActionView::TestCase
       assert_equal expected, actual
     end
   end
-
-  # NOT PASSING
-  # TODO: Add searching with URL to Artsdata Reconciliation service.
-  # test "search_cckg: using web url" do
-  #   expected = {data:[["Rumours Tribute Show", "http://kg.artsdata.ca/resource/K10-180"]]}
-  #   actual = search_cckg "https://www.rumourstributeshow.com/", "Organization"
-  #   assert_equal expected, actual
-  # end
-
-  # # NOT PASSING
-  # TODO: Add searching with URL to Artsdata Reconciliation service.
-  # test "search_cckg: using web url of a PERSON" do
-  #   expected = {data:[["Jason Cyrus", "http://kg.artsdata.ca/resource/K12-5"]]}
-  #   actual = search_cckg "http://www.jasoncyrus.com", "Person"
-  #   assert_equal expected, actual
-  # end
   
   # Common words: example Person name that is removed "wiL", "http://kg.artsdata.ca/resource/K12-32"
   test "search_cckg: should not match names with common words" do  

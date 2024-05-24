@@ -138,3 +138,12 @@ validFrom:
   source: validFromSource
   webpage: eventPage
   selected_individual: true
+
+prices:
+  cache: "[\"10\",15.5]"
+  status: updated
+  status_origin: MyString
+  cache_refreshed: 2018-07-30 16:46:00 UTC
+  cache_changed: 2018-07-30 16:46:00 UTC
+  source: priceSource
+  webpage: eventPage2

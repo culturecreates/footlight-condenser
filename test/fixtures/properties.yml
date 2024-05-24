@@ -114,7 +114,7 @@ price:
   label: Price
   value_datatype: 
   uri: http://schema.org/price
-  rdfs_class: event
+  rdfs_class: offer
 
 validFromProp:
   label: validFromProp

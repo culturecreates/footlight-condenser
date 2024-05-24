@@ -93,3 +93,11 @@ eventPage:
   rdfs_class: one
   website: one
   archive_date: 2020-01-01 16:46:00 UTC
+
+eventPage2:
+  url: http://sample.com/event1
+  language: en
+  rdf_uri: uri1
+  rdfs_class: one
+  website: two
+  archive_date: 2020-01-01 16:46:00 UTC

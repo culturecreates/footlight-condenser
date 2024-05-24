@@ -257,15 +257,16 @@ class JsonldGenerator
       
       graph << [RDF::URI(subject), RDF.type, RDF::URI(main_class_uri)]
 
+      # TODO: rethink how this works and displays in Artsdata
       # Add data changed Observation
-      if s['cache_changed']
-        observation_uri = build_uri(subject,"Observation_#{s[:label]}".gsub(" ","-"))
-        graph << [observation_uri, RDF.type, RDF::URI('http://schema.org/Observation')]
-        graph << [observation_uri, RDF::URI('http://schema.org/observedNode'), RDF::URI(subject)]
-        graph << [observation_uri, RDF::URI('http://schema.org/measuredProperty'), RDF::URI(s[:predicate])]
-        graph << [observation_uri, RDF::URI('http://schema.org/observationDate'), RDF::Literal::DateTime.new(s["cache_changed"])]
-        graph << [observation_uri, RDF::URI('http://schema.org/name'), RDF::Literal("#{s[:label]} property changed")]
-      end
+      # if s['cache_changed']
+      #   observation_uri = build_uri(subject,"Observation_#{s[:label]}".gsub(" ","-"))
+      #   graph << [observation_uri, RDF.type, RDF::URI('http://schema.org/Observation')]
+      #   graph << [observation_uri, RDF::URI('http://schema.org/observedNode'), RDF::URI(subject)]
+      #   graph << [observation_uri, RDF::URI('http://schema.org/measuredProperty'), RDF::URI(s[:predicate])]
+      #   graph << [observation_uri, RDF::URI('http://schema.org/observationDate'), RDF::Literal::DateTime.new(s["cache_changed"])]
+      #   graph << [observation_uri, RDF::URI('http://schema.org/name'), RDF::Literal("#{s[:label]} property changed")]
+      # end
 
       ## TEMPORARY PATCH START #########
       # TODO: Make generic, maybe use frames to explicit the data strucutre of nested entites?
@@ -276,11 +277,11 @@ class JsonldGenerator
         graph << [RDF::URI(subject), RDF::URI('http://schema.org/offers'), build_uri(subject,'Offer')]
         graph << [build_uri(subject,'Offer'), RDF.type, RDF::URI('http://schema.org/Offer')]
         s[:value].make_into_array.each_with_index do |str, index|
-          object = if s[:language].present?
-            RDF::Literal(str, language: s[:language])
-          else
-            RDF::Literal(str)
-          end
+          object =  if s[:language].present?
+                      RDF::Literal(str.to_s, language: s[:language])
+                    else
+                      RDF::Literal(str.to_s)
+                    end
           statement = RDF::Statement(build_uri(subject,'Offer'), RDF::URI(s[:predicate]), object)
           graph << statement
           graph << [statement,  RDF::URI('http://schema.org/position'), index] if nesting_options[:for_artsdata]

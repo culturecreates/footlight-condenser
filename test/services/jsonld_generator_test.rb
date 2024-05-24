@@ -4,13 +4,25 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
   include ResourcesHelper
   include JsonUtilities
 
-  # test method build_graph
-  test "build_graph" do
+  # test method build_graph for language literal
+  test "build_graph_language_literal" do
     statements = [statements(:three)].map { |stat| adjust_labels_for_api(stat, subject: "http://subject.com") }
     nesting_options = {}
-    expected_output = 7
-    assert_equal expected_output, JsonldGenerator.build_graph(statements, nesting_options).count
+    expected_output = 2
+    graph =  JsonldGenerator.build_graph(statements, nesting_options)
+    # puts graph.dump(:turtle, rdfstar: true)
+    assert_equal expected_output, graph.count
   end
+
+    # test method build_graph for pricess
+    test "build_graph_prices" do
+      statements = [statements(:prices)].map { |stat| adjust_labels_for_api(stat, subject: "http://subject.com") }
+      nesting_options = {}
+      expected_output = 5
+      graph =  JsonldGenerator.build_graph(statements, nesting_options)
+      # puts graph.dump(:turtle, rdfstar: true)
+      assert_equal expected_output,graph.count
+    end
 
   ############################
   # test make_event_series
