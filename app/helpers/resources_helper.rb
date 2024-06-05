@@ -49,7 +49,11 @@ module ResourcesHelper
     statements[property] = {} if statements[property].nil?
     # add statements that are 'not selected' as an alternative inside the selected statement
     if statement.selected_individual
-      statements[property].merge!(adjust_labels_for_api(statement, subject: subject, webpage_class_name: webpage_class_name )) # ResourcesHelper
+      if statements[property]["id"].present?
+        statements[property].merge!(status: "problem", "value": "Duplicate selected properties: #{statements[property]["id"]} and #{statement.id}") 
+      else
+        statements[property].merge!(adjust_labels_for_api(statement, subject: subject, webpage_class_name: webpage_class_name )) # ResourcesHelper
+      end
     else
       statements[property].merge!({alternatives: []}) if statements[property][:alternatives].nil?
       statements[property][:alternatives] << adjust_labels_for_api(statement, subject: subject, webpage_class_name: webpage_class_name) # ResourcesHelper
