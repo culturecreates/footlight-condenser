@@ -48,12 +48,9 @@ class EventsController < ApplicationController
     @events = []
 
     website_statements_by_event(seedurl, time_span).each do |k,v|
-      title = if v.dig('Title',:cache).present? && !v.dig('Title', :cache).include?('error:')
-                v.dig('Title',:cache)
-              else
-                'Error'
-              end
-      date =  helpers.parse_date_string_array(v.dig('Dates', :cache)) || helpers.patch_invalid_date
+      title = v.dig('title',:cache) || v.dig('title_fr',:cache) || v.dig('title_en',:cache)
+      title = 'Error' if !title.present? || title.include?('error:')
+      date =  helpers.parse_date_string_array(v.dig('dates', :cache)) || helpers.patch_invalid_date
       @events << {
         rdf_uri: k,
         statements_status:
@@ -85,12 +82,13 @@ class EventsController < ApplicationController
     # Group by event URI
     events_by_uri = Hash.new { |h,k| h[k] = {} }
     website_statements.each do |s|
-      if events_by_uri[s.webpage.rdf_uri][s.source.property.label].present?
-        logger.error "Error in Events by URI: #{s.webpage.rdf_uri} property #{s.source.property.label} has duplicate selected individuals"
-        events_by_uri[s.webpage.rdf_uri].merge!({ s.source.property.label => { cache: s.cache, status: "problem", selected_individual: s.selected_individual} }) 
+      property_label = make_key(s.source.property.label, s.source.language) 
+      if events_by_uri[s.webpage.rdf_uri][property_label].present?
+        logger.error "Error in Events by URI: #{s.webpage.rdf_uri} property #{property_label} has duplicate selected individuals"
+        events_by_uri[s.webpage.rdf_uri].merge!({ property_label => { cache: s.cache, status: "problem", selected_individual: s.selected_individual} }) 
       else
         events_by_uri[s.webpage.rdf_uri]
-          .merge!({ s.source.property.label => { cache: s.cache, status: s.status, selected_individual: s.selected_individual} })
+          .merge!({ property_label => { cache: s.cache, status: s.status, selected_individual: s.selected_individual} })
           .merge!({ archive_date: { cache: s.webpage.archive_date } })
        end
     end
@@ -98,9 +96,22 @@ class EventsController < ApplicationController
     events_by_uri
   end
 
+  def make_key prop, lang
+    begin
+      _prop = prop.sub(" ", "_").downcase
+      _lang = lang.downcase
+      key = _prop
+      if lang.present?
+        key += "_#{_lang}"
+      end
+    rescue => exception
+      key = "failed to make key"
+    end
+    return key
+  end
+
   def event_publishable? data  
     # puts "data.dig('Dates',:status): #{data.dig('Dates',:status)}"
-
     publishable_states = ['ok','updated']
     return false unless publishable_states.include?(data.dig('Dates',:status))
     return false unless publishable_states.include?(data.dig('Location',:status)) ||
