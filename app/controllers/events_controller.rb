@@ -113,10 +113,12 @@ class EventsController < ApplicationController
   def event_publishable? data  
     # puts "data.dig('Dates',:status): #{data.dig('Dates',:status)}"
     publishable_states = ['ok','updated']
-    return false unless publishable_states.include?(data.dig('Dates',:status))
-    return false unless publishable_states.include?(data.dig('Location',:status)) ||
-                        publishable_states.include?(data.dig('VirtualLocation',:status))
-    return false unless publishable_states.include?(data.dig('Title',:status))
+    return false unless publishable_states.include?(data.dig('dates',:status))
+    return false unless publishable_states.include?(data.dig('location',:status)) ||
+                        publishable_states.include?(data.dig('virtuallocation',:status))
+    return false unless publishable_states.include?(data.dig('title_en',:status)) || 
+                        publishable_states.include?(data.dig('title_fr',:status)) ||
+                        publishable_states.include?(data.dig('title',:status))
 
     true
   end
