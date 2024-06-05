@@ -85,15 +85,21 @@ class EventsController < ApplicationController
     # Group by event URI
     events_by_uri = Hash.new { |h,k| h[k] = {} }
     website_statements.each do |s|
-      events_by_uri[s.webpage.rdf_uri] =
+      if events_by_uri[s.webpage.rdf_uri][s.source.property.label].present?
+        logger.error "Error in Events by URI: #{s.webpage.rdf_uri} property #{s.source.property.label} has duplicate selected individuals"
+        events_by_uri[s.webpage.rdf_uri].merge!({ s.source.property.label => { cache: s.cache, status: "problem", selected_individual: s.selected_individual} }) 
+      else
         events_by_uri[s.webpage.rdf_uri]
-        .merge({ s.source.property.label => { cache: s.cache, status: s.status, selected_individual: s.selected_individual} })
-        .merge({ archive_date: { cache: s.webpage.archive_date } })
+          .merge!({ s.source.property.label => { cache: s.cache, status: s.status, selected_individual: s.selected_individual} })
+          .merge!({ archive_date: { cache: s.webpage.archive_date } })
+       end
     end
+   
     events_by_uri
   end
 
   def event_publishable? data  
+    # puts "data.dig('Dates',:status): #{data.dig('Dates',:status)}"
 
     publishable_states = ['ok','updated']
     return false unless publishable_states.include?(data.dig('Dates',:status))
