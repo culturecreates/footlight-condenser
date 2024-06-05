@@ -42,7 +42,7 @@ class WebsitesController < ApplicationController
     @statements_refreshed_24hr = Statement.joins(webpage: :website).where(cache_refreshed: [(Time.now - 24.hours)..(Time.now)]).group(:seedurl).count
     @statements_updated_24hr = Statement.joins(webpage: :website).where(cache_changed: [(Time.now - 24.hours)..(Time.now)]).group(:seedurl).count
     @webpages = Webpage.group(:website).count
-    @flags = Statement.joins(webpage: :website).where(status: "problem", selected_individual: true).group(:seedurl).count
+    @flags = Statement.joins(webpage: :website).where(status: ["problem"], selected_individual: true, webpages: { rdfs_class_id: 1}).group(:seedurl).count
     @updated = Statement.joins(webpage: :website).where(status: "updated", selected_individual: true, webpages: { rdfs_class_id: 1}).group(:seedurl).count
   
   end
