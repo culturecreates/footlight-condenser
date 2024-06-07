@@ -60,7 +60,7 @@ class EventsController < ApplicationController
             problem: v.any? { |_a,b| b.flatten.include?('problem') },
             publishable: event_publishable?(v)
           },
-        photo: v.dig('Photo',:cache),
+        photo: v.dig('photo',:cache),
         title: title,
         date: date,
         archive_date: v.dig(:archive_date,:cache)
