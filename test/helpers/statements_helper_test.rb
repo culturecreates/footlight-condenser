@@ -11,6 +11,20 @@ test "process_algorithm sparql" do
     assert_equal expected, process_algorithm(algorithm: "sparql={?s a schema:Event. ?s schema:name ?answer}", url: "https://www.complexeculturelfelixleclerc.com/event-details/dominic-paquet-laisse-moi-partir")
   end
 end
+test "process_algorithm sparql with nested image" do
+  expected = ["https://static.wixstatic.com/media/28fd07_aa7b850feecb4363878aa75c34296221~mv2.jpg/v1/fill/w_537,h_534,al_c,q_80/28fd07_aa7b850feecb4363878aa75c34296221~mv2.jpg"]
+  VCR.use_cassette('StatementsHelper:complexeculturelfelixleclerc') do
+    assert_equal expected, process_algorithm(algorithm: "sparql={?s a schema:Event. ?s schema:image/schema:url ?answer}", url: "https://www.complexeculturelfelixleclerc.com/event-details/dominic-paquet-laisse-moi-partir")
+  end
+end
+test "process_algorithm sparql with filter" do
+  expected = ["https://static.wixstatic.com/media/28fd07_aa7b850feecb4363878aa75c34296221~mv2.jpg/v1/fill/w_537,h_534,al_c,q_80/28fd07_aa7b850feecb4363878aa75c34296221~mv2.jpg"]
+  VCR.use_cassette('StatementsHelper:complexeculturelfelixleclerc') do
+    assert_equal expected, process_algorithm(algorithm: "sparql={?s a schema:Event. ?s schema:image/schema:url ?answer . FILTER isURI(?answer) }", url: "https://www.complexeculturelfelixleclerc.com/event-details/dominic-paquet-laisse-moi-partir")
+  end
+end
+
+
 test "process_algorithm manual" do
   expected = ["Test"]
   assert_equal expected, process_algorithm(algorithm: "manual=Test", url: "http://culturecreates.com")
