@@ -4,6 +4,9 @@ Rails.application.routes.draw do
   # For resource collections, the API calls using implicit actions (like get) are listed in comments.
   # and admin webpage actions moved to seperate lines and commented with "Internal Webpages only"
 
+  require 'sidekiq/web'
+  mount Sidekiq::Web => '/sidekiq'
+
   resources :websites do
     # API: get /websites 
     collection do
@@ -172,6 +175,7 @@ Rails.application.routes.draw do
 
   get 'resources/:rdf_uri/webpage_urls',
       to: "resources#webpage_urls"
+
 
 
 

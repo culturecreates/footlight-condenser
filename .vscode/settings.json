@@ -1,3 +1,5 @@
 {
-  "rubyLsp.rubyVersionManager": "rvm"
+  "rubyLsp.rubyVersionManager": {
+    "identifier": "rvm"
+  }
 }
