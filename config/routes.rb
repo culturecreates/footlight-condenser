@@ -92,8 +92,6 @@ Rails.application.routes.draw do
   #
   root 'websites#index'
 
-  get 'queue/index', 'queue/clear'
-
   resources :batch_jobs do
     collection do
       get 'add_webpages', 'refresh_webpages', 'refresh_upcoming_events','check_for_new_webpages'
