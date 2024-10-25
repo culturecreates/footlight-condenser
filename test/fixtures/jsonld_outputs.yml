@@ -2,8 +2,6 @@
 
 one:
   name: MyString
-  webpage: one
 
 two:
   name: MyString
-  webpage: two

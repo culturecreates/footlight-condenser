@@ -17,7 +17,7 @@ class JsonldOutputsControllerTest < ActionDispatch::IntegrationTest
 
   test "should create jsonld_output" do
     assert_difference('JsonldOutput.count') do
-      post jsonld_outputs_url, params: { jsonld_output: { name: @jsonld_output.name, webpage_id: @jsonld_output.webpage_id } }
+      post jsonld_outputs_url, params: { jsonld_output: { name: @jsonld_output.name } }
     end
 
     assert_redirected_to jsonld_output_url(JsonldOutput.last)
@@ -34,7 +34,7 @@ class JsonldOutputsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "should update jsonld_output" do
-    patch jsonld_output_url(@jsonld_output), params: { jsonld_output: { name: @jsonld_output.name, webpage_id: @jsonld_output.webpage_id } }
+    patch jsonld_output_url(@jsonld_output), params: { jsonld_output: { name: @jsonld_output.name } }
     assert_redirected_to jsonld_output_url(@jsonld_output)
   end
 
