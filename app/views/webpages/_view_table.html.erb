@@ -10,9 +10,8 @@
       <th>Publishable</th>
 
       <th>Rdf uri</th>
-
-      
       <th>Archive Date</th>
+       <th>JSON-LD Output</th>
       <th colspan="6"></th>
     </tr>
   </thead>
@@ -30,6 +29,7 @@
 
        
         <td><%= webpage.archive_date %></td>
+        <td><%= webpage.jsonld_output %></td>
 
         <td><%= link_to 'statements', statements_path(rdf_uri:webpage.rdf_uri)  %></td>
       

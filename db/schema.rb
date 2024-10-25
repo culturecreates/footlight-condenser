@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 2022_01_22_180813) do
+ActiveRecord::Schema.define(version: 2024_10_25_194721) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_stat_statements"
@@ -24,6 +24,14 @@ ActiveRecord::Schema.define(version: 2022_01_22_180813) do
     t.datetime "updated_at", null: false
     t.string "graph_uri"
     t.index ["website_id"], name: "index_condensers_on_website_id"
+  end
+
+  create_table "jsonld_outputs", force: :cascade do |t|
+    t.string "name"
+    t.bigint "webpage_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["webpage_id"], name: "index_jsonld_outputs_on_webpage_id"
   end
 
   create_table "messages", force: :cascade do |t|
@@ -119,6 +127,7 @@ ActiveRecord::Schema.define(version: 2022_01_22_180813) do
     t.time "schedule_time"
   end
 
+  add_foreign_key "jsonld_outputs", "webpages"
   add_foreign_key "properties", "rdfs_classes"
   add_foreign_key "search_exceptions", "rdfs_classes"
   add_foreign_key "sources", "properties"
