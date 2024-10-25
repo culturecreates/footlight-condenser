@@ -1,3 +1,3 @@
 class JsonldOutput < ApplicationRecord
-  belongs_to :webpage
+  has_many :webpage
 end

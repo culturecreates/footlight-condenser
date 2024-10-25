@@ -1,0 +1,22 @@
+<%= form_with(model: jsonld_output, local: true) do |form| %>
+  <% if jsonld_output.errors.any? %>
+    <div id="error_explanation">
+      <h2><%= pluralize(jsonld_output.errors.count, "error") %> prohibited this jsonld_output from being saved:</h2>
+
+      <ul>
+      <% jsonld_output.errors.full_messages.each do |message| %>
+        <li><%= message %></li>
+      <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="field">
+    <%= form.label :name %>
+    <%= form.text_field :name %>
+  </div>
+
+  <div class="actions">
+    <%= form.submit %>
+  </div>
+<% end %>

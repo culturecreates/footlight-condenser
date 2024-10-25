@@ -1,4 +1,5 @@
 Rails.application.routes.draw do
+  
   ##
   # API Section used by Footlight Console
   # For resource collections, the API calls using implicit actions (like get) are listed in comments.
@@ -91,6 +92,8 @@ Rails.application.routes.draw do
   #
   #
   root 'websites#index'
+
+  resources :jsonld_outputs
 
   resources :batch_jobs do
     collection do

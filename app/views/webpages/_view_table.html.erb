@@ -29,7 +29,7 @@
 
        
         <td><%= webpage.archive_date %></td>
-        <td><%= webpage.jsonld_output %></td>
+        <td><%= webpage.jsonld_output&.name %></td>
 
         <td><%= link_to 'statements', statements_path(rdf_uri:webpage.rdf_uri)  %></td>
       

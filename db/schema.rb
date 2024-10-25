@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 2024_10_25_194721) do
+ActiveRecord::Schema.define(version: 2024_10_25_201923) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_stat_statements"
@@ -28,10 +28,8 @@ ActiveRecord::Schema.define(version: 2024_10_25_194721) do
 
   create_table "jsonld_outputs", force: :cascade do |t|
     t.string "name"
-    t.bigint "webpage_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["webpage_id"], name: "index_jsonld_outputs_on_webpage_id"
   end
 
   create_table "messages", force: :cascade do |t|
@@ -109,6 +107,8 @@ ActiveRecord::Schema.define(version: 2024_10_25_194721) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.datetime "archive_date"
+    t.bigint "jsonld_output_id"
+    t.index ["jsonld_output_id"], name: "index_webpages_on_jsonld_output_id"
     t.index ["rdfs_class_id"], name: "index_webpages_on_rdfs_class_id"
     t.index ["url", "website_id"], name: "index_webpages_on_url_and_website_id", unique: true
     t.index ["url"], name: "index_webpages_on_url"
@@ -127,13 +127,13 @@ ActiveRecord::Schema.define(version: 2024_10_25_194721) do
     t.time "schedule_time"
   end
 
-  add_foreign_key "jsonld_outputs", "webpages"
   add_foreign_key "properties", "rdfs_classes"
   add_foreign_key "search_exceptions", "rdfs_classes"
   add_foreign_key "sources", "properties"
   add_foreign_key "sources", "websites"
   add_foreign_key "statements", "sources"
   add_foreign_key "statements", "webpages"
+  add_foreign_key "webpages", "jsonld_outputs"
   add_foreign_key "webpages", "rdfs_classes"
   add_foreign_key "webpages", "websites"
 end

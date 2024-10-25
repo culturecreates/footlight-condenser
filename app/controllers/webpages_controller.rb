@@ -58,11 +58,13 @@ class WebpagesController < ApplicationController
   def new
     @webpage = Webpage.new
     @rdfs_classes = RdfsClass.all
+    @jsonld_outputs = JsonldOutput.all
   end
 
   # GET /webpages/1/edit
   def edit
     @rdfs_classes = RdfsClass.all
+    @jsonld_outputs = JsonldOutput.all
   end
 
   # POST /webpages
@@ -76,6 +78,7 @@ class WebpagesController < ApplicationController
         format.json { render :show, status: :created, location: @webpage }
       else
         @rdfs_classes = RdfsClass.all
+        @jsonld_outputs = JsonldOutput.all
         format.html { render :new }
         format.json { render json: @webpage.errors, status: :unprocessable_entity }
       end
@@ -135,7 +138,7 @@ class WebpagesController < ApplicationController
 
   # Never trust parameters from the scary internet, only allow the white list through.
   def webpage_params
-    params.require(:webpage).permit(:url, :language, :rdf_uri, :rdfs_class_id, :website_id, :archive_date)
+    params.require(:webpage).permit(:url, :language, :rdf_uri, :rdfs_class_id, :jsonld_output_id, :website_id, :archive_date)
   end
 
   def webpage_api_params

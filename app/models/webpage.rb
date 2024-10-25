@@ -1,8 +1,8 @@
 class Webpage < ApplicationRecord
   belongs_to :rdfs_class
   belongs_to :website
+  belongs_to :jsonld_output, optional: true
   has_many :statements, dependent: :destroy
-  has_many :jsonld_outputs, dependent: :destroy
   validates :url, uniqueness: { scope: :website_id }
   validates :rdf_uri, presence: true
 

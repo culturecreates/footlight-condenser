@@ -26,6 +26,11 @@
     <%= form.text_field :language, id: :webpage_language %>
   </div>
 
+  <div class="field">
+    <%= form.label :jsonld_outputs %>
+    <%= form.collection_select(:jsonld_output_id, @jsonld_outputs, :id, :name, {:prompt => 'Select a JSON-LD Output'}) %>
+  </div>
+
   <h2> Main Entity on webpage</h2>
 
   <div class="field">
