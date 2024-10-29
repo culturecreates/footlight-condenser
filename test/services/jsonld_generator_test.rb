@@ -14,15 +14,15 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     assert_equal expected_output, graph.count
   end
 
-    # test method build_graph for pricess
-    test "build_graph_prices" do
-      statements = [statements(:prices)].map { |stat| adjust_labels_for_api(stat, subject: "http://subject.com") }
-      nesting_options = {}
-      expected_output = 5
-      graph =  JsonldGenerator.build_graph(statements, nesting_options)
-      # puts graph.dump(:turtle, rdfstar: true)
-      assert_equal expected_output,graph.count
-    end
+  # test method build_graph for pricess
+  test "build_graph_prices" do
+    statements = [statements(:prices)].map { |stat| adjust_labels_for_api(stat, subject: "http://subject.com") }
+    nesting_options = {}
+    expected_output = 5
+    graph =  JsonldGenerator.build_graph(statements, nesting_options)
+    # puts graph.dump(:turtle, rdfstar: true)
+    assert_equal expected_output,graph.count
+  end
 
   ############################
   # test make_event_series

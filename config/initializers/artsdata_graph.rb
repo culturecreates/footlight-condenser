@@ -17,7 +17,7 @@ class ArtsdataGraph
         RDF::Graph.load('https://db.artsdata.ca/repositories/artsdata/statements?context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2Fminted%2FK11%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2Fminted%2FK12%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2Fminted%2FK10%3E',
                         format: :nquads)
       # To create a new dump use:
-      # File.open("test/fixtures/files/artsdata-dump.nt", "w") {|f| f << @@artsdata_graph.dump(:ntriples)}
+      # File.open("test/fixtures/files/artsdata-dump.nt", "w") {|f| f << @@graph.dump(:ntriples)}
     end
   
     ## replace this with loading schema.org ontology in the future
