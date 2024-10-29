@@ -65,6 +65,6 @@ class JsonldOutputsController < ApplicationController
 
     # Only allow a list of trusted parameters through.
     def jsonld_output_params
-      params.require(:jsonld_output).permit(:name, :webpage_id)
+      params.require(:jsonld_output).permit(:name, :frame)
     end
 end

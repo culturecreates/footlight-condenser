@@ -41,7 +41,7 @@ class JsonldGenerator
   end
 
   # main method to return converted JSON-LD for a webpage with code snippet
-  def self.convert(statements, main_language, main_class = "Event")
+  def self.convert(statements, main_language, main_class = "Event", frame = nil)
     # Build a local graph using condenser statements
     local_graph = build_graph(statements,{ 1 => { 5 => 'http://schema.org/offers' } })
 
@@ -59,7 +59,7 @@ class JsonldGenerator
 
     # frame JSON-LD depending on main RDF Class
     # select a subset of properties for SDTT
-    graph_json = frame_json(graph_json, main_class)
+    graph_json = frame_json(graph_json, main_class, frame)
 
     # remove IDs that point to artsdata.ca
     delete_ids(graph_json)
@@ -69,8 +69,12 @@ class JsonldGenerator
   end
 
   # Frame JSON-LD to display the desired properties
-  def self.frame_json(graph_json, main_class = 'Event')
-    frame_json = RDFLoader.load_frame(main_class)
+  def self.frame_json(graph_json, main_class = 'Event', frame = nil)
+    if frame
+      frame_json = JSON.parse(frame)
+    else
+      frame_json = RDFLoader.load_frame(main_class)
+    end
     if frame_json
       graph_json = JSON::LD::API.frame(graph_json, frame_json)
     else

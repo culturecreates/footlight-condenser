@@ -318,5 +318,33 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     assert_equal JSON.parse(expected_output.dump(:jsonld)), JSON.parse(actual.dump(:jsonld))
   end
 
+  ############################
+  # test frame_json
+  ############################
+
+  test 'frames the JSON-LD with the provided frame' do
+    graph_json = { "@context": { "@vocab": "http://schema.org/" }, "@type": "Event", "name": "Sample Event" }.to_json
+    main_class = 'Event'
+    frame = { "@context": { "@vocab": "http://schema.org/" }, "@type": "Event" }.to_json
+    framed_json = JsonldGenerator.frame_json(JSON.parse(graph_json), main_class, frame)
+    assert_includes framed_json, '@context'
+    assert_includes framed_json, '@type'
+    assert_includes framed_json, 'name'
+  end
+
+  test 'loads the default frame for the main class when frame is nil' do
+    graph_json = { "@context": { "@vocab": "http://schema.org/" }, "@type": "Event", "name": "Sample Event" }.to_json
+    main_class = 'Event'
+    frame = nil
+    default_frame = { "@context": { "@vocab": "http://schema.org/" }, "@type": "Event" }.to_json
+    RDFLoader.stubs(:load_frame).with(main_class).returns(JSON.parse(default_frame))
+
+    framed_json = JsonldGenerator.frame_json(JSON.parse(graph_json), main_class, frame)
+    assert_includes framed_json, '@context'
+    assert_includes framed_json, '@type'
+    assert_includes framed_json, 'name'
+
+  end
+
 
 end

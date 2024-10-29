@@ -28,8 +28,16 @@
 
   <div class="field">
     <%= form.label :jsonld_outputs %>
-    <%= form.collection_select(:jsonld_output_id, @jsonld_outputs, :id, :name, {:prompt => 'Select a JSON-LD Output'}) %>
+    <%= form.collection_select(:jsonld_output_id, @jsonld_outputs, :id, :name, {:prompt => 'Override JSON-LD Output'}) %>
   </div>
+
+ 
+
+  <script>
+    function clearJsonldOutputField() {
+      document.getElementById('webpage_jsonld_output_id').value = '';
+    }
+  </script>
 
   <h2> Main Entity on webpage</h2>
 
@@ -49,9 +57,8 @@
     <%= form.datetime_select :archive_date,  id: :webpage_archive_date %>
   </div>
 
-
-
   <div class="actions">
     <%= form.submit %>
+    <%= button_to 'Clear JSON-LD Output', '#', method: :get, onclick: "clearJsonldOutputField(); return false;" %>
   </div>
 <% end %>

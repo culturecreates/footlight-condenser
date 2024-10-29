@@ -6,6 +6,7 @@
   <thead>
     <tr>
       <th>Name</th>
+      <th>Frame</th>
       <th colspan="3"></th>
     </tr>
   </thead>
@@ -14,6 +15,7 @@
     <% @jsonld_outputs.each do |jsonld_output| %>
       <tr>
         <td><%= jsonld_output.name %></td>
+        <td><%= jsonld_output.frame&.truncate(20) %></td>
         <td><%= link_to 'Show', jsonld_output %></td>
         <td><%= link_to 'Edit', edit_jsonld_output_path(jsonld_output) %></td>
         <td><%= link_to 'Destroy', jsonld_output, method: :delete, data: { confirm: 'Are you sure?' } %></td>

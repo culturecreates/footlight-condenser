@@ -107,7 +107,10 @@ class WebpagesController < ApplicationController
 
   # PATCH/PUT /webpages/1
   # PATCH/PUT /webpages/1.json
-  def update
+  def update   # Set jsonld_output_id to nil if the parameter is not present or is empty
+    if params[:webpage][:jsonld_output_id].blank?
+      params[:webpage][:jsonld_output_id] = nil
+    end
     respond_to do |format|
       if @webpage.update(webpage_params)
         format.html { redirect_to @webpage, notice: 'Webpage was successfully updated.' }

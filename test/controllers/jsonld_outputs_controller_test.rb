@@ -17,7 +17,7 @@ class JsonldOutputsControllerTest < ActionDispatch::IntegrationTest
 
   test "should create jsonld_output" do
     assert_difference('JsonldOutput.count') do
-      post jsonld_outputs_url, params: { jsonld_output: { name: @jsonld_output.name } }
+      post jsonld_outputs_url, params: { jsonld_output: { name: @jsonld_output.name , frame: @jsonld_output.frame } }
     end
 
     assert_redirected_to jsonld_output_url(JsonldOutput.last)

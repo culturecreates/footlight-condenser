@@ -5,6 +5,13 @@
   <%= @jsonld_output.name %>
 </p>
 
+<p>
+  <strong>Frame:</strong>
+</p>
+<pre>
+  <%= JSON.pretty_generate(JSON.parse(@jsonld_output.frame)) rescue @jsonld_output.frame %>
+</pre>
+
 
 <%= link_to 'Edit', edit_jsonld_output_path(@jsonld_output) %> |
 <%= link_to 'Back', jsonld_outputs_path %>

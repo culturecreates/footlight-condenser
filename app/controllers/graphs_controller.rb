@@ -49,30 +49,37 @@ class GraphsController < ApplicationController
   end
 
   # GET /graphs/webpage/event?url=
+  # Used by Footlight Code Snippet installed on client webpages
   def webpage_event
-    webpage = Webpage.where(url: CGI.unescape(params[:url]))
+    webpage = Webpage.includes(:jsonld_output).where(url: CGI.unescape(params[:url]))
+    
+    if webpage.first.jsonld_output_id != 1
+      frame = webpage.first.jsonld_output&.frame
 
-    if webpage.count.positive?
-      resource = Resource.new(webpage.first.rdf_uri)
-      main_language = webpage.first.language
-      statements = resource.statements.map { |n,v| v}
-      main_class = resource.rdfs_class
-      problem_statements = helpers.missing_required_properties(statements)
-      if problem_statements.blank?
-        @google_jsonld = JsonldGenerator.convert(statements, main_language, main_class)
+      if webpage.count.positive?
+        resource = Resource.new(webpage.first.rdf_uri)
+        main_language = webpage.first.language
+        statements = resource.statements.map { |n,v| v}
+        main_class = resource.rdfs_class
+        problem_statements = helpers.missing_required_properties(statements)
+        if problem_statements.blank?
+          @google_jsonld = JsonldGenerator.convert(statements, main_language, main_class, frame)
+        else
+          problems_summary =
+            problem_statements
+            .map { |s| s[:label] }
+            .join(', ')
+          @google_jsonld = {
+            'message' => "Event needs review in Footlight console. Issues with #{problems_summary}." 
+          }.to_json
+        end
       else
-        problems_summary =
-          problem_statements
-          .map { |s| s[:label] }
-          .join(', ')
         @google_jsonld = {
-          'message' => "Event needs review in Footlight console. Issues with #{problems_summary}." 
+          'message' => 'Webpage fits URL pattern but has no events in the Footlight console.' 
         }.to_json
       end
     else
-      @google_jsonld = {
-        'message' => 'Webpage fits URL pattern but has no events in the Footlight console.' 
-      }.to_json
+      @google_jsonld = {'message' => 'Webpage is set to jsonld_output_id = 1 which means to not output any JSON-LD'}.to_json
     end
     logger.info("### Code Snippet Call /graphs/webpage/event?url=#{params[:url]}")
     respond_to do |format|

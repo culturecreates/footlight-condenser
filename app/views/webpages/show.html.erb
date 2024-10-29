@@ -23,7 +23,11 @@
 
 <p>
   <strong>JSON-LD Output:</strong>
-  <%= @webpage.jsonld_output&.name %>
+  <% if @webpage.jsonld_output  %>
+    <%= @webpage.jsonld_output.name %>
+  <% else %>
+    System default
+  <% end %>
 </p>
 
 <p>

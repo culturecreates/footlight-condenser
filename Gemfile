@@ -50,6 +50,8 @@ end
 group :test do
   gem 'webmock'
   gem 'vcr'
+  gem 'minitest'
+  gem 'mocha'
 end
 
 group :development do
