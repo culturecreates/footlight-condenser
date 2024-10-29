@@ -256,9 +256,7 @@ module StatementsHelper
           # Note: in properties UI switch Expected Class to EventType to use Artsdata
           data << reconcile_additional_type(scraped_data)
         elsif property.expected_class == 'EventAttendanceModeEnumeration'
-          puts "EventAttendanceModeEnumeration detected"
           data << reconcile_attendance_mode(scraped_data)
-          puts "data: #{data}"
         else
           if scraped_data.class == Array
             # Always reconcile when the state is "initial","missing","problem"

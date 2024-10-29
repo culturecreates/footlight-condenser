@@ -1,9 +1,8 @@
 require File.expand_path('../../config/environment', __FILE__)
 require 'rails/test_help'
-
 require 'webmock'
 require 'vcr'
-
+$VERBOSE = nil  # Suppress Ruby warnings until upgrade to Ruby 3
 
 VCR.configure do |config|
   config.cassette_library_dir = "test/vcr_cassettes"

@@ -484,7 +484,8 @@ class JsonldGenerator
       url = "#{self.artsdata_rank_api_url}#{artsdata_id}?format=jsonld"
       result = HTTParty.get(url)
       # create graph 
-      RDF::Graph.new << JSON::LD::API.toRdf(JSON.parse(result.body))
+      g = RDF::Graph.new << JSON::LD::API.toRdf(JSON.parse(result.body))
+      g
     rescue IOError => e
       Rails.logger.error "Error dereferencing URI: #{uri.inspect}. Exception: #{e.inspect}"
       { error: "IOError", method: 'dereference_uri', message: "#{e.inspect}"}

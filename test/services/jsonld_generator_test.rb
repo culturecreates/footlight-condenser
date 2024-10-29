@@ -1,9 +1,10 @@
 require 'test_helper'
 
+
 class JsonldGeneratorTest < ActiveSupport::TestCase
   include ResourcesHelper
   include JsonUtilities
-
+  
   # test method build_graph for language literal
   test "build_graph_language_literal" do
     statements = [statements(:three)].map { |stat| adjust_labels_for_api(stat, subject: "http://subject.com") }
@@ -236,6 +237,16 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
       assert_equal expected_output, actual.count
     end
   end
+
+  # test "should dereference artsdata uri Sanderson Place with PostalAddress" do
+  #   uri = RDF::URI.new("http://kg.artsdata.ca/resource/K11-192") # Sanderson
+  #   expected_output = 11
+  #   # VCR.use_cassette('JsonldGenerator.dereference_uri artsdata place') do
+  #     actual = JsonldGenerator.dereference_uri(uri)
+  #     assert_equal expected_output, actual.count
+  #   # end
+  #   puts "actual: #{actual.dump(:turtle)}"
+  # end
 
   test "should NOT dereference wikidata uri" do
     uri = RDF::URI.new("https://www.wikidata.org/entity/Q3308948")

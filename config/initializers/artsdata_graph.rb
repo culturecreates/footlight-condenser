@@ -18,6 +18,11 @@ class ArtsdataGraph
                         format: :nquads)
       # To create a new dump use:
       # File.open("test/fixtures/files/artsdata-dump.nt", "w") {|f| f << @@graph.dump(:ntriples)}
+      
+      ## Load local entities (People, Places, Organizations) entered manually into Footlight
+      local_graph = LocalGraphGenerator.graph_all
+      # puts "Local graph: #{local_graph.dump(:ntriples)}"
+      @@graph << local_graph
     end
   
     ## replace this with loading schema.org ontology in the future
@@ -28,10 +33,7 @@ class ArtsdataGraph
     # @@graph  << [RDF::URI("http://schema.org/EventMovedOnline"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
     # @@graph  << [RDF::URI("http://schema.org/EventCancelled"), RDF.type, RDF::URI("http://schema.org/EventStatusType")] 
 
-    ## Load local entities (People, Places, Organizations) entered manually into Footlight
-    local_graph = LocalGraphGenerator.graph_all
-    # puts "Local graph: #{local_graph.dump(:ntriples)}"
-    @@graph << local_graph
+
   end
   
 end
