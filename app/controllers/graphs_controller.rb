@@ -53,8 +53,8 @@ class GraphsController < ApplicationController
   def webpage_event
     webpage = Webpage.includes(:jsonld_output).where(url: CGI.unescape(params[:url]))
     
-    if webpage.first.jsonld_output_id != 1
-      frame = webpage.first.jsonld_output&.frame
+    if webpage.first&.jsonld_output_id != 1
+      frame = webpage.first&.jsonld_output&.frame
 
       if webpage.count.positive?
         resource = Resource.new(webpage.first.rdf_uri)
