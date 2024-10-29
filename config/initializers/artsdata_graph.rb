@@ -9,13 +9,16 @@ class ArtsdataGraph
     @@schema = RDF::Vocabulary.new('http://schema.org/')
 
     if Rails.env.test? || Rails.env.development?
+      puts "#{Time.now} loading local graph"
       @@graph = RDF::Graph.load('test/fixtures/files/artsdata-dump.nt',
-                                        format: :nquads)
+                                        format: :ntriples)
+      puts "#{Time.now} loaded local graph"
+      @@graph
     else
       # Load artsdata.ca graphs for places, people and organizations
       @@graph =
         RDF::Graph.load('https://db.artsdata.ca/repositories/artsdata/statements?context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2Fminted%2FK11%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2Fminted%2FK12%3E&context=%3Chttp%3A%2F%2Fkg.artsdata.ca%2Fminted%2FK10%3E',
-                        format: :nquads)
+                        format: :ntriples)
       # To create a new dump use:
       # File.open("test/fixtures/files/artsdata-dump.nt", "w") {|f| f << @@graph.dump(:ntriples)}
       

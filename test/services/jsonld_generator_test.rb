@@ -213,7 +213,10 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     assert_equal expected_output, JsonldGenerator.extract_object_uris(graph).sort
   end
 
+  ############################
   # test method describe_uri
+  ############################
+
   test "should return graph" do
     uri = RDF::URI.new("http://kg.artsdata.ca/resource/K10-344")
     expected_output = 15
@@ -224,6 +227,12 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     uri = RDF::URI.new("http://kg.artsdata.ca/resource/K12-170")
     expected_output = 10
     assert_equal expected_output, JsonldGenerator.describe_uri(uri).count
+  end
+
+  test "should return graph for K11-192 Sanderson Place with PostalAddress" do
+    uri = RDF::URI.new("http://kg.artsdata.ca/resource/K11-192")
+    ouput = JsonldGenerator.describe_uri(uri)
+    assert ouput.query([nil, RDF::URI("http://schema.org/addressCountry"), nil]).count > 0
   end
 
   ############################
