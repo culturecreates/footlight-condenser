@@ -37,7 +37,6 @@ class WebpagesController < ApplicationController
         begin
           @publishable[wp.id] =
                 (@locations_hash[wp.rdf_uri][1] == "ok" || @locations_hash[wp.rdf_uri][1] == "updated") &&
-                (@locations_hash[wp.rdf_uri].to_s.include?("adr:") || @locations_hash[wp.rdf_uri].to_s.include?("http:") ) &&
                 (@startDates_hash[wp.rdf_uri][1] == "ok" || @startDates_hash[wp.rdf_uri][1] == "updated") &&
                 @startDates_hash[wp.rdf_uri][0].chars.count > 3 &&
                 (@titles_hash[wp.rdf_uri][1] == "ok" || @titles_hash[wp.rdf_uri][1] == "updated")  ? "Yes" : "No"
