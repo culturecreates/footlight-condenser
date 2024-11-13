@@ -18,6 +18,7 @@ class RefreshWebpageJob < ApplicationJob
       if wringer_received_404?(url)
         webpage.destroy
       end
+    end
   end
 
 end
