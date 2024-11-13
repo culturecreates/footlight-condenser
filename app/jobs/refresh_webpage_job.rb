@@ -1,6 +1,7 @@
 # Refresh Webpages
 class RefreshWebpageJob < ApplicationJob
   queue_as :default
+  include CcWringerHelper
 
   after_perform do |job|
     if job.arguments.last == "resource_list"
@@ -13,6 +14,10 @@ class RefreshWebpageJob < ApplicationJob
     webpages = Webpage.includes(:website).where(url: url)
     webpages.each do |webpage|
       StatementsController.new.refresh_webpage_statements(webpage, webpage.website.default_language, { :force_scrape_every_hrs => 1 })
-    end
+      # if after refresh the webpage is still 404 then delete it
+      if wringer_received_404?(url)
+        webpage.destroy
+      end
   end
+
 end

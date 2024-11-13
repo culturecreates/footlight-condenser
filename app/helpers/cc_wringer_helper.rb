@@ -1,7 +1,4 @@
 module CcWringerHelper
-
-
-
   def use_wringer(url, render_js = false, options={})
     defaults = { :force_scrape_every_hrs => nil }
     options = defaults.merge(options)
@@ -17,27 +14,20 @@ module CcWringerHelper
     return get_wringer_url_per_environment() + path
   end
 
-
-  # def update_jsonld_on_wringer url, graph_uri, jsonld
-  #   # if is_publishable?(jsonld)
-  #      #update condensed JSON-LD in wringer to update KG
-  #      wringer_api = "/condensers/condense.json"
-
-  #      data = HTTParty.patch(get_wringer_url_per_environment() + wringer_api,
-  #        body: {'url' => url, 'graph_uri' => graph_uri, 'jsonld' => jsonld.to_json},
-  #        headers: { 'Content-Type' => 'application/x-www-form-urlencoded',
-  #                  'Accept' => 'application/json'} )
-
-  #      if data.response.code[0] == '2'
-  #         result = {message: "Successfully updated JSON-LD in wringer"}
-  #      else
-  #        result =  {error: data.response.code, message: data.response.message}
-  #      end
-  #   # else
-  #   #   #delete condensed JSON-LD in wringe to delete triples in KG
-  #   # end
-
-  # end
+  def wringer_received_404?(url)
+    escaped_url = CGI.escape(url) # wringer stores the url escaped
+    double_escaped_url = CGI.escape(escaped_url)
+    path = "/websites.json?term=#{double_escaped_url}"
+    data = HTTParty.get(get_wringer_url_per_environment() + path)
+  
+    webpage = data.first 
+    if webpage["http_response_code"] == 404 && webpage["uri"] == escaped_url
+      return true
+    else
+      return false
+    end
+  end
+  
 
 
   def get_wringer_url_per_environment
