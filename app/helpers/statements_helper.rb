@@ -104,6 +104,7 @@ module StatementsHelper
                           else
                             results.map {|result| result.answer.value}
                           end
+            results_list.flatten!
           when "url"
             # replace current page by scraping new url
             # using format url='http://example.com' or ruby like url=$url + '.json'
