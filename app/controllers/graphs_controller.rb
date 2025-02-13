@@ -1,7 +1,7 @@
 # Converts data into a graph using RDF.rb
 class GraphsController < ApplicationController
-  skip_before_action :authenticate
-  before_action only: [:webpage_event]
+  skip_before_action :authenticate, only: [:webpage_event, :webpage_event_artsdata]
+
 
   require 'json/ld'
 
