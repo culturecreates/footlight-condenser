@@ -67,7 +67,9 @@ module ResourcesHelper
   def adjust_labels_for_api statement, **extras
     
     #convert ActiveRecord to hash despite the misleading name of .as_json
-    json_statement = statement.as_json 
+    # rare server errors about incorrect references to include_root_in_json --> solution is to restart condenser in Heroku
+    # Copilot suggests: Trying statement.as_json(root: true) 
+    json_statement = statement.as_json
 
     #replace "cache" with "value" for better API read-ability
     json_statement[:value] = statement.cache
