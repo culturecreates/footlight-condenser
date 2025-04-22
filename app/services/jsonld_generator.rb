@@ -481,7 +481,7 @@ class JsonldGenerator
     artsdata_id = uri.value.delete_prefix('http://kg.artsdata.ca/resource/')
     begin
       # get ranked dereference
-      url = "#{self.artsdata_rank_api_url}#{artsdata_id}?format=jsonld"
+      url = "#{self.artsdata_rank_api_url}?adid=#{artsdata_id}&format=jsonld"
       result = HTTParty.get(url)
       # create graph 
       g = RDF::Graph.new << JSON::LD::API.toRdf(JSON.parse(result.body))
@@ -497,9 +497,9 @@ class JsonldGenerator
 
   def self.artsdata_rank_api_url
     if Rails.env.development?  || Rails.env.test?
-      "http://localhost:#{ARTSDATA_API_PORT}/ranked/"
+      "http://localhost:#{ARTSDATA_API_PORT}/query"
     else
-      'http://api.artsdata.ca/ranked/'
+      'http://api.artsdata.ca/query'
     end
   end
 end
