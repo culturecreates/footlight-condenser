@@ -240,7 +240,7 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
   ############################
   test "should dereference artsdata uri" do
     uri = RDF::URI.new("http://kg.artsdata.ca/resource/K16-6") # Crossfire Productions
-    expected_output = 11
+    expected_output = 12
     VCR.use_cassette('JsonldGenerator.dereference_uri artsdata') do
       actual = JsonldGenerator.dereference_uri(uri)
       assert_equal expected_output, actual.count

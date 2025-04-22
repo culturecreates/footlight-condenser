@@ -2,7 +2,7 @@
 http_interactions:
 - request:
     method: get
-    uri: http://localhost:3003/ranked/K16-6?format=jsonld
+    uri: http://localhost:3003/query?adid=K16-6&format=jsonld
     body:
       encoding: US-ASCII
       string: ''
@@ -33,22 +33,22 @@ http_interactions:
       Content-Type:
       - application/ld+json; charset=utf-8
       Etag:
-      - W/"22dd0f0e030648bdb9bf23207f4b79cd"
+      - W/"b4f2c466ef2ab673f7aa3b9c5e848b56"
       Cache-Control:
       - max-age=0, private, must-revalidate
       X-Request-Id:
-      - 7f9e73bf-e704-4848-83f9-2cf3a5da869c
+      - be5ed2b3-582c-44cf-97e2-47c7e259bbd1
       X-Runtime:
-      - '0.095711'
+      - '0.187742'
       Vary:
       - Origin
-      Transfer-Encoding:
-      - chunked
+      Content-Length:
+      - '682'
     body:
       encoding: UTF-8
-      string: '{"@context":{"@vocab":"http://schema.org/","@base":"http://schema.org/","id":{"@id":"@id"},"xsd":"http://www.w3.org/2001/XMLSchema#","nameFr":{"@id":"name","@language":"fr"},"nameEn":{"@id":"name","@language":"en"},"namePref":{"@id":"name"}},"id":"http://kg.artsdata.ca/resource/K16-6","@type":"Organization","address":{"@type":"PostalAddress","addressCountry":"CA","addressLocality":"Apsley","addressRegion":"ON","postalCode":"K0L
-        1A0","streetAddress":"PO Box 23"},"nameEn":"Crossfire Productions","namePref":"Crossfire
-        Productions","url":"https://crossfire-productions.net/"}'
-    http_version:
-  recorded_at: Wed, 24 Nov 2021 12:45:25 GMT
-recorded_with: VCR 3.0.3
+      string: '{"@context":{"@vocab":"http://example.org/"},"@graph":[{"@id":"_:b0","@type":"http://schema.org/PostalAddress","http://schema.org/addressCountry":"CA","http://schema.org/addressLocality":"Apsley","http://schema.org/addressRegion":"ON","http://schema.org/postalCode":"K0L
+        1A0","http://schema.org/streetAddress":"PO Box 23"},{"@id":"http://kg.artsdata.ca/resource/K16-6","@type":"http://schema.org/Organization","http://schema.org/address":{"@id":"_:b0"},"http://schema.org/disambiguatingDescription":"Apsley
+        (ON) CA","http://schema.org/name":[{"@language":"en","@value":"Crossfire Productions"},"Crossfire
+        Productions"],"http://schema.org/url":"https://crossfire-productions.net/"}]}'
+  recorded_at: Tue, 22 Apr 2025 19:26:06 GMT
+recorded_with: VCR 6.2.0

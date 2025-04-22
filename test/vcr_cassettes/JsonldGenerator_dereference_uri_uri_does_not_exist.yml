@@ -2,7 +2,7 @@
 http_interactions:
 - request:
     method: get
-    uri: http://localhost:3003/ranked/K16-677777777777?format=jsonld
+    uri: http://localhost:3003/query?adid=K16-677777777777&format=jsonld
     body:
       encoding: US-ASCII
       string: ''
@@ -33,20 +33,19 @@ http_interactions:
       Content-Type:
       - application/ld+json; charset=utf-8
       Etag:
-      - W/"e55f8108383e025d737ce68c96df7c35"
+      - W/"b82d8b44a72311394ae2046bad5ddefe"
       Cache-Control:
       - max-age=0, private, must-revalidate
       X-Request-Id:
-      - 56e23ec6-3e6c-4c15-aa3b-05f7bb98ac5f
+      - 00d3aace-434b-4135-83d4-e4db0fb0a724
       X-Runtime:
-      - '0.113972'
+      - '0.176197'
       Vary:
       - Origin
-      Transfer-Encoding:
-      - chunked
+      Content-Length:
+      - '57'
     body:
       encoding: UTF-8
-      string: '{"@context":{"@vocab":"http://schema.org/","@base":"http://schema.org/","id":{"@id":"@id"},"xsd":"http://www.w3.org/2001/XMLSchema#","nameFr":{"@id":"name","@language":"fr"},"nameEn":{"@id":"name","@language":"en"},"namePref":{"@id":"name"}},"@graph":[]}'
-    http_version:
-  recorded_at: Wed, 24 Nov 2021 14:04:04 GMT
-recorded_with: VCR 3.0.3
+      string: '{"@context":{"@vocab":"http://example.org/"},"@graph":[]}'
+  recorded_at: Tue, 22 Apr 2025 19:24:38 GMT
+recorded_with: VCR 6.2.0
