@@ -51,6 +51,11 @@ class StructuredDataHelperTest < ActionView::TestCase
     expected_output = [{"startDate"=>TESTDATETIME_TODAY, "endDate"=>TESTDATE_TODAY, :offers =>{"url"=>"offer_url_one"}}, {"startDate"=>TESTDATETIME_TOMORROW, "endDate"=>TESTDATE_TOMORROW, :offers => {"url"=>"offer_url_two"}}]
     assert_equal expected_output, build_events_per_startDate({"startDate" => [TESTDATETIME_TODAY, TESTDATETIME_TOMORROW], :offers => {"url" => ["offer_url_one","offer_url_two"]}})
   end
+
+  test "build_events_per_startDate: 2 dates with 1 image" do
+    expected_output = [{"startDate"=>TESTDATETIME_TODAY, "image"=>"http://image.com", "endDate"=>TESTDATE_TODAY}, {"startDate"=>TESTDATETIME_TOMORROW, "image"=>"http://image.com", "endDate"=>TESTDATE_TOMORROW}]
+    assert_equal expected_output, build_events_per_startDate({"startDate" => [TESTDATETIME_TODAY, TESTDATETIME_TOMORROW], "image" => "http://image.com"})
+  end
   
   ###############################
   # add_offer
