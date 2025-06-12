@@ -16,7 +16,7 @@ class ApplicationController < ActionController::Base
 
   def set_sticky_seedurl
     if params[:seedurl].blank?
-      params[:seedurl] = cookies[:seedurl] if !cookies[:seedurl].blank?
+      params[:seedurl] = cookies[:seedurl] if cookies[:seedurl].present?
     else
       cookies[:seedurl] = params[:seedurl] 
     end

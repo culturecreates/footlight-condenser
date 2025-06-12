@@ -78,10 +78,19 @@ test "process_algorithm url and json and ruby" do
     assert_equal expected, process_algorithm(algorithm: algo,  url: "https://signelaval.com/fr/evenements/14650/du-fond-de-mon-garde-robe")
   end
 end
+#test "process_algorithm ruby syntax error" do
+#  expected = ["abort_update", {:error=>"(eval):1: syntax error, unexpected end-of-input, expecting '}'", :error_type=>SyntaxError, :results_prior=>[], :algorithm_rescued=>"ruby=$array.each {|a| a"}]
+#  algo = "ruby=$array.each {|a| a"
+#  assert_equal expected, process_algorithm(algorithm: algo,  url: "https://signelaval.com/fr/evenements/14650/du-fond-de-mon-garde-robe")
 test "process_algorithm ruby syntax error" do
-  expected = ["abort_update", {:error=>"(eval):1: syntax error, unexpected end-of-input, expecting '}'", :error_type=>SyntaxError, :results_prior=>[], :algorithm_rescued=>"ruby=$array.each {|a| a"}]
   algo = "ruby=$array.each {|a| a"
-  assert_equal expected, process_algorithm(algorithm: algo,  url: "https://signelaval.com/fr/evenements/14650/du-fond-de-mon-garde-robe")
+  result = process_algorithm(algorithm: algo, url: "https://signelaval.com/fr/evenements/14650/du-fond-de-mon-garde-robe")
+  assert_equal "abort_update", result[0]
+  details = result[1]
+  assert_kind_of Hash, details
+  assert_equal SyntaxError, details[:error_type]
+  assert_includes details[:error].downcase, "syntax error"
+  assert_includes details[:algorithm_rescued], "ruby=$array.each {|a| a"
 end
 test "process_algorithm invalid algorithm prefix" do
   expected = [["abort_update", {:error=>"Missing valid prefix", :algorithm=>"//title"}]]

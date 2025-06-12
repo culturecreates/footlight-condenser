@@ -9,10 +9,10 @@ class ArtsdataGraph
     @@schema = RDF::Vocabulary.new('http://schema.org/')
 
     if Rails.env.test? || Rails.env.development?
-      puts "#{Time.now} loading local graph"
+      Rails.logger.debug "#{Time.zone.now} loading local graph"
       @@graph = RDF::Graph.load('test/fixtures/files/artsdata-dump.nt',
                                         format: :ntriples)
-      puts "#{Time.now} loaded local graph"
+      Rails.logger.debug "#{Time.zone.now} loaded local graph"
       @@graph
     else
       # Load artsdata.ca graphs for places, people and organizations

@@ -29,7 +29,6 @@ module CcWringerHelper
   end
   
 
-
   def get_wringer_url_per_environment
     if Rails.env.development?  || Rails.env.test?
       "http://localhost:3009"
@@ -37,5 +36,9 @@ module CcWringerHelper
       "http://footlight-wringer.herokuapp.com"
     end
   end
+
+  # def get_wringer_url_per_environment
+      # "http://footlight-wringer.herokuapp.com"
+  # end
 
 end

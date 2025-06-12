@@ -4,7 +4,7 @@ module DatabusHelper
   end
 
   def make_databus_version
-    Date.today.iso8601
+    Time.zone.today.iso8601
   end
 
   def make_databus_file(seedurl)

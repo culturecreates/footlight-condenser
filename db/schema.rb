@@ -13,18 +13,8 @@
 ActiveRecord::Schema.define(version: 2024_10_28_141852) do
 
   # These are extensions that must be enabled in order to support this database
-  enable_extension "pg_stat_statements"
+  #enable_extension "pg_stat_statements"
   enable_extension "plpgsql"
-
-  create_table "condensers", force: :cascade do |t|
-    t.text "json_ld"
-    t.datetime "condensed_date"
-    t.bigint "website_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "graph_uri"
-    t.index ["website_id"], name: "index_condensers_on_website_id"
-  end
 
   create_table "jsonld_outputs", force: :cascade do |t|
     t.string "name"

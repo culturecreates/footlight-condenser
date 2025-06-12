@@ -5,6 +5,155 @@ module StatementsHelper
   include CcWringerHelper
   Page = Struct.new(:text) # Used to simulate Nokogiri object's text method
 
+# :nocov:
+  def process_algorithm_with_trace(algorithm:, render_js: false, language: "en", url:, scrape_options: {})
+    trace = []
+    results_list = []
+
+    if algorithm.start_with?('manual=')
+      results_list = [algorithm.delete_prefix('manual=')]
+      trace << {
+        step: 1,
+        type: 'manual',
+        code: algorithm,
+        input: [],
+        output: results_list.dup,
+        error: nil
+      }
+    else
+      agent = Mechanize.new
+      agent.user_agent_alias = 'Mac Safari'
+      html = nil
+      page = nil
+      json_scraped = nil # for evals
+      substitue_vars = lambda { |s| s.gsub('$array', 'results_list').gsub('$url', 'url').gsub('$json', 'json_scraped') }
+      algorithm.split(";").each_with_index do |a, idx|
+        algo_type = a.partition('=').first
+        algo = a.partition('=').last
+        input = Marshal.load(Marshal.dump(results_list)) # deep copy if needed
+        begin
+          output =
+            case algo_type
+            when "sparql"
+              graph ||= RDF::Graph.load(use_wringer(url, render_js, scrape_options))
+              sparql = "PREFIX schema: <http://schema.org/> select * where " + algo
+              results = SPARQL.execute(sparql, graph)
+              [*(results.count == 1 ? results.first.answer.value : results.map { |result| result.answer.value })]
+            when "url"
+              new_url = eval(substitue_vars.call(algo))
+              logger.info "*** New URL formed: #{new_url}"
+              html = agent.get_file(use_wringer(new_url, render_js, scrape_options))
+              page = Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
+              input # usually no output
+            when 'renderjs_url'
+              new_url = eval(substitue_vars.call(algo))
+              logger.info "*** New URL formed: #{new_url}"
+              html = agent.get_file(use_wringer(new_url, true, scrape_options))
+              page = Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
+              input
+            when 'json_url'
+              new_url = eval(substitue_vars.call(algo))
+              logger.info "*** New URL for JSON call: #{new_url}"
+              html = agent.get_file(use_wringer(new_url, render_js, scrape_options))
+              page = Page.new(html)
+              input
+            when 'post_url'
+              new_url = eval(substitue_vars.call(algo))
+              logger.info "*** New POST URL formed: #{new_url}"
+              temp_scrape_options = scrape_options.merge(json_post: true).merge(force_scrape_every_hrs: 1)
+              data = agent.get_file use_wringer(new_url, render_js, temp_scrape_options)
+              page = Nokogiri::HTML(data, nil, Encoding::UTF_8.to_s)
+              input
+            when 'api'
+              new_url = eval(substitue_vars.call(algo))
+              logger.info "*** New json api URL formed: #{new_url}"
+              data = HTTParty.get(new_url)
+              logger.info "*** api response body: #{data.body}"
+              JSON.parse(data.body)
+            when 'ruby'
+              eval(substitue_vars.call(algo))
+            when 'xpath_sanitize'
+              html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+              page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
+              page.xpath(algo).map { |d| sanitize(d.to_s, tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href]) }
+            when 'if_xpath'
+              html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+              page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
+              page_data = page.xpath(algo)
+              break if page_data.blank?
+              page_data.map(&:text)
+            when 'unless_xpath'
+              html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+              page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
+              page_data = page.xpath(algo)
+              break if page_data.present?
+              input
+            when 'xpath'
+              html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+              page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
+              page.xpath(algo).map(&:text)
+            when 'css'
+              html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+              page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
+              page.css(algo).map(&:text)
+            when 'time_zone'
+              ["time_zone: #{algo}"]
+            when 'json'
+              html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+              page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
+              json_scraped = JSON.parse(page.text)
+              eval(algo.gsub('$json', 'json_scraped'))
+            else
+              ['abort_update', { error: "Missing valid prefix", algorithm: a }]
+            end
+
+          results_list = output
+          error = nil
+        rescue SyntaxError => e
+          core_message = e.message.lines.first.chomp
+          trace << {
+            step: idx + 1,
+            type: algo_type,
+            code: algo,
+            input: input,
+            output: [],
+            error: core_message
+          }
+          return [results_list, trace]
+        rescue => e
+          trace << {
+            step: idx + 1,
+            type: algo_type,
+            code: algo,
+            input: input,
+            output: [],
+            error: e.message
+          }
+          return [results_list, trace]
+        end
+
+        trace << {
+          step: idx + 1,
+          type: algo_type,
+          code: algo,
+          input: input,
+          output: results_list.dup,
+          error: nil
+        }
+      end
+    end
+
+    [results_list, trace]
+  end
+
+    # Truncate but always show the full value in a tooltip
+  def trace_truncated_tooltip(str, length: 80)
+    safe_str = str.is_a?(String) ? str : str.inspect
+    truncated = safe_str.length > length ? "#{safe_str[0, length]}…" : safe_str
+    content_tag(:span, truncated, class: 'trace-tooltip', data: { tooltip: safe_str })
+  end
+# :nocov:
+
   ##
   # Refresh a statement
   #   INPUT
@@ -34,7 +183,7 @@ module StatementsHelper
     if save_record?(data&.to_s,stat.status,stat.cache, stat.new_record?)
       data = preserve_manual_links(data, stat.cache) if stat.source.property.value_datatype == 'xsd:anyURI' 
       stat.cache = data
-      stat.cache_refreshed = Time.new
+      stat.cache_refreshed = Time.zone.now
       stat.save
     end
   end
@@ -184,7 +333,9 @@ module StatementsHelper
             results_list << ['abort_update',{error: "Missing valid prefix", algorithm: a}]
           end
         rescue SyntaxError => e
-          return ['abort_update', {error: e.message.squish, error_type: e.class, results_prior: results_list, algorithm_rescued: a}]
+          #return ['abort_update', {error: e.message.squish, error_type: e.class, results_prior: results_list, algorithm_rescued: a}]
+          core_message = e.message.lines.first.chomp # Only the first line!
+          return ['abort_update', {error: core_message, error_type: e.class, results_prior: results_list, algorithm_rescued: a}]
         rescue  => e
           logger.error(" ****************** Error in scrape: #{e.inspect}")
           return ['abort_update', {error: e.inspect, error_type: e.class, results_prior: results_list, algorithm_rescued: a}]
@@ -250,7 +401,7 @@ module StatementsHelper
     elsif property.value_datatype == 'xsd:date'
       data = convert_date(scraped_data)
     elsif property.value_datatype == 'xsd:anyURI'
-      unless scraped_data.blank?
+      if scraped_data.present?
         if property.expected_class == 'EventStatusType'
           data << reconcile_event_status(scraped_data)
         elsif property.expected_class == 'EventTypeEnumeration'
@@ -535,12 +686,12 @@ module StatementsHelper
   end
 
   def format_language(language)
-    '@' + language unless language.blank?
+    '@' + language if language.present?
   end
 
   def build_key(statement) # for JSON output
     new_key = statement.source.property.label.downcase.sub(' ', '_')
-    unless statement.source.language.blank?
+    if statement.source.language.present?
       new_key = "#{new_key}_#{statement.source.language}"
     end
     new_key
@@ -582,7 +733,7 @@ module StatementsHelper
   end
 
   def preserve_manual_links _data, old_data
-    return _data unless old_data.present?
+    return _data if old_data.blank?
 
     _data = [_data] if _data[0].class != Array
     begin
@@ -664,3 +815,6 @@ module StatementsHelper
   #  @logger ||= Logger.new(STDOUT)
   # end
 end
+
+# app/helpers/statements_helper.rb (minimal example)
+

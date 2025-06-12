@@ -14,13 +14,13 @@ class Webpage < ApplicationRecord
   before_save :prevent_distant_archive_dates
 
   def init
-    self.archive_date ||= Time.now.next_year
+    self.archive_date ||= Time.zone.now.next_year
   end
 
   def prevent_distant_archive_dates
-    if self.archive_date < Time.now - 10.years ||
-       self.archive_date > Time.now + 10.years
-      self.archive_date = Time.now.next_year
+    if self.archive_date < Time.zone.now - 10.years ||
+       self.archive_date > Time.zone.now + 10.years
+      self.archive_date = Time.zone.now.next_year
     end
   end
 end

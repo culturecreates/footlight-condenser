@@ -107,15 +107,15 @@ class JsonUriWrapperTest < ActiveSupport::TestCase
   end
 
   test "invalid_uri is false" do
-    assert_equal false, JsonUriWrapper.invalid_uri?("http://example.com")
+    assert_not JsonUriWrapper.invalid_uri?("http://example.com")
   end
 
   test "invalid_uri" do
-    assert_equal true, JsonUriWrapper.invalid_uri?("example.com")
+    assert JsonUriWrapper.invalid_uri?("example.com")
   end
 
   test "invalid_uri when empty" do
-    assert_equal true, JsonUriWrapper.invalid_uri?("")
+    assert JsonUriWrapper.invalid_uri?("")
   end
 
 end

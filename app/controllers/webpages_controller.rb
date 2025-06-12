@@ -28,7 +28,7 @@ class WebpagesController < ApplicationController
     @startDates = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Dates", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri, :cache, :status)
     @startDates_hash = @startDates.map{ |l| l = l[0],[(l[1]),l[2]] }.to_h
 
-    @titles = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Title", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri, :cache, :status, "Webpages.language")
+    @titles = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Title", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri, :cache, :status, "webpages.language")
     @titles_hash = @titles.map{ |l| l = l[0],[l[1],l[2],l[3]] }.to_h
 
     @publishable = {}
@@ -92,9 +92,9 @@ class WebpagesController < ApplicationController
     language = p["language"]
 
     rdfs_class = RdfsClass.where(name: p["rdfs_class"]).first
-    rdfs_class_id = rdfs_class.id if !rdfs_class.blank?
+    rdfs_class_id = rdfs_class.id if rdfs_class.present?
     website = Website.where(seedurl: p["seedurl"]).first
-    website_id = website.id if !website.blank?
+    website_id = website.id if website.present?
 
     @webpage = Webpage.new(url: url, rdfs_class_id: rdfs_class_id, rdf_uri: rdf_uri, language: language, website_id: website_id)
     if @webpage.save

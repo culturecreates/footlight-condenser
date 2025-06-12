@@ -42,7 +42,7 @@ class Statement < ApplicationRecord
       return if previous_uris&.sort == new_uris&.sort
     end
 
-    self.cache_changed = Time.new
+    self.cache_changed = Time.zone.now
 
     # Set status to updated unless in intial state.
     # because status cannot update itself from initial state. Need a human to see it first.
@@ -63,7 +63,7 @@ class Statement < ApplicationRecord
     elsif @property_label == 'Dates'
       self.status = 'missing' unless valid_date?
     elsif @property_label == 'Title'
-      self.status = 'missing' unless cache.present?
+      self.status = 'missing' if cache.blank?
     elsif @property_label == 'VirtualLocation'
       self.status = 'missing' unless (cache.present? && cache != '[]')
     end
@@ -94,20 +94,30 @@ class Statement < ApplicationRecord
     end
   end
 
-  def valid_date?
-    begin
-      date_array = JSON.parse(cache)
-    rescue JSON::ParserError
-      # convert string to array
-      date_array = Array(cache)
-    end
+#  def valid_date?
+#    begin
+#      date_array = JSON.parse(cache)
+#    rescue JSON::ParserError
+#      # convert string to array
+#      date_array = Array(cache)
+#    end
     # look for valid dates in array
-    if date_array.select { |d| d if valid_iso_date?(d) }.count.positive?
-      true
-    else
-      false
-    end
+#    if date_array.select { |d| d if valid_iso_date?(d) }.count.positive?
+#      true
+#    else
+#      false
+#    end
+#  end
+
+# Refactor to make Rubocop happy :)
+def valid_date?
+  begin
+    date_array = JSON.parse(cache)
+  rescue JSON::ParserError
+    date_array = Array(cache)
   end
+  date_array.any? { |d| valid_iso_date?(d) }
+end
 
   def valid_iso_date?(date_string)
     begin
