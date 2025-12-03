@@ -1,0 +1,6 @@
+<h2>Options</h2>
+<div>
+  <p>Current Wringer: <strong><%= cookies[:wringer_url] || "default" %></strong></p>
+  <%= link_to "Switch to LOCAL", set_wringer_path("local"), class: "btn" %>
+  <%= link_to "Switch to LIVE", set_wringer_path("live"), class: "btn" %>
+</div>
