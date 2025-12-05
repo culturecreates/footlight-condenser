@@ -35,26 +35,26 @@ module StatementsHelper
           output =
             case algo_type
             when "sparql"
-              graph ||= RDF::Graph.load(use_wringer(url, render_js, scrape_options))
+              graph ||= RDF::Graph.load(use_wringer(url, render_js, scrape_options)) 
               sparql = "PREFIX schema: <http://schema.org/> select * where " + algo
               results = SPARQL.execute(sparql, graph)
               [*(results.count == 1 ? results.first.answer.value : results.map { |result| result.answer.value })]
             when "url"
               new_url = eval(substitue_vars.call(algo))
               logger.info "*** New URL formed: #{new_url}"
-              html = agent.get_file(use_wringer(new_url, render_js, scrape_options))
+              html = safe_wringer_call { agent.get_file(use_wringer(new_url, render_js, scrape_options)) }
               page = Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
               input # usually no output
             when 'renderjs_url'
               new_url = eval(substitue_vars.call(algo))
               logger.info "*** New URL formed: #{new_url}"
-              html = agent.get_file(use_wringer(new_url, true, scrape_options))
+              html = safe_wringer_call { agent.get_file(use_wringer(new_url, true, scrape_options)) }
               page = Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
               input
             when 'json_url'
               new_url = eval(substitue_vars.call(algo))
               logger.info "*** New URL for JSON call: #{new_url}"
-              html = agent.get_file(use_wringer(new_url, render_js, scrape_options))
+              html = safe_wringer_call { agent.get_file(use_wringer(new_url, render_js, scrape_options)) }
               page = Page.new(html)
               input
             when 'post_url'
@@ -73,33 +73,33 @@ module StatementsHelper
             when 'ruby'
               eval(substitue_vars.call(algo))
             when 'xpath_sanitize'
-              html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+              html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
               page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
               page.xpath(algo).map { |d| sanitize(d.to_s, tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href]) }
             when 'if_xpath'
-              html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+              html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
               page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
               page_data = page.xpath(algo)
               break if page_data.blank?
               page_data.map(&:text)
             when 'unless_xpath'
-              html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+              html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
               page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
               page_data = page.xpath(algo)
               break if page_data.present?
               input
             when 'xpath'
-              html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+              html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
               page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
               page.xpath(algo).map(&:text)
             when 'css'
-              html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+              html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
               page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
               page.css(algo).map(&:text)
             when 'time_zone'
               ["time_zone: #{algo}"]
             when 'json'
-              html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+              html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
               page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
               json_scraped = JSON.parse(page.text)
               eval(algo.gsub('$json', 'json_scraped'))
@@ -244,7 +244,7 @@ module StatementsHelper
         begin
           case algo_type 
           when "sparql"
-            graph ||= RDF::Graph.load(use_wringer(url, render_js, scrape_options))
+            graph ||= RDF::Graph.load(use_wringer(url, render_js, scrape_options)) 
             sparql = "PREFIX schema: <http://schema.org/> select * where " + algo
             results = SPARQL.execute(sparql,graph)
 
@@ -259,19 +259,19 @@ module StatementsHelper
             # using format url='http://example.com' or ruby like url=$url + '.json'
             new_url = eval(substitue_vars.call(algo))
             logger.info "*** New URL formed: #{new_url}"
-            html = agent.get_file(use_wringer(new_url, render_js, scrape_options))
+            html = safe_wringer_call { agent.get_file(use_wringer(new_url, render_js, scrape_options)) }
             page = Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
           when 'renderjs_url'
             # FORCE Render JS -- replace current page by scraping new url with wringer
             # using format renderjs_url='http://example.com'
             new_url =  eval(substitue_vars.call(algo))
             logger.info "*** New URL formed: #{new_url}"
-            html = agent.get_file(use_wringer(new_url, true, scrape_options))
+            html = safe_wringer_call { agent.get_file(use_wringer(new_url, true, scrape_options)) }
             page = Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
           when 'json_url'
             new_url =  eval(substitue_vars.call(algo))
             logger.info "*** New URL for JSON call: #{new_url}"
-            html = agent.get_file(use_wringer(new_url, render_js, scrape_options))
+            html = safe_wringer_call { agent.get_file(use_wringer(new_url, render_js, scrape_options)) }
             page = Page.new(html)  # Do not use Nokogiri because it will remove html TODO: move struct down here
           when 'post_url'
             # replace current page data by scraping new url with wringer using POST
@@ -293,29 +293,29 @@ module StatementsHelper
             # ruby=$array.map{} or ruby=$json['name']
             results_list = eval(substitue_vars.call(algo))
           when 'xpath_sanitize' # ok
-            html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+            html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
             page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
             page_data = page.xpath(algo)
             page_data.each { |d| results_list << sanitize(d.to_s, tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href]) }
           when 'if_xpath' # continue if xpath resolves
-            html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+            html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
             page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
             page_data = page.xpath(algo)
             break if page_data.blank?
             page_data.each { |d| results_list << d.text }
           when 'unless_xpath' # continue unless xpath resolves
-            html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+            html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
             page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
             page_data = page.xpath(algo)
             break if page_data.present?
           when 'xpath' # test
-            html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+            html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
             # TODO: If response type is json then load json, otherwise load html in next line
             page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
             page_data = page.xpath(algo)
             page_data.each { |d| results_list << d.text }
           when 'css' # ok
-            html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+            html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
             page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
             page_data = page.css(algo)
             page_data.each { |d| results_list << d.text }
@@ -324,7 +324,7 @@ module StatementsHelper
             logger.info "*** Adding time_zone: #{algo}"
           when 'json' # ok
             ## use this pattern in source algorithm --> json=$json['name']
-            html ||= agent.get_file(use_wringer(url, render_js, scrape_options))
+            html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
             page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
             json_scraped = JSON.parse(page.text)
             algo.gsub!('$json', 'json_scraped')
