@@ -10,15 +10,15 @@ Rails.application.routes.draw do
 
   resources :websites do
     # API: get /websites 
-collection do
-  get 'events'         # Internal Webpages Only
-  get 'places'         # Internal Webpages Only
-  get 'test_api'       # Internal Webpages Only
+    collection do
+      get 'events'         # Internal Webpages Only
+      get 'places'         # Internal Webpages Only
+      get 'test_api'       # Internal Webpages Only
 
-  delete 'delete_all_statements'     # Internal Webpages Only
-  delete 'delete_all_webpages'       # Internal Webpages Only
-  delete 'delete_all_event_webpages' # Internal Webpages Only
-end
+      delete 'delete_all_statements'     # Internal Webpages Only
+      delete 'delete_all_webpages'       # Internal Webpages Only
+      delete 'delete_all_event_webpages' # Internal Webpages Only
+    end
   end
   
     # Demo trace
@@ -97,6 +97,10 @@ end
       patch 'review_all_statements' # API
     end
   end
+
+  # options
+  get 'options', to: 'options#index', as: :options
+  get 'options/wringer/:target', to: 'options#wringer', as: :set_wringer
 
   ##
   # Admin section only used for admin webpages
