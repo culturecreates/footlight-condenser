@@ -1,35 +1,52 @@
-<% @website ||=  params[:seedurl].present? &&  params[:seedurl] != "all" ? Website.where(seedurl: params[:seedurl]).first : list_of_websites.first %>
-<%= link_to "all websites", websites_path %> >
 <%
-=begin%>
- <%= select_tag "filter", options_from_collection_for_select(list_of_websites, "id", "seedurl", @website.id ||= 1) %>  
-<%
-=end%>
-<b><%= link_to @website.seedurl, website_path(@website.id) if @website.id.present? %></b> |
-<%= link_to "webpages", webpages_path %> |
-<%= link_to "sources", sources_path %> |
-<%= link_to "events", events_websites_path(seedurl:  @website.seedurl) %> |
-<%= link_to "places", places_path(seedurl:  @website.seedurl) %> |
-<%= link_to "statements", statements_path %> |
-<%= link_to "console", "#{get_console_url_per_environment}/events?seedurl=#{cookies[:seedurl]}" %> ||
-<%= link_to "properties", properties_path %> |
-<%= link_to "classes", rdfs_classes_path %> |
-<%= link_to "exceptions", search_exceptions_path %> |
-<%= link_to "JSON-LD", jsonld_outputs_path %> ||
-<%= link_to "test api", test_api_websites_path %> | 
-<%= link_to "databus", databus_index_path %> | 
-<%= link_to "messages", messages_path %> |
-<%= link_to "job queue", sidekiq_web_path %>
+  # Pick a website just for navigation.
+  nav_website =
+    if params[:seedurl].present? && params[:seedurl] != "all"
+      Website.find_by(seedurl: params[:seedurl])
+    else
+      list_of_websites.first
+    end
+%>
+
+<%# Primary website / "all websites" link %>
+<% if nav_website.present? %>
+  <b><%= link_to nav_website.seedurl, website_path(nav_website) %></b> |
+<% else %>
+  <b><%= link_to "all websites", websites_path %></b> |
+<% end %>
+
+<%# Website-dependent links (enable only if we have a nav_website) %>
+<% if nav_website.present? %>
+  <%= link_to "webpages", webpages_path %> |
+  <%= link_to "sources",  sources_path %> |
+  <%= link_to "events",   events_websites_path(seedurl: nav_website.seedurl) %> |
+  <%= link_to "places",   places_path(seedurl: nav_website.seedurl) %> |
+<% else %>
+  <span class="disabled-link">webpages</span> |
+  <span class="disabled-link">sources</span> |
+  <span class="disabled-link">events</span> |
+  <span class="disabled-link">places</span> |
+<% end %>
+
+<%= link_to "statements",     statements_path %> |
+<%= link_to "console",        "#{get_console_url_per_environment}/events?seedurl=#{cookies[:seedurl]}" %> ||
+<%= link_to "properties",     properties_path %> |
+<%= link_to "classes",        rdfs_classes_path %> |
+<%= link_to "exceptions",     search_exceptions_path %> |
+<%= link_to "JSON-LD",        jsonld_outputs_path %> ||
+<%= link_to "test api",       test_api_websites_path %> |
+<%= link_to "databus",        databus_index_path %> |
+<%= link_to "messages",       messages_path %> |
+<%= link_to "job queue",      sidekiq_web_path %>
 
 <br>
 
 <script>
-    $(function(){
-      // bind change event to select
-      $('#filter').on('change', function () {
-          var webpage_id = $(this).val(); // get selected value
-          window.location = "/websites/" + webpage_id 
-          return false;
-      });
+  $(function(){
+    $('#filter').on('change', function () {
+      var webpage_id = $(this).val();
+      window.location = "/websites/" + webpage_id;
+      return false;
     });
+  });
 </script>
