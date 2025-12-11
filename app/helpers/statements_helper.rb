@@ -163,30 +163,38 @@ module StatementsHelper
   #     Persists statement in database or sets errors. 
   #     Check stat.errors in calling method.
   def refresh_statement_helper(stat, scrape_options = {})
-
-    # check manual conditions
     if stat.manual && ["ok","updated"].include?(stat.status)
-      stat.errors.add(:manual, message: "No update unless 'initial','problem' or 'missing' state.")
+      stat.errors.add(:base, "No update unless 'initial','problem' or 'missing' state.")
       return
     end
-    data = process_algorithm(algorithm: stat.source.algorithm_value, render_js: stat.source.render_js, language:stat.source.language, url: stat.webpage.url, scrape_options: scrape_options)
+
+    data = process_algorithm(
+      algorithm: stat.source.algorithm_value,
+      render_js: stat.source.render_js,
+      language: stat.source.language,
+      url: stat.webpage.url,
+      scrape_options: scrape_options
+    )
     data = format_datatype(data, stat.source.property, stat.webpage)
 
     if data&.to_s&.include?('abort_update')
-      stat.errors.add(:scrape, message: data)
+      # was: stat.errors.add(:scrape, message: data)
+      stat.errors.add(:base, "Scrape error: #{data}")
     end
 
     if data.blank? && !stat.new_record? && !stat.cache&.include?('abort_update')
-      stat.errors.add(:blank_detected, message: "Not updated with blank.")
+      # was: stat.errors.add(:blank_detected, message: "Not updated with blank.")
+      stat.errors.add(:base, "Not updated with blank.")
     end
 
-    if save_record?(data&.to_s,stat.status,stat.cache, stat.new_record?)
-      data = preserve_manual_links(data, stat.cache) if stat.source.property.value_datatype == 'xsd:anyURI' 
+    if save_record?(data&.to_s, stat.status, stat.cache, stat.new_record?)
+      data = preserve_manual_links(data, stat.cache) if stat.source.property.value_datatype == 'xsd:anyURI'
       stat.cache = data
       stat.cache_refreshed = Time.zone.now
       stat.save
     end
   end
+
 
   ## Core logic of when to update records
   ## but safeguard against blank data and errors
