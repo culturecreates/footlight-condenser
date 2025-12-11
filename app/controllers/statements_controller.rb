@@ -55,7 +55,7 @@ class StatementsController < ApplicationController
     helpers.refresh_statement_helper(@statement)
     respond_to do |format|
       if @statement.errors.any?
-        format.html { redirect_to @statement, notice: 'Statement errors: ' + @statement.errors.messages.inspect }
+        format.html { redirect_to @statement, alert: "Statement Error: " + @statement.errors.full_messages.to_sentence }
         format.json { render json: @statement.errors, status: :unprocessable_entity }
       else
         format.html { redirect_to @statement, notice: 'Statement was successfully refreshed.' }
