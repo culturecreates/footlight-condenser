@@ -73,6 +73,7 @@ Rails.application.routes.draw do
       patch 'deactivate_individual'  # API
       patch 'add_linked_data'        # API
       patch 'remove_linked_data'     # API
+      get 'refresh'                  # Internal Webpages Only
       patch 'refresh'                # Internal Webpages Only
     end
     collection do
