@@ -5,8 +5,8 @@ class ReportsController < ApplicationController
         params[:startDate]  # "2018-01-01"
         params[:endDate]   # "2021-01-01"
     
-        start_date = Time.now
-        end_date = Time.now.next_year + 6.months
+        start_date = Time.zone.now
+        end_date = Time.zone.now.next_year + 6.months
     
         if params[:startDate] 
           begin
@@ -62,7 +62,7 @@ class ReportsController < ApplicationController
 
    private
 
-   def get_statements_by_source source, archive_date_range = [Time.now - 10.years..Time.now + 10.years]
+   def get_statements_by_source source, archive_date_range = [Time.zone.now - 10.years..Time.zone.now + 10.years]
         return Statement.joins({source: [:property, :website]},:webpage).where(source_id: source, sources: {webpages: {archive_date: archive_date_range} }).order(:cache)
    end
 

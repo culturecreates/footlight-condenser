@@ -1,3 +1,4 @@
 #!/bin/sh
-pg_restore --verbose --clean --no-acl --no-owner -h localhost -U saumier -d footlight-condenser_development latest.dump
+sudo -u postgres bash restore_condenser.bash latest.dump condenser_upgrade
+
 

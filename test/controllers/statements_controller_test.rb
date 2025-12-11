@@ -67,7 +67,6 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to statements_url
   end
 
-
   test "should update statements by adding link" do  
     statement_params = { "statement": {"cache": "[\"name1\",\"class1\",\"uri1\"]", "status": "ok", "status_origin": "test_user"} }
     patch add_linked_data_statement_url(statements(:four)), params: statement_params

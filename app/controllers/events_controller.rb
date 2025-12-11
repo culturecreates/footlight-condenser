@@ -49,7 +49,7 @@ class EventsController < ApplicationController
 
     website_statements_by_event(seedurl, time_span).each do |k,v|
       title = v.dig('title',:cache) || v.dig('title_fr',:cache) || v.dig('title_en',:cache)
-      title = 'Error' if !title.present? || title.include?('error:')
+      title = 'Error' if title.blank? || title.include?('error:')
       date =  helpers.parse_date_string_array(v.dig('dates', :cache)) || helpers.patch_invalid_date
       @events << {
         rdf_uri: k,
@@ -72,7 +72,7 @@ class EventsController < ApplicationController
   end
 
   # Return a hash of event uris with grouped statements per event.
-  def website_statements_by_event(seedurl, archive_date_range = [Time.now - 3000.years..Time.now + 3000.years])
+  def website_statements_by_event(seedurl, archive_date_range = [Time.zone.now - 3000.years..Time.zone.now + 3000.years])
     website_statements =
       Statement
       .includes({ source: [:property, :website] }, :webpage)
@@ -148,12 +148,12 @@ class EventsController < ApplicationController
     start_date =  if valid_date?(start_date_input)
       Date.parse(start_date_input)
     else
-      Time.now
+      Time.zone.now
     end
     end_date =  if valid_date?(end_date_input)
       Date.parse(end_date_input)
     else
-      Time.now + 5.years
+      Time.zone.now + 5.years
     end 
     return [start_date..end_date]
   end

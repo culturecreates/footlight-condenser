@@ -59,12 +59,12 @@ class JsonUriWrapper
     end
 
     value_obj = []
-    unless value_array.blank?
+    if value_array.present?
       if value_array[0].class == String
         value_obj << sub_build_json_from_anyURI(value_array)
       else
         value_array.each do |obj|
-          unless obj.blank?
+          if obj.present?
             value_obj << sub_build_json_from_anyURI(obj)
           end
         end

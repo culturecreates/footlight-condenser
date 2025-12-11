@@ -109,28 +109,28 @@ module StructuredDataHelper
     dates.each_with_index do |date,index|
       event =  _jsonld.dup
       event["startDate"] = date
-      event["endDate"] = Date.parse(date).to_s(:iso8601)
+      event["endDate"] = Date.parse(date).iso8601
 
-      #event["startDate"] = DateTime.parse(date).to_s(:iso8601)
-     #event["endDate"] = (DateTime.parse(date) + 2.hours).to_s(:iso8601)
+      #event["startDate"] = DateTime.parse(date).iso8601
+     #event["endDate"] = (DateTime.parse(date) + 2.hours).iso8601
 
 
       ### handle single or multiple locations and durations per date. Must equal the count of dates.
-      if !locations.blank?
+      if locations.present?
         if  dates.count == locations.count
           event["location"] = locations[index]
         else
           event["location"] = locations[0]
         end
       end
-      if !durations.blank?
+      if durations.present?
         if dates.count == durations.count
           event["duration"] = durations[index]
         else
           event["duration"] = durations[0]
         end
       end
-      if !offer_urls.blank?
+      if offer_urls.present?
         if dates.count == offer_urls.count
           event[:offers] = event[:offers].dup
           event[:offers]["url"] = offer_urls[index]
@@ -147,7 +147,7 @@ module StructuredDataHelper
 
     if !jsonld[:offers]
       jsonld[:offers] = { "@type": "Offer" }
-      jsonld[:offers]["validFrom"] =  (Date.today - 1.month).to_s(:iso8601)
+      jsonld[:offers]["validFrom"] =  (Time.zone.today - 1.month).iso8601
       jsonld[:offers]["availability"] = "http://schema.org/InStock"
     end
     if property == "url"
@@ -159,7 +159,7 @@ module StructuredDataHelper
           jsonld[:offers]["url"] << v
         end
       end
-    elsif property == "price" && !value.blank?
+    elsif property == "price" && value.present?
         jsonld[:offers]["price"] = value
         jsonld[:offers]["priceCurrency"] = "CAD"
     else
@@ -170,7 +170,7 @@ module StructuredDataHelper
 
   def add_keywords jsonld, value
     #  Event:workPerformed:CreativeWork:keywords
-    if !value.blank?
+    if value.present?
       if !jsonld[:workPerformed]
         jsonld[:workPerformed] = {"@type": "CreativeWork"}
       end
@@ -181,7 +181,7 @@ module StructuredDataHelper
 
   def add_video jsonld, value
    #  Event:workPerformed:CreativeWork:video:VideoObject:url
-    if !value.blank? && value != "[]"
+    if value.present? && value != "[]"
       if !jsonld[:workPerformed]
         jsonld[:workPerformed] = {"@type": "CreativeWork"}
       end
@@ -201,7 +201,7 @@ module StructuredDataHelper
 
   def add_performer jsonld, prop, value
     #  Event:performer:PerformingGroup:url
-    if !value.blank? && value != "[]"
+    if value.present? && value != "[]"
       if !jsonld[:performer]
         jsonld[:performer] = { "@type": "PerformingGroup" }
       end
@@ -247,7 +247,7 @@ module StructuredDataHelper
       #add location address
 
       address = get_kg_place location_id
-      if !address.blank?
+      if address.present?
          {
               "@type": "PostalAddress",
               "streetAddress": address["streetAddress"],

@@ -1,6 +1,8 @@
 require 'test_helper'
+require 'active_support/testing/time_helpers'
 
 class StructuredDataHelperTest < ActionView::TestCase
+  include ActiveSupport::Testing::TimeHelpers
 
   TESTDATETIME_TODAY = "2019-01-01T20:00:00-04:00"
   TESTDATETIME_TOMORROW = "2019-01-02T20:00:00-04:00"
@@ -61,36 +63,43 @@ class StructuredDataHelperTest < ActionView::TestCase
   # add_offer
   ###############################
 
-  test "add_offer: simple cases with one url or price" do
-    some_date = DateTime.new(2014, 12, 12, 1, 1, 1)
-    Date.stubs(:today).returns(some_date)
-    #add url
-    expected_output = {:offers=>{:@type=>"Offer", "validFrom"=>"2014-11-12T01:01:01+00:00", "availability"=>"http://schema.org/InStock", "url"=>["http://ticket_link_url.com"]}}
-    assert_equal expected_output, add_offer({},"url", "http://ticket_link_url.com")
+ test "add_offer: simple cases with one url or price" do
+    travel_to Time.zone.local(2014, 12, 12, 1, 1, 1) do
+     #add url
+     expected_output = {:offers=>{:@type=>"Offer", "validFrom"=>"2014-11-12", "availability"=>"http://schema.org/InStock", "url"=>["http://ticket_link_url.com"]}}
+     assert_equal expected_output, add_offer({},"url", "http://ticket_link_url.com")
 
-    #add price
-    expected_output = {:offers=>{:@type=>"Offer", "validFrom" => "2014-11-12T01:01:01+00:00", "availability"=>"http://schema.org/InStock", "price"=>"12.5", "priceCurrency"=>"CAD"}}
-    assert_equal expected_output, add_offer({},"price", "12.5")
+     #add price
+     expected_output = {:offers=>{:@type=>"Offer", "validFrom" => "2014-11-12", "availability"=>"http://schema.org/InStock", "price"=>"12.5", "priceCurrency"=>"CAD"}}
+     assert_equal expected_output, add_offer({},"price", "12.5")
 
-    #add url after adding price
-    jsonld = add_offer({},"price", "12.5")
-    expected_output = {:offers=>{:@type=>"Offer", "validFrom" => "2014-11-12T01:01:01+00:00", "availability" => "http://schema.org/InStock", "price" => "12.5", "priceCurrency" => "CAD", "url" => ["http://ticket_link_url.com"]}}
-    assert_equal expected_output, add_offer(jsonld, "url", "http://ticket_link_url.com")
-  end
+     #add url after adding price
+     jsonld = add_offer({},"price", "12.5")
+     expected_output = {:offers=>{:@type=>"Offer", "validFrom" => "2014-11-12", "availability" => "http://schema.org/InStock", "price" => "12.5", "priceCurrency" => "CAD", "url" => ["http://ticket_link_url.com"]}}
+     assert_equal expected_output, add_offer(jsonld, "url", "http://ticket_link_url.com")
+   end
+ end
 
   test "add_offer: multiple buy links" do
-    some_date = DateTime.new(2014, 12, 12, 1, 1, 1)
-    Date.stubs(:today).returns(some_date)
-    expected_output = {:offers=>{:@type=>"Offer", "validFrom"=>"2014-11-12T01:01:01+00:00", "availability"=>"http://schema.org/InStock", "url"=>["http://ticket_link_one.com", "http://ticket_link_two.com"]}}
-    assert_equal expected_output, add_offer({}, "url", "[\"http://ticket_link_one.com\", \"http://ticket_link_two.com\"]")
+    travel_to Time.zone.local(2014, 12, 12, 1, 1, 1) do
+      expected_output = {
+        offers: {
+          :@type=>"Offer",
+          "validFrom"=>"2014-11-12",
+          "availability"=>"http://schema.org/InStock",
+          "url"=>["http://ticket_link_one.com", "http://ticket_link_two.com"]
+        }
+      }
+      assert_equal expected_output, add_offer({}, "url", "[\"http://ticket_link_one.com\", \"http://ticket_link_two.com\"]")
+    end
   end
 
-  test "add_offer: Complet" do
-    some_date = DateTime.new(2014, 12, 12, 1, 1, 1)
-    Date.stubs(:today).returns(some_date)
-    expected_output = {:offers=>{:@type=>"Offer", "validFrom"=>"2014-11-12T01:01:01+00:00", "availability"=>"http://schema.org/SoldOut"}}
-    assert_equal expected_output, add_offer({}, "url", "[\"Complet\"]")
-  end
+ test "add_offer: Complet" do
+    travel_to Time.zone.local(2014, 12, 12, 1, 1, 1) do
+     expected_output = {:offers=>{:@type=>"Offer", "validFrom"=>"2014-11-12", "availability"=>"http://schema.org/SoldOut"}}
+     assert_equal expected_output, add_offer({}, "url", "[\"Complet\"]")
+   end
+ end
 
   ###############################
   # get_kg_place
@@ -141,6 +150,6 @@ class StructuredDataHelperTest < ActionView::TestCase
   ###############################
 
   test "publishable? no date" do
-    assert_equal  true, publishable?(JSON.parse("{\"startDate\" : [\"startDate\"], \"location\" : [\"location\"], \"name\" : \"name\"}"))
+    assert  publishable?(JSON.parse("{\"startDate\" : [\"startDate\"], \"location\" : [\"location\"], \"name\" : \"name\"}"))
   end
 end

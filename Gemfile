@@ -1,80 +1,66 @@
 source 'https://rubygems.org'
 
-ruby '2.7.8'
+ruby '3.4.4'
 
-git_source(:github) do |repo_name|
-  repo_name = "#{repo_name}/#{repo_name}" unless repo_name.include?('/')
-  "https://github.com/#{repo_name}.git"
-end
+# Core
+gem 'rails', '~> 8.0.2'
+gem 'pg', '~> 1.5'
+gem 'puma', '~> 6.4'
+gem 'sassc-rails' # replaces deprecated sass-rails
+gem 'jbuilder', '~> 2.11'
 
-# Bundle edge Rails instead: gem 'rails', github: 'rails/rails'
-gem 'rails', '~> 5.2'
-# Use postgresql as the database for Active Record
-gem 'pg', '~> 1.2'
-# Use Puma as the app server
-gem 'puma', '~> 3.7'
-# Use SCSS for stylesheets
-gem 'sass-rails', '~> 5.0'
-# Use Uglifier as compressor for JavaScript assets
-gem 'uglifier', '>= 1.3.0'
-# See https://github.com/rails/execjs#readme for more supported runtimes
-# gem 'therubyracer', platforms: :ruby
+# Modern asset bundling
+gem 'jsbundling-rails'  # Replaces Uglifier (uses esbuild, rollup, or webpack)
+# gem 'cssbundling-rails' # Optional, if you want to use Tailwind/PostCSS/etc.
 
-# Use CoffeeScript for .coffee assets and views
-gem 'coffee-rails', '~> 4.2'
-# Turbolinks makes navigating your web application faster. Read more: https://github.com/turbolinks/turbolinks
-gem 'turbolinks', '~> 5'
-# Build JSON APIs with ease. Read more: https://github.com/rails/jbuilder
-gem 'jbuilder', '~> 2.5'
-# Use Redis adapter to run Action Cable in production
-# gem 'redis', '~> 3.0'
-# Use ActiveModel has_secure_password
-# gem 'bcrypt', '~> 3.1.7'
-
-# Use Capistrano for deployment
-# gem 'capistrano-rails', group: :development
-
-gem 'chronic_duration'
+# HTTP / Parsing / RDF
 gem 'httparty'
 gem 'mechanize'
+gem 'linkeddata', '~> 3.2.0'
+gem 'sparql', '3.2.0'
+gem 'will_paginate', '~> 3.3'
+gem 'chronic_duration'
+
+# Background jobs & AWS
+gem 'sidekiq'
+gem 'aws-sdk-s3'
+
+# Monitoring
+gem 'scout_apm'
+
+# CORS
+gem 'rack-cors'
 
 group :development, :test do
-  # Call 'byebug' anywhere in the code to stop execution and get a debugger console
-  gem 'byebug', platforms: [:mri, :mingw, :x64_mingw]
-  # Adds support for Capybara system testing and selenium driver
-  gem 'capybara', '~> 2.13.0'
-  gem 'selenium-webdriver'
-  gem 'rdf-turtle'
+  gem 'byebug'
+  gem 'capybara', '~> 3.40'
+  gem 'selenium-webdriver', '>= 4.0'
   gem 'mocha'
-end
-
-group :test do
   gem 'webmock'
   gem 'vcr'
   gem 'minitest'
+  gem 'rubocop', require: false
+  gem 'rubocop-rails', require: false
+  gem 'rubocop-performance', require: false
 end
 
 group :development do
-  # Access an IRB console on exception pages or by using <%= console %> anywhere in the code.
-  gem 'web-console', '>= 3.3.0'
-  gem 'listen', '>= 3.0.5', '< 3.2'
-  # Spring speeds up development by keeping your application running in the background. Read more: https://github.com/rails/spring
-  gem 'spring'
-  gem 'spring-watcher-listen', '~> 2.0.0'
-  gem 'solargraph' #used by visual studio code plugins
-  gem 'derailed' #memory usage
+  gem 'web-console', '>= 4.0'
+  gem 'listen', '~> 3.7'
+  gem 'solargraph'
+  gem 'derailed_benchmarks'
 end
 
-# Windows does not include zoneinfo files, so bundle the tzinfo-data gem
+group :test do
+  gem 'rails-controller-testing'
+  gem 'simplecov', require: false
+end
+
+# Windows/Platform-specific
 gem 'tzinfo-data', platforms: [:mingw, :mswin, :x64_mingw, :jruby]
-# gem 'rdf', '~> 3.2.11'
-# gem 'json-ld', '~> 3.2.5'
-gem 'sparql', '3.2.0' # needed because of 3.2.x bugs
-gem 'linkeddata', '~> 3.2.0'
-gem 'will_paginate', '~> 3.1.6'
 
-gem 'scout_apm'  #used to monitor memory on Heroku
+gem "turbo-rails", "~> 2.0"
 
-gem 'aws-sdk-s3'
-gem 'sidekiq'
-gem 'rack-cors'
+gem "rubocop-minitest", "~> 0.38.1"
+
+gem "rubocop-capybara", "~> 2.22"

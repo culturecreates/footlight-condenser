@@ -9,11 +9,11 @@ class Resource
 
   def rdfs_class
     @webpages ||= Webpage.where(rdf_uri: @rdf_uri)
-    @rdfs_class ||=  @webpages.first.rdfs_class.name if !@webpages.empty?
+    @rdfs_class ||= @webpages.first.rdfs_class.name if @webpages.present? && @webpages.first && @webpages.first.rdfs_class
     @rdfs_class
   end
 
-  # Create a resouces with dummy webpage (uri) and statements
+  # Create a Resource with dummy webpage (uri) and statements
   # statements shape: { name: {value: "my name", language: "en" },  name: {value: "my name", language: "en", rdfs_class_name: "PostalAddress"}}
   # if statements fail because source missing, then delete dummy webpages
   def save(new_statements = {})
@@ -22,24 +22,29 @@ class Resource
   
     # For each statements loop
     webpage_has_atleast_one_statement = false
-    new_statements.each do |stat_name, stat|
-      # determine the class of the property using the class passed with the property, or else use the webpage class.
-      prop_rdfs_class = if stat["rdfs_class_name"]
+    new_statements.each do |stat_name, st|
+	  [st].flatten.each do |stat|
+        # determine the class of the property using the class passed with the property, or else use the webpage class.
+        prop_rdfs_class = if stat["rdfs_class_name"]
                           RdfsClass.where(name: stat["rdfs_class_name"]).first
                         else
                           webpage.rdfs_class
                         end
-      prop = Property.where(label: stat_name.to_s.titleize, rdfs_class: prop_rdfs_class).first
-      src = sources.where(language: stat[:language], property: prop)
-      if src.count > 0
-        stat = Statement.new(status: "ok", manual: true, selected_individual: true, source: src.first, webpage: webpage, cache: stat[:value])
-        if stat.save 
-          webpage_has_atleast_one_statement = true
+        Rails.logger.warn "Resource creation: looking for property.label=#{stat_name.to_s.titleize.inspect} rdfs_class=#{prop_rdfs_class.inspect}"
+		prop = Property.where(label: stat_name.to_s.titleize, rdfs_class: prop_rdfs_class).first
+		Rails.logger.warn "Found property: #{prop.inspect}" if prop
+        src = sources.where(language: stat[:language] || stat["language"], property: prop)
+		Rails.logger.warn "Source lookup: property=#{prop&.id}, website=#{webpage.website&.id}, language=#{stat[:language] || stat['language']} found=#{src.inspect}"
+        if src.count > 0
+          stat = Statement.new(status: "ok", manual: true, selected_individual: true, source: src.first, webpage: webpage, cache: stat[:value])
+          if stat.save 
+            webpage_has_atleast_one_statement = true
+          end
+        else
+          Rails.logger.error "No source exists. Could not create statement for prop #{stat_name} #{stat.inspect} for page #{webpage.inspect}."
         end
-      else
-        Rails.logger.error "No source exists. Could not create statement for prop #{stat_name} #{stat.inspect} for page #{webpage.inspect}."
       end
-    end
+	end
     if !webpage_has_atleast_one_statement
       delete_webpage(webpage)
       @errors = { error: "No sources exist for any property. Webpage deleted." }
@@ -69,14 +74,30 @@ class Resource
 
 
   # get all resource statements adjusted for API with nested alternatives
+  # def statements
+    # @statements = {}
+
+    # @webpages ||= Webpage.where(rdf_uri: @rdf_uri) 
+    # @rdfs_class ||= @webpages.first.rdfs_class.name if !@webpages.empty?
+    # @seedurl ||= @webpages.first.website.seedurl if !@webpages.empty?
+    # @archive_date ||= @webpages.order(:archive_date).last.archive_date if !@webpages.empty?  #get the lastest date for bilingual sites that have 2 archive_dates
+
+    # @webpages.each do |webpage|
+      # webpage.statements.each do |statement|
+        # @statements = build_nested_statement(@statements, statement,  subject: @rdf_uri, webpage_class_name: @rdfs_class )
+      # end
+    # end
+    # @statements
+  # end
+  
   def statements
     @statements = {}
+    @webpages ||= Webpage.where(rdf_uri: @rdf_uri)
+    return @statements if @webpages.blank?
 
-    @webpages ||= Webpage.where(rdf_uri: @rdf_uri) 
-    @rdfs_class ||= @webpages.first.rdfs_class.name if !@webpages.empty?
-    @seedurl ||= @webpages.first.website.seedurl if !@webpages.empty?
-    @archive_date ||= @webpages.order(:archive_date).last.archive_date if !@webpages.empty?  #get the lastest date for bilingual sites that have 2 archive_dates
-
+    @rdfs_class ||= @webpages.first.rdfs_class.name if @webpages.first && @webpages.first.rdfs_class
+    @seedurl ||= @webpages.first.website.seedurl if @webpages.first && @webpages.first.website
+    @archive_date ||= @webpages.order(:archive_date).last.archive_date if @webpages.any? && @webpages.last
     @webpages.each do |webpage|
       webpage.statements.each do |statement|
         @statements = build_nested_statement(@statements, statement,  subject: @rdf_uri, webpage_class_name: @rdfs_class )

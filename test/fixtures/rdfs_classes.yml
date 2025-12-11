@@ -1,25 +1,38 @@
+DEFAULTS: &defaults
+  created_at: <%= Time.now.utc %>
+  updated_at: <%= Time.now.utc %>
+
 # Read about fixtures at http://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
 
 one:
   name: Event
-
+  <<: *defaults
+  
 two:
   name: MyString
+  <<: *defaults
 
 place:
   name: Place
+  <<: *defaults
 
 eventseries:
   name: EventSeries
+  <<: *defaults
 
 person:
   name: Person
-
+  <<: *defaults
+  
 url:
   name: Schema URL (http://schema.org/URL)
-
+  <<: *defaults
+  
 organization:
   name: Organization
-
+  <<: *defaults
+  
 offer:
   name: Offer
+  <<: *defaults
+  

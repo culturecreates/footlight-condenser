@@ -32,7 +32,7 @@ class PropertiesController < ApplicationController
     end
     # TODO: Handle errors?
     respond_to do |format|
-        format.json {  render :plain => { success: true }.to_json, status: 200, content_type: 'application/json' }
+        format.json {  render :plain => { success: true }.to_json, status: :ok, content_type: 'application/json' }
     end
   end
 

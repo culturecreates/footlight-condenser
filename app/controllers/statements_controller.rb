@@ -5,6 +5,14 @@ class StatementsController < ApplicationController
 
   MANUALLY_ADDED = "Manually added"
 
+# :nocov:
+  def trace_demo
+    algorithm = 'xpath=//title | //div[contains(@class,\'about-content\')]/h2 ;ruby=$array.kind_of?(Array) ? $array.map{|e| e.squish} : ($array.length > 1 ? $array.squish : $array) ;if_xpath=//ul[@class=\'performances\']//a/@href ;ruby=$array.select{|e| e =~ /billet/} ;url=\'https://lepointdevente.com\' + $array.first + \'?lang=fr\' ;ruby=$array.clear ;xpath=//title | //div[contains(@class,\'about-content\')]/h2 ;ruby=$array.kind_of?(Array) ? $array.map{|e| e.squish} : ($array.length > 1 ? $array.squish : $array)'
+    url = "https://lepointdevente.com/billets/el2240907001?lang=fr"
+    @result, @trace = helpers.process_algorithm_with_trace(algorithm: algorithm, url: url)
+  end
+# :nocov:
+
   # GET /statements/webpage.json?url=http://
   def webpage
     @statements = []
@@ -47,7 +55,7 @@ class StatementsController < ApplicationController
     helpers.refresh_statement_helper(@statement)
     respond_to do |format|
       if @statement.errors.any?
-        format.html { redirect_to @statement, notice: 'Statement errors: ' + @statement.errors.messages.inspect }
+        format.html { redirect_to @statement, alert: "Statement Error: " + @statement.errors.full_messages.to_sentence }
         format.json { render json: @statement.errors, status: :unprocessable_entity }
       else
         format.html { redirect_to @statement, notice: 'Statement was successfully refreshed.' }
@@ -411,7 +419,5 @@ class StatementsController < ApplicationController
     
     statements
   end
-
-  
 
 end
