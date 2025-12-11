@@ -195,7 +195,6 @@ module StatementsHelper
     end
   end
 
-
   ## Core logic of when to update records
   ## but safeguard against blank data and errors
   ## from unreliable internet sources
