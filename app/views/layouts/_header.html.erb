@@ -1,21 +1,24 @@
 <%
   # Pick a website just for navigation.
+  # Priority:
+  #   1. @website set by controller (show/edit/etc.)
+  #   2. params[:seedurl]
+  #   3. first website in the list
   nav_website =
-    if params[:seedurl].present? && params[:seedurl] != "all"
+    if defined?(@website) && @website.present?
+      @website
+    elsif params[:seedurl].present? && params[:seedurl] != "all"
       Website.find_by(seedurl: params[:seedurl])
     else
       list_of_websites.first
     end
 %>
 
-<%# Primary website / "all websites" link %>
+<%= link_to "all websites", websites_path %> >
 <% if nav_website.present? %>
   <b><%= link_to nav_website.seedurl, website_path(nav_website) %></b> |
-<% else %>
-  <b><%= link_to "all websites", websites_path %></b> |
 <% end %>
 
-<%# Website-dependent links (enable only if we have a nav_website) %>
 <% if nav_website.present? %>
   <%= link_to "webpages", webpages_path %> |
   <%= link_to "sources",  sources_path %> |
