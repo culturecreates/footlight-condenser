@@ -8,6 +8,6 @@ class StatementsHelperActivateTest < ActionView::TestCase
   test "activate_source_across_all_events() should activate source" do
        sources = activate_source(statements(:three))
        actual = sources.find { |s| s.id == statements(:three).source.id }.selected
-       assert_equal true, actual
+       assert actual
   end
 end

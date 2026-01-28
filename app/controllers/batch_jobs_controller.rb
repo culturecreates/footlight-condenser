@@ -60,7 +60,7 @@ class BatchJobsController < ApplicationController
   # Used by refresh_upcoming_events and ExportGraphToDatabus
   def refresh_upcoming_events_jobs(seedurl)
     event_class = RdfsClass.where(name: "Event").first
-    start_date = Time.now
+    start_date = Time.zone.now
     end_date = start_date + 5.years
     webpages = Webpage.includes(:website).where(websites: { seedurl: seedurl }, rdfs_class: event_class, archive_date: [start_date..end_date])
     webpages.each do |wp|

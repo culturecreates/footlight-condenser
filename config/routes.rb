@@ -11,10 +11,18 @@ Rails.application.routes.draw do
   resources :websites do
     # API: get /websites 
     collection do
-      get 'events','places', 'test_api' # Internal Webpages Only
-      delete 'delete_all_statements','delete_all_webpages', 'delete_all_event_webpages' # Internal Webpages Only
+      get 'events'         # Internal Webpages Only
+      get 'places'         # Internal Webpages Only
+      get 'test_api'       # Internal Webpages Only
+
+      delete 'delete_all_statements'     # Internal Webpages Only
+      delete 'delete_all_webpages'       # Internal Webpages Only
+      delete 'delete_all_event_webpages' # Internal Webpages Only
     end
   end
+  
+    # Demo trace
+  get 'trace_demo', to: 'statements#trace_demo'
 
   get 'websites/:seedurl/resources',
       to: "resources#index",
@@ -59,16 +67,21 @@ Rails.application.routes.draw do
       as: :reviewed_all_resources
 
   resources :statements do
-    # API: patch /statements 
     member do
-      patch 'activate','activate_individual','deactivate_individual','add_linked_data', 'remove_linked_data' # API
-      patch  'refresh' # Internal Webpages Only
+      patch 'activate'               # API
+      patch 'activate_individual'    # API
+      patch 'deactivate_individual'  # API
+      patch 'add_linked_data'        # API
+      patch 'remove_linked_data'     # API
+      get 'refresh'                  # Internal Webpages Only
+      patch 'refresh'                # Internal Webpages Only
     end
     collection do
-      get 'webpage' # Internal Webpages Only
-      get 'search_name' # When manually adding links in Console
-      patch 'refresh_webpage', 'refresh_rdf_uri' #  'review_all', 'refresh_all' # Internal Webpages Only
-      post 'batch_update' # Internal Webpages Only
+      get 'webpage'                  # Internal Webpages Only
+      get 'search_name'              # When manually adding links in Console
+      patch 'refresh_webpage'        # Internal Webpages Only
+      patch 'refresh_rdf_uri'        # Internal Webpages Only
+      post 'batch_update'            # Internal Webpages Only
     end
   end
 
@@ -86,6 +99,10 @@ Rails.application.routes.draw do
     end
   end
 
+  # options
+  get 'options', to: 'options#index', as: :options
+  get 'options/wringer/:target', to: 'options#wringer', as: :set_wringer
+
   ##
   # Admin section only used for admin webpages
   # These actions are not used by external Footlight Console APIs
@@ -97,7 +114,10 @@ Rails.application.routes.draw do
 
   resources :batch_jobs do
     collection do
-      get 'add_webpages', 'refresh_webpages', 'refresh_upcoming_events','check_for_new_webpages'
+      get 'add_webpages'
+      get 'refresh_webpages'
+      get 'refresh_upcoming_events'
+      get 'check_for_new_webpages'
     end
   end
 
@@ -176,9 +196,6 @@ Rails.application.routes.draw do
 
   get 'resources/:rdf_uri/webpage_urls',
       to: "resources#webpage_urls"
-
-
-
 
 
   # For details on the DSL available within this file, see http://guides.rubyonrails.org/routing.html

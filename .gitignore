@@ -30,4 +30,34 @@ test/.DS_Store
 # Ignore master key for decrypting credentials and more.
 /config/master.key
 
+# AWS
 .aws_keys
+
+# Yarn Berry (v2+)
+.pnp.*
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# Ignore NPM lockfile if using Yarn (v1+)
+package-lock.json
+
+# JS/CSS Build artifacts (adjust to your stack)
+app/assets/builds/
+public/assets/
+app/assets/manifest*.json
+
+# Coverage reports
+coverage/
+
+# Local dev scripts/logs
+restore.log
+
+# Backup/old fixtures
+test/fixtures/*.yml.old
+
+# IDE/editor files
+.idea/
+.vscode/
+*~

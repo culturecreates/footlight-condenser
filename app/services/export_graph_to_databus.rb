@@ -22,12 +22,12 @@ class ExportGraphToDatabus
 
     # Save to S3
     result = save_on_s3(jsonld: dump, artifact: artifact, version: version, file: file)
-    puts "Result of save_on_s3: #{result.inspect}"
+    Rails.logger.debug "Result of save_on_s3: #{result.inspect}"
 
     if result # TODO: check for S3 errors
       # Add to Artsdata Databus
       result = add_to_databus(group: group, artifact: artifact, download_url: download_url, download_file: file, version: version, report_callback_url: report_callback_url)
-      puts "Result of add_to_databus: #{result.inspect}"
+      Rails.logger.debug "Result of add_to_databus: #{result.inspect}"
 
 
     end
@@ -54,7 +54,7 @@ class ExportGraphToDatabus
       next unless last_refresh = website.last_refresh
 
       # ensure that the number of days has passed
-      days_past = Time.now.at_beginning_of_day - last_refresh.at_beginning_of_day
+      days_past = Time.zone.now.at_beginning_of_day - last_refresh.at_beginning_of_day
       next unless days_past >= schedule_every_days.days
          
       # ensure that the scheduled time of day has passed
@@ -64,7 +64,7 @@ class ExportGraphToDatabus
       BatchJobsController.new.refresh_upcoming_events_jobs(website.seedurl)
       BatchJobsController.new.check_for_new_webpages_jobs(website.seedurl)
       ExportToArtsdataJob.set(wait: 45.minutes).perform_later(website.seedurl, root_url)
-      website.last_refresh = Time.now
+      website.last_refresh = Time.zone.now
       website.save
     end
   end

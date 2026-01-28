@@ -122,3 +122,15 @@ validFromSource:
   render_js: false
   property: validFromProp
   website: one
+
+onesource:
+  algorithm_value: MyString
+  selected: true
+  selected_by: MyString
+  language: en
+  render_js: false
+  property: ones
+  website: one
+  
+  
+  

@@ -1,5 +1,5 @@
 require 'test_helper'
-
+require Rails.root.join('app/services/rdf_loader')
 
 class JsonldGeneratorTest < ActiveSupport::TestCase
   include ResourcesHelper
@@ -357,7 +357,7 @@ class JsonldGeneratorTest < ActiveSupport::TestCase
     main_class = 'Event'
     frame = nil
     default_frame = { "@context": { "@vocab": "http://schema.org/" }, "@type": "Event" }.to_json
-    RDFLoader.stubs(:load_frame).with(main_class).returns(JSON.parse(default_frame))
+    RdfLoader.stubs(:load_frame).with(main_class).returns(JSON.parse(default_frame))
 
     framed_json = JsonldGenerator.frame_json(JSON.parse(graph_json), main_class, frame)
     assert_includes framed_json, '@context'

@@ -14,6 +14,16 @@ module CcWringerHelper
     return get_wringer_url_per_environment() + path
   end
 
+  def safe_wringer_call
+    yield
+  rescue Errno::ECONNREFUSED, SocketError, Net::OpenTimeout, Net::ReadTimeout => e
+    Rails.logger.error "[safe_wringer_call] *** Wringer unreachable: #{e.class} - #{e.message}"
+    { abort_update: true, error: "[safe_wringer_call] Wringer server unavailable: #{e.class} - #{e.message}" }
+  rescue StandardError => e
+    Rails.logger.error "[safe_wringer_call] *** Wringer unexpected error: #{e.class} - #{e.message}"
+    { abort_update: true, error: "[safe_wringer_call] Wringer error: #{e.class} - #{e.message}" }
+  end
+
   def wringer_received_404?(url)
     escaped_url = CGI.escape(url) # wringer stores the url escaped
     double_escaped_url = CGI.escape(escaped_url)
@@ -28,8 +38,6 @@ module CcWringerHelper
     end
   end
   
-
-
   def get_wringer_url_per_environment
     if Rails.env.development?  || Rails.env.test?
       "http://localhost:3009"

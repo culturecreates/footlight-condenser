@@ -35,12 +35,12 @@ class WebsitesController < ApplicationController
     end
     @total_statements = Statement.all.count
     @statements_errors = Statement.where("cache LIKE ?", "%error%")
-                                   .where(cache_refreshed: [(Time.now - 24.hours)..(Time.now)])
+                                   .where(cache_refreshed: [(Time.zone.now - 24.hours)..(Time.zone.now)])
                                    .count
 
     @statements_grouped = Statement.joins(webpage: :website).group(:seedurl).count
-    @statements_refreshed_24hr = Statement.joins(webpage: :website).where(cache_refreshed: [(Time.now - 24.hours)..(Time.now)]).group(:seedurl).count
-    @statements_updated_24hr = Statement.joins(webpage: :website).where(cache_changed: [(Time.now - 24.hours)..(Time.now)]).group(:seedurl).count
+    @statements_refreshed_24hr = Statement.joins(webpage: :website).where(cache_refreshed: [(Time.zone.now - 24.hours)..(Time.zone.now)]).group(:seedurl).count
+    @statements_updated_24hr = Statement.joins(webpage: :website).where(cache_changed: [(Time.zone.now - 24.hours)..(Time.zone.now)]).group(:seedurl).count
     @webpages = Webpage.group(:website).count
     @flags = Statement.joins(webpage: :website).where(status: ["problem"], selected_individual: true, webpages: { rdfs_class_id: 1}).group(:seedurl).count
     @updated = Statement.joins(webpage: :website).where(status: "updated", selected_individual: true, webpages: { rdfs_class_id: 1}).group(:seedurl).count

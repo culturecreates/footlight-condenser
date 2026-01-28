@@ -8,7 +8,7 @@ module WebpagesHelper
     problem_statements = event_statement_collection.select{ |s| s[:rdfs_class_name] == "Event" && mandatory_schema.include?(s[:predicate]) && (( s['status'] != "ok" && s['status']  != "updated")  || s[:value] == "[]" ||  s[:value].blank? ) }
 
     # Virtual Location removes location error if valid
-    if event_statement_collection.select { |s| s[:label] == "VirtualLocation" && (( s['status'] == "ok" || s['status']  == "updated")  && s[:value] != "[]" &&  !s[:value].blank? )}.count > 0
+    if event_statement_collection.select { |s| s[:label] == "VirtualLocation" && (( s['status'] == "ok" || s['status']  == "updated")  && s[:value] != "[]" &&  s[:value].present? )}.count > 0
       problem_statements.reject! { |s| s[:predicate] == "http://schema.org/location" }
     end
 
