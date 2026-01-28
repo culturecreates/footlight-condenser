@@ -2,15 +2,15 @@
 
 <h1><%= @statements.count %> Statements</h1>
 <% if params[:rdf_uri].present? %>
-  <p> Showing statements for resource <%= params[:rdf_uri] %> <%=  link_to "Refresh URI", refresh_rdf_uri_statements_path(rdf_uri: params[:rdf_uri]), method: :patch %>
-    | <%=  link_to "Crawl URI(1 hr cache)", refresh_rdf_uri_statements_path(rdf_uri: params[:rdf_uri], force_scrape_every_hrs: 1), method: :patch %>
+  <p> Showing statements for resource <%= params[:rdf_uri] %> <%= link_to "Refresh URI", refresh_rdf_uri_statements_path(rdf_uri: params[:rdf_uri]), method: :patch %>
+    | <%= link_to "Crawl URI(1 hr cache)", refresh_rdf_uri_statements_path(rdf_uri: params[:rdf_uri], force_scrape_every_hrs: 1), method: :patch %>
    <% if params[:rdf_uri].starts_with? "adr:" %> 
     |  <%= link_to "Console", "#{get_console_url_per_environment}/events/#{params[:rdf_uri]}" %>
    <% else %>
     |  <%= link_to "Console Resource", "#{get_console_url_per_environment}/resource?uri=#{CGI.escape(params[:rdf_uri])}" %>
     <% end %>
   </p>
-<% elsif params[:seedurl] &&  params[:seedurl] != "all" %>
+<% elsif params[:seedurl] && params[:seedurl] != "all" %>
  <p> Showing statements for website <%= params[:seedurl] %> | <%= link_to "Console", "#{get_console_url_per_environment}/events?seedurl=#{params[:seedurl]}" %>
       </p>
 <% end %>
@@ -21,21 +21,21 @@
 
 <%= form_tag(batch_update_statements_path) do -%>
 <br>
-seedurl(all): <%= text_field_tag 'seedurl',  params[:seedurl] %> 
+seedurl(all): <%= text_field_tag "seedurl", params[:seedurl] %> 
 
-rdf_uri:  <%=text_field_tag 'rdf_uri',   params[:rdf_uri], size: 60 %>
+rdf_uri:  <%= text_field_tag "rdf_uri", params[:rdf_uri], size: 60 %>
 
 <table>
   <thead>
     <tr>
       <th>Id</th>
-      <th>Property<br> <%=text_field_tag 'prop',  params[:prop], size: 6 %></th>
-       <th>Source<br> <%=text_field_tag 'source', params[:source], size: 6 %></th>
-      <th>Cache<br><%=text_field_tag 'cache', params[:cache],size: 50 %></th>
-      <th>Status<br> <%=text_field_tag 'status', params[:status], size: 6 %></th>
-       <th>Manual<br><%=text_field_tag 'manual', params[:manual], size: 6 %></th>
-      <th>Selected Source<br> <%=text_field_tag 'selected', params[:selected] ,size:  6%></th>
-      <th>Selected Individual<br> <%=text_field_tag 'selected_individual', params[:selected_individual], size: 6 %></th>
+      <th>Property<br> <%= text_field_tag "prop", params[:prop], size: 6 %></th>
+       <th>Source<br> <%= text_field_tag "source", params[:source], size: 6 %></th>
+      <th>Cache<br><%= text_field_tag "cache", params[:cache], size: 50 %></th>
+      <th>Status<br> <%= text_field_tag "status", params[:status], size: 6 %></th>
+       <th>Manual<br><%= text_field_tag "manual", params[:manual], size: 6 %></th>
+      <th>Selected Source<br> <%= text_field_tag "selected", params[:selected], size: 6 %></th>
+      <th>Selected Individual<br> <%= text_field_tag "selected_individual", params[:selected_individual], size: 6 %></th>
       <th>Status origin<br></th>
       <th>Cache refreshed<br></th>
       <th>Cache changed<br></th>   
@@ -43,20 +43,20 @@ rdf_uri:  <%=text_field_tag 'rdf_uri',   params[:rdf_uri], size: 60 %>
     </tr>
   </thead>
 
-<%= submit_tag 'View' %>
+<%= submit_tag "View" %>
 Update:
-<%= text_field_tag 'update_data','',size: 50, placeholder: 'selected: true, cache: ["one"]' %>
- <%= submit_tag 'Update' %>
+<%= text_field_tag "update_data", "", size: 50, placeholder: 'selected: true, cache: ["one"]' %>
+ <%= submit_tag "Update" %>
 <br>
- <%= submit_tag 'Review all listed' %>
-<%= submit_tag 'Refresh all listed' %>
+ <%= submit_tag "Review all listed" %>
+<%= submit_tag "Refresh all listed" %>
 <% end -%>
 
   <tbody>
     <% @statements.each do |statement| %>
       <tr  <%= "style=color:red;" if !statement.source.selected %> >
         <td><%= statement.id %></td>
-        <td><%= statement.source.property.label %>(<%=statement.source.property.id%>) <%= format_language statement.source.language%></td>
+        <td><%= statement.source.property.label %>(<%= statement.source.property.id %>) <%= format_language statement.source.language %></td>
           <td><%= statement.source.id %></td>
         <td><%= statement.cache %></td>
         <td><%= statement.status %></td>
@@ -67,10 +67,10 @@ Update:
         <td><%= statement.cache_refreshed %></td>
         <td><%= statement.cache_changed %></td>
 
-        <td><%= link_to 'Show', statement %></td>
-        <td><%= link_to 'Edit', edit_statement_path(statement) %></td>
-        <td><%= link_to 'Destroy', statement, method: :delete, data: { confirm: 'Are you sure?' } %></td>
-        <td><%= link_to 'Report', source_reports_path(source_id: statement.source) %></td>
+        <td><%= link_to "Show", statement %></td>
+        <td><%= link_to "Edit", edit_statement_path(statement) %></td>
+        <td><%= link_to "Destroy", statement, method: :delete, data: { confirm: "Are you sure?" } %></td>
+        <td><%= link_to "Report", source_reports_path(source_id: statement.source) %></td>
       </tr>
     <% end %>
   </tbody>
@@ -78,4 +78,4 @@ Update:
 
 <br>
 
-<%= link_to 'New Statement', new_statement_path %>
+<%= link_to "New Statement", new_statement_path %>

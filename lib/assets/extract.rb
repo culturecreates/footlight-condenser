@@ -25,7 +25,7 @@ end
 
 webpages.each do |page|
     if page["publishable"] == "Yes" && page["rdfs_class_id"] == 1 &&  page["language"] == target_language
-        puts "processing page #{page["url"]}"
+        Rails.logger.debug "processing page #{page["url"]}"
 
         #get page html
         escaped_url = CGI.escape(page["url"])
@@ -68,5 +68,5 @@ File.open("dump_#{seedurl}.json","w") do |f|
     f.write(result.to_json)
 end
 
-  puts "done writing #{result.count} objects by loading #{webpages.count} webpages"
+  Rails.logger.debug "done writing #{result.count} objects by loading #{webpages.count} webpages"
 

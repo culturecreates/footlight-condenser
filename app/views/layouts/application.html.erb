@@ -4,11 +4,12 @@
     <title>Condenser <%= " DEV" if Rails.env.development? %></title>
     <%= csrf_meta_tags %>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
-    <%= stylesheet_link_tag    'application', media: 'all', 'data-turbolinks-track': 'reload' %>
-    <%= javascript_include_tag 'application', 'data-turbolinks-track': 'reload' %>
+    <%= stylesheet_link_tag 'application', media: 'all' %>
+	<%= javascript_include_tag "application", type: "module", "data-turbo-track": "reload" %>
+    <%= javascript_include_tag "application", "data-turbo-track": "reload", type: "module" %>
   </head>
 
-  <body  style="<%= 'background-color: #EE9;' if Rails.env.development? %>" >
+  <body style="<%= 'background-color: #EE9;' if Rails.env.development? %>">
     <%= render 'layouts/header' %>
     <%= render 'shared/flash' %>
     <%= yield %>

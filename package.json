@@ -1,5 +1,15 @@
 {
   "name": "footlight-condenser",
   "private": true,
-  "dependencies": {}
+  "scripts": {
+    "build": "esbuild app/javascript/*.* --bundle --sourcemap --format=esm --outdir=app/assets/builds --public-path=/assets"
+  },
+  "packageManager": "yarn@4.9.2",
+  "devDependencies": {
+    "esbuild": "^0.25.5"
+  },
+  "dependencies": {
+    "@hotwired/turbo-rails": "^8.0.13",
+    "@rails/actioncable": "^8.0.200"
+  }
 }

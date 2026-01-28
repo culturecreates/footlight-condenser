@@ -26,7 +26,7 @@ def self.create_source(label, options={})
   options[:rdfs_class_id] ||= 1  #Event class
 
   options[:languages].each do |lang|
-    if !options[:next_algo].blank?
+    if options[:next_algo].present?
       s = Source.create!(language: lang, render_js: true, website: @site, property: Property.where(label: label).first, algorithm_value: options[:next_algo], selected: options[:selected])
       Source.create!(language: lang, website: @site, property: Property.where(label: label).first, algorithm_value: options[:algo], selected: options[:selected])
     else

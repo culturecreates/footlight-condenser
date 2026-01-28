@@ -73,10 +73,10 @@ class SourcesController < ApplicationController
     sources.each do |source|
       new_source = website.sources.new
       if new_source.update(source.attributes.except("id","website_id","created_at","updated_at"))
-        puts "Created new_source #{new_source.property_id}"
+        Rails.logger.debug "Created new_source #{new_source.property_id}"
         next
       else
-        puts "failed to update source.inspect "
+        Rails.logger.debug "failed to update source.inspect "
       end
     end
     redirect_to sources_url, notice: 'Sources added.' 

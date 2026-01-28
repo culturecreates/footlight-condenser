@@ -1,5 +1,5 @@
 # Class to load RDF related files for JSON-LD Framing and SPARQL
-class RDFLoader
+class RdfLoader
   # Loads a JSON-LD frame based on Class parameter
   def self.load_frame(main_class)
     file_name =

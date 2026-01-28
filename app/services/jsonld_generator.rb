@@ -73,7 +73,7 @@ class JsonldGenerator
     if frame
       frame_json = JSON.parse(frame)
     else
-      frame_json = RDFLoader.load_frame(main_class)
+      frame_json = RdfLoader.load_frame(main_class)
     end
     if frame_json
       graph_json = JSON::LD::API.frame(graph_json, frame_json)
@@ -119,7 +119,7 @@ class JsonldGenerator
 
   # coalesce languages to best match before JSON-LD Framing
   def self.coalesce_language(local_graph, lang = '')
-    sparql = RDFLoader.load_sparql('coalesce_languages.sparql', ['placeholder', lang])
+    sparql = RdfLoader.load_sparql('coalesce_languages.sparql', ['placeholder', lang])
     sse = SPARQL.parse(sparql, update: true)
     local_graph.query(sse)
     local_graph
@@ -128,14 +128,14 @@ class JsonldGenerator
 
   # make Google SDTT pass by removing data types like xsd:dateTime and xsd:date
   def self.make_google_graph(local_graph)
-    sparql = RDFLoader.load_sparql('remove_date_datatypes.sparql')
+    sparql = RdfLoader.load_sparql('remove_date_datatypes.sparql')
     sse = SPARQL.parse(sparql, update: true)
     local_graph.query(sse)
     local_graph
   end
 
   def self.remove_annotations(local_graph)
-    sparql = RDFLoader.load_sparql('remove_annotations.sparql')
+    sparql = RdfLoader.load_sparql('remove_annotations.sparql')
     sse = SPARQL.parse(sparql, update: true)
     local_graph.query(sse)
     local_graph
@@ -155,7 +155,7 @@ class JsonldGenerator
   # convert a list of ContactPoint names and phones into seperate ContactPoints
   def self.make_contact_series(local_graph, uri)
     filename = "make_contact_series.sparql"
-    sparql = RDFLoader.load_sparql(filename,["http://kg.artsdata.ca/resource/spec-qc-ca_broue", full_uri(uri)])
+    sparql = RdfLoader.load_sparql(filename,["http://kg.artsdata.ca/resource/spec-qc-ca_broue", full_uri(uri)])
     begin
       sse = SPARQL.parse(sparql, update: true)
       local_graph.query(sse)
@@ -168,7 +168,7 @@ class JsonldGenerator
   # convert a list of Offer prices and descriptions into seperate Offers
   def self.make_offer_series(local_graph, uri)
     filename = "make_offer_series.sparql"
-    sparql = RDFLoader.load_sparql(filename,["http://kg.artsdata.ca/resource/spec-qc-ca_broue", full_uri(uri)])
+    sparql = RdfLoader.load_sparql(filename,["http://kg.artsdata.ca/resource/spec-qc-ca_broue", full_uri(uri)])
     begin
       sse = SPARQL.parse(sparql, update: true)
       local_graph.query(sse)
@@ -211,7 +211,7 @@ class JsonldGenerator
     # TODO: Better handling of error 
     return RDF::Graph.new unless filename
 
-    sparql = RDFLoader.load_sparql(filename,["http://kg.artsdata.ca/resource/spec-qc-ca_broue", full_uri(uri)])
+    sparql = RdfLoader.load_sparql(filename,["http://kg.artsdata.ca/resource/spec-qc-ca_broue", full_uri(uri)])
 
     begin
       sse = SPARQL.parse(sparql, update: true)
@@ -364,7 +364,7 @@ class JsonldGenerator
             statement = RDF::Statement(RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::DateTime.new(date_time))
             graph << statement
             graph << [statement,  RDF::URI('http://schema.org/position'), index]  if nesting_options[:for_artsdata]
-            puts "adding dateTime #{statement.inspect}"
+            Rails.logger.debug "adding dateTime #{statement.inspect}"
           elsif RDF::Literal::Date.new(date_time).valid?
             statement = RDF::Statement(RDF::URI(subject), RDF::URI(s[:predicate]), RDF::Literal::Date.new(date_time))
             graph << statement
@@ -460,7 +460,7 @@ class JsonldGenerator
         linked_data = dereference_uri(uri)
         if linked_data.class == RDF::Graph
           # remove non-schema vocabulary for types
-          sparql = RDFLoader.load_sparql('remove_nonschema_types.sparql')
+          sparql = RdfLoader.load_sparql('remove_nonschema_types.sparql')
           sse = SPARQL.parse(sparql, update: true)
           linked_data.query(sse)
           # TODO: keep only english and french languages (MUST for wikidata entries)

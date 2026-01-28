@@ -4,7 +4,7 @@ class Website < ApplicationRecord
 
   validates :graph_name, presence: true, format: { with: /\Ahttp.*\..*\w\z/} #must start with http, contain a "." and not end with "/"
 
-  validates_inclusion_of  :default_language, in: %w( en fr )
+  validates  :default_language, inclusion: { in: %w( en fr ) }
 
   before_save :default_values
 

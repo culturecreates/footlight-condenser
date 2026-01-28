@@ -121,3 +121,9 @@ validFromProp:
   value_datatype: xsd:dateTime
   uri: http://schema.org/validFrom
   rdfs_class: offer
+  
+ones:
+  label: Mystring
+  value_datatype: MyString
+  uri: MyString
+  rdfs_class: one
