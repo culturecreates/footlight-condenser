@@ -2,6 +2,13 @@
 
 Footlight Condenser Server used with Footlight **Wringer Server**, Footlight **Code Snippet Server**, and Footlight **Console Servers** (multiple skins)
 
+
+# Local Development
+To setup for local development clone this repo.
+
+> `yarn intalll`
+> `yarn build`
+
 # Tests
 
 To run tests use:

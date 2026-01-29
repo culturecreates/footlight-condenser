@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@hotwired/turbo-rails": "^8.0.13",
-    "@rails/actioncable": "^8.0.200"
+    "@rails/actioncable": "^8.0.200",
+    "@rails/ujs": "7.1.3-4"
   }
 }
