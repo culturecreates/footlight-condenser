@@ -15,11 +15,10 @@
 %>
 
 <%= link_to "all websites", websites_path %> >
-<% if nav_website.present? %>
-  <b><%= link_to nav_website.seedurl, website_path(nav_website) %></b> |
-<% end %>
 
-<% if nav_website.present? %>
+
+<% if !nav_website.id.nil? %>
+  <b><%= link_to nav_website.seedurl, website_path(nav_website) %></b> |
   <%= link_to "webpages", webpages_path %> |
   <%= link_to "sources",  sources_path %> |
   <%= link_to "events",   events_websites_path(seedurl: nav_website.seedurl) %> |
