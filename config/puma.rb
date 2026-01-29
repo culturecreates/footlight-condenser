@@ -11,7 +11,7 @@ threads threads_count, threads_count
 preload_app!
 
 # Port to listen on
-port ENV.fetch("PORT") { 4000 }
+port ENV.fetch("PORT") { 3000 }
 
 # Set environment
 environment ENV.fetch("RAILS_ENV") { "development" }
