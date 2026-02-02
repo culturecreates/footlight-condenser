@@ -2,10 +2,8 @@
   "name": "footlight-condenser",
   "private": true,
   "scripts": {
-    "heroku-prebuild": "corepack enable",
     "build": "esbuild app/javascript/*.* --bundle --sourcemap --format=esm --outdir=app/assets/builds --public-path=/assets"
   },
-  "packageManager": "yarn@4.9.2",
   "devDependencies": {
     "esbuild": "^0.25.5"
   },
