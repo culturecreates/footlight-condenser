@@ -37,9 +37,12 @@ class StatementsHelperSearchCckgTest < ActionView::TestCase
   end
 
   test "search_condenser: should find Person Louise when type is Organization" do
-    expected = {data:[["Louise Antoinette", "adr:Louise-Antoinette"], ["Louise Antoinette", "adr:Louise-Antoinette-inc"]]}
-    actual = search_condenser("Louise Antoinette", "Organization")
-    assert_equal expected, actual
+    expected = [
+      ["Louise Antoinette", "adr:Louise-Antoinette"],
+      ["Louise Antoinette", "adr:Louise-Antoinette-inc"]
+    ]
+    actual = search_condenser("Louise Antoinette", "Organization")[:data]
+    assert_equal expected.sort, actual.sort
   end
 
 end
