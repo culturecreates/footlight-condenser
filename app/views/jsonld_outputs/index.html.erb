@@ -18,7 +18,7 @@
         <td><%= jsonld_output.frame&.truncate(20) %></td>
         <td><%= link_to 'Show', jsonld_output %></td>
         <td><%= link_to 'Edit', edit_jsonld_output_path(jsonld_output) %></td>
-        <td><%= link_to 'Destroy', jsonld_output, method: :delete, data: { confirm: 'Are you sure?' } %></td>
+        <td><%= link_to 'Destroy', jsonld_output, data: { turbo_method: :delete, turbo_confirm: 'Are you sure?' } %></td>
       </tr>
     <% end %>
   </tbody>
