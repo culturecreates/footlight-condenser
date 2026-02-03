@@ -36,7 +36,12 @@
        
         <td><%= link_to 'Show', webpage %></td>
         <td><%= link_to 'Edit', edit_webpage_path(webpage) %></td>
-        <td><%= link_to 'Destroy', webpage, method: :delete, data: { confirm: 'Are you sure?' } %></td>
+        <td>
+          <%= button_to 'Destroy',
+                webpage_path(webpage),
+                method: :delete,
+                form: { data: { turbo_confirm: 'Are you sure?' } } %>
+        </td>
       </tr>
     <% end %>
   </tbody>
