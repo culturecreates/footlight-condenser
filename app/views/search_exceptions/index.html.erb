@@ -22,7 +22,7 @@
         <td><a href="<%= search_exception.uri %>"><%= search_exception.uri %></a></td>
         <td><%= link_to 'Show', search_exception %></td>
         <td><%= link_to 'Edit', edit_search_exception_path(search_exception) %></td>
-        <td><%= link_to 'Destroy', search_exception, data: { turbo_method: :delete, turbo_confirm: 'Are you sure?' } %></td>
+        <td><%= link_to 'Destroy', search_exception, method: :delete, data: { confirm: 'Are you sure?', turbo: false } %></td>
       </tr>
     <% end %>
   </tbody>

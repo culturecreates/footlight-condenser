@@ -16,7 +16,7 @@
         <td><%= rdfs_class.name %></td>
         <td><%= link_to 'Show', rdfs_class %></td>
         <td><%= link_to 'Edit', edit_rdfs_class_path(rdfs_class) %></td>
-        <td><%= link_to 'Destroy', rdfs_class, data: { turbo_method: :delete, turbo_confirm: 'Are you sure?' } %></td>
+        <td><%= link_to 'Destroy', rdfs_class, method: :delete, data: { confirm: 'Are you sure?', turbo: false } %></td>
       </tr>
     <% end %>
   </tbody>

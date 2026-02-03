@@ -41,7 +41,7 @@ Last 24 hrs:  <%= @statements_errors %> errors
 
         <td><%= link_to 'Export', graphs_website_queue_path(seedurl: website.seedurl) %></td>
         <td><%= link_to 'Edit', edit_website_path(website) %></td>
-        <td><%= link_to 'Destroy', website, data: { turbo_method: :delete, turbo_confirm: 'Are you sure?' } %></td>
+        <td><%= link_to 'Destroy', website, method: :delete, data: { confirm: 'Are you sure?', turbo: false } %></td>
         </tr>
     <% end %>
   </tbody>

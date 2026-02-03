@@ -40,7 +40,7 @@
           <%= button_to 'Destroy',
                 webpage_path(webpage),
                 method: :delete,
-                form: { data: { turbo_confirm: 'Are you sure?' } } %>
+                form: { data: { confirm: 'Are you sure?', turbo: false } } %>
         </td>
       </tr>
     <% end %>
