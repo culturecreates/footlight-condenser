@@ -4,3 +4,9 @@
   <%= link_to "Switch to LOCAL", set_wringer_path("local"), class: "btn" %>
   <%= link_to "Switch to LIVE", set_wringer_path("live"), class: "btn" %>
 </div>
+
+<div>
+  <p>Current trace mode: <strong><%= cookies[:dsl_trace] == "true" ? "Enabled" : "Disabled" %></strong></p>
+  <%= link_to "Enable Trace", set_dsl_trace_options_path(state: "true"), class: "btn btn-primary" %>
+  <%= link_to "Disable Trace", set_dsl_trace_options_path(state: "false"), class: "btn btn-secondary" %>
+</div>

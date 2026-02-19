@@ -5,15 +5,35 @@ class SourcesController < ApplicationController
   # GET /sources
   # GET /sources.json
   def index
-    seedurl = params[:seedurl] ||  cookies[:seedurl]
-    if seedurl
-      @sources = Source.where(website_id: Website.where(seedurl: seedurl).first.id).order(selected: :desc).order(:property_id, :language)
-      @website_id = Website.where(seedurl: seedurl).first.id
+    seedurl = params[:seedurl] || cookies[:seedurl]
+
+    if seedurl.present? && seedurl != 'all'
+      website = Website.find_by(seedurl: seedurl)
+
+      if website.nil?
+        respond_to do |format|
+          format.html do
+            flash.now[:alert] = "No website found for seedurl: #{seedurl}"
+            @sources = Source.none
+          end
+          format.json { render json: {error: "Website not found"}, status: :not_found }
+        end
+        @website_id = nil
+      else
+        @sources = Source.where(website_id: website.id)
+                        .order(selected: :desc, property_id: :asc, language: :asc)
+        @website_id = website.id
+        cookies[:seedurl] = seedurl # store valid seedurl in cookie
+      end
     else
-      @sources = Source.all
+      # show all if no seedurl or seedurl == 'all'
+      @sources = Source.all.order(selected: :desc, property_id: :asc, language: :asc)
+      @website_id = nil
     end
+
     @rdfs_classes = RdfsClass.all
   end
+
 
   # GET /sources/website?id=
   def website

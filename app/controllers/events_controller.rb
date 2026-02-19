@@ -157,5 +157,17 @@ class EventsController < ApplicationController
     end 
     return [start_date..end_date]
   end
+
+  def require_seedurl!
+    return if params[:seedurl].present?
+
+    respond_to do |format|
+      format.json { render json: { error: "Missing seedurl" }, status: :bad_request }
+      format.html do
+        redirect_back fallback_location: websites_path,
+                      alert: "Missing seedurl in URL (expected /websites/:seedurl/events_by_property)"
+      end
+    end
+  end
   
 end
