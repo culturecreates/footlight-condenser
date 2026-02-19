@@ -6,59 +6,41 @@
       <th>Step</th>
       <th>Type</th>
       <th>Code</th>
-      <th>URL Before</th>
-      <th>URL After</th>
-      <th>Input Preview</th>
-      <th>Output Preview</th>
+      <th>Result</th>
       <th>Time (ms)</th>
       <th>Error</th>
     </tr>
   </thead>
   <tbody>
-    <% @trace.each do |s| %>
-      <tr>
-        <td class="step"><%= s[:step] %></td>
+    <% Array(@trace).each do |s| %>
+      <tr class="trace-row <%= s[:type] %>">
+        <td><%= s[:step] %></td>
         <td><%= s[:type] %></td>
-        <td><%= trace_truncated_tooltip(s[:code], length: 60) %></td>
-
         <td>
-          <%= trace_truncated_tooltip(s[:url_before].to_s, length: 60) %>
-        </td>
-
-        <td>
-          <%= trace_truncated_tooltip(s[:url_after].to_s, length: 60) %>
-        </td>
-
-        <td>
-          <%# Show a preview of input array %>
-          <% preview_in = Array(s[:input_preview]).join(", ") %>
-          <%= trace_truncated_tooltip(preview_in, length: 60) %>
-        </td>
-
-        <td>
-          <% preview_out = Array(s[:output_preview]).join(", ") %>
-          <%= trace_truncated_tooltip(preview_out, length: 60) %>
-        </td>
-
-        <td><%= s[:duration_ms] %></td>
-
-        <td class="<%= 'error' if s[:error_class].present? %>">
-          <% if s[:error_class].present? %>
-            <%= h("#{s[:error_class]}: #{s[:error_message]}") %>
-          <% end %>
-        </td>
-      </tr>
-    <% end %>
-
-    <%# Final results row if you pass @result from controller %>
-    <% if defined?(@result) %>
-      <tr class="final">
-        <td colspan="7"><strong>Final Result</strong></td>
-        <td colspan="2">
           <%= trace_truncated_tooltip(
-                @result.is_a?(Array) ? @result.inspect : @result.to_s,
-                length: 120
+                s[:code],
+                length: cookies[:trace_code_display_length],
+                tooltip_length: cookies[:trace_code_tooltip_length]
               ) %>
+        </td>
+        <td>
+          [
+          <%=
+            Array(s[:output_preview])
+              .map do |v|
+                trace_truncated_tooltip(
+                  v.to_s,
+                  length: cookies[:trace_output_display_length],
+                  tooltip_length: cookies[:trace_output_tooltip_length]
+                )
+              end
+              .join(", ").html_safe
+          %>
+          ]
+        </td>
+        <td><%= s[:duration_ms] %></td>
+        <td class="<%= 'error' if s[:error_class].present? %>">
+          <%= s[:error_class].present? ? "#{s[:error_class]}: #{s[:error_message]}" : "" %>
         </td>
       </tr>
     <% end %>

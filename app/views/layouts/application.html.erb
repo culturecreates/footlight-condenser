@@ -6,6 +6,37 @@
     <%= csp_meta_tag %>
 
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script>
+      document.addEventListener('turbo:load', () => {
+        document.querySelectorAll('.trace-row').forEach(row => {
+          row.addEventListener('click', () => {
+            row.nextElementSibling.classList.toggle('expanded');
+          });
+        });
+      });
+    </script>
+
+    <style>
+      .trace-details {
+        display: none;
+        background: #f9f9f9;
+        font-size: 0.9em;
+        padding: 8px;
+      }
+      .trace-details.expanded {
+        display: table-row;
+      }
+
+      .trace-table .trace-row.xpath {
+        background-color: #e8f5e9; /* light green */
+      }
+      .trace-table .trace-row.ruby {
+        background-color: #e3f2fd; /* light blue */
+      }
+      .trace-table .trace-row.error {
+        background-color: #ffebee; /* light red */
+      }
+    </style>
 
     <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
     <%= javascript_include_tag "application", type: "module", "data-turbo-track": "reload" %>

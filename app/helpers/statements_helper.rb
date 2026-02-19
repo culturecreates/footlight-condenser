@@ -158,11 +158,55 @@ module StatementsHelper
   #   [results_list, trace]
   # end
 
-    # Truncate but always show the full value in a tooltip
-  def trace_truncated_tooltip(str, length: 80)
+# Truncate but always show full value in a tooltip
+# @param str [String] the string to display
+# @param length [Integer] max displayed length
+# @param tooltip_length [Integer] how much to include in the tooltip (optional override)
+  def trace_truncated_tooltip(str, length: nil, tooltip_length: nil)
     safe_str = str.is_a?(String) ? str : str.inspect
-    truncated = safe_str.length > length ? "#{safe_str[0, length]}…" : safe_str
-    content_tag(:span, truncated, class: 'trace-tooltip', data: { tooltip: safe_str })
+
+    # Parse cookie values into integers
+    display_len =
+      if length.present?
+        length.to_i
+      elsif cookies[:trace_code_display_length].present?
+        cookies[:trace_code_display_length].to_i
+      else
+        180
+      end
+
+    tooltip_len =
+      if tooltip_length.present?
+        tooltip_length.to_i
+      elsif cookies[:trace_code_tooltip_length].present?
+        cookies[:trace_code_tooltip_length].to_i
+      end
+
+    # Fallback: if cookie says “0” then nil out
+    tooltip_len = nil if tooltip_len == 0
+
+    # Now safe comparison
+    truncated =
+      if safe_str.length > display_len
+        "#{safe_str[0, display_len]}…"
+      else
+        safe_str
+      end
+
+    # Truncate tooltip text if needed
+    tool_text =
+      if tooltip_len && safe_str.length > tooltip_len
+        "#{safe_str[0, tooltip_len]}…"
+      else
+        safe_str
+      end
+
+    content_tag(
+      :span,
+      truncated,
+      class: "trace-tooltip",
+      data: { tooltip: tool_text }
+    )
   end
 # :nocov:
  
@@ -171,59 +215,94 @@ module StatementsHelper
     s.length > max ? "#{s[0, max]}…(truncated)" : s
   end
 
-  ##
-  # Refresh a statement
-  #   INPUT
-  #     stat = ActiveRecord Statement 
-  #     scrape_options = {} passesd on to footlight-wringer crawling service in confirm
-  #   OUTPUT
-  #     Persists statement in database or sets errors. 
-  #     Check stat.errors in calling method.
+  # Refreshes a statement by executing its DSL algorithm.
+  #
+  # @param stat [Statement]  The statement object to refresh.
+  # @param scrape_options [Hash]  Optional scraping options (e.g., { force_scrape_every_hrs: 24 }).
+  #
+  # This method:
+  #  * Prevents refresh of manual statements when they are already marked OK/updated.
+  #  * Detects whether DSL trace is enabled via cookies[:dsl_trace].
+  #  * Calls `run_dsl` with the correct parameters to execute the algorithm.
+  #  * Normalizes trace data when trace is enabled (`@dsl_trace` is set).
+  #  * Handles abort signals (`["abort_update", {...}]`) returned by the DSL.
+  #  * Validates results and populates ActiveModel errors on failure.
+  #  * Formats and saves the new statement cache when appropriate.
+  #
+  # If trace is enabled, `run_dsl` returns [result, trace_array], where each trace
+  # element is a Hash containing:
+  #   :step          — step index
+  #   :type          — DSL prefix (e.g., xpath, ruby)
+  #   :code          — the DSL code executed
+  #   :input_preview — preview of input before the step
+  #   :output_preview— preview of output after the step
+  #   :url_before    — URL before step
+  #   :url_after     — URL after step
+  #   :duration_ms   — step execution time in milliseconds
+  #   :error_class   — class name of error (if any)
+  #   :error_message — error message (if any)
+  #
+  # The trace array is assigned to @dsl_trace for view rendering.
+  #
+  # **Exceptions:** Does not raise; adds errors on the `stat` object instead.
   def refresh_statement_helper(stat, scrape_options = {})
-    if stat.manual && ["ok","updated"].include?(stat.status)
-      stat.errors.add(:base, "No update unless 'initial','problem' or 'missing' state.")
+    # Disallow refresh if manual and already OK/updated
+    if stat.manual && %w[ok updated].include?(stat.status)
+      stat.errors.add(:base, "No update unless status is 'initial', 'problem', or 'missing'.")
       return
     end
 
+    # Detect trace mode via cookie
     trace_enabled = cookies[:dsl_trace] == "true"
 
-    result_data =
-      run_dsl(
+    if trace_enabled
+      data, @dsl_trace = run_dsl(
         algorithm: stat.source.algorithm_value,
         render_js: stat.source.render_js,
         language: stat.source.language,
         url: stat.webpage.url,
         scrape_options: scrape_options,
-        trace: trace_enabled
+        trace: true
       )
-
-    # If trace enabled, run_dsl returns [data, trace_array]
-    if trace_enabled
-      data, @dsl_trace = result_data
     else
-      data = result_data
+      data, = run_dsl(
+        algorithm: stat.source.algorithm_value,
+        render_js: stat.source.render_js,
+        language: stat.source.language,
+        url: stat.webpage.url,
+        scrape_options: scrape_options,
+        trace: false
+      )
     end
 
-    # Check for abort_update format
+    # Check for abort_update signal
     if data.is_a?(Array) && data.first == "abort_update"
-      info        = data.second || {}
+      info = data.second || {}
       stat.errors.add(:base, "Scrape aborted (#{info[:error_type]}): #{info[:error]}")
       return
     end
 
+    # Blank result is not valid for existing statements
     if data.blank? && !stat.new_record?
-      stat.errors.add(:base, "Not updated with blank.")
+      stat.errors.add(:base, "Not updated with blank result.")
+      return
     end
 
+    # Format the result according to the property's datatype
     formatted = format_datatype(data, stat.source.property, stat.webpage)
+
+    # Save if appropriate
     if save_record?(formatted.to_s, stat.status, stat.cache, stat.new_record?)
-      formatted = preserve_manual_links(formatted, stat.cache) if stat.source.property.value_datatype == 'xsd:anyURI'
-      stat.cache = formatted
+      # Preserve manual links for xsd:anyURI
+      if stat.source.property.value_datatype == 'xsd:anyURI'
+        formatted = preserve_manual_links(formatted, stat.cache)
+      end
+
+      stat.cache           = formatted
       stat.cache_refreshed = Time.zone.now
       stat.save
     end
   end
-
 
 
   ## Core logic of when to update records
@@ -251,12 +330,20 @@ module StatementsHelper
     end
   end
 
-  def run_dsl(algorithm:, render_js: false, language: "en", url:, scrape_options: {}, trace: false, trace_opts: {})
-    if trace
-      tracer = DslTraceCollector.new(**trace_opts)
-    else
-      tracer = DslNullTracer.new
-    end
+  def run_dsl(
+    algorithm:,
+    render_js: false,
+    language: "en",
+    url:,
+    scrape_options: {},
+    trace: false,
+    trace_opts: {}
+  )
+    Rails.logger.debug ">>> run_dsl invoked; trace_enabled=#{trace.inspect}"
+    Rails.logger.debug ">>> algorithm: #{algorithm.inspect}"
+    Rails.logger.debug ">>> start url: #{url.inspect}"
+
+    tracer = trace ? DslTraceCollector.new(**trace_opts) : DslNullTracer.new
 
     ctx = {
       url: url,
@@ -267,11 +354,46 @@ module StatementsHelper
 
     result = DslAlgorithmRunner.new(ctx).run(algorithm)
 
-    if trace
-      [result, tracer.to_h[:events]]
-    else
-      result
+    # If not tracing, just return the result
+    unless trace
+      Rails.logger.debug ">>> run_dsl (no trace) returning: #{result.inspect}"
+      return result
     end
+
+    # ### TRACE IS ENABLED ###
+    raw_events = tracer.to_h
+    Rails.logger.debug ">>> tracer.to_h returned array: #{raw_events.inspect}"
+
+    normalized_events = []
+
+    if raw_events.is_a?(Array)
+      raw_events.each_with_index do |evt, index|
+        Rails.logger.debug ">>> trace event[#{index}] raw: #{evt.inspect}"
+
+        unless evt.is_a?(Hash)
+          Rails.logger.warn ">>> ⚠ trace event isn’t a Hash — class=#{evt.class}"
+        end
+
+        normalized_events << {
+          step: evt[:step]           || evt["step"],
+          type: evt[:type]           || evt["type"],
+          code: evt[:code]           || evt["code"],
+          input_preview: evt[:input_preview]  || evt["input_preview"]  || [],
+          output_preview: evt[:output_preview] || evt["output_preview"] || [],
+          url_before: (evt[:url_before]     || evt["url_before"]     || "").to_s,
+          url_after: (evt[:url_after]      || evt["url_after"]      || "").to_s,
+          duration_ms: evt[:duration_ms]    || evt["duration_ms"]    || 0,
+          error_class: evt[:error_class]    || evt["error_class"],
+          error_message: evt[:error_message]  || evt["error_message"]
+        }
+      end
+    else
+      Rails.logger.warn ">>> ⚠ tracer.to_h did not return an Array! class=#{raw_events.class}"
+    end
+
+    Rails.logger.debug ">>> normalized_events: #{normalized_events.inspect}"
+
+    [result, normalized_events]
   end
 
   ##
