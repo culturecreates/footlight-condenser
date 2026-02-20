@@ -286,12 +286,17 @@ module StatementsHelper
     end
   end
 
-  def run_dsl(algorithm:, render_js: false, language: "en", url:, scrape_options: {}, trace: false, trace_opts: {})
-    if trace
-      tracer = DslTraceCollector.new(**trace_opts)
-    else
-      tracer = DslNullTracer.new
-    end
+  def run_dsl(
+    algorithm:,
+    render_js: false,
+    language: "en",
+    url:,
+    scrape_options: {},
+    trace: false,
+    trace_opts: {}
+  )
+    # Choose the tracer
+    tracer = trace ? DslTraceCollector.new(**trace_opts) : DslNullTracer.new
 
     ctx = {
       url: url,
@@ -300,13 +305,33 @@ module StatementsHelper
       tracer: tracer
     }
 
+    # Run engine
     result = DslAlgorithmRunner.new(ctx).run(algorithm)
 
-    if trace
-      [result, tracer.to_h[:events]]
-    else
-      result
+    # If not tracing, return the result only
+    return result unless trace
+
+    # Extract the raw events (may be array of hashes)
+    raw_events = tracer.to_h[:events] || []
+
+    # Normalize each event into a uniform hash
+    normalized_events = raw_events.map do |evt|
+      {
+        step: evt[:step]           || evt["step"],
+        type: evt[:type]           || evt["type"],
+        code: evt[:code]           || evt["code"],
+        input_preview: evt[:input]          || evt["input"]          || [],
+        output_preview: evt[:output]         || evt["output"]         || [],
+        url_before: (evt[:url_before]    || evt["url_before"]    || "").to_s,
+        url_after: (evt[:url_after]     || evt["url_after"]     || "").to_s,
+        duration_ms: evt[:duration_ms]    || evt["duration_ms"]    || 0,
+        error_class: evt[:error_class]    || evt["error_class"],
+        error_message: evt[:error_message]  || evt["error_message"]
+      }
     end
+
+    # Return result + normalized trace
+    [result, normalized_events]
   end
 
   ##
