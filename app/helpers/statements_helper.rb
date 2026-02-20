@@ -171,59 +171,94 @@ module StatementsHelper
     s.length > max ? "#{s[0, max]}…(truncated)" : s
   end
 
-  ##
-  # Refresh a statement
-  #   INPUT
-  #     stat = ActiveRecord Statement 
-  #     scrape_options = {} passesd on to footlight-wringer crawling service in confirm
-  #   OUTPUT
-  #     Persists statement in database or sets errors. 
-  #     Check stat.errors in calling method.
+  # Refreshes a statement by executing its DSL algorithm.
+  #
+  # @param stat [Statement]  The statement object to refresh.
+  # @param scrape_options [Hash]  Optional scraping options (e.g., { force_scrape_every_hrs: 24 }).
+  #
+  # This method:
+  #  * Prevents refresh of manual statements when they are already marked OK/updated.
+  #  * Detects whether DSL trace is enabled via cookies[:dsl_trace].
+  #  * Calls `run_dsl` with the correct parameters to execute the algorithm.
+  #  * Normalizes trace data when trace is enabled (`@dsl_trace` is set).
+  #  * Handles abort signals (`["abort_update", {...}]`) returned by the DSL.
+  #  * Validates results and populates ActiveModel errors on failure.
+  #  * Formats and saves the new statement cache when appropriate.
+  #
+  # If trace is enabled, `run_dsl` returns [result, trace_array], where each trace
+  # element is a Hash containing:
+  #   :step          — step index
+  #   :type          — DSL prefix (e.g., xpath, ruby)
+  #   :code          — the DSL code executed
+  #   :input_preview — preview of input before the step
+  #   :output_preview— preview of output after the step
+  #   :url_before    — URL before step
+  #   :url_after     — URL after step
+  #   :duration_ms   — step execution time in milliseconds
+  #   :error_class   — class name of error (if any)
+  #   :error_message — error message (if any)
+  #
+  # The trace array is assigned to @dsl_trace for view rendering.
+  #
+  # **Exceptions:** Does not raise; adds errors on the `stat` object instead.
   def refresh_statement_helper(stat, scrape_options = {})
-    if stat.manual && ["ok","updated"].include?(stat.status)
-      stat.errors.add(:base, "No update unless 'initial','problem' or 'missing' state.")
+    # Disallow refresh if manual and already OK/updated
+    if stat.manual && %w[ok updated].include?(stat.status)
+      stat.errors.add(:base, "No update unless status is 'initial', 'problem', or 'missing'.")
       return
     end
 
+    # Detect trace mode via cookie
     trace_enabled = cookies[:dsl_trace] == "true"
 
-    result_data =
-      run_dsl(
+    if trace_enabled
+      data, @dsl_trace = run_dsl(
         algorithm: stat.source.algorithm_value,
         render_js: stat.source.render_js,
         language: stat.source.language,
         url: stat.webpage.url,
         scrape_options: scrape_options,
-        trace: trace_enabled
+        trace: true
       )
-
-    # If trace enabled, run_dsl returns [data, trace_array]
-    if trace_enabled
-      data, @dsl_trace = result_data
     else
-      data = result_data
+      data, = run_dsl(
+        algorithm: stat.source.algorithm_value,
+        render_js: stat.source.render_js,
+        language: stat.source.language,
+        url: stat.webpage.url,
+        scrape_options: scrape_options,
+        trace: false
+      )
     end
 
-    # Check for abort_update format
+    # Check for abort_update signal
     if data.is_a?(Array) && data.first == "abort_update"
-      info        = data.second || {}
+      info = data.second || {}
       stat.errors.add(:base, "Scrape aborted (#{info[:error_type]}): #{info[:error]}")
       return
     end
 
+    # Blank result is not valid for existing statements
     if data.blank? && !stat.new_record?
-      stat.errors.add(:base, "Not updated with blank.")
+      stat.errors.add(:base, "Not updated with blank result.")
+      return
     end
 
+    # Format the result according to the property's datatype
     formatted = format_datatype(data, stat.source.property, stat.webpage)
+
+    # Save if appropriate
     if save_record?(formatted.to_s, stat.status, stat.cache, stat.new_record?)
-      formatted = preserve_manual_links(formatted, stat.cache) if stat.source.property.value_datatype == 'xsd:anyURI'
-      stat.cache = formatted
+      # Preserve manual links for xsd:anyURI
+      if stat.source.property.value_datatype == 'xsd:anyURI'
+        formatted = preserve_manual_links(formatted, stat.cache)
+      end
+
+      stat.cache           = formatted
       stat.cache_refreshed = Time.zone.now
       stat.save
     end
   end
-
 
 
   ## Core logic of when to update records
