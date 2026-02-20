@@ -3,57 +3,19 @@
 <table class="trace-table">
   <thead>
     <tr>
-      <th>Step</th>
-      <th>Type</th>
-      <th>Code</th>
-      <th>URL Before</th>
-      <th>URL After</th>
-      <th>Input Preview</th>
-      <th>Output Preview</th>
-      <th>Time (ms)</th>
-      <th>Error</th>
+      <th>Step</th><th>Type</th><th>Code</th><th>Result</th><th>Time (ms)</th><th>Error</th>
     </tr>
   </thead>
   <tbody>
-    <% @trace.each do |s| %>
-      <% row_class = s[:type] %>
-      <% row_class += ' error' if s[:error_class].present? %>
-
-      <tr class="trace-row <%= row_class %>">
+    <% @dsl_trace.each do |s| %>
+      <tr class="trace-row <%= s[:type] %>">
         <td><%= s[:step] %></td>
         <td><%= s[:type] %></td>
         <td><%= trace_truncated_tooltip(s[:code], length: 60) %></td>
-        <td><%= trace_truncated_tooltip(s[:url_before].to_s, length: 60) %></td>
-        <td><%= trace_truncated_tooltip(s[:url_after].to_s, length: 60) %></td>
-        <td><%= trace_truncated_tooltip(Array(s[:input_preview]).join(", "), length: 60) %></td>
-        <td><%= trace_truncated_tooltip(Array(s[:output_preview]).join(", "), length: 60) %></td>
+        <td><%= trace_truncated_tooltip(Array(s[:output_preview]).join(", "), length: 80) %></td>
         <td><%= s[:duration_ms] %></td>
-        <td><%= s[:error_class].present? ? "#{s[:error_class]}: #{s[:error_message]}" : '' %></td>
-      </tr>
-
-      <!-- hidden expanded details -->
-      <tr class="trace-details">
-        <td colspan="9">
-          <strong>Full Code:</strong> <%= h(s[:code]) %><br>
-          <strong>Full URL Before:</strong> <%= h(s[:url_before]) %><br>
-          <strong>Full URL After:</strong> <%= h(s[:url_after]) %><br>
-          <strong>Full Input:</strong> <%= h(Array(s[:input_preview]).inspect) %><br>
-          <strong>Full Output:</strong> <%= h(Array(s[:output_preview]).inspect) %><br>
-          <% if s[:error_class].present? %>
-            <strong>Error:</strong> <%= h(s[:error_class]) %>: <%= h(s[:error_message]) %><br>
-          <% end %>
-        </td>
-      </tr>
-    <% end %>
-
-    <% if defined?(@result) %>
-      <tr class="final">
-        <td colspan="7"><strong>Final Result</strong></td>
-        <td colspan="2">
-          <%= trace_truncated_tooltip(
-                @result.is_a?(Array) ? @result.inspect : @result.to_s,
-                length: 120
-              ) %>
+        <td class="<%= 'error' if s[:error_class].present? %>">
+          <%= s[:error_class].present? ? "#{s[:error_class]}: #{s[:error_message]}" : "" %>
         </td>
       </tr>
     <% end %>
