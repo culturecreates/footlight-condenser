@@ -1,36 +1,37 @@
 # app/services/dsl_trace_collector.rb
 class DslTraceCollector
-  def initialize(max_value_len: 2_000, max_events: 200)
-    @max_value_len = max_value_len
-    @max_events = max_events
+  attr_reader :events
+
+  def initialize
     @events = []
   end
 
-  # Called for each DSL step
-  # We store a minimal representation of input/output
-  def step(step:, type:, code:, input:, output:, error: nil, ms: nil)
-    return if @events.length >= @max_events
-
+  def step(
+    step:,
+    type:,
+    code:,
+    input:,
+    output:,
+    error: nil,
+    url_before: nil,
+    url_after: nil,
+    duration_ms: nil
+  )
     @events << {
       step: step,
       type: type,
-      code: truncate(code),
-      input: truncate(input),
-      output: truncate(output),
-      error: error && truncate(error),
-      ms: ms
+      code: code,
+      input_preview: input,
+      output_preview: output,
+      error_class: error.nil? ? nil : error.class.to_s,
+      error_message: error.nil? ? nil : error.to_s,
+      url_before: url_before,
+      url_after: url_after,
+      duration_ms: duration_ms
     }
   end
 
-  # Return events for rendering
   def to_h
-    { events: @events }
-  end
-
-  private
-
-  def truncate(v)
-    s = v.is_a?(String) ? v : v.inspect
-    s.length > @max_value_len ? "#{s[0, @max_value_len]}…(truncated)" : s
+    @events
   end
 end

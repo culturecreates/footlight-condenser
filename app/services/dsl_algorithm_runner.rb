@@ -31,76 +31,49 @@ class DslAlgorithmRunner
 
   def run(algorithm)
     results = []
-
-    # Manual override
-    if algorithm.to_s.start_with?('manual=')
-      r = [algorithm.delete_prefix('manual=')]
-      @tracer.step(step: 1, type: 'manual', code: algorithm, input: [], output: r, error: nil)
-      return r
-    end
-
     steps = algorithm.split(';')
+
     steps.each_with_index do |raw, idx|
       prefix, code = raw.partition('=').values_at(0,2)
       step_index = idx + 1
+
       input_copy = Marshal.load(Marshal.dump(results))
+      url_before = @url
 
-      begin
-        out = execute(prefix, code, results)
+      start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      out = execute(prefix, code, results)
+      end_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-        # If execute returned a wringer-style abort hash, convert it
-        if out.is_a?(Hash) && out[:abort_update]
-          # Make a proper DSL abort message
-          error_info = out[:error]
-          @tracer.step(
-            step: step_index,
-            type: prefix,
-            code: code,
-            input: input_copy,
-            output: [],
-            error: error_info
-          )
-          return ["abort_update", { error: error_info, error_type: "WringerError" }]
-        end
+      url_after = @url
+      duration_ms = ((end_time - start_time) * 1000).round(1)
+      output = Array(out)
 
-        # If a DSL break signal
-        break if out == :__dsl_break__
+      @tracer.step(
+        step: step_index,
+        type: prefix,
+        code: code,
+        input: input_copy,
+        output: output,
+        error: nil,
+        url_before: url_before,
+        url_after: url_after,
+        duration_ms: duration_ms
+      )
 
-        # If our own DSL abort format
-        if abort_structure?(out)
-          @tracer.step(
-            step: step_index,
-            type: prefix,
-            code: code,
-            input: input_copy,
-            output: out,
-            error: out[1][:error]
-          )
-          return out
-        end
-
-        # Normal result
-        results = Array(out)
-        @tracer.step(
-          step: step_index,
-          type: prefix,
-          code: code,
-          input: input_copy,
-          output: results,
-          error: nil
-        )
-      rescue StandardError => e
-        @tracer.step(
-          step: step_index,
-          type: prefix,
-          code: code,
-          input: input_copy,
-          output: [],
-          error: "#{e.class}: #{e.message}"
-        )
-
-        return ["abort_update", { error: e.message.to_s, error_type: e.class.to_s }]
-      end
+      results = output
+    rescue StandardError => e
+      @tracer.step(
+        step: step_index,
+        type: prefix,
+        code: code,
+        input: input_copy,
+        output: [],
+        error: e,
+        url_before: url_before,
+        url_after: @url,
+        duration_ms: duration_ms
+      )
+      return ["abort_update", { error: e.message, error_type: e.class.to_s }]
     end
 
     results

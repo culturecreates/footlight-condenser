@@ -16,41 +16,36 @@
   </thead>
   <tbody>
     <% @trace.each do |s| %>
-      <tr>
-        <td class="step"><%= s[:step] %></td>
+      <% row_class = s[:type] %>
+      <% row_class += ' error' if s[:error_class].present? %>
+
+      <tr class="trace-row <%= row_class %>">
+        <td><%= s[:step] %></td>
         <td><%= s[:type] %></td>
         <td><%= trace_truncated_tooltip(s[:code], length: 60) %></td>
-
-        <td>
-          <%= trace_truncated_tooltip(s[:url_before].to_s, length: 60) %>
-        </td>
-
-        <td>
-          <%= trace_truncated_tooltip(s[:url_after].to_s, length: 60) %>
-        </td>
-
-        <td>
-          <%# Show a preview of input array %>
-          <% preview_in = Array(s[:input_preview]).join(", ") %>
-          <%= trace_truncated_tooltip(preview_in, length: 60) %>
-        </td>
-
-        <td>
-          <% preview_out = Array(s[:output_preview]).join(", ") %>
-          <%= trace_truncated_tooltip(preview_out, length: 60) %>
-        </td>
-
+        <td><%= trace_truncated_tooltip(s[:url_before].to_s, length: 60) %></td>
+        <td><%= trace_truncated_tooltip(s[:url_after].to_s, length: 60) %></td>
+        <td><%= trace_truncated_tooltip(Array(s[:input_preview]).join(", "), length: 60) %></td>
+        <td><%= trace_truncated_tooltip(Array(s[:output_preview]).join(", "), length: 60) %></td>
         <td><%= s[:duration_ms] %></td>
+        <td><%= s[:error_class].present? ? "#{s[:error_class]}: #{s[:error_message]}" : '' %></td>
+      </tr>
 
-        <td class="<%= 'error' if s[:error_class].present? %>">
+      <!-- hidden expanded details -->
+      <tr class="trace-details">
+        <td colspan="9">
+          <strong>Full Code:</strong> <%= h(s[:code]) %><br>
+          <strong>Full URL Before:</strong> <%= h(s[:url_before]) %><br>
+          <strong>Full URL After:</strong> <%= h(s[:url_after]) %><br>
+          <strong>Full Input:</strong> <%= h(Array(s[:input_preview]).inspect) %><br>
+          <strong>Full Output:</strong> <%= h(Array(s[:output_preview]).inspect) %><br>
           <% if s[:error_class].present? %>
-            <%= h("#{s[:error_class]}: #{s[:error_message]}") %>
+            <strong>Error:</strong> <%= h(s[:error_class]) %>: <%= h(s[:error_message]) %><br>
           <% end %>
         </td>
       </tr>
     <% end %>
 
-    <%# Final results row if you pass @result from controller %>
     <% if defined?(@result) %>
       <tr class="final">
         <td colspan="7"><strong>Final Result</strong></td>
