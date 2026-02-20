@@ -295,7 +295,10 @@ module StatementsHelper
     trace: false,
     trace_opts: {}
   )
-    # Choose the tracer
+    Rails.logger.debug ">>> run_dsl invoked; trace_enabled=#{trace.inspect}"
+    Rails.logger.debug ">>> algorithm: #{algorithm.inspect}"
+    Rails.logger.debug ">>> start url: #{url.inspect}"
+
     tracer = trace ? DslTraceCollector.new(**trace_opts) : DslNullTracer.new
 
     ctx = {
@@ -305,32 +308,47 @@ module StatementsHelper
       tracer: tracer
     }
 
-    # Run engine
     result = DslAlgorithmRunner.new(ctx).run(algorithm)
 
-    # If not tracing, return the result only
-    return result unless trace
-
-    # Extract the raw events (may be array of hashes)
-    raw_events = tracer.to_h[:events] || []
-
-    # Normalize each event into a uniform hash
-    normalized_events = raw_events.map do |evt|
-      {
-        step: evt[:step]           || evt["step"],
-        type: evt[:type]           || evt["type"],
-        code: evt[:code]           || evt["code"],
-        input_preview: evt[:input]          || evt["input"]          || [],
-        output_preview: evt[:output]         || evt["output"]         || [],
-        url_before: (evt[:url_before]    || evt["url_before"]    || "").to_s,
-        url_after: (evt[:url_after]     || evt["url_after"]     || "").to_s,
-        duration_ms: evt[:duration_ms]    || evt["duration_ms"]    || 0,
-        error_class: evt[:error_class]    || evt["error_class"],
-        error_message: evt[:error_message]  || evt["error_message"]
-      }
+    # If not tracing, just return the result
+    unless trace
+      Rails.logger.debug ">>> run_dsl (no trace) returning: #{result.inspect}"
+      return result
     end
 
-    # Return result + normalized trace
+    # ### TRACE IS ENABLED ###
+    raw_events = tracer.to_h
+    Rails.logger.debug ">>> tracer.to_h returned array: #{raw_events.inspect}"
+
+    normalized_events = []
+
+    if raw_events.is_a?(Array)
+      raw_events.each_with_index do |evt, index|
+        Rails.logger.debug ">>> trace event[#{index}] raw: #{evt.inspect}"
+
+        unless evt.is_a?(Hash)
+          Rails.logger.warn ">>> ⚠ trace event isn’t a Hash — class=#{evt.class}"
+        end
+
+        normalized_events << {
+          step: evt[:step]           || evt["step"],
+          type: evt[:type]           || evt["type"],
+          code: evt[:code]           || evt["code"],
+          input_preview: evt[:input_preview]  || evt["input_preview"]  || [],
+          output_preview: evt[:output_preview] || evt["output_preview"] || [],
+          url_before: (evt[:url_before]     || evt["url_before"]     || "").to_s,
+          url_after: (evt[:url_after]      || evt["url_after"]      || "").to_s,
+          duration_ms: evt[:duration_ms]    || evt["duration_ms"]    || 0,
+          error_class: evt[:error_class]    || evt["error_class"],
+          error_message: evt[:error_message]  || evt["error_message"]
+        }
+      end
+    else
+      Rails.logger.warn ">>> ⚠ tracer.to_h did not return an Array! class=#{raw_events.class}"
+    end
+
+    Rails.logger.debug ">>> normalized_events: #{normalized_events.inspect}"
+
     [result, normalized_events]
   end
 
