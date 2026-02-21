@@ -1,6 +1,8 @@
 # app/controllers/options_controller.rb
 class OptionsController < ApplicationController
-  def index; end
+  def index 
+    # render the options form 
+  end
   
   def wringer
     wringer_url = params[:target] == 'live' ? 'http://footlight-wringer.herokuapp.com' : 'http://localhost:3009'
@@ -19,6 +21,18 @@ class OptionsController < ApplicationController
     cookies[:trace_code_tooltip_length]     = params[:trace_code_tooltip_length]     if params[:trace_code_tooltip_length]
     cookies[:trace_output_display_length]   = params[:trace_output_display_length]   if params[:trace_output_display_length]
     cookies[:trace_output_tooltip_length]   = params[:trace_output_tooltip_length]   if params[:trace_output_tooltip_length]
+  end
+
+  def update
+    # Save trace length preferences to cookies
+
+    cookies[:trace_code_display_length]   = params[:trace_code_display_length]   if params[:trace_code_display_length].present?
+    cookies[:trace_code_tooltip_length]   = params[:trace_code_tooltip_length]   if params[:trace_code_tooltip_length].present?
+    cookies[:trace_output_display_length] = params[:trace_output_display_length] if params[:trace_output_display_length].present?
+    cookies[:trace_output_tooltip_length] = params[:trace_output_tooltip_length] if params[:trace_output_tooltip_length].present?
+
+    flash[:notice] = "Trace options saved"
+    redirect_to options_path
   end
 
 end

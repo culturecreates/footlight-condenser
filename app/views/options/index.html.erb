@@ -10,23 +10,33 @@
   <%= link_to "Enable Trace", set_dsl_trace_options_path(state: "true"), class: "btn btn-primary" %>
   <%= link_to "Disable Trace", set_dsl_trace_options_path(state: "false"), class: "btn btn-secondary" %>
 </div>
+
 <form method="post" action="<%= options_path %>">
-  …
-  <label>Trace Code Display Length
+  <%= csrf_meta_tags %>
+
+  <label>
+    Trace Code Display Length
     <input type="number" name="trace_code_display_length" value="<%= cookies[:trace_code_display_length] %>">
   </label>
 
-  <label>Trace Code Tooltip Length
+  <label>
+    Trace Code Tooltip Length
     <input type="number" name="trace_code_tooltip_length" value="<%= cookies[:trace_code_tooltip_length] %>">
   </label>
 
-  <label>Trace Output Display Length
+  <label>
+    Trace Output Display Length
     <input type="number" name="trace_output_display_length" value="<%= cookies[:trace_output_display_length] %>">
   </label>
 
-  <label>Trace Output Tooltip Length
+  <label>
+    Trace Output Tooltip Length
     <input type="number" name="trace_output_tooltip_length" value="<%= cookies[:trace_output_tooltip_length] %>">
   </label>
 
   <button type="submit">Save</button>
 </form>
+
+<% if flash[:notice] %>
+  <p class="flash notice"><%= flash[:notice] %></p>
+<% end %>
