@@ -79,6 +79,9 @@ class StatementsController < ApplicationController
   def show
     @statement = Statement.find(params[:id])
 
+    # Ensure @dsl_trace is always defined
+    @dsl_trace ||= []
+
     if cookies[:dsl_trace] == "true"
       @result, @trace = helpers.run_dsl(
         algorithm: @statement.source.algorithm_value,
