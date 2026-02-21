@@ -13,6 +13,7 @@
     <%= link_to "Disable Trace", set_dsl_trace_options_path(state: "false"), class: "btn btn-secondary" %>
   </div>
 
+  <h3>Trace Options</h3>
   <%= form_with url: options_path, method: :post, local: true do %>
     <label>
       Trace Code Display Length

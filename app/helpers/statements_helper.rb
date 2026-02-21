@@ -163,38 +163,50 @@ module StatementsHelper
 # @param length [Integer] max displayed length
 # @param tooltip_length [Integer] how much to include in the tooltip (optional override)
   def trace_truncated_tooltip(str, length: nil, tooltip_length: nil)
-      safe_str = str.is_a?(String) ? str : str.inspect
+    safe_str = str.is_a?(String) ? str : str.inspect
 
-      # fallback to cookie config or hardcoded defaults
-      display_len = length ||
-                    cookies[:trace_code_display_length].to_i.nonzero? ||
-                    180
+    # Parse cookie values into integers
+    display_len =
+      if length.present?
+        length.to_i
+      elsif cookies[:trace_code_display_length].present?
+        cookies[:trace_code_display_length].to_i
+      else
+        180
+      end
 
-      tooltip_len = tooltip_length ||
-                    cookies[:trace_code_tooltip_length].to_i.nonzero? ||
-                    nil  # nil means full string in tooltip
+    tooltip_len =
+      if tooltip_length.present?
+        tooltip_length.to_i
+      elsif cookies[:trace_code_tooltip_length].present?
+        cookies[:trace_code_tooltip_length].to_i
+      end
 
-      # truncate for visible text
-      truncated = if safe_str.length > display_len
-                    "#{safe_str[0, display_len]}…"
-                  else
-                    safe_str
-                  end
+    # Fallback: if cookie says “0” then nil out
+    tooltip_len = nil if tooltip_len.zero?
 
-      # compute tooltip text
-      tool_text = if tooltip_len
-                    str_len = safe_str.length
-                    safe_str.length > tooltip_len ? "#{safe_str[0, tooltip_len]}…" : safe_str
-                  else
-                    safe_str
-                  end
+    # Now safe comparison
+    truncated =
+      if safe_str.length > display_len
+        "#{safe_str[0, display_len]}…"
+      else
+        safe_str
+      end
 
-      content_tag(
-        :span,
-        truncated,
-        class: "trace-tooltip",
-        data: { tooltip: tool_text }
-      )
+    # Truncate tooltip text if needed
+    tool_text =
+      if tooltip_len && safe_str.length > tooltip_len
+        "#{safe_str[0, tooltip_len]}…"
+      else
+        safe_str
+      end
+
+    content_tag(
+      :span,
+      truncated,
+      class: "trace-tooltip",
+      data: { tooltip: tool_text }
+    )
   end
 # :nocov:
  
