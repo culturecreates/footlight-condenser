@@ -38,3 +38,65 @@ table tr:hover {
   max-width: 400px;
   font-size: 0.85em;
 }
+
+/* Options page form styling */
+.options-form {
+  max-width: 600px;
+  margin: 1.5rem auto;
+  padding: 1.5rem;
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+.options-form h2 {
+  font-size: 1.75rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.options-form label {
+  display: block;
+  margin-bottom: 1rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.options-form input[type="number"] {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+.options-form .btn {
+  display: inline-block;
+  padding: 10px 16px;
+  margin-top: 0.5rem;
+  font-size: 1rem;
+  color: #fff;
+  background-color: #007bff;
+  border-radius: 4px;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+}
+
+.options-form .btn-secondary {
+  background-color: #6c757d;
+}
+
+.options-form .btn:hover {
+  opacity: 0.95;
+}
+
+.options-form .flash.notice {
+  margin-top: 1rem;
+  padding: 10px;
+  background: #e6ffed;
+  border: 1px solid #8acc8a;
+  border-radius: 4px;
+  color: #27632a;
+}

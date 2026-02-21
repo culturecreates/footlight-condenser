@@ -1,42 +1,43 @@
-<h2>Options</h2>
-<div>
-  <p>Current Wringer: <strong><%= cookies[:wringer_url] || "default" %></strong></p>
-  <%= link_to "Switch to LOCAL", set_wringer_path("local"), class: "btn" %>
-  <%= link_to "Switch to LIVE", set_wringer_path("live"), class: "btn" %>
+<div class="options-form">
+  <h2>Options</h2>
+
+  <div class="buttons">
+    <p>Current Wringer: <strong><%= cookies[:wringer_url] || "default" %></strong></p>
+    <%= link_to "Switch to LOCAL", set_wringer_path("local"), class: "btn" %>
+    <%= link_to "Switch to LIVE", set_wringer_path("live"), class: "btn btn-secondary" %>
+  </div>
+
+  <div class="buttons" style="margin-top: 1rem;">
+    <p>Current trace mode: <strong><%= cookies[:dsl_trace] == "true" ? "Enabled" : "Disabled" %></strong></p>
+    <%= link_to "Enable Trace", set_dsl_trace_options_path(state: "true"), class: "btn btn-primary" %>
+    <%= link_to "Disable Trace", set_dsl_trace_options_path(state: "false"), class: "btn btn-secondary" %>
+  </div>
+
+  <%= form_with url: options_path, method: :post, local: true do %>
+    <label>
+      Trace Code Display Length
+      <%= number_field_tag :trace_code_display_length, cookies[:trace_code_display_length], min: 1 %>
+    </label>
+
+    <label>
+      Trace Code Tooltip Length
+      <%= number_field_tag :trace_code_tooltip_length, cookies[:trace_code_tooltip_length], min: 1 %>
+    </label>
+
+    <label>
+      Trace Output Display Length
+      <%= number_field_tag :trace_output_display_length, cookies[:trace_output_display_length], min: 1 %>
+    </label>
+
+    <label>
+      Trace Output Tooltip Length
+      <%= number_field_tag :trace_output_tooltip_length, cookies[:trace_output_tooltip_length], min: 1 %>
+    </label>
+
+    <%= submit_tag "Save Settings", class: "btn btn-primary" %>
+  <% end %>
+
+  <% if flash[:notice] %>
+    <p class="flash notice"><%= flash[:notice] %></p>
+  <% end %>
 </div>
-
-<div>
-  <p>Current trace mode: <strong><%= cookies[:dsl_trace] == "true" ? "Enabled" : "Disabled" %></strong></p>
-  <%= link_to "Enable Trace", set_dsl_trace_options_path(state: "true"), class: "btn btn-primary" %>
-  <%= link_to "Disable Trace", set_dsl_trace_options_path(state: "false"), class: "btn btn-secondary" %>
-</div>
-
-<form method="post" action="<%= options_path %>">
-  <%= csrf_meta_tags %>
-
-  <label>
-    Trace Code Display Length
-    <input type="number" name="trace_code_display_length" value="<%= cookies[:trace_code_display_length] %>">
-  </label>
-
-  <label>
-    Trace Code Tooltip Length
-    <input type="number" name="trace_code_tooltip_length" value="<%= cookies[:trace_code_tooltip_length] %>">
-  </label>
-
-  <label>
-    Trace Output Display Length
-    <input type="number" name="trace_output_display_length" value="<%= cookies[:trace_output_display_length] %>">
-  </label>
-
-  <label>
-    Trace Output Tooltip Length
-    <input type="number" name="trace_output_tooltip_length" value="<%= cookies[:trace_output_tooltip_length] %>">
-  </label>
-
-  <button type="submit">Save</button>
-</form>
-
-<% if flash[:notice] %>
-  <p class="flash notice"><%= flash[:notice] %></p>
-<% end %>
