@@ -183,7 +183,7 @@ module StatementsHelper
       end
 
     # Fallback: if cookie says “0” then nil out
-    tooltip_len = nil if tooltip_len.zero?
+    tooltip_len = nil if tooltip_len == 0
 
     # Now safe comparison
     truncated =
