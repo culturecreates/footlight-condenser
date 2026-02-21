@@ -104,7 +104,6 @@ Rails.application.routes.draw do
   get 'options/wringer/:target', to: 'options#wringer', as: :set_wringer
   get 'options/set_dsl_trace/:state', to: 'options#set_dsl_trace', as: :set_dsl_trace_options
 
-  get    'options', to: 'options#index', as: :options
   post   'options', to: 'options#update'
   patch  'options', to: 'options#update'
 
