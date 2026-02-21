@@ -7,7 +7,7 @@
     </tr>
   </thead>
   <tbody>
-    <% (@dsl_trace || []).each do |s| %>
+    <% @trace.each do |s| %>
       <tr class="trace-row <%= s[:type] %>">
         <td><%= s[:step] %></td>
         <td><%= s[:type] %></td>
