@@ -3,16 +3,41 @@
 <table class="trace-table">
   <thead>
     <tr>
-      <th>Step</th><th>Type</th><th>Code</th><th>Result</th><th>Time (ms)</th><th>Error</th>
+      <th>Step</th>
+      <th>Type</th>
+      <th>Code</th>
+      <th>Result</th>
+      <th>Time (ms)</th>
+      <th>Error</th>
     </tr>
   </thead>
   <tbody>
-    <% @trace.each do |s| %>
+    <% Array(@trace).each do |s| %>
       <tr class="trace-row <%= s[:type] %>">
         <td><%= s[:step] %></td>
         <td><%= s[:type] %></td>
-        <td><%= trace_truncated_tooltip(s[:code], length: 180) %></td>
-        <td><%= trace_truncated_tooltip(Array(s[:output_preview]).join(", "), length: 3000) %></td>
+        <td>
+          <%= trace_truncated_tooltip(
+                s[:code],
+                length: cookies[:trace_code_display_length],
+                tooltip_length: cookies[:trace_code_tooltip_length]
+              ) %>
+        </td>
+        <td>
+          [
+          <%=
+            Array(s[:output_preview])
+              .map do |v|
+                trace_truncated_tooltip(
+                  v.to_s,
+                  length: cookies[:trace_output_display_length],
+                  tooltip_length: cookies[:trace_output_tooltip_length]
+                )
+              end
+              .join(", ").html_safe
+          %>
+          ]
+        </td>
         <td><%= s[:duration_ms] %></td>
         <td class="<%= 'error' if s[:error_class].present? %>">
           <%= s[:error_class].present? ? "#{s[:error_class]}: #{s[:error_message]}" : "" %>

@@ -14,6 +14,13 @@ class OptionsController < ApplicationController
     redirect_to options_path, notice: "DSL Trace #{state == 'true' ? 'enabled' : 'disabled'}"
   end
 
+  def update_trace_options
+    cookies[:trace_code_display_length]     = params[:trace_code_display_length]     if params[:trace_code_display_length]
+    cookies[:trace_code_tooltip_length]     = params[:trace_code_tooltip_length]     if params[:trace_code_tooltip_length]
+    cookies[:trace_output_display_length]   = params[:trace_output_display_length]   if params[:trace_output_display_length]
+    cookies[:trace_output_tooltip_length]   = params[:trace_output_tooltip_length]   if params[:trace_output_tooltip_length]
+  end
+
 end
 
 
