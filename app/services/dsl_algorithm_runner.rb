@@ -54,6 +54,26 @@ class DslAlgorithmRunner
 
       out = execute(prefix, code, results)
 
+      # handle abort payload
+      if abort_structure?(out)
+        end_time    = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        duration_ms = ((end_time - start_time) * 1000).round(1)
+
+        @tracer.step(
+          step: step_index,
+          type: prefix,
+          code: code,
+          input: input_copy,
+          output: [],
+          error: out.last,           # error message details
+          url_before: url_before,
+          url_after: @url,
+          duration_ms: duration_ms
+        )
+
+        return out
+      end
+
       end_time    = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       duration_ms = ((end_time - start_time) * 1000).round(1)
 
@@ -74,6 +94,9 @@ class DslAlgorithmRunner
 
       results = output
     rescue StandardError => e
+      end_time    = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      duration_ms = ((end_time - start_time) * 1000).round(1)
+
       @tracer.step(
         step: step_index,
         type: prefix,
