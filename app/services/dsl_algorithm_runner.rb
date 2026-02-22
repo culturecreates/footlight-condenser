@@ -52,6 +52,11 @@ class DslAlgorithmRunner
       url_before  = @url
       start_time  = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
+      # === UPDATE THREAD-LOCALS BEFORE EVERY STEP ===
+      Thread.current[:dsl_array] = results
+      Thread.current[:dsl_url]   = @url
+      Thread.current[:dsl_json]  = @json
+
       out = execute(prefix, code, results)
 
       # handle abort payload
@@ -132,6 +137,10 @@ class DslAlgorithmRunner
 
     when 'url'
       new_url = @dsl_binding.eval(sub(code, arr))
+      if !new_url.is_a?(String) || new_url.strip.empty?
+        raise StandardError, "Invalid URL in DSL - url step: #{new_url.inspect}"
+      end
+
       @url = new_url
 
       raw = safe_wringer_call { @agent.get_file(use_wringer(@url, @render_js, @scrape_opts)) }
@@ -143,6 +152,10 @@ class DslAlgorithmRunner
 
     when 'renderjs_url'
       new_url = @dsl_binding.eval(sub(code, arr))
+      if !new_url.is_a?(String) || new_url.strip.empty?
+        raise StandardError, "Invalid URL in DSL - renderjs_url step: #{new_url.inspect}"
+      end
+
       @url = new_url
 
       raw = safe_wringer_call { @agent.get_file(use_wringer(@url, true, @scrape_opts)) }
@@ -154,6 +167,10 @@ class DslAlgorithmRunner
 
     when 'json_url'
       new_url = @dsl_binding.eval(sub(code, arr))
+      if !new_url.is_a?(String) || new_url.strip.empty?
+        raise StandardError, "Invalid URL in DSL - json_url step: #{new_url.inspect}"
+      end
+
       @url = new_url
 
       raw = safe_wringer_call { @agent.get_file(use_wringer(@url, @render_js, @scrape_opts)) }
@@ -164,6 +181,10 @@ class DslAlgorithmRunner
 
     when 'post_url'
       new_url = @dsl_binding.eval(sub(code, arr))
+      if !new_url.is_a?(String) || new_url.strip.empty?
+        raise StandardError, "Invalid URL in DSL - post_url step: #{new_url.inspect}"
+      end
+
       @url = new_url
 
       temp_opts = @scrape_opts.merge(json_post: true).merge(force_scrape_every_hrs: 1)
@@ -173,6 +194,10 @@ class DslAlgorithmRunner
 
     when 'api'
       new_url = @dsl_binding.eval(sub(code, arr))
+      if !new_url.is_a?(String) || new_url.strip.empty?
+        raise StandardError, "Invalid URL in DSL - api step: #{new_url.inspect}"
+      end
+
       data = HTTParty.get(new_url)
       raise "API error #{data.code}" unless data.code.to_s.start_with?('2')
 
