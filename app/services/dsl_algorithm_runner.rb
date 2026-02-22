@@ -6,20 +6,23 @@ class DslAlgorithmRunner
     :input,
     :output,
     :error,
+    :url_before,
+    :url_after,
+    :duration_ms,
     keyword_init: true
   )
 
   def initialize(ctx)
-    @url          = ctx[:url]
-    @render_js    = ctx[:render_js]
-    @scrape_opts  = ctx[:scrape_options] || {}
-    @tracer       = ctx[:tracer]
-    @agent        = Mechanize.new
+    @url         = ctx[:url]
+    @render_js   = ctx[:render_js]
+    @scrape_opts = ctx[:scrape_options] || {}
+    @tracer      = ctx[:tracer]
+    @agent       = Mechanize.new
     @agent.user_agent_alias = 'Mac Safari'
-    @html         = nil
-    @page         = nil
-    @json         = nil
-    @graph        = nil
+    @html        = nil
+    @page        = nil
+    @json        = nil
+    @graph       = nil
   end
 
   def abort_structure?(obj)
@@ -31,22 +34,31 @@ class DslAlgorithmRunner
 
   def run(algorithm)
     results = []
+
+    # reset thread-local DSL state for this run
+    Thread.current[:dsl_array] = []
+    Thread.current[:dsl_url]   = @url
+    Thread.current[:dsl_json]  = nil
+
+    @dsl_binding = binding
+
     steps = algorithm.split(';')
 
     steps.each_with_index do |raw, idx|
-      prefix, code = raw.partition('=').values_at(0,2)
-      step_index = idx + 1
+      prefix, code = raw.partition('=').values_at(0, 2)
+      step_index  = idx + 1
 
-      input_copy = Marshal.load(Marshal.dump(results))
-      url_before = @url
+      input_copy  = Marshal.load(Marshal.dump(results))
+      url_before  = @url
+      start_time  = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-      start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       out = execute(prefix, code, results)
-      end_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-      url_after = @url
+      end_time    = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       duration_ms = ((end_time - start_time) * 1000).round(1)
-      output = Array(out)
+
+      url_after   = @url
+      output      = Array(out)
 
       @tracer.step(
         step: step_index,
@@ -88,6 +100,7 @@ class DslAlgorithmRunner
       @graph ||= RDF::Graph.load(use_wringer(@url, @render_js, @scrape_opts))
       sparql = "PREFIX schema: <http://schema.org/> select * where " + code
       rows = SPARQL.execute(sparql, @graph)
+
       if rows.count == 1
         [rows.first.answer.value]
       else
@@ -95,55 +108,48 @@ class DslAlgorithmRunner
       end
 
     when 'url'
-      new_url = eval(sub(code, arr))
+      new_url = @dsl_binding.eval(sub(code, arr))
       @url = new_url
-      # @html = safe_wringer_call { @agent.get_file(use_wringer(@url, @render_js, @scrape_opts)) }
-      # @page = Nokogiri::HTML(@html, nil, Encoding::UTF_8.to_s)
+
       raw = safe_wringer_call { @agent.get_file(use_wringer(@url, @render_js, @scrape_opts)) }
-      if raw.is_a?(Array) && raw.first == "abort_update"
-        return raw        # short-circuit abort
-      end
+      return raw if abort_structure?(raw)
 
       @html = raw
       @page = Nokogiri::HTML(@html, nil, Encoding::UTF_8.to_s)
       arr
 
     when 'renderjs_url'
-      new_url = eval(sub(code, arr))
+      new_url = @dsl_binding.eval(sub(code, arr))
       @url = new_url
-      # @html = safe_wringer_call { @agent.get_file(use_wringer(@url, true, @scrape_opts)) }
-      # @page = Nokogiri::HTML(@html, nil, Encoding::UTF_8.to_s)
-      raw = safe_wringer_call { @agent.get_file(use_wringer(@url, @render_js, @scrape_opts)) }
-      if raw.is_a?(Array) && raw.first == "abort_update"
-        return raw        # short-circuit abort
-      end
+
+      raw = safe_wringer_call { @agent.get_file(use_wringer(@url, true, @scrape_opts)) }
+      return raw if abort_structure?(raw)
 
       @html = raw
       @page = Nokogiri::HTML(@html, nil, Encoding::UTF_8.to_s)
       arr
 
     when 'json_url'
-      new_url = eval(sub(code, arr))
+      new_url = @dsl_binding.eval(sub(code, arr))
       @url = new_url
-      # @html = safe_wringer_call { @agent.get_file(use_wringer(@url, @render_js, @scrape_opts)) }
+
       raw = safe_wringer_call { @agent.get_file(use_wringer(@url, @render_js, @scrape_opts)) }
-      if raw.is_a?(Array) && raw.first == "abort_update"
-        return raw        # short-circuit abort
-      end
-      
+      return raw if abort_structure?(raw)
+
       @html = raw
       Struct.new(:text).new(@html)
 
     when 'post_url'
-      new_url = eval(sub(code, arr))
+      new_url = @dsl_binding.eval(sub(code, arr))
       @url = new_url
+
       temp_opts = @scrape_opts.merge(json_post: true).merge(force_scrape_every_hrs: 1)
       data = @agent.get_file(use_wringer(@url, @render_js, temp_opts))
       @page = Nokogiri::HTML(data, nil, Encoding::UTF_8.to_s)
       arr
 
     when 'api'
-      new_url = eval(sub(code, arr))
+      new_url = @dsl_binding.eval(sub(code, arr))
       data = HTTParty.get(new_url)
       raise "API error #{data.code}" unless data.code.to_s.start_with?('2')
 
@@ -182,44 +188,62 @@ class DslAlgorithmRunner
     when 'json'
       ensure_page!
       @json ||= JSON.parse(@page.text)
-      eval(code.gsub('$json', '@json'))
+      Thread.current[:dsl_json] = @json
+
+      @dsl_binding.eval(sub(code, arr))
 
     when 'time_zone'
       ["time_zone: #{code}"]
 
     when 'ruby'
-      eval(sub(code, arr))
+      # update thread-locals before eval
+      Thread.current[:dsl_array] = arr
+      Thread.current[:dsl_url]   = @url
+      Thread.current[:dsl_json]  = @json
+
+      result = @dsl_binding.eval(sub(code, arr))
+
+      # sync back DSL state
+      updated_arr = Thread.current[:dsl_array]
+      @url  = Thread.current[:dsl_url]
+      @json = Thread.current[:dsl_json]
+
+      updated_arr || result
 
     else
       raise "Missing DSL prefix: #{prefix}=#{code}"
     end
   end
 
-  def sub(code, arr)
-    code.to_s.gsub('$array','arr').gsub('$url','@url').gsub('$json','@json')
+  # Rewrite DSL references into thread-locals
+  def sub(code, _)
+    code.to_s
+        .gsub('$array', 'Thread.current[:dsl_array]')
+        .gsub('$url',   'Thread.current[:dsl_url]')
+        .gsub('$json',  'Thread.current[:dsl_json]')
   end
 
-  # def ensure_page!
-  #   return if @page
-
-  #   @html ||= safe_wringer_call { @agent.get_file(use_wringer(@url, @render_js, @scrape_opts)) }
-  #   @page ||= Nokogiri::HTML(@html, nil, Encoding::UTF_8.to_s)
-  # end
-  # 
   def ensure_page!
     return if @page
 
     raw = safe_wringer_call { @agent.get_file(use_wringer(@url, @render_js, @scrape_opts)) }
-    if raw.is_a?(Array) && raw.first == "abort_update"
-      # propagate abort up to runner
-      raise StandardError, raw.last[:error] 
+    if abort_structure?(raw)
+      raise StandardError, raw.last[:error]
     end
 
     @html = raw
     @page = Nokogiri::HTML(@html, nil, Encoding::UTF_8.to_s)
   end
 
-  def use_wringer(u,rj,opt) = ApplicationController.helpers.use_wringer(u, rj, opt)
-  def safe_wringer_call(&blk) = ApplicationController.helpers.safe_wringer_call(&blk)
-  def sanitize(*args) = ApplicationController.helpers.sanitize(*args)
+  def use_wringer(u, rj, opt)
+    ApplicationController.helpers.use_wringer(u, rj, opt)
+  end
+
+  def safe_wringer_call(&blk)
+    ApplicationController.helpers.safe_wringer_call(&blk)
+  end
+
+  def sanitize(*args)
+    ApplicationController.helpers.sanitize(*args)
+  end
 end
