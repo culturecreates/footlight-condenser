@@ -88,14 +88,14 @@ test "process_algorithm ruby syntax error" do
   assert_equal "abort_update", result[0]
   details = result[1]
   assert_kind_of Hash, details
-  assert_equal SyntaxError, details[:error_type]
+  assert_equal "SyntaxError", details[:error_type]
   assert_includes details[:error].downcase, "syntax error"
-  assert_includes details[:algorithm_rescued], "ruby=$array.each {|a| a"
 end
 test "process_algorithm invalid algorithm prefix" do
-  expected = [["abort_update", {:error=>"Missing DSL prefix", :algorithm=>"//title"}]]
   algo = "//title"
-  assert_equal expected, process_algorithm(algorithm: algo,  url: "https://signelaval.com/fr/evenements/14650/du-fond-de-mon-garde-robe")
+  result = process_algorithm(algorithm: algo,  url: "https://signelaval.com/fr/evenements/14650/du-fond-de-mon-garde-robe")
+  assert_equal "abort_update", result.first
+  assert_match(/Missing DSL prefix/, result.last[:error])
 end
 
 

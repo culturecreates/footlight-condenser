@@ -15,7 +15,7 @@ module StatementsHelper
       tracer: collector
     }
     result = Dsl::DslAlgorithmRunner.new(ctx).run(algorithm)
-    [result, collector.to_h[:events]]
+    [result, collector.to_h]
   end
 
   def trace_truncated_tooltip(str, length: nil, tooltip_length: nil)
@@ -109,7 +109,7 @@ module StatementsHelper
     end
 
     # Detect trace mode via cookie
-    trace_enabled = cookies[:dsl_trace] == "true"
+    trace_enabled = trace_enabled_for_request?
 
     if trace_enabled
       data, @dsl_trace = run_dsl(
@@ -121,7 +121,7 @@ module StatementsHelper
         trace: true
       )
     else
-      data, = run_dsl(
+      data = run_dsl(
         algorithm: stat.source.algorithm_value,
         render_js: stat.source.render_js,
         language: stat.source.language,
@@ -158,6 +158,14 @@ module StatementsHelper
       stat.cache_refreshed = Time.zone.now
       stat.save
     end
+  end
+
+  def trace_enabled_for_request?
+    return false unless respond_to?(:cookies)
+
+    cookies[:dsl_trace] == "true"
+  rescue StandardError
+    false
   end
 
 
@@ -871,4 +879,3 @@ module StatementsHelper
 end
 
 # app/helpers/statements_helper.rb (minimal example)
-

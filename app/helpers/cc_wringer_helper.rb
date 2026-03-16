@@ -6,7 +6,8 @@ require "uri"
 # Key design choices in this module:
 # - `use_wringer` *builds* a wringer URL for later use (e.g., by a scraper / pipeline), and does NOT make a network request.
 # - `wringer_received_404?` *does* call Wringer to determine whether Wringer stored a 404.
-# - `safe_wringer_call` is a small guard wrapper that turns network errors into a structured `{ abort_update: true, error: "..." }` response so callers can short-circuit gracefully.
+# - `safe_wringer_call` is a small guard wrapper that turns network errors into
+#   `["abort_update", { error: "...", error_type: "..." }]` so callers can short-circuit gracefully.
 module CcWringerHelper
   # Build a Wringer "wring" URL for a given target URL.
   #
@@ -82,15 +83,15 @@ module CcWringerHelper
   # Purpose:
   # - Prevent transient Wringer failures from crashing the calling controller/job.
   # - Provide a consistent return shape on failure:
-  #   `{ abort_update: true, error: "..." }`
+  #   `["abort_update", { error: "...", error_type: "..." }]`
   #
   # Usage:
   #   result = safe_wringer_call { HTTParty.get(...) }
-  #   return result if result[:abort_update]
+  #   return result if result.is_a?(Array) && result.first == "abort_update"
   #
   # Returns:
   # - On success: returns the block value.
-  # - On failure: returns Hash with abort info.
+  # - On failure: returns a two-element Array with abort info.
   #
   # Catches:
   # - Connection refused, DNS errors, open/read timeouts
@@ -162,7 +163,7 @@ module CcWringerHelper
     end
 
     # If Wringer was unreachable / errored, treat as "unknown" -> false.
-    return false if result.is_a?(Hash) && result[:abort_update]
+    return false if result.is_a?(Array) && result.first == "abort_update"
     
     !!result                                                         # Return true if we found a 404 for the URL. Otherwise, false.
   end

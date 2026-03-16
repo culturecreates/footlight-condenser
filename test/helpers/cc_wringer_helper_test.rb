@@ -24,6 +24,11 @@ class CcWringerHelperTest < ActionView::TestCase
     assert_equal expected_output, use_wringer("http://culturecreates.com", false, { json_post: true })
   end
 
+  test "wringer_received_404 returns false when wringer call aborts" do
+    self.stubs(:safe_wringer_call).returns(["abort_update", { error: "Wringer unreachable", error_type: "SocketError" }])
+    assert_equal false, wringer_received_404?("https://example.com")
+  end
+
 
   # test "should call wringer to condense and add webpage to knowledge graph" do
   #   expected_output = ""

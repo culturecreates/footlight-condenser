@@ -49,6 +49,32 @@ class StatementsHelperRefreshTest < ActionView::TestCase
     refresh_statement_helper(stat)
     assert_not_equal expected, stat.cache_refreshed, "Cache refresh dates should have changed"
   end
+
+  test "refresh_statement_helper preserves full non-trace run_dsl result" do
+    stat = statements(:one)
+    run_result = %w[first second]
+
+    self.stubs(:trace_enabled_for_request?).returns(false)
+    self.expects(:run_dsl).returns(run_result)
+    self.expects(:format_datatype).with(run_result, stat.source.property, stat.webpage).returns("formatted")
+    self.stubs(:save_record?).returns(true)
+
+    refresh_statement_helper(stat)
+
+    assert_equal "formatted", stat.reload.cache
+  end
+
+  test "refresh_statement_helper adds error when run_dsl aborts" do
+    stat = statements(:one)
+
+    self.stubs(:trace_enabled_for_request?).returns(false)
+    self.stubs(:run_dsl).returns(["abort_update", { error_type: "SocketError", error: "Wringer unreachable" }])
+
+    refresh_statement_helper(stat)
+
+    assert stat.errors.any?
+    assert_includes stat.errors.full_messages.to_sentence, "Scrape aborted (SocketError)"
+  end
   
  # 'abort_update' in cache
 
