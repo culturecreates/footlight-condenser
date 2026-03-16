@@ -36,6 +36,12 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "show does not execute trace rendering even when dsl_trace cookie is set" do
+    get statement_url(@statement), headers: { "Cookie" => "dsl_trace=true" }
+    assert_response :success
+    assert_no_match(/Algorithm Trace/, response.body)
+  end
+
   test "should get edit" do
     get edit_statement_url(@statement)
     assert_response :success

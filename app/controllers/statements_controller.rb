@@ -77,21 +77,9 @@ class StatementsController < ApplicationController
   # GET /statements/1
   # GET /statements/1.json
   def show
-    @statement = Statement.find(params[:id])
-
-    if cookies[:dsl_trace] == "true"
-      @result, @trace = helpers.run_dsl(
-        algorithm: @statement.source.algorithm_value,
-        render_js: @statement.source.render_js,
-        language: @statement.webpage.language,
-        url: @statement.webpage.url,
-        scrape_options: {},
-        trace: true
-      )
-    else
-      @trace = nil
-      @result = nil
-    end
+    # Do not execute live DSL from public show endpoint.
+    @trace = nil
+    @result = nil
   end
 
 
@@ -326,39 +314,11 @@ class StatementsController < ApplicationController
   #   scrape_options = {} to pass to Footlight-wringer scrapping service
   #
   def refresh_webpage_statements(webpage, default_language = "en", scrape_options={})
-    error_list = []
-    languages = [webpage.language]
-    # if webpage is default_language then add sources with no language to list of languages [webpage.language,'']
-    if webpage.language == default_language
-      languages << ''
-    end
-    #get the properties for the rdfs_class of the webpage recursively
-    property_ids = extract_property_ids(webpage.rdfs_class.name, [])
-    property_ids.each do |property_id|
-      
-    
-      #get the source for each modelled property
-      sources = Source.where(website_id: webpage.website, language: languages, property_id: property_id)
-      sources.each do |src|
-        ##next if src.blank? # TODO: check why needed?
-        
-        statements = Statement.where(webpage_id: webpage.id, source_id: src.id)
-        if statements.blank? # create a new statement
-          source_is_manual = src.algorithm_value.start_with?("manual=") ? true : false
-          stat = statements.new(manual: source_is_manual, selected_individual: src.selected, status: 'initial', status_origin: 'condenser_create')
-        else
-          stat = statements.first
-          next if stat.manual && ['ok','updated'].include?(stat.status)
-
-        end
-        helpers.refresh_statement_helper(stat, scrape_options)
-        if src.auto_review && stat.status == 'initial'
-          stat.update(status: 'updated')
-        end
-        error_list << {"Property id #{property_id}" => stat.errors.messages} if stat.errors.any?
-      end
-    end
-    return error_list
+    Statements::RefreshWebpageStatementsService.new(refresh_helper: helpers).call(
+      webpage: webpage,
+      default_language: default_language,
+      scrape_options: scrape_options
+    )
   end
 
 
