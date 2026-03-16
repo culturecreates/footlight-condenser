@@ -49,6 +49,7 @@ class StatementsController < ApplicationController
     end
   end
 
+
   # PATCH /statements/1/refresh
   # PATCH /statements/1/refresh.json
   def refresh
@@ -76,7 +77,23 @@ class StatementsController < ApplicationController
   # GET /statements/1
   # GET /statements/1.json
   def show
+    @statement = Statement.find(params[:id])
+
+    if cookies[:dsl_trace] == "true"
+      @result, @trace = helpers.run_dsl(
+        algorithm: @statement.source.algorithm_value,
+        render_js: @statement.source.render_js,
+        language: @statement.webpage.language,
+        url: @statement.webpage.url,
+        scrape_options: {},
+        trace: true
+      )
+    else
+      @trace = nil
+      @result = nil
+    end
   end
+
 
   # GET /statements/search_name.json?str=expected_class=
   def search_name

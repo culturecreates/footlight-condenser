@@ -20,9 +20,6 @@ Rails.application.routes.draw do
       delete 'delete_all_event_webpages' # Internal Webpages Only
     end
   end
-  
-    # Demo trace
-  get 'trace_demo', to: 'statements#trace_demo'
 
   get 'websites/:seedurl/resources',
       to: "resources#index",
@@ -102,6 +99,14 @@ Rails.application.routes.draw do
   # options
   get 'options', to: 'options#index', as: :options
   get 'options/wringer/:target', to: 'options#wringer', as: :set_wringer
+  get 'options/set_dsl_trace/:state', to: 'options#set_dsl_trace', as: :set_dsl_trace_options
+
+  post   'options', to: 'options#update'
+  patch  'options', to: 'options#update'
+
+  # Dashboard metrics
+  get "/dashboard_metrics", to: "dashboard_metrics#index"
+  get "/dashboard_metrics/broken", to: "dashboard_metrics#broken"
 
   ##
   # Admin section only used for admin webpages

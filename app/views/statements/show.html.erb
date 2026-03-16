@@ -124,3 +124,5 @@ Manual update:
 <%= button_to 'Refresh', refresh_statement_path(@statement), method: :patch, form_class: 'inline', class: 'as-link' %> |
 <%= link_to 'Edit', edit_statement_path(@statement) %> |
 <%= link_to 'Back', statements_path %>
+
+<%= render partial: "trace_table", locals: { trace: @trace, result: @result } if @trace.present? %>

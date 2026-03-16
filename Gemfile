@@ -51,6 +51,11 @@ group :development do
   gem 'derailed_benchmarks'
 end
 
+group :staging do
+  gem "get_process_mem"
+  gem "memory_profiler"
+end
+
 group :test do
   gem 'rails-controller-testing'
   gem 'simplecov', require: false

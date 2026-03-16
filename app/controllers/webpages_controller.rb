@@ -6,15 +6,14 @@ class WebpagesController < ApplicationController
   # GET /webpages.json
   def index
     params[:page] ||= 1
-    if params[:seedurl]
-      website_id = Website.where(seedurl: params[:seedurl]).first.id
-    else
-      if cookies[:seedurl]
-        website_id =  Website.where(seedurl: cookies[:seedurl]).first.id
-      end
-    end
-    if !website_id.nil?
-      @webpages = Webpage.where(website_id: website_id).order(:archive_date)
+
+    seedurl = params[:seedurl] || cookies[:seedurl]
+    website = Website.find_by(seedurl: seedurl)
+
+    cookies[:seedurl] = seedurl if seedurl
+
+    if website
+      @webpages = website.webpages.order(:archive_date)
     else
       @webpages = Webpage.all
     end

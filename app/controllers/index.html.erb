@@ -14,7 +14,7 @@
  <p> Showing statements for website <%= params[:seedurl] %> | <%= link_to "Console", "#{get_console_url_per_environment}/events?seedurl=#{params[:seedurl]}" %>
       </p>
 <% end %>
-<% show_seedurl_col = params[:seedurl].blank? || params[:seedurl] == "all" %>
+
 <br>
 <%= will_paginate @statements %>
 <br>
@@ -29,7 +29,7 @@ rdf_uri:  <%= text_field_tag "rdf_uri", params[:rdf_uri], size: 60 %>
   <thead>
     <tr>
       <th>Id</th>
-      <% if show_seedurl_col %><th>Website<br></th><% end %>
+      <th>Website<br></th>  
       <th>Property<br> <%= text_field_tag "prop", params[:prop], size: 6 %></th>
       <th>Source<br> <%= text_field_tag "source", params[:source], size: 6 %></th>
       <th>Cache<br><%= text_field_tag "cache", params[:cache], size: 50 %></th>
@@ -50,14 +50,14 @@ Update:
  <%= submit_tag "Update" %>
 <br>
  <%= submit_tag "Review all listed" %>
-<%= submit_tag "Refresh all listed" %>
+<%= submit_tag "confirm" %>
 <% end -%>
 
   <tbody>
     <% @statements.each do |statement| %>
       <tr  <%= "style=color:red;" if !statement.source.selected %> >
         <td><%= statement.id %></td>
-        <% if show_seedurl_col %><td><%= statement.webpage.website.seedurl %> </td><% end %>
+        <td><%= statement.webpage.website.seedurl %> </td>
         <td><%= statement.source.property.label %>(<%= statement.source.property.id %>) <%= format_language statement.source.language %></td>
         <td><%= statement.source.id %></td>
         <td><%= statement.cache %></td>

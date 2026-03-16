@@ -1,124 +1,66 @@
 <h2>Algorithm Trace</h2>
 
-
-
-<style>
-  .code-cell .tooltip {
-    position: relative;
-    cursor: pointer;
-    display: inline-block;
-  }
-
-  .code-cell .tooltip[data-tooltip]:hover:after {
-    content: attr(data-tooltip);
-    position: absolute;
-    left: 0;
-    top: 120%;
-    background: #222;
-    color: #fff;
-    padding: 8px 12px;
-    border-radius: 5px;
-    white-space: pre-line;
-    font-family: monospace;
-    font-size: 0.95em;
-    z-index: 1000;
-    min-width: 240px;
-    max-width: 550px;
-    box-shadow: 0 2px 16px rgba(0,0,0,0.18);
-  }
-
-  .trace-tooltip[data-tooltip]:hover:after {
-    content: attr(data-tooltip);
-    white-space: pre-wrap;           /* Wrap lines but preserve whitespace and line breaks */
-    font-family: monospace;
-    background: rgba(30,30,30,0.96); /* Opaque background for legibility */
-    color: #fff;
-    padding: 12px 18px;
-    border-radius: 8px;
-    position: absolute;
-    left: 0; top: 120%;
-    z-index: 9999;
-    min-width: 240px;
-    max-width: 650px;                /* Prevent it from being too wide */
-    max-height: 400px;
-    overflow: auto;                  /* Scroll if content is massive */
-    box-shadow: 0 6px 32px rgba(0,0,0,0.38);
-    word-break: break-word;          /* Wrap long unbroken strings */
-    border: 1px solid #333;
-    display: block;
-  }
-  .trace-tooltip {
-    position: relative;
-    cursor: pointer;
-  }
-
-  .trace-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 1em 0;
-    font-size: 1rem;
-    background: #222;
-    color: #eee;
-  }
-  .trace-table th, .trace-table td {
-    border: 1px solid #444;
-    padding: 0.5em 1em;
-    text-align: left;
-  }
-  .trace-table th {
-    background: #333;
-    color: #ffdf91;
-    font-weight: bold;
-  }
-  .trace-table tr:nth-child(even) {
-    background: #292929;
-  }
-  .trace-table .step {
-    font-weight: bold;
-    color: #7ed957;
-  }
-  .trace-table .final {
-    background: #1e282c;
-    font-weight: bold;
-    color: #56d9ff;
-  }
-  .trace-table code {
-    background: #2e2e36;
-    padding: 0.15em 0.4em;
-    border-radius: 4px;
-    color: #fffbf2;
-    font-size: 0.96em;
-  }
-  .trace-table .error {
-    color: #ff7b7b;
-    font-weight: bold;
-  }
-</style>
-
 <table class="trace-table">
-  <tr>
-    <th>Step</th>
-    <th>Code</th>
-    <th>Input</th>
-    <th>Error</th>
-  </tr>
-  <% @trace.each_with_index do |step, idx| %>
+  <thead>
     <tr>
-      <td><%= step[:step] || idx + 1 %></td>
-      <td><%= trace_truncated_tooltip(step[:code]) %></td>
-      <td><%= trace_truncated_tooltip(step[:input].is_a?(String) ? step[:input] : step[:input].inspect) %></td>
-      <td>
-        <% if step[:error].present? %>
-          <span style="color:red;"><%= h(step[:error]) %></span>
-        <% end %>
-      </td>
+      <th>Step</th>
+      <th>Type</th>
+      <th>Code</th>
+      <th>URL Before</th>
+      <th>URL After</th>
+      <th>Input Preview</th>
+      <th>Output Preview</th>
+      <th>Time (ms)</th>
+      <th>Error</th>
     </tr>
-  <% end %>
-  <!-- Show the final output as the last row -->
-  <tr>
-    <td><strong>Result</strong></td>
-    <td></td>
-    <td><%= trace_truncated_tooltip(@result.is_a?(String) ? @result : @result.inspect) %></td>
-    <td></td>
-  </tr>
+  </thead>
+  <tbody>
+    <% @trace.each do |s| %>
+      <tr>
+        <td class="step"><%= s[:step] %></td>
+        <td><%= s[:type] %></td>
+        <td><%= trace_truncated_tooltip(s[:code], length: 60) %></td>
+
+        <td>
+          <%= trace_truncated_tooltip(s[:url_before].to_s, length: 60) %>
+        </td>
+
+        <td>
+          <%= trace_truncated_tooltip(s[:url_after].to_s, length: 60) %>
+        </td>
+
+        <td>
+          <%# Show a preview of input array %>
+          <% preview_in = Array(s[:input_preview]).join(", ") %>
+          <%= trace_truncated_tooltip(preview_in, length: 60) %>
+        </td>
+
+        <td>
+          <% preview_out = Array(s[:output_preview]).join(", ") %>
+          <%= trace_truncated_tooltip(preview_out, length: 60) %>
+        </td>
+
+        <td><%= s[:duration_ms] %></td>
+
+        <td class="<%= 'error' if s[:error_class].present? %>">
+          <% if s[:error_class].present? %>
+            <%= h("#{s[:error_class]}: #{s[:error_message]}") %>
+          <% end %>
+        </td>
+      </tr>
+    <% end %>
+
+    <%# Final results row if you pass @result from controller %>
+    <% if defined?(@result) %>
+      <tr class="final">
+        <td colspan="7"><strong>Final Result</strong></td>
+        <td colspan="2">
+          <%= trace_truncated_tooltip(
+                @result.is_a?(Array) ? @result.inspect : @result.to_s,
+                length: 120
+              ) %>
+        </td>
+      </tr>
+    <% end %>
+  </tbody>
 </table>

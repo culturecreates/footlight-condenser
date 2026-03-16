@@ -645,12 +645,14 @@ DEPENDENCIES
   capybara (~> 3.40)
   chronic_duration
   derailed_benchmarks
+  get_process_mem
   httparty
   jbuilder (~> 2.11)
   jsbundling-rails
   linkeddata (~> 3.2.0)
   listen (~> 3.7)
   mechanize
+  memory_profiler
   minitest
   mocha
   pg (~> 1.5)

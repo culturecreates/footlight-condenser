@@ -1,0 +1,20 @@
+system_exceptions:
+  queue_it:
+    match:
+      page_name: "Queue-it"
+    policy:
+      action: abort_update
+      retry: false
+      cache: false
+      error_code: system_queue
+
+  cloudflare:
+    match:
+      body_contains:
+        - "Attention Required"
+        - "Cloudflare"
+    policy:
+      action: abort_update
+      retry: false
+      cache: false
+      error_code: system_cloudflare

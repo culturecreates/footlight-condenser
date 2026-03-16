@@ -7,193 +7,159 @@ module StatementsHelper
 
 # :nocov:
   def process_algorithm_with_trace(algorithm:, render_js: false, language: "en", url:, scrape_options: {})
-    trace = []
-    results_list = []
-
-    if algorithm.start_with?('manual=')
-      results_list = [algorithm.delete_prefix('manual=')]
-      trace << {
-        step: 1,
-        type: 'manual',
-        code: algorithm,
-        input: [],
-        output: results_list.dup,
-        error: nil
-      }
-    else
-      agent = Mechanize.new
-      agent.user_agent_alias = 'Mac Safari'
-      html = nil
-      page = nil
-      json_scraped = nil # for evals
-      substitue_vars = lambda { |s| s.gsub('$array', 'results_list').gsub('$url', 'url').gsub('$json', 'json_scraped') }
-      algorithm.split(";").each_with_index do |a, idx|
-        algo_type = a.partition('=').first
-        algo = a.partition('=').last
-        input = Marshal.load(Marshal.dump(results_list)) # deep copy if needed
-        begin
-          output =
-            case algo_type
-            when "sparql"
-              graph ||= RDF::Graph.load(use_wringer(url, render_js, scrape_options)) 
-              sparql = "PREFIX schema: <http://schema.org/> select * where " + algo
-              results = SPARQL.execute(sparql, graph)
-              [*(results.count == 1 ? results.first.answer.value : results.map { |result| result.answer.value })]
-            when "url"
-              new_url = eval(substitue_vars.call(algo))
-              logger.info "*** New URL formed: #{new_url}"
-              html = safe_wringer_call { agent.get_file(use_wringer(new_url, render_js, scrape_options)) }
-              page = Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-              input # usually no output
-            when 'renderjs_url'
-              new_url = eval(substitue_vars.call(algo))
-              logger.info "*** New URL formed: #{new_url}"
-              html = safe_wringer_call { agent.get_file(use_wringer(new_url, true, scrape_options)) }
-              page = Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-              input
-            when 'json_url'
-              new_url = eval(substitue_vars.call(algo))
-              logger.info "*** New URL for JSON call: #{new_url}"
-              html = safe_wringer_call { agent.get_file(use_wringer(new_url, render_js, scrape_options)) }
-              page = Page.new(html)
-              input
-            when 'post_url'
-              new_url = eval(substitue_vars.call(algo))
-              logger.info "*** New POST URL formed: #{new_url}"
-              temp_scrape_options = scrape_options.merge(json_post: true).merge(force_scrape_every_hrs: 1)
-              data = agent.get_file use_wringer(new_url, render_js, temp_scrape_options)
-              page = Nokogiri::HTML(data, nil, Encoding::UTF_8.to_s)
-              input
-            when 'api'
-              new_url = eval(substitue_vars.call(algo))
-              logger.info "*** New json api URL formed: #{new_url}"
-              data = HTTParty.get(new_url)
-              logger.info "*** api response body: #{data.body}"
-              JSON.parse(data.body)
-            when 'ruby'
-              eval(substitue_vars.call(algo))
-            when 'xpath_sanitize'
-              html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-              page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-              page.xpath(algo).map { |d| sanitize(d.to_s, tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href]) }
-            when 'if_xpath'
-              html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-              page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-              page_data = page.xpath(algo)
-              break if page_data.blank?
-              page_data.map(&:text)
-            when 'unless_xpath'
-              html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-              page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-              page_data = page.xpath(algo)
-              break if page_data.present?
-              input
-            when 'xpath'
-              html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-              page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-              page.xpath(algo).map(&:text)
-            when 'css'
-              html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-              page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-              page.css(algo).map(&:text)
-            when 'time_zone'
-              ["time_zone: #{algo}"]
-            when 'json'
-              html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-              page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-              json_scraped = JSON.parse(page.text)
-              eval(algo.gsub('$json', 'json_scraped'))
-            else
-              ['abort_update', { error: "Missing valid prefix", algorithm: a }]
-            end
-
-          results_list = output
-          error = nil
-        rescue SyntaxError => e
-          core_message = e.message.lines.first.chomp
-          trace << {
-            step: idx + 1,
-            type: algo_type,
-            code: algo,
-            input: input,
-            output: [],
-            error: core_message
-          }
-          return [results_list, trace]
-        rescue => e
-          trace << {
-            step: idx + 1,
-            type: algo_type,
-            code: algo,
-            input: input,
-            output: [],
-            error: e.message
-          }
-          return [results_list, trace]
-        end
-
-        trace << {
-          step: idx + 1,
-          type: algo_type,
-          code: algo,
-          input: input,
-          output: results_list.dup,
-          error: nil
-        }
-      end
-    end
-
-    [results_list, trace]
+    collector = Dsl::DslTraceCollector.new
+    ctx = {
+      url: url,
+      render_js: render_js,
+      scrape_options: scrape_options,
+      tracer: collector
+    }
+    result = Dsl::DslAlgorithmRunner.new(ctx).run(algorithm)
+    [result, collector.to_h[:events]]
   end
 
-    # Truncate but always show the full value in a tooltip
-  def trace_truncated_tooltip(str, length: 80)
+  def trace_truncated_tooltip(str, length: nil, tooltip_length: nil)
     safe_str = str.is_a?(String) ? str : str.inspect
-    truncated = safe_str.length > length ? "#{safe_str[0, length]}…" : safe_str
-    content_tag(:span, truncated, class: 'trace-tooltip', data: { tooltip: safe_str })
+
+    # Parse cookie values into integers
+    display_len =
+      if length.present?
+        length.to_i
+      elsif cookies[:trace_code_display_length].present?
+        cookies[:trace_code_display_length].to_i
+      else
+        180
+      end
+
+    tooltip_len =
+      if tooltip_length.present?
+        tooltip_length.to_i
+      elsif cookies[:trace_code_tooltip_length].present?
+        cookies[:trace_code_tooltip_length].to_i
+      end
+
+    # Fallback: if cookie says “0” then nil out
+    tooltip_len = nil if tooltip_len == 0
+
+    # Now safe comparison
+    truncated =
+      if safe_str.length > display_len
+        "#{safe_str[0, display_len]}…"
+      else
+        safe_str
+      end
+
+    # Truncate tooltip text if needed
+    tool_text =
+      if tooltip_len && safe_str.length > tooltip_len
+        "#{safe_str[0, tooltip_len]}…"
+      else
+        safe_str
+      end
+
+    content_tag(
+      :span,
+      truncated,
+      class: "trace-tooltip",
+      data: { tooltip: tool_text }
+    )
   end
 # :nocov:
+ 
+  def truncate_for_flash(x, max: 500)
+    s = x.is_a?(String) ? x : x.inspect
+    s.length > max ? "#{s[0, max]}…(truncated)" : s
+  end
 
-  ##
-  # Refresh a statement
-  #   INPUT
-  #     stat = ActiveRecord Statement 
-  #     scrape_options = {} passesd on to footlight-wringer crawling service in process_algorithm
-  #   OUTPUT
-  #     Persists statement in database or sets errors. 
-  #     Check stat.errors in calling method.
+  # Refreshes a statement by executing its DSL algorithm.
+  #
+  # @param stat [Statement]  The statement object to refresh.
+  # @param scrape_options [Hash]  Optional scraping options (e.g., { force_scrape_every_hrs: 24 }).
+  #
+  # This method:
+  #  * Prevents refresh of manual statements when they are already marked OK/updated.
+  #  * Detects whether DSL trace is enabled via cookies[:dsl_trace].
+  #  * Calls `run_dsl` with the correct parameters to execute the algorithm.
+  #  * Normalizes trace data when trace is enabled (`@dsl_trace` is set).
+  #  * Handles abort signals (`["abort_update", {...}]`) returned by the DSL.
+  #  * Validates results and populates ActiveModel errors on failure.
+  #  * Formats and saves the new statement cache when appropriate.
+  #
+  # If trace is enabled, `run_dsl` returns [result, trace_array], where each trace
+  # element is a Hash containing:
+  #   :step          — step index
+  #   :type          — DSL prefix (e.g., xpath, ruby)
+  #   :code          — the DSL code executed
+  #   :input_preview — preview of input before the step
+  #   :output_preview— preview of output after the step
+  #   :url_before    — URL before step
+  #   :url_after     — URL after step
+  #   :duration_ms   — step execution time in milliseconds
+  #   :error_class   — class name of error (if any)
+  #   :error_message — error message (if any)
+  #
+  # The trace array is assigned to @dsl_trace for view rendering.
+  #
+  # **Exceptions:** Does not raise; adds errors on the `stat` object instead.
   def refresh_statement_helper(stat, scrape_options = {})
-    if stat.manual && ["ok","updated"].include?(stat.status)
-      stat.errors.add(:base, "No update unless 'initial','problem' or 'missing' state.")
+    # Disallow refresh if manual and already OK/updated
+    if stat.manual && %w[ok updated].include?(stat.status)
+      stat.errors.add(:base, "No update unless status is 'initial', 'problem', or 'missing'.")
       return
     end
 
-    data = process_algorithm(
-      algorithm: stat.source.algorithm_value,
-      render_js: stat.source.render_js,
-      language: stat.source.language,
-      url: stat.webpage.url,
-      scrape_options: scrape_options
-    )
-    data = format_datatype(data, stat.source.property, stat.webpage)
+    # Detect trace mode via cookie
+    trace_enabled = cookies[:dsl_trace] == "true"
 
-    if data&.to_s&.include?('abort_update')
-      # was: stat.errors.add(:scrape, message: data)
-      stat.errors.add(:base, "Scrape error: #{data}")
+    if trace_enabled
+      data, @dsl_trace = run_dsl(
+        algorithm: stat.source.algorithm_value,
+        render_js: stat.source.render_js,
+        language: stat.source.language,
+        url: stat.webpage.url,
+        scrape_options: scrape_options,
+        trace: true
+      )
+    else
+      data, = run_dsl(
+        algorithm: stat.source.algorithm_value,
+        render_js: stat.source.render_js,
+        language: stat.source.language,
+        url: stat.webpage.url,
+        scrape_options: scrape_options,
+        trace: false
+      )
     end
 
-    if data.blank? && !stat.new_record? && !stat.cache&.include?('abort_update')
-      # was: stat.errors.add(:blank_detected, message: "Not updated with blank.")
-      stat.errors.add(:base, "Not updated with blank.")
+    # Check for abort_update signal
+    if data.is_a?(Array) && data.first == "abort_update"
+      info = data.second || {}
+      stat.errors.add(:base, "Scrape aborted (#{info[:error_type]}): #{info[:error]}")
+      return
     end
 
-    if save_record?(data&.to_s, stat.status, stat.cache, stat.new_record?)
-      data = preserve_manual_links(data, stat.cache) if stat.source.property.value_datatype == 'xsd:anyURI'
-      stat.cache = data
+    # Blank result is not valid for existing statements
+    if data.blank? && !stat.new_record?
+      stat.errors.add(:base, "Not updated with blank result.")
+      return
+    end
+
+    # Format the result according to the property's datatype
+    formatted = format_datatype(data, stat.source.property, stat.webpage)
+
+    # Save if appropriate
+    if save_record?(formatted.to_s, stat.status, stat.cache, stat.new_record?)
+      # Preserve manual links for xsd:anyURI
+      if stat.source.property.value_datatype == 'xsd:anyURI'
+        formatted = preserve_manual_links(formatted, stat.cache)
+      end
+
+      stat.cache           = formatted
       stat.cache_refreshed = Time.zone.now
       stat.save
     end
   end
+
 
   ## Core logic of when to update records
   ## but safeguard against blank data and errors
@@ -220,6 +186,71 @@ module StatementsHelper
     end
   end
 
+  def run_dsl(
+    algorithm:,
+    render_js: false,
+    language: "en",
+    url:,
+    scrape_options: {},
+    trace: false,
+    trace_opts: {}
+  )
+    Rails.logger.debug ">>> run_dsl invoked; trace_enabled=#{trace.inspect}"
+    Rails.logger.debug ">>> algorithm: #{algorithm.inspect}"
+    Rails.logger.debug ">>> start url: #{url.inspect}"
+
+    tracer = trace ? Dsl::DslTraceCollector.new(**trace_opts) : Dsl::DslNullTracer.new
+
+    ctx = {
+      url: url,
+      render_js: render_js,
+      scrape_options: scrape_options,
+      tracer: tracer
+    }
+
+    result = Dsl::DslAlgorithmRunner.new(ctx).run(algorithm)
+
+    # If not tracing, just return the result
+    unless trace
+      Rails.logger.debug ">>> run_dsl (no trace) returning: #{result.inspect}"
+      return result
+    end
+
+    # ### TRACE IS ENABLED ###
+    raw_events = tracer.to_h
+    Rails.logger.debug ">>> tracer.to_h returned array: #{raw_events.inspect}"
+
+    normalized_events = []
+
+    if raw_events.is_a?(Array)
+      raw_events.each_with_index do |evt, index|
+        Rails.logger.debug ">>> trace event[#{index}] raw: #{evt.inspect}"
+
+        unless evt.is_a?(Hash)
+          Rails.logger.warn ">>> ⚠ trace event isn’t a Hash — class=#{evt.class}"
+        end
+
+        normalized_events << {
+          step: evt[:step]           || evt["step"],
+          type: evt[:type]           || evt["type"],
+          code: evt[:code]           || evt["code"],
+          input_preview: evt[:input_preview]  || evt["input_preview"]  || [],
+          output_preview: evt[:output_preview] || evt["output_preview"] || [],
+          url_before: (evt[:url_before]     || evt["url_before"]     || "").to_s,
+          url_after: (evt[:url_after]      || evt["url_after"]      || "").to_s,
+          duration_ms: evt[:duration_ms]    || evt["duration_ms"]    || 0,
+          error_class: evt[:error_class]    || evt["error_class"],
+          error_message: evt[:error_message]  || evt["error_message"]
+        }
+      end
+    else
+      Rails.logger.warn ">>> ⚠ tracer.to_h did not return an Array! class=#{raw_events.class}"
+    end
+
+    Rails.logger.debug ">>> normalized_events: #{normalized_events.inspect}"
+
+    [result, normalized_events]
+  end
 
   ##
   # Process alorithm for a statement
@@ -234,122 +265,138 @@ module StatementsHelper
   # OUTPUT
   #   [results] array
   #   Algorithms that generate an error (i.e. ruby syntax) return ["abort_update", {error: e.inspect, results_prior: results_list, algorithm_rescued: a}
-  def process_algorithm(algorithm:, render_js: false, language: "en", url:, scrape_options: {}) #, cache_refreshed:, cache_changed:)
-    if algorithm.start_with?('manual=')
-      results_list = [algorithm.delete_prefix('manual=')]
-    else
-      agent = Mechanize.new
-      agent.user_agent_alias = 'Mac Safari'
-      html = nil
-      page = nil
-      json_scraped = nil # needed for case with ruby using $json in eval with 'json_scraped' scope
-      results_list = []
-      substitue_vars = lambda { |s| s.gsub('$array', 'results_list').gsub('$url', 'url').gsub('$json', 'json_scraped')}
-      algorithm.split(";").each do |a|
-        algo_type = a.partition('=').first
-        algo = a.partition('=').last
-        begin
-          case algo_type 
-          when "sparql"
-            graph ||= RDF::Graph.load(use_wringer(url, render_js, scrape_options)) 
-            sparql = "PREFIX schema: <http://schema.org/> select * where " + algo
-            results = SPARQL.execute(sparql,graph)
+  # def process_algorithm(algorithm:, render_js: false, language: "en", url:, scrape_options: {}) #, cache_refreshed:, cache_changed:)
+  #   if algorithm.start_with?('manual=')
+  #     results_list = [algorithm.delete_prefix('manual=')]
+  #   else
+  #     agent = Mechanize.new
+  #     agent.user_agent_alias = 'Mac Safari'
+  #     html = nil
+  #     page = nil
+  #     json_scraped = nil # needed for case with ruby using $json in eval with 'json_scraped' scope
+  #     results_list = []
+  #     substitue_vars = lambda { |s| s.gsub('$array', 'results_list').gsub('$url', 'url').gsub('$json', 'json_scraped')}
+  #     algorithm.split(";").each do |a|
+  #       algo_type = a.partition('=').first
+  #       algo = a.partition('=').last
+  #       begin
+  #         case algo_type 
+  #         when "sparql"
+  #           graph ||= RDF::Graph.load(use_wringer(url, render_js, scrape_options)) 
+  #           sparql = "PREFIX schema: <http://schema.org/> select * where " + algo
+  #           results = SPARQL.execute(sparql,graph)
 
-            results_list << if results.count == 1
-                            results.first.answer.value
-                          else
-                            results.map {|result| result.answer.value}
-                          end
-            results_list.flatten!
-          when "url"
-            # replace current page by scraping new url
-            # using format url='http://example.com' or ruby like url=$url + '.json'
-            new_url = eval(substitue_vars.call(algo))
-            logger.info "*** New URL formed: #{new_url}"
-            html = safe_wringer_call { agent.get_file(use_wringer(new_url, render_js, scrape_options)) }
-            page = Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-          when 'renderjs_url'
-            # FORCE Render JS -- replace current page by scraping new url with wringer
-            # using format renderjs_url='http://example.com'
-            new_url =  eval(substitue_vars.call(algo))
-            logger.info "*** New URL formed: #{new_url}"
-            html = safe_wringer_call { agent.get_file(use_wringer(new_url, true, scrape_options)) }
-            page = Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-          when 'json_url'
-            new_url =  eval(substitue_vars.call(algo))
-            logger.info "*** New URL for JSON call: #{new_url}"
-            html = safe_wringer_call { agent.get_file(use_wringer(new_url, render_js, scrape_options)) }
-            page = Page.new(html)  # Do not use Nokogiri because it will remove html TODO: move struct down here
-          when 'post_url'
-            # replace current page data by scraping new url with wringer using POST
-            # using format url='http://example.com?param_for_post='
-            new_url =  eval(substitue_vars.call(algo))
-            logger.info "*** New POST URL formed: #{new_url}"
-            temp_scrape_options = scrape_options.merge(json_post: true).merge(force_scrape_every_hrs: 1)
-            data = agent.get_file use_wringer(new_url, render_js, temp_scrape_options)
-            page = Nokogiri::HTML(data, nil, Encoding::UTF_8.to_s)
-          when 'api' # ok
-            # Call API without going through wringer
-            new_url =  eval(substitue_vars.call(algo))
-            logger.info "*** New json api URL formed: #{new_url}"
-            data = HTTParty.get(new_url)
-            logger.info "*** api response body: #{data.body}"
-            results_list = JSON.parse(data.body)
-          when 'ruby' # test
-            # Use ruby to process a var
-            # ruby=$array.map{} or ruby=$json['name']
-            results_list = eval(substitue_vars.call(algo))
-          when 'xpath_sanitize' # ok
-            html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-            page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-            page_data = page.xpath(algo)
-            page_data.each { |d| results_list << sanitize(d.to_s, tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href]) }
-          when 'if_xpath' # continue if xpath resolves
-            html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-            page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-            page_data = page.xpath(algo)
-            break if page_data.blank?
-            page_data.each { |d| results_list << d.text }
-          when 'unless_xpath' # continue unless xpath resolves
-            html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-            page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-            page_data = page.xpath(algo)
-            break if page_data.present?
-          when 'xpath' # test
-            html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-            # TODO: If response type is json then load json, otherwise load html in next line
-            page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-            page_data = page.xpath(algo)
-            page_data.each { |d| results_list << d.text }
-          when 'css' # ok
-            html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-            page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-            page_data = page.css(algo)
-            page_data.each { |d| results_list << d.text }
-          when 'time_zone' # test
-            results_list << "time_zone: #{algo}"
-            logger.info "*** Adding time_zone: #{algo}"
-          when 'json' # ok
-            ## use this pattern in source algorithm --> json=$json['name']
-            html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-            page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-            json_scraped = JSON.parse(page.text)
-            algo.gsub!('$json', 'json_scraped')
-            results_list << eval(algo)
-          else 
-            results_list << ['abort_update',{error: "Missing valid prefix", algorithm: a}]
-          end
-        rescue SyntaxError => e
-          #return ['abort_update', {error: e.message.squish, error_type: e.class, results_prior: results_list, algorithm_rescued: a}]
-          core_message = e.message.lines.first.chomp # Only the first line!
-          return ['abort_update', {error: core_message, error_type: e.class, results_prior: results_list, algorithm_rescued: a}]
-        rescue  => e
-          logger.error(" ****************** Error in scrape: #{e.inspect}")
-          return ['abort_update', {error: e.inspect, error_type: e.class, results_prior: results_list, algorithm_rescued: a}]
-        end
-      end
-    end
-    results_list 
+  #           results_list << if results.count == 1
+  #                           results.first.answer.value
+  #                         else
+  #                           results.map {|result| result.answer.value}
+  #                         end
+  #           results_list.flatten!
+  #         when "url"
+  #           # replace current page by scraping new url
+  #           # using format url='http://example.com' or ruby like url=$url + '.json'
+  #           new_url = eval(substitue_vars.call(algo))
+  #           logger.info "*** New URL formed: #{new_url}"
+  #           html = safe_wringer_call { agent.get_file(use_wringer(new_url, render_js, scrape_options)) }
+  #           page = Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
+  #         when 'renderjs_url'
+  #           # FORCE Render JS -- replace current page by scraping new url with wringer
+  #           # using format renderjs_url='http://example.com'
+  #           new_url =  eval(substitue_vars.call(algo))
+  #           logger.info "*** New URL formed: #{new_url}"
+  #           html = safe_wringer_call { agent.get_file(use_wringer(new_url, true, scrape_options)) }
+  #           page = Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
+  #         when 'json_url'
+  #           new_url =  eval(substitue_vars.call(algo))
+  #           logger.info "*** New URL for JSON call: #{new_url}"
+  #           html = safe_wringer_call { agent.get_file(use_wringer(new_url, render_js, scrape_options)) }
+  #           page = Page.new(html)  # Do not use Nokogiri because it will remove html TODO: move struct down here
+  #         when 'post_url'
+  #           # replace current page data by scraping new url with wringer using POST
+  #           # using format url='http://example.com?param_for_post='
+  #           new_url =  eval(substitue_vars.call(algo))
+  #           logger.info "*** New POST URL formed: #{new_url}"
+  #           temp_scrape_options = scrape_options.merge(json_post: true).merge(force_scrape_every_hrs: 1)
+  #           data = agent.get_file use_wringer(new_url, render_js, temp_scrape_options)
+  #           page = Nokogiri::HTML(data, nil, Encoding::UTF_8.to_s)
+  #         when 'api' # ok
+  #           # Call API without going through wringer
+  #           new_url =  eval(substitue_vars.call(algo))
+  #           logger.info "*** New json api URL formed: #{new_url}"
+  #           data = HTTParty.get(new_url)
+  #           logger.info "*** api response body: #{data.body}"
+  #           results_list = JSON.parse(data.body)
+  #         when 'ruby' # test
+  #           # Use ruby to process a var
+  #           # ruby=$array.map{} or ruby=$json['name']
+  #           results_list = eval(substitue_vars.call(algo))
+  #         when 'xpath_sanitize' # ok
+  #           html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
+  #           page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
+  #           page_data = page.xpath(algo)
+  #           page_data.each { |d| results_list << sanitize(d.to_s, tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href]) }
+  #         when 'if_xpath' # continue if xpath resolves
+  #           html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
+  #           page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
+  #           page_data = page.xpath(algo)
+  #           break if page_data.blank?
+  #           page_data.each { |d| results_list << d.text }
+  #         when 'unless_xpath' # continue unless xpath resolves
+  #           html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
+  #           page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
+  #           page_data = page.xpath(algo)
+  #           break if page_data.present?
+  #         when 'xpath' # test
+  #           html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
+  #           # TODO: If response type is json then load json, otherwise load html in next line
+  #           page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
+  #           page_data = page.xpath(algo)
+  #           page_data.each { |d| results_list << d.text }
+  #         when 'css' # ok
+  #           html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
+  #           page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
+  #           page_data = page.css(algo)
+  #           page_data.each { |d| results_list << d.text }
+  #         when 'time_zone' # test
+  #           results_list << "time_zone: #{algo}"
+  #           logger.info "*** Adding time_zone: #{algo}"
+  #         when 'json' # ok
+  #           ## use this pattern in source algorithm --> json=$json['name']
+  #           html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
+  #           page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
+  #           json_scraped = JSON.parse(page.text)
+  #           algo.gsub!('$json', 'json_scraped')
+  #           results_list << eval(algo)
+  #         else 
+  #           results_list << ['abort_update',{error: "Missing valid prefix", algorithm: a}]
+  #         end
+  #       rescue SyntaxError => e
+  #         #return ['abort_update', {error: e.message.squish, error_type: e.class, results_prior: results_list, algorithm_rescued: a}]
+  #         core_message = e.message.lines.first.chomp # Only the first line!
+  #         return ['abort_update', {error: core_message, error_type: e.class, results_prior: results_list, algorithm_rescued: a}]
+  #       rescue  => e
+  #         logger.error(" ****************** Error in scrape: #{e.inspect}")
+  #         prior_preview = Array(results_list).flatten.map { |v| v.to_s[0,200] }.take(5)
+  #         return ['abort_update', {
+  #           error: core_message,
+  #           error_type: e.class,
+  #           results_prior_preview: prior_preview,
+  #           algorithm_rescued: a.to_s[0, 500]
+  #         }]
+  #       end
+  #     end
+  #   end
+  #   results_list 
+  # end
+  def process_algorithm(algorithm:, render_js: false, language: "en", url:, scrape_options: {})
+    tracer = Dsl::DslNullTracer.new 
+    ctx = {
+      url: url,
+      render_js: render_js,
+      scrape_options: scrape_options,
+      tracer: tracer
+    }
+    Dsl::DslAlgorithmRunner.new(ctx).run(algorithm)
   end
 
 
