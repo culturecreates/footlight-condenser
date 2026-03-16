@@ -1,6 +1,8 @@
 # app/services/dsl/dsl_algorithm_runner.rb
 module Dsl
   class DslAlgorithmRunner
+    HALT = Object.new
+
     StepTrace = Struct.new(
       :step,
       :type,
@@ -36,6 +38,7 @@ module Dsl
 
     def run(algorithm)
       results = []
+      previous_locals = snapshot_thread_locals
 
       # reset thread-local DSL state for this run
       Thread.current[:dsl_array] = []
@@ -81,6 +84,26 @@ module Dsl
           return out
         end
 
+        if halt_structure?(out)
+          end_time    = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          duration_ms = ((end_time - start_time) * 1000).round(1)
+          results     = out.last
+
+          @tracer.step(
+            step: step_index,
+            type: prefix,
+            code: code,
+            input: input_copy,
+            output: Array(results),
+            error: nil,
+            url_before: url_before,
+            url_after: @url,
+            duration_ms: duration_ms
+          )
+
+          break
+        end
+
         end_time    = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         duration_ms = ((end_time - start_time) * 1000).round(1)
 
@@ -100,7 +123,7 @@ module Dsl
         )
 
         results = output
-      rescue StandardError => e
+      rescue StandardError, SyntaxError => e
         end_time    = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         duration_ms = ((end_time - start_time) * 1000).round(1)
 
@@ -119,9 +142,17 @@ module Dsl
       end
 
       results
+    ensure
+      restore_thread_locals(previous_locals)
     end
 
     private
+
+    def halt_structure?(obj)
+      obj.is_a?(Array) &&
+        obj.length == 2 &&
+        obj.first.equal?(HALT)
+    end
 
     def execute(prefix, code, arr)
       case prefix
@@ -183,7 +214,8 @@ module Dsl
         return raw if abort_structure?(raw)
 
         @html = raw
-        Struct.new(:text).new(@html)
+        @page = Struct.new(:text).new(@html)
+        arr
 
       when 'post_url'
         new_url = @dsl_binding.eval(sub(code, arr))
@@ -224,18 +256,14 @@ module Dsl
       when 'if_xpath'
         ensure_page!
         nodes = @page.xpath(code)
-        if nodes.blank?
-          return []
-        end
+        return [HALT, arr] if nodes.blank?
 
         nodes.map(&:text)
 
       when 'unless_xpath'
         ensure_page!
         nodes = @page.xpath(code)
-        if nodes.present?
-          return []
-        end
+        return [HALT, arr] if nodes.present?
 
         arr
 
@@ -267,6 +295,9 @@ module Dsl
         @json = Thread.current[:dsl_json]
 
         updated_arr || result
+
+      when 'manual'
+        [code]
 
       else
         raise "Missing DSL prefix: #{prefix}=#{code}"
@@ -303,6 +334,32 @@ module Dsl
 
     def sanitize(*args)
       ApplicationController.helpers.sanitize(*args)
+    end
+
+    def snapshot_thread_locals
+      {
+        dsl_array: fetch_thread_local(:dsl_array),
+        dsl_url: fetch_thread_local(:dsl_url),
+        dsl_json: fetch_thread_local(:dsl_json)
+      }
+    end
+
+    def fetch_thread_local(key)
+      Thread.current.key?(key) ? Thread.current[key] : :__dsl_missing
+    end
+
+    def restore_thread_locals(previous)
+      restore_thread_local(:dsl_array, previous[:dsl_array])
+      restore_thread_local(:dsl_url, previous[:dsl_url])
+      restore_thread_local(:dsl_json, previous[:dsl_json])
+    end
+
+    def restore_thread_local(key, value)
+      if value == :__dsl_missing
+        Thread.current.key?(key) ? Thread.current.delete(key) : nil
+      else
+        Thread.current[key] = value
+      end
     end
   end
 end

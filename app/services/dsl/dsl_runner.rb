@@ -7,11 +7,12 @@ module Dsl
       collector = trace ? Dsl::DslTraceCollector.new(**trace_opts) : Dsl::DslNullTracer.new
 
       # 📌 Build base context
-      ctx = Dsl::DslContext.new(
+      ctx = {
         url: url,
-        array: [],
+        render_js: false,
+        scrape_options: {},
         tracer: collector
-      )
+      }
 
       # 🛠 Run the internal runner
       result = new(ctx: ctx).run(algorithm)

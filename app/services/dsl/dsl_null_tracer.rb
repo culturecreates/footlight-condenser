@@ -2,6 +2,6 @@
 module Dsl
   class DslNullTracer
     def step(**); end
-    def to_h = {}
+    def to_h = []
   end
 end
