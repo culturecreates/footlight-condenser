@@ -10,10 +10,12 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2024_10_28_141852) do
+ActiveRecord::Schema[8.0].define(version: 2026_03_07_214222) do
+  create_schema "heroku_ext"
+
   # These are extensions that must be enabled in order to support this database
+  enable_extension "heroku_ext.pg_stat_statements"
   enable_extension "pg_catalog.plpgsql"
-  enable_extension "pg_stat_statements"
 
   create_table "jsonld_outputs", force: :cascade do |t|
     t.string "name"
@@ -115,6 +117,7 @@ ActiveRecord::Schema[8.0].define(version: 2024_10_28_141852) do
     t.integer "schedule_every_days"
     t.datetime "last_refresh", precision: nil
     t.time "schedule_time"
+    t.boolean "monitorable"
   end
 
   add_foreign_key "properties", "rdfs_classes"

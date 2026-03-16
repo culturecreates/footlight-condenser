@@ -93,7 +93,7 @@ test "process_algorithm ruby syntax error" do
   assert_includes details[:algorithm_rescued], "ruby=$array.each {|a| a"
 end
 test "process_algorithm invalid algorithm prefix" do
-  expected = [["abort_update", {:error=>"Missing valid prefix", :algorithm=>"//title"}]]
+  expected = [["abort_update", {:error=>"Missing DSL prefix", :algorithm=>"//title"}]]
   algo = "//title"
   assert_equal expected, process_algorithm(algorithm: algo,  url: "https://signelaval.com/fr/evenements/14650/du-fond-de-mon-garde-robe")
 end

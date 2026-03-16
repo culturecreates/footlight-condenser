@@ -21,7 +21,7 @@ class SourcesController < ApplicationController
         @website_id = nil
       else
         @sources = Source.where(website_id: website.id)
-                        .order(selected: :desc, property_id: :asc, language: :asc)
+                         .order(selected: :desc, property_id: :asc, language: :asc)
         @website_id = website.id
         cookies[:seedurl] = seedurl # store valid seedurl in cookie
       end

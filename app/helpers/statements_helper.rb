@@ -7,161 +7,17 @@ module StatementsHelper
 
 # :nocov:
   def process_algorithm_with_trace(algorithm:, render_js: false, language: "en", url:, scrape_options: {})
-    collector = DslTraceCollector.new
+    collector = Dsl::DslTraceCollector.new
     ctx = {
       url: url,
       render_js: render_js,
       scrape_options: scrape_options,
       tracer: collector
     }
-    result = DslAlgorithmRunner.new(ctx).run(algorithm)
+    result = Dsl::DslAlgorithmRunner.new(ctx).run(algorithm)
     [result, collector.to_h[:events]]
   end
 
-  # def process_algorithm_with_trace(algorithm:, render_js: false, language: "en", url:, scrape_options: {})
-  #   trace = []
-  #   results_list = []
-
-  #   if algorithm.start_with?('manual=')
-  #     results_list = [algorithm.delete_prefix('manual=')]
-  #     trace << {
-  #       step: 1,
-  #       type: 'manual',
-  #       code: algorithm,
-  #       input: [],
-  #       output: results_list.dup,
-  #       error: nil
-  #     }
-  #   else
-  #     agent = Mechanize.new
-  #     agent.user_agent_alias = 'Mac Safari'
-  #     html = nil
-  #     page = nil
-  #     json_scraped = nil # for evals
-  #     substitue_vars = lambda { |s| s.gsub('$array', 'results_list').gsub('$url', 'url').gsub('$json', 'json_scraped') }
-  #     algorithm.split(";").each_with_index do |a, idx|
-  #       algo_type = a.partition('=').first
-  #       algo = a.partition('=').last
-  #       input = Marshal.load(Marshal.dump(results_list)) # deep copy if needed
-  #       begin
-  #         output =
-  #           case algo_type
-  #           when "sparql"
-  #             graph ||= RDF::Graph.load(use_wringer(url, render_js, scrape_options)) 
-  #             sparql = "PREFIX schema: <http://schema.org/> select * where " + algo
-  #             results = SPARQL.execute(sparql, graph)
-  #             [*(results.count == 1 ? results.first.answer.value : results.map { |result| result.answer.value })]
-  #           when "url"
-  #             new_url = eval(substitue_vars.call(algo))
-  #             logger.info "*** New URL formed: #{new_url}"
-  #             html = safe_wringer_call { agent.get_file(use_wringer(new_url, render_js, scrape_options)) }
-  #             page = Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-  #             input # usually no output
-  #           when 'renderjs_url'
-  #             new_url = eval(substitue_vars.call(algo))
-  #             logger.info "*** New URL formed: #{new_url}"
-  #             html = safe_wringer_call { agent.get_file(use_wringer(new_url, true, scrape_options)) }
-  #             page = Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-  #             input
-  #           when 'json_url'
-  #             new_url = eval(substitue_vars.call(algo))
-  #             logger.info "*** New URL for JSON call: #{new_url}"
-  #             html = safe_wringer_call { agent.get_file(use_wringer(new_url, render_js, scrape_options)) }
-  #             page = Page.new(html)
-  #             input
-  #           when 'post_url'
-  #             new_url = eval(substitue_vars.call(algo))
-  #             logger.info "*** New POST URL formed: #{new_url}"
-  #             temp_scrape_options = scrape_options.merge(json_post: true).merge(force_scrape_every_hrs: 1)
-  #             data = agent.get_file use_wringer(new_url, render_js, temp_scrape_options)
-  #             page = Nokogiri::HTML(data, nil, Encoding::UTF_8.to_s)
-  #             input
-  #           when 'api'
-  #             new_url = eval(substitue_vars.call(algo))
-  #             logger.info "*** New json api URL formed: #{new_url}"
-  #             data = HTTParty.get(new_url)
-  #             logger.info "*** api response body: #{data.body}"
-  #             JSON.parse(data.body)
-  #           when 'ruby'
-  #             eval(substitue_vars.call(algo))
-  #           when 'xpath_sanitize'
-  #             html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-  #             page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-  #             page.xpath(algo).map { |d| sanitize(d.to_s, tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br], attributes: %w[href]) }
-  #           when 'if_xpath'
-  #             html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-  #             page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-  #             page_data = page.xpath(algo)
-  #             break if page_data.blank?
-  #             page_data.map(&:text)
-  #           when 'unless_xpath'
-  #             html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-  #             page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-  #             page_data = page.xpath(algo)
-  #             break if page_data.present?
-  #             input
-  #           when 'xpath'
-  #             html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-  #             page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-  #             page.xpath(algo).map(&:text)
-  #           when 'css'
-  #             html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-  #             page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-  #             page.css(algo).map(&:text)
-  #           when 'time_zone'
-  #             ["time_zone: #{algo}"]
-  #           when 'json'
-  #             html ||= safe_wringer_call { agent.get_file(use_wringer(url, render_js, scrape_options)) }
-  #             page ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s)
-  #             json_scraped = JSON.parse(page.text)
-  #             eval(algo.gsub('$json', 'json_scraped'))
-  #           else
-  #             ['abort_update', { error: "Missing valid prefix", algorithm: a }]
-  #           end
-
-  #         results_list = output
-  #         error = nil
-  #       rescue SyntaxError => e
-  #         core_message = e.message.lines.first.chomp
-  #         trace << {
-  #           step: idx + 1,
-  #           type: algo_type,
-  #           code: algo,
-  #           input: input,
-  #           output: [],
-  #           error: core_message
-  #         }
-  #         return [results_list, trace]
-  #       rescue => e
-  #         trace << {
-  #           step: idx + 1,
-  #           type: algo_type,
-  #           code: algo,
-  #           input: input,
-  #           output: [],
-  #           error: e.message
-  #         }
-  #         return [results_list, trace]
-  #       end
-
-  #       trace << {
-  #         step: idx + 1,
-  #         type: algo_type,
-  #         code: algo,
-  #         input: input,
-  #         output: results_list.dup,
-  #         error: nil
-  #       }
-  #     end
-  #   end
-
-  #   [results_list, trace]
-  # end
-
-# Truncate but always show full value in a tooltip
-# @param str [String] the string to display
-# @param length [Integer] max displayed length
-# @param tooltip_length [Integer] how much to include in the tooltip (optional override)
   def trace_truncated_tooltip(str, length: nil, tooltip_length: nil)
     safe_str = str.is_a?(String) ? str : str.inspect
 
@@ -343,7 +199,7 @@ module StatementsHelper
     Rails.logger.debug ">>> algorithm: #{algorithm.inspect}"
     Rails.logger.debug ">>> start url: #{url.inspect}"
 
-    tracer = trace ? DslTraceCollector.new(**trace_opts) : DslNullTracer.new
+    tracer = trace ? Dsl::DslTraceCollector.new(**trace_opts) : Dsl::DslNullTracer.new
 
     ctx = {
       url: url,
@@ -352,7 +208,7 @@ module StatementsHelper
       tracer: tracer
     }
 
-    result = DslAlgorithmRunner.new(ctx).run(algorithm)
+    result = Dsl::DslAlgorithmRunner.new(ctx).run(algorithm)
 
     # If not tracing, just return the result
     unless trace
@@ -533,14 +389,14 @@ module StatementsHelper
   #   results_list 
   # end
   def process_algorithm(algorithm:, render_js: false, language: "en", url:, scrape_options: {})
-    tracer = DslNullTracer.new 
+    tracer = Dsl::DslNullTracer.new 
     ctx = {
       url: url,
       render_js: render_js,
       scrape_options: scrape_options,
       tracer: tracer
     }
-    DslAlgorithmRunner.new(ctx).run(algorithm)
+    Dsl::DslAlgorithmRunner.new(ctx).run(algorithm)
   end
 
 

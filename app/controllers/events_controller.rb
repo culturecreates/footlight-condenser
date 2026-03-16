@@ -16,7 +16,9 @@ class EventsController < ApplicationController
     @seedurl = params[:seedurl]
     time_span = create_timespan(params[:startDate], params[:endDate])
     # Add title property for the first column in the table
-    @property_ids = [Property.where(label: "Title").first.id] << params[:property].to_i
+    property_id = params[:property].to_i
+    @property_ids = [Property.find_by(label: "Title")&.id].compact
+    @property_ids << property_id if property_id.positive?
     @property_labels =  @property_ids.map { |id| Property.find(id).label }
   
     # Get statements matching critria
@@ -90,7 +92,7 @@ class EventsController < ApplicationController
         events_by_uri[s.webpage.rdf_uri]
           .merge!({ property_label => { cache: s.cache, status: s.status, selected_individual: s.selected_individual} })
           .merge!({ archive_date: { cache: s.webpage.archive_date } })
-       end
+      end
     end
    
     events_by_uri

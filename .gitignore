@@ -61,3 +61,8 @@ test/fixtures/*.yml.old
 .idea/
 .vscode/
 *~
+
+# Misc
+*.gz
+*.txt
+env.sh

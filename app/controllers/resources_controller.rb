@@ -54,10 +54,12 @@ class ResourcesController < ApplicationController
     unless params[:uri].present?
       return render json: { error: "Missing uri param" }, status: :bad_request
     end
+
     webpages = Webpage.where(rdf_uri: params[:uri])
     if webpages.blank?
       return head :not_found
     end
+    
     @resource = Resource.new(params[:uri])
     @statement_keys = @resource.statements.keys.sort
     render 'show'
