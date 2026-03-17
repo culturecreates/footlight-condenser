@@ -9,6 +9,7 @@ class WebpagesController < ApplicationController
 
     seedurl = params[:seedurl] || cookies[:seedurl]
     website = Website.find_by(seedurl: seedurl)
+    website_id = website&.id
 
     cookies[:seedurl] = seedurl if seedurl
 

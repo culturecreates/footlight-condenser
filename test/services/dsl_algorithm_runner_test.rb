@@ -52,6 +52,26 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     assert_equal [], result
   end
 
+  test "if_xpath appends matches then later steps append too" do
+    html = "<html><body><title>T</title><h1>H</h1></body></html>"
+    stub_request(:get, /localhost:3009\/websites\/wring/).to_return(status: 200, body: html)
+
+    runner, = build_runner
+    result = runner.run("if_xpath=//title; xpath=//h1/text()")
+
+    assert_equal ["T", "H"], result
+  end
+
+  test "ruby step uses eval result rather than stale thread local array" do
+    html = "<html><body><p>a</p><p>b</p></body></html>"
+    stub_request(:get, /localhost:3009\/websites\/wring/).to_return(status: 200, body: html)
+
+    runner, = build_runner
+    result = runner.run("xpath=//p/text(); ruby=$array.map(&:upcase)")
+
+    assert_equal %w[A B], result
+  end
+
   test "thread locals are restored after aborted execution" do
     Thread.current[:dsl_array] = ["existing"]
     Thread.current[:dsl_url] = "existing-url"
@@ -65,8 +85,8 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     assert_equal "existing-url", Thread.current[:dsl_url]
     assert_equal({ "existing" => true }, Thread.current[:dsl_json])
   ensure
-    Thread.current.delete(:dsl_array)
-    Thread.current.delete(:dsl_url)
-    Thread.current.delete(:dsl_json)
+    Thread.current[:dsl_array] = nil
+    Thread.current[:dsl_url] = nil
+    Thread.current[:dsl_json] = nil
   end
 end

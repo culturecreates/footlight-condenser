@@ -94,7 +94,7 @@ module Dsl
             type: prefix,
             code: code,
             input: input_copy,
-            output: Array(results),
+            output: trace_preview(results),
             error: nil,
             url_before: url_before,
             url_after: @url,
@@ -108,7 +108,7 @@ module Dsl
         duration_ms = ((end_time - start_time) * 1000).round(1)
 
         url_after   = @url
-        output      = Array(out)
+        output      = trace_preview(out)
 
         @tracer.step(
           step: step_index,
@@ -122,7 +122,7 @@ module Dsl
           duration_ms: duration_ms
         )
 
-        results = output
+        results = out
       rescue StandardError, SyntaxError => e
         end_time    = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         duration_ms = ((end_time - start_time) * 1000).round(1)
@@ -163,11 +163,14 @@ module Dsl
           sparql = "PREFIX schema: <http://schema.org/> select * where " + code
           rows = SPARQL.execute(sparql, @graph)
 
-          if rows.count == 1
-            [rows.first.answer.value]
-          else
-            rows.map { |r| r.answer.value }
-          end
+          values =
+            if rows.count == 1
+              [rows.first.answer.value]
+            else
+              rows.map { |r| r.answer.value }
+            end
+
+          append_to_array(arr, values).flatten
         rescue StandardError => e
           ["abort_update", { error: e.message, error_type: e.class.to_s }]
         end
@@ -243,22 +246,23 @@ module Dsl
 
       when 'xpath'
         ensure_page!
-        @page.xpath(code).map(&:text)
+        append_to_array(arr, @page.xpath(code).map(&:text))
 
       when 'xpath_sanitize'
         ensure_page!
-        @page.xpath(code).map do |node|
+        values = @page.xpath(code).map do |node|
           sanitize(node.to_s,
                    tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br],
                    attributes: %w[href])
         end
+        append_to_array(arr, values)
 
       when 'if_xpath'
         ensure_page!
         nodes = @page.xpath(code)
         return [HALT, arr] if nodes.blank?
 
-        nodes.map(&:text)
+        append_to_array(arr, nodes.map(&:text))
 
       when 'unless_xpath'
         ensure_page!
@@ -269,17 +273,17 @@ module Dsl
 
       when 'css'
         ensure_page!
-        @page.css(code).map(&:text)
+        append_to_array(arr, @page.css(code).map(&:text))
 
       when 'json'
         ensure_page!
         text = @page.respond_to?(:text) ? @page.text : @html.to_s
         @json ||= JSON.parse(text)
         Thread.current[:dsl_json] = @json
-        @dsl_binding.eval(sub(code, arr))
+        append_to_array(arr, [@dsl_binding.eval(sub(code, arr))])
 
       when 'time_zone'
-        ["time_zone: #{code}"]
+        append_to_array(arr, ["time_zone: #{code}"])
 
       when 'ruby'
         # update thread-locals before eval
@@ -290,11 +294,10 @@ module Dsl
         result = @dsl_binding.eval(sub(code, arr))
 
         # sync back DSL state
-        updated_arr = Thread.current[:dsl_array]
         @url  = Thread.current[:dsl_url]
         @json = Thread.current[:dsl_json]
 
-        updated_arr || result
+        result
 
       when 'manual'
         [code]
@@ -336,6 +339,15 @@ module Dsl
       ApplicationController.helpers.sanitize(*args)
     end
 
+    def append_to_array(existing, values)
+      base = existing.is_a?(Array) ? existing.dup : Array(existing)
+      base.concat(Array(values))
+    end
+
+    def trace_preview(value)
+      value.is_a?(Array) ? value : [value]
+    end
+
     def snapshot_thread_locals
       {
         dsl_array: fetch_thread_local(:dsl_array),
@@ -356,7 +368,8 @@ module Dsl
 
     def restore_thread_local(key, value)
       if value == :__dsl_missing
-        Thread.current.key?(key) ? Thread.current.delete(key) : nil
+        # Thread#[] storage is cleared by assigning nil (Thread has no #delete).
+        Thread.current[key] = nil if Thread.current.key?(key)
       else
         Thread.current[key] = value
       end

@@ -110,6 +110,7 @@ module StatementsHelper
 
     # Detect trace mode via cookie
     trace_enabled = trace_enabled_for_request?
+    abort_error_message = nil
 
     if trace_enabled
       data, @dsl_trace = run_dsl(
@@ -134,8 +135,8 @@ module StatementsHelper
     # Check for abort_update signal
     if data.is_a?(Array) && data.first == "abort_update"
       info = data.second || {}
-      stat.errors.add(:base, "Scrape aborted (#{info[:error_type]}): #{info[:error]}")
-      return
+      abort_error_message = "Scrape aborted (#{info[:error_type]}): #{info[:error]}"
+      stat.errors.add(:base, abort_error_message)
     end
 
     # Blank result is not valid for existing statements
@@ -158,6 +159,9 @@ module StatementsHelper
       stat.cache_refreshed = Time.zone.now
       stat.save
     end
+
+    # ActiveRecord save can clear in-memory errors; keep explicit abort context for callers/tests.
+    stat.errors.add(:base, abort_error_message) if abort_error_message.present? && stat.errors.empty?
   end
 
   def trace_enabled_for_request?
