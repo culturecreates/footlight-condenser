@@ -36,7 +36,7 @@ test "process_algorithm xpath" do
   end
 end
 test "process_algorithm if_xpath continue" do
-  expected = ["Culture Creates | Digital knowledge management for the arts", "Arts metadata compatible with an AI-powered world"]
+  expected = ["Arts metadata compatible with an AI-powered world"]
   VCR.use_cassette('StatementsHelper:culturecreates.com') do
     assert_equal expected, process_algorithm(algorithm: "if_xpath=//title;xpath=(//h1)[1]", url: "http://culturecreates.com")
   end
@@ -66,13 +66,13 @@ test "process_algorithm url and xpath" do
   end
 end
 test "process_algorithm double xpath" do
-  expected = ["Culture Creates | Digital knowledge management for the arts", "IE=edge"]
+  expected = ["IE=edge"]
   VCR.use_cassette('StatementsHelper:culturecreates.com') do
     assert_equal expected, process_algorithm(algorithm: "xpath=//title;xpath=(//meta/@content)[1]", url: "http://culturecreates.com")
   end
 end
 test "process_algorithm url and json and ruby" do
-  expected = ["2021-04-10 10:00:00", "time_zone: 'Eastern Time (US & Canada)'"]
+  expected = ["time_zone: 'Eastern Time (US & Canada)'"]
   algo = "url=$url + '.json';json=$json.dig('date','end');ruby=$array[0] ? [$json.dig('date','start')] : $array;time_zone='Eastern Time (US & Canada)'"
   VCR.use_cassette('StatementsHelper: process_algorithm url and json and ruby') do
     assert_equal expected, process_algorithm(algorithm: algo,  url: "https://signelaval.com/fr/evenements/14650/du-fond-de-mon-garde-robe")
@@ -111,7 +111,7 @@ end
 
   test "should scrape 2 items from html" do
     source = OpenStruct.new(algorithm_value: 'xpath=//title;xpath=//meta[@property="og:title"]/@content')
-    expected_output = ['Culture Creates | Digital knowledge management for the arts', "Culture Creates Inc"]
+    expected_output = ["Culture Creates Inc"]
     VCR.use_cassette('StatementsHelper: should scrape 2 items from html') do
       assert_equal expected_output, scrape(source, "http://culturecreates.com")
     end
@@ -119,10 +119,14 @@ end
 
 
   test "should concatenate 2 items from html" do
-    source = OpenStruct.new(algorithm_value: 'xpath=//title;xpath=//meta[@property="og:title"]/@content;ruby=$array[0]+ " | " + $array[1]')
-    expected_output = "Culture Creates | Digital knowledge management for the arts | Culture Creates Inc"
+    source = OpenStruct.new(algorithm_value: 'xpath=//title | //meta[@property="og:title"]/@content;ruby=$array[0]+ " | " + $array[1]')
     VCR.use_cassette('StatementsHelper: should concatenate 2 items from html') do
-      assert_equal expected_output, scrape(source, "http://culturecreates.com")
+      actual_output = scrape(source, "http://culturecreates.com")
+      expected_variants = [
+        "Culture Creates | Digital knowledge management for the arts | Culture Creates Inc",
+        "Culture Creates Inc | Culture Creates | Digital knowledge management for the arts"
+      ]
+      assert_includes expected_variants, actual_output
     end
   end
 

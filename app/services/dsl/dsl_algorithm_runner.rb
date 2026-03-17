@@ -162,15 +162,7 @@ module Dsl
           @graph ||= RDF::Graph.load(use_wringer(@url, @render_js, @scrape_opts))
           sparql = "PREFIX schema: <http://schema.org/> select * where " + code
           rows = SPARQL.execute(sparql, @graph)
-
-          values =
-            if rows.count == 1
-              [rows.first.answer.value]
-            else
-              rows.map { |r| r.answer.value }
-            end
-
-          append_to_array(arr, values).flatten
+          [*(rows.count == 1 ? rows.first.answer.value : rows.map { |r| r.answer.value })]
         rescue StandardError => e
           ["abort_update", { error: e.message, error_type: e.class.to_s }]
         end
@@ -188,6 +180,8 @@ module Dsl
 
         @html = raw
         @page = Nokogiri::HTML(@html, nil, Encoding::UTF_8.to_s)
+        @json = nil
+        Thread.current[:dsl_json] = nil
         arr
 
       when 'renderjs_url'
@@ -203,6 +197,8 @@ module Dsl
 
         @html = raw
         @page = Nokogiri::HTML(@html, nil, Encoding::UTF_8.to_s)
+        @json = nil
+        Thread.current[:dsl_json] = nil
         arr
 
       when 'json_url'
@@ -218,6 +214,8 @@ module Dsl
 
         @html = raw
         @page = Struct.new(:text).new(@html)
+        @json = nil
+        Thread.current[:dsl_json] = nil
         arr
 
       when 'post_url'
@@ -229,8 +227,12 @@ module Dsl
         @url = new_url
 
         temp_opts = @scrape_opts.merge(json_post: true).merge(force_scrape_every_hrs: 1)
-        data = @agent.get_file(use_wringer(@url, @render_js, temp_opts))
+        data = safe_wringer_call { @agent.get_file(use_wringer(@url, @render_js, temp_opts)) }
+        return data if abort_structure?(data)
         @page = Nokogiri::HTML(data, nil, Encoding::UTF_8.to_s)
+        @html = data
+        @json = nil
+        Thread.current[:dsl_json] = nil
         arr
 
       when 'api'
@@ -241,28 +243,26 @@ module Dsl
 
         data = HTTParty.get(new_url)
         raise "API error #{data.code}" unless data.code.to_s.start_with?('2')
-
         JSON.parse(data.body)
 
       when 'xpath'
         ensure_page!
-        append_to_array(arr, @page.xpath(code).map(&:text))
+        @page.xpath(code).map(&:text)
 
       when 'xpath_sanitize'
         ensure_page!
-        values = @page.xpath(code).map do |node|
+        @page.xpath(code).map do |node|
           sanitize(node.to_s,
                    tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br],
                    attributes: %w[href])
         end
-        append_to_array(arr, values)
 
       when 'if_xpath'
         ensure_page!
         nodes = @page.xpath(code)
         return [HALT, arr] if nodes.blank?
 
-        append_to_array(arr, nodes.map(&:text))
+        nodes.map(&:text)
 
       when 'unless_xpath'
         ensure_page!
@@ -273,17 +273,17 @@ module Dsl
 
       when 'css'
         ensure_page!
-        append_to_array(arr, @page.css(code).map(&:text))
+        @page.css(code).map(&:text)
 
       when 'json'
         ensure_page!
         text = @page.respond_to?(:text) ? @page.text : @html.to_s
         @json ||= JSON.parse(text)
         Thread.current[:dsl_json] = @json
-        append_to_array(arr, [@dsl_binding.eval(sub(code, arr))])
+        @dsl_binding.eval(sub(code, arr))
 
       when 'time_zone'
-        append_to_array(arr, ["time_zone: #{code}"])
+        ["time_zone: #{code}"]
 
       when 'ruby'
         # update thread-locals before eval
@@ -337,11 +337,6 @@ module Dsl
 
     def sanitize(*args)
       ApplicationController.helpers.sanitize(*args)
-    end
-
-    def append_to_array(existing, values)
-      base = existing.is_a?(Array) ? existing.dup : Array(existing)
-      base.concat(Array(values))
     end
 
     def trace_preview(value)

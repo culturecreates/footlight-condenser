@@ -1,5 +1,6 @@
 require "test_helper"
 require "webmock/minitest"
+require "ostruct"
 
 class DslAlgorithmRunnerTest < ActiveSupport::TestCase
   setup do
@@ -52,14 +53,14 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     assert_equal [], result
   end
 
-  test "if_xpath appends matches then later steps append too" do
+  test "if_xpath emits matches but later step replaces result" do
     html = "<html><body><title>T</title><h1>H</h1></body></html>"
     stub_request(:get, /localhost:3009\/websites\/wring/).to_return(status: 200, body: html)
 
     runner, = build_runner
     result = runner.run("if_xpath=//title; xpath=//h1/text()")
 
-    assert_equal ["T", "H"], result
+    assert_equal ["H"], result
   end
 
   test "ruby step uses eval result rather than stale thread local array" do
@@ -70,6 +71,32 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     result = runner.run("xpath=//p/text(); ruby=$array.map(&:upcase)")
 
     assert_equal %w[A B], result
+  end
+
+  test "api returns parsed json payload as current result" do
+    stub_request(:get, "http://api.example.local/data").to_return(
+      status: 200,
+      body: { "name" => "Jane" }.to_json
+    )
+
+    runner, = build_runner
+    result = runner.run("api='http://api.example.local/data'")
+
+    assert_equal({ "name" => "Jane" }, result)
+  end
+
+  test "sparql loads graph via wringer url" do
+    runner, = build_runner("http://example.local/event")
+
+    graph = Object.new
+    RDF::Graph.expects(:load).with { |arg| arg.match?(%r{localhost:3009/websites/wring\?}) }.returns(graph)
+    rows = [OpenStruct.new(answer: OpenStruct.new(value: "Event Name"))]
+    SPARQL.expects(:execute)
+      .with("PREFIX schema: <http://schema.org/> select * where {?s schema:name ?answer}", graph)
+      .returns(rows)
+
+    result = runner.run("sparql={?s schema:name ?answer}")
+    assert_equal ["Event Name"], result
   end
 
   test "thread locals are restored after aborted execution" do
