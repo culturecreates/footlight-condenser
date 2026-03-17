@@ -1,12 +1,8 @@
 system_exceptions:
-  queue_it:
-    match:
-      page_name: "Queue-it"
-    policy:
-      action: abort_update
-      retry: false
-      cache: false
-      error_code: system_queue
+
+  # -------------------------
+  # HIGH-SPECIFICITY (FIRST)
+  # -------------------------
 
   cloudflare:
     match:
@@ -15,6 +11,91 @@ system_exceptions:
         - "Cloudflare"
     policy:
       action: abort_update
-      retry: false
+      retry: true
       cache: false
       error_code: system_cloudflare
+
+  queue_it:
+    match:
+      body_contains:
+        - "Queue-it"
+        - "Please wait while we redirect you"
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      error_code: system_queue
+
+  akamai_bot_protection:
+    match:
+      body_contains:
+        - "Access Denied"
+        - "Reference #"
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      error_code: system_akamai
+
+  # -------------------------
+  # CONTENT EDGE CASES
+  # -------------------------
+
+  empty_body:
+    match:
+      body_blank: true
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      error_code: empty_body
+
+  html_error_page:
+    match:
+      body_contains:
+        - "Internal Server Error"
+        - "Something went wrong"
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      error_code: html_error_page
+
+  # -------------------------
+  # REDIRECT / SEMANTIC CASES
+  # -------------------------
+
+  redirect_to_listing:
+    match:
+      final_url_patterns:
+        - '/events$'
+        - '/programmation$'
+        - '/$'
+    policy:
+      action: abort_update
+      retry: false
+      cache: false
+      delete: true
+      error_code: redirect_to_listing
+      
+  # -------------------------
+  # GENERIC HTTP (LAST)
+  # -------------------------
+
+  http_404:
+    match:
+      http_code: 404
+    policy:
+      action: abort_update
+      retry: false
+      cache: false
+      error_code: http_404
+
+  http_5xx:
+    match:
+      http_code: [500, 502, 503, 504]
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      error_code: http_server_error

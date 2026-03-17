@@ -8,6 +8,21 @@ require "uri"
 # - `wringer_received_404?` *does* call Wringer to determine whether Wringer stored a 404.
 # - `safe_wringer_call` is a small guard wrapper that turns network errors into
 #   `["abort_update", { error: "...", error_type: "..." }]` so callers can short-circuit gracefully.
+#   
+# Architecture:
+#
+#     Wringer response
+#            ↓ 
+#      Normalization
+#            ↓
+#    Rule engine (YAML)
+#            ↓
+#     Policy extraction
+#            ↓
+#      Action dispatch
+#            ↓
+#    DSL / Sidekiq reacts
+#    
 module CcWringerHelper
   # Build a Wringer "wring" URL for a given target URL.
   #
@@ -97,13 +112,57 @@ module CcWringerHelper
   # - Connection refused, DNS errors, open/read timeouts
   # - Any other StandardError as "unexpected"
   def safe_wringer_call
-    yield
+    resp = yield
+
+    response =
+      if resp.respond_to?(:code) && resp.respond_to?(:body)
+        {
+          body: resp.body,
+          http_code: resp.code,
+          final_url: resp.respond_to?(:uri) ? resp.uri.to_s : nil
+        }
+      else
+        { body: resp.to_s, http_code: 200, final_url: nil }
+      end
+
+    if (err = wringer_system_error?(response))
+      policy = err[:policy] || {}
+      action = policy["action"] || policy[:action] || "abort_update"
+
+      Rails.logger.error "[Wringer] #{err[:error_type]} (action=#{action})"
+
+      err[:action] = action
+      err[:retry] = policy["retry"] || policy[:retry]
+      err[:cache] = policy["cache"] || policy[:cache]
+      
+      return [action, err]
+    end
+
+    response[:body]
   rescue Errno::ECONNREFUSED, SocketError, Net::OpenTimeout, Net::ReadTimeout => e
-    Rails.logger.error "[safe_wringer_call] *** Wringer unreachable: #{e.class} - #{e.message}"
-    ["abort_update", { error: "Wringer unreachable: #{e.class} - #{e.message}", error_type: e.class.to_s }]
+    Rails.logger.error "[Wringer] unreachable: #{e.class} - #{e.message}"
+
+    ["abort_update", {
+      error: e.message,
+      error_type: "wringer_unreachable",
+      policy: {
+        retry: true,     # 👈 retry later
+        cache: false     # 👈 force refresh next time
+      },
+      source: "wringer"
+    }]
   rescue StandardError => e
-    Rails.logger.error "[safe_wringer_call] *** Wringer unexpected error: #{e.class} - #{e.message}"
-    ["abort_update", { error: "Wringer error: #{e.class} - #{e.message}", error_type: e.class.to_s }]
+    Rails.logger.error "[Wringer] unexpected error: #{e.class} - #{e.message}"
+
+    ["abort_update", {
+      error: e.message,
+      error_type: "wringer_error",
+      policy: {
+        retry: true,     # 👈 usually safe to retry
+        cache: false
+      },
+      source: "wringer"
+    }]
   end
 
 
@@ -166,6 +225,78 @@ module CcWringerHelper
     return false if result.is_a?(Array) && result.first == "abort_update"
     
     !!result                                                         # Return true if we found a 404 for the URL. Otherwise, false.
+  end
+
+  def wringer_rules
+    @wringer_rules ||= begin
+      raw_config = Rails.application.config_for(:wringer)
+      raw_hash = raw_config.respond_to?(:to_h) ? raw_config.to_h : raw_config
+      config = raw_hash || {}
+
+      exceptions =
+        if config.key?("system_exceptions")
+          config["system_exceptions"]
+        elsif config.key?(:system_exceptions)
+          config[:system_exceptions]
+        else
+          Rails.logger.warn "[Wringer] No system_exceptions configured" 
+          {}
+        end
+
+      exceptions.to_a # preserves declared order
+    end
+  end
+
+  def wringer_system_error?(response)
+    return nil if response.blank?
+
+    body = response[:body].to_s
+    code = response[:http_code].to_i
+    final_url = response[:final_url].to_s
+
+    wringer_rules.each do |name, rule|
+      match  = rule["match"] || rule[:match] || {}
+      policy = rule["policy"] || rule[:policy] || {}
+
+      matched = true
+
+      # --- HTTP CODE ---
+      if match["http_code"]
+        codes = Array(match["http_code"]).map(&:to_i)
+        matched &&= codes.include?(code)
+      end
+
+      # --- BODY CONTAINS ---
+      if match["body_contains"]
+        matched &&= match["body_contains"].any? { |s| body.include?(s) }
+      end
+
+      # --- BODY BLANK ---
+      if match["body_blank"]
+        matched &&= body.strip.empty?
+      end
+
+      # --- FINAL URL PATTERNS ---
+      if match["final_url_patterns"]
+        matched &&= match["final_url_patterns"].any? do |pattern|
+          Regexp.new(pattern).match?(final_url)
+        rescue RegexpError
+            false
+        end
+      end
+
+      next unless matched
+
+      Rails.logger.warn "[Wringer] #{name} matched (code=#{code}, url=#{final_url})"
+
+      return {
+        error: "#{name} detected",
+        error_type: policy["error_code"] || name,
+        policy: policy
+      }
+    end
+
+    nil
   end
 
   def get_wringer_url_per_environment
