@@ -53,6 +53,7 @@ module Dsl
         prefix, code = raw.partition('=').values_at(0, 2)
         step_index  = idx + 1
 
+        @current_wringer_status = nil
         input_copy  = Marshal.load(Marshal.dump(results))
         url_before  = @url
         start_time  = Process.clock_gettime(Process::CLOCK_MONOTONIC)
@@ -76,6 +77,7 @@ module Dsl
             input: input_copy,
             output: [],
             error: out.last,           # error message details
+            wringer: @current_wringer_status,
             url_before: url_before,
             url_after: @url,
             duration_ms: duration_ms
@@ -96,6 +98,7 @@ module Dsl
             input: input_copy,
             output: trace_preview(results),
             error: nil,
+            wringer: @current_wringer_status,
             url_before: url_before,
             url_after: @url,
             duration_ms: duration_ms
@@ -117,6 +120,7 @@ module Dsl
           input: input_copy,
           output: output,
           error: nil,
+          wringer: @current_wringer_status,
           url_before: url_before,
           url_after: url_after,
           duration_ms: duration_ms
@@ -134,6 +138,7 @@ module Dsl
           input: input_copy,
           output: [],
           error: e,
+          wringer: @current_wringer_status,
           url_before: url_before,
           url_after: @url,
           duration_ms: duration_ms
@@ -148,11 +153,9 @@ module Dsl
 
     private
 
-    def halt_structure?(obj)
-      obj.is_a?(Array) &&
-        obj.length == 2 &&
-        obj.first.equal?(HALT)
-    end
+    def ok(v)    = [:ok, v].freeze
+    def skip     = [:skip, nil].freeze
+    def abort(v) = [:abort, v].freeze
 
     def execute(prefix, code, arr)
       case prefix
@@ -160,89 +163,38 @@ module Dsl
       when 'sparql'
         begin
           @graph ||= RDF::Graph.load(use_wringer(@url, @render_js, @scrape_opts))
-          sparql = "PREFIX schema: <http://schema.org/> select * where " + code
+          sparql = "PREFIX schema: <http://schema.org/> select * where #{code}"
           rows = SPARQL.execute(sparql, @graph)
           [*(rows.count == 1 ? rows.first.answer.value : rows.map { |r| r.answer.value })]
         rescue StandardError => e
           ["abort_update", { error: e.message, error_type: e.class.to_s }]
         end
 
-      when 'url'
-        new_url = @dsl_binding.eval(sub(code, arr))
-        if new_url.nil? || !new_url.is_a?(String) || new_url.strip.empty?
-          return ["abort_update", { error: "Invalid URL in DSL - url step: #{@url.inspect}", error_type: "StandardError" }]
-        end
+      when 'url'           then handle_url_step(code, arr)
 
-        @url = new_url
-
-        raw = safe_wringer_call { @agent.get_file(use_wringer(@url, @render_js, @scrape_opts)) }
-        return raw if abort_structure?(raw)
-
-        @html = raw
-        @page = Nokogiri::HTML(@html, nil, Encoding::UTF_8.to_s)
-        @json = nil
-        Thread.current[:dsl_json] = nil
-        arr
-
-      when 'renderjs_url'
-        new_url = @dsl_binding.eval(sub(code, arr))
-        if new_url.nil? || !new_url.is_a?(String) || new_url.strip.empty?
-          return ["abort_update", { error: "Invalid URL in DSL - renderjs_url step: #{@url.inspect}", error_type: "StandardError" }]
-        end
-
-        @url = new_url
-
-        raw = safe_wringer_call { @agent.get_file(use_wringer(@url, true, @scrape_opts)) }
-        return raw if abort_structure?(raw)
-
-        @html = raw
-        @page = Nokogiri::HTML(@html, nil, Encoding::UTF_8.to_s)
-        @json = nil
-        Thread.current[:dsl_json] = nil
-        arr
-
-      when 'json_url'
-        new_url = @dsl_binding.eval(sub(code, arr))
-        if new_url.nil? || !new_url.is_a?(String) || new_url.strip.empty?
-          return ["abort_update", { error: "Invalid URL in DSL - json_url step: #{@url.inspect}", error_type: "StandardError" }]
-        end
-
-        @url = new_url
-
-        raw = safe_wringer_call { @agent.get_file(use_wringer(@url, @render_js, @scrape_opts)) }
-        return raw if abort_structure?(raw)
-
-        @html = raw
-        @page = Struct.new(:text).new(@html)
-        @json = nil
-        Thread.current[:dsl_json] = nil
-        arr
+      when 'renderjs_url'  then handle_url_step(code, arr, render_js: true)
 
       when 'post_url'
-        new_url = @dsl_binding.eval(sub(code, arr))
-        if new_url.nil? || !new_url.is_a?(String) || new_url.strip.empty?
-          return ["abort_update", { error: "Invalid URL in DSL - post_url step: #{@url.inspect}", error_type: "StandardError" }]
-        end
-
-        @url = new_url
-
         temp_opts = @scrape_opts.merge(json_post: true).merge(force_scrape_every_hrs: 1)
-        data = safe_wringer_call { @agent.get_file(use_wringer(@url, @render_js, temp_opts)) }
-        return data if abort_structure?(data)
-        @page = Nokogiri::HTML(data, nil, Encoding::UTF_8.to_s)
-        @html = data
-        @json = nil
-        Thread.current[:dsl_json] = nil
+        handle_url_step(code, arr, opts: temp_opts)
+
+      when 'json_url'
+        status, result = resolve_and_fetch_url(code, arr)
+
+        return result if status == :abort
+        return arr if status == :skip
+
+        apply_json_text_result(result)
+
         arr
 
       when 'api'
-        new_url = @dsl_binding.eval(sub(code, arr))
-        if new_url.nil? || !new_url.is_a?(String) || new_url.strip.empty?
-          return ["abort_update", { error: "Invalid URL in DSL - api step: #{@url.inspect}", error_type: "StandardError" }]
-        end
+        new_url = resolve_url_only(code, arr)
+        return arr unless new_url
 
         data = HTTParty.get(new_url)
         raise "API error #{data.code}" unless data.code.to_s.start_with?('2')
+
         JSON.parse(data.body)
 
       when 'xpath'
@@ -307,6 +259,64 @@ module Dsl
       end
     end
 
+    def resolve_and_fetch_url(code, arr, render_js: @render_js, opts: @scrape_opts)
+      raw = @dsl_binding.eval(sub(code, arr))
+      new_url = Dsl::UrlResolver.extract(raw)
+      if new_url.blank?
+        Rails.logger.debug { "[DSL] skipped invalid URL from #{raw.inspect}" }
+        return skip 
+      end
+
+      Rails.logger.debug { "[DSL] #{code} → #{new_url}" }
+
+      @url = new_url
+
+      fetch_result = wringer_client.fetch(url: @url, render_js: render_js, scrape_options: opts)
+      @current_wringer_status = fetch_result[:wringer]
+      raw = fetch_result[:body]
+
+      if fetch_result[:status] == :abort
+        Rails.logger.warn("[DSL] abort on #{new_url} (#{@current_wringer_status&.dig(:error_type)})")
+        return abort(raw)
+      end
+
+      ok(raw)
+    end
+
+    def resolve_url_only(code, arr)
+      Dsl::UrlResolver.extract(@dsl_binding.eval(sub(code, arr)))
+    end
+
+    def apply_html_result(html)
+      @html = html
+      @page = Nokogiri::HTML(@html, nil, Encoding::UTF_8.to_s)
+      @json = nil
+      Thread.current[:dsl_json] = nil
+    end
+
+    def apply_json_text_result(text)
+      @html = text
+      @page = Struct.new(:text).new(@html)
+      @json = nil
+      Thread.current[:dsl_json] = nil
+    end
+
+    def handle_url_step(code, arr, render_js: false, opts: @scrape_opts)
+      status, result = resolve_and_fetch_url(code, arr, render_js: render_js, opts: opts)
+
+      return result if status == :abort
+      return arr    if status == :skip
+
+      apply_html_result(result)
+      arr
+    end
+
+    def halt_structure?(obj)
+      obj.is_a?(Array) &&
+        obj.length == 2 &&
+        obj.first.equal?(HALT)
+    end
+
     # Rewrite DSL references into thread-locals
     def sub(code, _)
       code.to_s
@@ -318,8 +328,11 @@ module Dsl
     def ensure_page!
       return if @page
 
-      raw = safe_wringer_call { @agent.get_file(use_wringer(@url, @render_js, @scrape_opts)) }
-      if abort_structure?(raw)
+      fetch_result = wringer_client.fetch(url: @url, render_js: @render_js, scrape_options: @scrape_opts)
+      @current_wringer_status = fetch_result[:wringer]
+      raw = fetch_result[:body]
+
+      if fetch_result[:status] == :abort
         raise StandardError, raw.last[:error]
       end
 
@@ -333,6 +346,17 @@ module Dsl
 
     def safe_wringer_call(&blk)
       ApplicationController.helpers.safe_wringer_call(&blk)
+    end
+
+    def wringer_client
+      @wringer_client ||= Dsl::WringerClient.new(
+        agent: @agent,
+        render_js: @render_js,
+        scrape_options: @scrape_opts,
+        use_wringer: method(:use_wringer),
+        safe_wringer_call: method(:safe_wringer_call),
+        logger: Rails.logger
+      )
     end
 
     def sanitize(*args)

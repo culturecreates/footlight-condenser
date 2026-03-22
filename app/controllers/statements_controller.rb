@@ -2,16 +2,9 @@ class StatementsController < ApplicationController
   before_action :set_statement, only: [:refresh, :show, :edit, :update, :destroy, :add_linked_data, :remove_linked_data, :activate]
   skip_before_action :verify_authenticity_token
   skip_before_action :authenticate, only: [:show, :index]
+  helper_method :expand_trace_for_view, :trace_steps_for_view
 
   MANUALLY_ADDED = "Manually added"
-
-# :nocov:
-  def trace_demo
-    algorithm = 'xpath=//title | //div[contains(@class,\'about-content\')]/h2 ;ruby=$array.kind_of?(Array) ? $array.map{|e| e.squish} : ($array.length > 1 ? $array.squish : $array) ;if_xpath=//ul[@class=\'performances\']//a/@href ;ruby=$array.select{|e| e =~ /billet/} ;url=\'https://lepointdevente.com\' + $array.first + \'?lang=fr\' ;ruby=$array.clear ;xpath=//title | //div[contains(@class,\'about-content\')]/h2 ;ruby=$array.kind_of?(Array) ? $array.map{|e| e.squish} : ($array.length > 1 ? $array.squish : $array)'
-    url = "https://lepointdevente.com/billets/el2240907001?lang=fr"
-    @result, @trace = helpers.process_algorithm_with_trace(algorithm: algorithm, url: url)
-  end
-# :nocov:
 
   # GET /statements/webpage.json?url=http://
   def webpage
@@ -53,16 +46,29 @@ class StatementsController < ApplicationController
   # PATCH /statements/1/refresh
   # PATCH /statements/1/refresh.json
   def refresh
-    helpers.refresh_statement_helper(@statement)
-    respond_to do |format|
-      if @statement.errors.any?
-        format.html { redirect_to @statement, alert: "Statement Error: " + @statement.errors.full_messages.to_sentence }
-        format.json { render json: @statement.errors, status: :unprocessable_entity }
-      else
-        format.html { redirect_to @statement, notice: 'Statement was successfully refreshed.' }
-        format.json { render :show, status: :refreshed, location: @statement }
+    result = helpers.refresh_statement_helper(@statement)
+    trace_enabled = cookies[:dsl_trace] == "true"
+
+    if trace_enabled
+      Rails.logger.debug do
+        "[DSL TRACE FULL]\n#{JSON.pretty_generate(result[:trace] || [])}"
       end
+
+      trace_for_session = Dsl::TraceFormatter.for_session_v2(result[:trace] || [])
+
+      session[:dsl_trace] = trace_for_session
+      Rails.logger.debug { "[DSL TRACE SESSION SIZE] #{JSON.generate(session[:dsl_trace]).bytesize}" }
+    else
+      session.delete(:dsl_trace)
     end
+
+    if result[:errors].present?
+      flash[:alert] = "Statement Error: " + result[:errors].to_sentence    
+    else
+      flash[:notice] = "Statement was successfully refreshed."
+    end
+
+    redirect_to @statement
   end
 
 
@@ -77,9 +83,81 @@ class StatementsController < ApplicationController
   # GET /statements/1
   # GET /statements/1.json
   def show
-    # Do not execute live DSL from public show endpoint.
-    @trace = nil
+    @trace = session.delete(:dsl_trace)
     @result = nil
+  end
+
+  def expand_trace_for_view(compact_trace)
+    return [] if compact_trace.nil?
+    return compact_trace if compact_trace.is_a?(Array)
+
+    raw = compact_trace.respond_to?(:to_h) ? compact_trace.to_h : compact_trace
+    return [] unless raw.is_a?(Hash)
+
+    payload = raw.with_indifferent_access
+    return expand_trace_v2_for_view(payload) if payload[:version].to_i == 2
+
+    expand_trace_v1_for_view(payload)
+  end
+
+  def trace_steps_for_view(trace)
+    interpreter = Dsl::SemanticInterpreter.new
+    interpreter.annotate(expand_trace_for_view(trace))
+  end
+
+  def expand_trace_v1_for_view(payload)
+    urls = Array(payload[:urls]).map(&:to_s)
+
+    Array(payload[:events]).map do |event|
+      source = event.respond_to?(:to_h) ? event.to_h : event
+      e = source.is_a?(Hash) ? source.with_indifferent_access : {}
+
+      {
+        step: e[:s],
+        type: e[:t],
+        code: e[:c],
+        input: e[:i],
+        output: e[:o],
+        url_before: resolve_trace_url(urls, e[:ub]),
+        url_after: resolve_trace_url(urls, e[:ua]),
+        duration_ms: e[:d],
+        error: e[:e]
+      }
+    end
+  end
+
+  def expand_trace_v2_for_view(payload)
+    urls = Array(payload[:urls]).map(&:to_s)
+    initial = (payload[:initial] || {}).with_indifferent_access
+
+    current_state = initial[:state]
+    current_url = initial[:url]
+
+    Array(payload[:steps]).map do |step|
+      source = step.respond_to?(:to_h) ? step.to_h : step
+      s = source.is_a?(Hash) ? source.with_indifferent_access : {}
+
+      output = s[:o]
+      next_url = s.key?(:ua) ? resolve_trace_url(urls, s[:ua]) : current_url
+      input = current_state
+      output = input if output.nil?
+      expanded = {
+        step: s[:s],
+        type: s[:t],
+        code: s[:c],
+        input: input,
+        output: output,
+        url_before: current_url,
+        url_after: next_url,
+        duration_ms: s[:d],
+        error: s[:e]
+      }
+
+      current_state = output
+      current_url = next_url
+
+      expanded
+    end
   end
 
 
@@ -323,6 +401,14 @@ class StatementsController < ApplicationController
 
 
   private
+
+  def resolve_trace_url(urls, index)
+    return nil if index.nil?
+
+    urls[index.to_i]
+  rescue StandardError
+    nil
+  end
 
   # Use callbacks to share common setup or constraints between actions.
   def set_statement

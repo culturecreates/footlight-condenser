@@ -71,6 +71,13 @@ module StatementsHelper
     s.length > max ? "#{s[0, max]}…(truncated)" : s
   end
 
+  def preview(value, limit = 200)
+    str = value.inspect
+    str.length > limit ? "#{str[0, limit]}..." : str
+  rescue StandardError
+    value.to_s
+  end
+
   # Refreshes a statement by executing its DSL algorithm.
   #
   # @param stat [Statement]  The statement object to refresh.
@@ -102,34 +109,53 @@ module StatementsHelper
   #
   # **Exceptions:** Does not raise; adds errors on the `stat` object instead.
   def refresh_statement_helper(stat, scrape_options = {})
+    @dsl_trace = nil
+    data = nil
+    error_messages = []
+    build_result = lambda do
+      {
+        data: data,
+        trace: @dsl_trace,
+        errors: (error_messages + stat.errors.full_messages).compact.uniq
+      }
+    end
+
     # Disallow refresh if manual and already OK/updated
     if stat.manual && %w[ok updated].include?(stat.status)
-      stat.errors.add(:base, "No update unless status is 'initial', 'problem', or 'missing'.")
-      return
+      message = "No update unless status is 'initial', 'problem', or 'missing'."
+      stat.errors.add(:base, message)
+      error_messages << message
+      return build_result.call
     end
 
     # Detect trace mode via cookie
     trace_enabled = trace_enabled_for_request?
     abort_error_message = nil
 
+    dsl_result = run_dsl(
+      algorithm: stat.source.algorithm_value,
+      render_js: stat.source.render_js,
+      language: stat.source.language,
+      url: stat.webpage.url,
+      scrape_options: scrape_options,
+      trace: trace_enabled
+    )
+
     if trace_enabled
-      data, @dsl_trace = run_dsl(
-        algorithm: stat.source.algorithm_value,
-        render_js: stat.source.render_js,
-        language: stat.source.language,
-        url: stat.webpage.url,
-        scrape_options: scrape_options,
-        trace: true
-      )
+      if dsl_result.is_a?(Array) && dsl_result.size == 2
+        data, trace = dsl_result
+        @dsl_trace = trace
+      else
+        # Defensive fallback
+        data = dsl_result
+        @dsl_trace = []
+
+        Rails.logger.warn do
+          "[DSL TRACE WARNING] Unexpected run_dsl return shape: #{dsl_result.class}"
+        end
+      end
     else
-      data = run_dsl(
-        algorithm: stat.source.algorithm_value,
-        render_js: stat.source.render_js,
-        language: stat.source.language,
-        url: stat.webpage.url,
-        scrape_options: scrape_options,
-        trace: false
-      )
+      data = dsl_result
     end
 
     # Check for abort_update signal
@@ -137,12 +163,21 @@ module StatementsHelper
       info = data.second || {}
       abort_error_message = "Scrape aborted (#{info[:error_type]}): #{info[:error]}"
       stat.errors.add(:base, abort_error_message)
+      error_messages << abort_error_message
     end
 
     # Blank result is not valid for existing statements
     if data.blank? && !stat.new_record?
-      stat.errors.add(:base, "Not updated with blank result.")
-      return
+      message = "DSL returned blank result (possible parsing failure)"
+      stat.errors.add(:base, message)
+      error_messages << message
+
+      # Also attach context for debugging
+      Rails.logger.warn do
+        "[DSL BLANK RESULT] statement_id=#{stat.id} url=#{stat.webpage.url}"
+      end
+
+      return build_result.call
     end
 
     # Format the result according to the property's datatype
@@ -161,15 +196,18 @@ module StatementsHelper
     end
 
     # ActiveRecord save can clear in-memory errors; keep explicit abort context for callers/tests.
-    stat.errors.add(:base, abort_error_message) if abort_error_message.present? && stat.errors.empty?
+    if abort_error_message.present? && stat.errors.empty?
+      stat.errors.add(:base, abort_error_message)
+      error_messages << abort_error_message
+    end
+
+    build_result.call
   end
 
   def trace_enabled_for_request?
-    return false unless respond_to?(:cookies)
-
-    cookies[:dsl_trace] == "true"
-  rescue StandardError
-    false
+    value = cookies[:dsl_trace]
+    value = value[:value] if value.is_a?(Hash)
+    value.to_s == "true"
   end
 
 
@@ -252,7 +290,8 @@ module StatementsHelper
           url_after: (evt[:url_after]      || evt["url_after"]      || "").to_s,
           duration_ms: evt[:duration_ms]    || evt["duration_ms"]    || 0,
           error_class: evt[:error_class]    || evt["error_class"],
-          error_message: evt[:error_message]  || evt["error_message"]
+          error_message: evt[:error_message]  || evt["error_message"],
+          wringer: evt[:wringer] || evt["wringer"]
         }
       end
     else

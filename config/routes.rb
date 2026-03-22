@@ -33,6 +33,10 @@ Rails.application.routes.draw do
       to: "events#index_by_property",
       as: :website_events_by_property
 
+  get 'events/:id/pipeline_health',
+      to: "events#pipeline_health",
+      as: :event_pipeline_health
+
   get 'resources/:rdf_uri',
       to: "resources#show",
       as: :show_resources

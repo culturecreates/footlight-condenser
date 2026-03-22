@@ -14,6 +14,7 @@ module Dsl
       input:,
       output:,
       error: nil,
+      wringer: nil,
       url_before: nil,
       url_after: nil,
       duration_ms: nil
@@ -26,6 +27,7 @@ module Dsl
         output_preview: output,
         error_class: error.nil? ? nil : error.class.to_s,
         error_message: error.nil? ? nil : error.to_s,
+        wringer: wringer,
         url_before: url_before,
         url_after: url_after,
         duration_ms: duration_ms

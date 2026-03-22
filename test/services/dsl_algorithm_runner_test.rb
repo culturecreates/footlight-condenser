@@ -116,4 +116,44 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     Thread.current[:dsl_url] = nil
     Thread.current[:dsl_json] = nil
   end
+
+  test "trace event includes wringer status when safe_wringer_call aborts" do
+    runner, tracer = build_runner
+    runner.stubs(:safe_wringer_call).returns(
+      ["abort_update", { error_type: "system_cloudflare", retry: true, cache: false }]
+    )
+
+    result = runner.run("url='http://example.local/events/1'")
+    event = tracer.to_h.last
+
+    assert_equal "abort_update", result.first
+    assert_equal(
+      { error_type: "system_cloudflare", retry: true, cache: false },
+      event[:wringer]
+    )
+  end
+
+  test "trace event wringer status is nil when safe_wringer_call succeeds" do
+    runner, tracer = build_runner
+    runner.stubs(:safe_wringer_call).returns("<html><body><h1>Title</h1></body></html>")
+
+    result = runner.run("url='http://example.local/events/1';xpath=//h1/text()")
+    url_step_event = tracer.to_h.first
+
+    assert_equal ["Title"], result
+    assert_nil url_step_event[:wringer]
+  end
+
+  test "trace event safely includes partial wringer payload keys only" do
+    runner, tracer = build_runner
+    runner.stubs(:safe_wringer_call).returns(
+      ["abort_update", { error_type: "system_cloudflare" }]
+    )
+
+    result = runner.run("url='http://example.local/events/1'")
+    event = tracer.to_h.last
+
+    assert_equal "abort_update", result.first
+    assert_equal({ error_type: "system_cloudflare" }, event[:wringer])
+  end
 end

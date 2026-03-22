@@ -56,6 +56,104 @@
   <%= @statement.updated_at %>
 </p>
 
+<% if !@trace.nil? %>
+  <% steps = trace_steps_for_view(@trace) %>
+  <hr>
+  <h3>Algorithm Trace</h3>
+  <style>
+    .dsl-trace {
+      font-family: monospace;
+    }
+
+    .trace-step {
+      margin-bottom: 1em;
+      padding: 0.5em;
+      border-left: 3px solid #ccc;
+    }
+
+    .trace-error {
+      border-left: 3px solid #dc3545;
+      background: #fff5f5;
+    }
+
+    .trace-code {
+      color: #666;
+      font-size: 0.9em;
+      margin-top: 0.25em;
+      margin-bottom: 0.25em;
+    }
+
+    .trace-state {
+      font-weight: bold;
+      margin-top: 0.25em;
+      margin-bottom: 0.25em;
+    }
+
+    .trace-semantic {
+      color: #555;
+      font-size: 0.9em;
+      margin-top: 2px;
+    }
+
+    .trace-delta {
+      color: #555;
+      font-size: 0.9em;
+      margin-top: 2px;
+    }
+
+    .trace-error-message {
+      color: #dc3545;
+      margin-top: 0.25em;
+    }
+  </style>
+
+  <div class="dsl-trace">
+    <% steps.each do |step| %>
+      <div class="trace-step <%= 'trace-error' if step[:error].present? %>">
+        <div class="trace-header">
+          <strong>Step <%= step[:step] %></strong>
+          (<%= step[:type].presence || "-" %>)
+        </div>
+
+        <% if step[:code].present? %>
+          <div class="trace-code">
+            <code>
+              <span title="<%= h(step[:code].to_s) %>"><%= truncate(step[:code].to_s, length: 80) %></span>
+            </code>
+          </div>
+        <% end %>
+
+        <% displayed_output = step[:output].nil? ? step[:input] : step[:output] %>
+        <div class="trace-state">
+          → <%= displayed_output %>
+        </div>
+
+        <div class="trace-semantic">
+          <%= "#{step[:intent]} (#{step[:semantic]})" %>
+        </div>
+
+        <% if step[:semantic] == "Δ changed" && step[:delta].present? %>
+          <div class="trace-delta">
+            Δ <%= step[:delta] %>
+          </div>
+        <% end %>
+
+        <% if step[:error].present? %>
+          <div class="trace-error-message">
+            ⚠ <%= step[:error] %>
+          </div>
+        <% end %>
+
+        <% if step[:url_after].present? && step[:url_after] != step[:url_before] %>
+          <div class="trace-url">
+            URL → <%= step[:url_after] %>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+
 
 <hr>
 <p>

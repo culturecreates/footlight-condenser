@@ -75,6 +75,131 @@ class StatementsHelperRefreshTest < ActionView::TestCase
     assert stat.errors.any?
     assert_includes stat.errors.full_messages.to_sentence, "Scrape aborted (SocketError)"
   end
+
+  test "blank DSL result produces explicit error" do
+    stat = statements(:one)
+
+    self.stubs(:trace_enabled_for_request?).returns(false)
+    self.stubs(:run_dsl).returns(nil)
+
+    result = refresh_statement_helper(stat)
+
+    assert result[:errors].any?
+    assert_includes result[:errors].join, "blank result"
+  end
+
+  test "blank DSL result with trace still returns trace and error" do
+    stat = statements(:one)
+
+    cookies[:dsl_trace] = "true"
+    self.stubs(:run_dsl).returns([nil, [{ step: 1, type: "xpath" }]])
+
+    result = refresh_statement_helper(stat)
+
+    assert result[:errors].any?
+    assert result[:trace].present?
+  end
+
+  test "run_dsl returning unexpected shape still preserves error and safe trace" do
+    stat = statements(:one)
+
+    cookies[:dsl_trace] = "true"
+    self.stubs(:run_dsl).returns(nil)
+
+    result = refresh_statement_helper(stat)
+
+    assert result[:errors].any?
+    assert_equal [], result[:trace]
+  end
+
+  test "refresh_statement_helper returns structured result with trace when dsl_trace cookie is enabled" do
+    stat = statements(:one)
+    run_result = ["first"]
+    trace_events = [{ step: 1, type: "xpath" }]
+
+    cookies[:dsl_trace] = "true"
+
+    self.expects(:run_dsl).with(
+      algorithm: stat.source.algorithm_value,
+      render_js: stat.source.render_js,
+      language: stat.source.language,
+      url: stat.webpage.url,
+      scrape_options: {},
+      trace: true
+    ).returns([run_result, trace_events])
+    self.expects(:format_datatype).with(run_result, stat.source.property, stat.webpage).returns("formatted")
+    self.stubs(:save_record?).returns(true)
+
+    returned_result = refresh_statement_helper(stat)
+
+    assert_equal trace_events, instance_variable_get(:@dsl_trace)
+    assert_equal run_result, returned_result[:data]
+    assert_equal trace_events, returned_result[:trace]
+    assert_equal [], returned_result[:errors]
+  end
+
+  test "refresh_statement_helper returns structured result with nil trace when cookie is disabled" do
+    stat = statements(:one)
+    run_result = ["first"]
+
+    cookies[:dsl_trace] = "false"
+
+    self.expects(:run_dsl).with(
+      algorithm: stat.source.algorithm_value,
+      render_js: stat.source.render_js,
+      language: stat.source.language,
+      url: stat.webpage.url,
+      scrape_options: {},
+      trace: false
+    ).returns(run_result)
+    self.expects(:format_datatype).with(run_result, stat.source.property, stat.webpage).returns("formatted")
+    self.stubs(:save_record?).returns(true)
+
+    returned_result = refresh_statement_helper(stat)
+
+    assert_equal run_result, returned_result[:data]
+    assert_nil returned_result[:trace]
+    assert_equal [], returned_result[:errors]
+    assert_nil instance_variable_get(:@dsl_trace)
+  end
+
+  test "run_dsl returns [result, trace] when trace is enabled" do
+    runner = mock("dsl_runner")
+    runner.expects(:run).with("manual=hello").returns(["hello"])
+
+    Dsl::DslAlgorithmRunner.expects(:new).with do |ctx|
+      assert_equal "https://example.com", ctx[:url]
+      assert_equal false, ctx[:render_js]
+      assert_equal({}, ctx[:scrape_options])
+      assert_instance_of Dsl::DslTraceCollector, ctx[:tracer]
+      true
+    end.returns(runner)
+
+    assert_equal [["hello"], []], run_dsl(algorithm: "manual=hello", url: "https://example.com", trace: true)
+  end
+
+  test "run_dsl returns result only when trace is disabled" do
+    runner = mock("dsl_runner")
+    runner.expects(:run).with("manual=hello").returns(["hello"])
+
+    Dsl::DslAlgorithmRunner.expects(:new).with do |ctx|
+      assert_equal "https://example.com", ctx[:url]
+      assert_equal false, ctx[:render_js]
+      assert_equal({}, ctx[:scrape_options])
+      assert_instance_of Dsl::DslNullTracer, ctx[:tracer]
+      true
+    end.returns(runner)
+
+    assert_equal ["hello"], run_dsl(algorithm: "manual=hello", url: "https://example.com", trace: false)
+  end
+
+  test "trace_enabled_for_request? has no implicit fallback" do
+    self.stubs(:cookies).raises(NoMethodError, "cookies unavailable")
+
+    assert_raises(NoMethodError) do
+      trace_enabled_for_request?
+    end
+  end
   
  # 'abort_update' in cache
 

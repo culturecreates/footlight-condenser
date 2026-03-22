@@ -58,7 +58,7 @@ class ReportsController < ApplicationController
             end
         end
 
-   end
+    end
 
    private
 

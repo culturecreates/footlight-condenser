@@ -19,7 +19,9 @@ class EventsController < ApplicationController
     property_id = params[:property].to_i
     @property_ids = [Property.find_by(label: "Title")&.id].compact
     @property_ids << property_id if property_id.positive?
-    @property_labels =  @property_ids.map { |id| Property.find(id).label }
+    @property_labels = @property_ids.map do |id|
+      Property.find_by(id: id)&.label
+    end.compact
   
     # Get statements matching critria
     website_statements =
@@ -170,6 +172,24 @@ class EventsController < ApplicationController
                       alert: "Missing seedurl in URL (expected /websites/:seedurl/events_by_property)"
       end
     end
+  end
+
+  # GET /events/:id/pipeline_health.json
+  def pipeline_health
+    evaluation = Dsl::PipelineEvaluator.evaluate(event: params[:id])
+    diagnosis = evaluation[:diagnosis] || {}
+
+    render json: {
+      event_id: params[:id],
+      pipeline: {
+        status: diagnosis[:status],
+        category: diagnosis[:category],
+        message: diagnosis[:message],
+        suggested_action: diagnosis[:suggested_action],
+        metrics: evaluation[:metrics] || {},
+        details: diagnosis[:details] || {}
+      }
+    }
   end
   
 end
