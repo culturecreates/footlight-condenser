@@ -37,7 +37,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "show does not execute trace rendering even when dsl_trace cookie is set" do
-    get statement_url(@statement), headers: { "Cookie" => "dsl_trace=true" }
+    get statement_url(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     assert_response :success
     assert_no_match(/Algorithm Trace/, response.body)
   end
@@ -68,18 +68,96 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
   test "success with trace shows notice and trace on redirected show page" do
     @statement.source.update!(algorithm_value: "manual=Traceable value")
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     assert_redirected_to statement_url(@statement)
     assert_session_trace_present_and_structured
 
-    follow_redirect!
+    follow_redirect_with_trace_visibility
     assert_response :success
     assert_match(/Statement was successfully refreshed\./, response.body)
     assert_no_match(/Statement Error:/, response.body)
     assert_match(/Algorithm Trace/, response.body)
     assert_match(/Step 1/, response.body)
-    assert_match(/\(manual\)/, response.body)
+    assert_match(/Step 1 — manual/, response.body)
     assert_match(/Traceable value/, response.body)
+    assert_nil session[:dsl_trace]
+  end
+
+  test "no error + auto trace visibility hides trace" do
+    @statement.source.update!(algorithm_value: "manual=Traceable value")
+
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=auto" }
+    assert_redirected_to statement_url(@statement)
+    assert_session_trace_present_and_structured
+
+    follow_redirect_with_trace_visibility("auto")
+    assert_response :success
+    assert_no_match(/Algorithm Trace/, response.body)
+    assert_nil session[:dsl_trace]
+  end
+
+  test "error + auto trace visibility shows trace" do
+    @statement.source.update!(algorithm_value: "ruby=$array.each {|a| a")
+
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=auto" }
+    assert_redirected_to statement_url(@statement)
+    assert_session_trace_present_and_structured
+
+    follow_redirect_with_trace_visibility("auto")
+    assert_response :success
+    assert_match(/Algorithm Trace/, response.body)
+    assert_nil session[:dsl_trace]
+  end
+
+  test "always trace visibility always shows trace" do
+    @statement.source.update!(algorithm_value: "manual=Traceable value")
+
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    assert_redirected_to statement_url(@statement)
+    assert_session_trace_present_and_structured
+
+    follow_redirect_with_trace_visibility
+    assert_response :success
+    assert_match(/Algorithm Trace/, response.body)
+    assert_nil session[:dsl_trace]
+  end
+
+  test "hidden trace visibility never shows trace" do
+    @statement.source.update!(algorithm_value: "ruby=$array.each {|a| a")
+
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=hidden" }
+    assert_redirected_to statement_url(@statement)
+    assert_session_trace_present_and_structured
+
+    follow_redirect_with_trace_visibility("hidden")
+    assert_response :success
+    assert_no_match(/Algorithm Trace/, response.body)
+    assert_nil session[:dsl_trace]
+  end
+
+  test "defaults trace_view_mode to trace rendering when cookie is missing" do
+    @statement.source.update!(algorithm_value: "manual=Traceable value")
+
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    assert_redirected_to statement_url(@statement)
+    assert_session_trace_present_and_structured
+
+    follow_redirect_with_trace_visibility("always")
+    assert_response :success
+    assert_match(/Algorithm Trace/, response.body)
+    assert_nil session[:dsl_trace]
+  end
+
+  test "uses cookie trace_view_mode to hide trace when mode is 2" do
+    @statement.source.update!(algorithm_value: "manual=Traceable value")
+
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    assert_redirected_to statement_url(@statement)
+    assert_session_trace_present_and_structured
+
+    follow_redirect_with_trace_visibility("always", "2")
+    assert_response :success
+    assert_no_match(/Algorithm Trace/, response.body)
     assert_nil session[:dsl_trace]
   end
 
@@ -90,7 +168,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to statement_url(@statement)
     assert_nil session[:dsl_trace]
 
-    follow_redirect!
+    follow_redirect_with_trace_visibility
     assert_response :success
     assert_match(/Statement was successfully refreshed\./, response.body)
     assert_no_match(/Statement Error:/, response.body)
@@ -101,11 +179,11 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
   test "error with trace shows alert and keeps trace rendering" do
     @statement.source.update!(algorithm_value: "ruby=$array.each {|a| a")
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     assert_redirected_to statement_url(@statement)
     assert_session_trace_present_and_structured
 
-    follow_redirect!
+    follow_redirect_with_trace_visibility
     assert_response :success
     assert_match(/Statement Error:/, response.body)
     assert_no_match(/Statement was successfully refreshed\./, response.body)
@@ -126,7 +204,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to statement_url(@statement)
     assert_nil session[:dsl_trace]
 
-    follow_redirect!
+    follow_redirect_with_trace_visibility
     assert_response :success
     assert_match(/Statement Error:/, response.body)
     assert_no_match(/Statement was successfully refreshed\./, response.body)
@@ -149,7 +227,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to statement_url(@statement)
     assert_nil session[:dsl_trace]
 
-    follow_redirect!
+    follow_redirect_with_trace_visibility
     assert_response :success
     assert_match(/Statement Error: boom/, response.body)
     assert_no_match(/Statement was successfully refreshed\./, response.body)
@@ -167,11 +245,11 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     )
     StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     assert_redirected_to statement_url(@statement)
     assert_session_trace_present_and_structured
 
-    follow_redirect!
+    follow_redirect_with_trace_visibility
     assert_response :success
     assert_match(/Statement Error: boom/, response.body)
     assert_no_match(/Statement was successfully refreshed\./, response.body)
@@ -191,11 +269,11 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     )
     StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     assert_redirected_to statement_url(@statement)
     assert_session_trace_present_and_structured
 
-    follow_redirect!
+    follow_redirect_with_trace_visibility
     assert_response :success
     assert_match(/Statement Error: critical failure/, response.body)
     assert_no_match(/Statement was successfully refreshed\./, response.body)
@@ -215,13 +293,13 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     )
     StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     assert_redirected_to statement_url(@statement)
     trace = session[:dsl_trace].with_indifferent_access
     assert_equal 2, trace[:version]
-    assert_equal [], trace[:steps]
+    assert_empty trace[:steps]
 
-    follow_redirect!
+    follow_redirect_with_trace_visibility
     assert_response :success
     assert_match(/Statement Error: failure/, response.body)
     assert_no_match(/Statement was successfully refreshed\./, response.body)
@@ -235,7 +313,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
   test "refresh stores formatted trace in session" do
     @statement.source.update!(algorithm_value: "manual=Traceable value")
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     assert_redirected_to statement_url(@statement)
 
     assert_nil flash[:dsl_trace]
@@ -245,7 +323,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, first[:s]
     assert_equal "manual", first[:t]
 
-    follow_redirect!
+    follow_redirect_with_trace_visibility
     assert_response :success
     assert_nil session[:dsl_trace]
   end
@@ -253,11 +331,11 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
   test "show retrieves trace after redirect and clears session trace" do
     @statement.source.update!(algorithm_value: "manual=Traceable value")
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     assert_redirected_to statement_url(@statement)
     assert_session_trace_present_and_structured
 
-    follow_redirect!
+    follow_redirect_with_trace_visibility
     assert_response :success
     assert_match(/Algorithm Trace/, response.body)
     assert_nil session[:dsl_trace]
@@ -298,7 +376,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to statement_url(@statement)
     assert_nil session[:dsl_trace]
 
-    follow_redirect!
+    follow_redirect_with_trace_visibility
     assert_response :success
     assert_no_match(/Algorithm Trace/, response.body)
   end
@@ -319,13 +397,13 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
 
     stub_helper_with_trace(large_trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
     body = response.body
 
-    assert_match /Algorithm Trace/, body
-    assert_match /NoMethodError/, body
+    assert_match(/Algorithm Trace/, body)
+    assert_match(/NoMethodError/, body)
   end
 
   test "all trace steps are preserved in session and rendered" do
@@ -335,14 +413,14 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
 
     stub_helper_with_trace(trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
 
     assert_equal 10, session[:dsl_trace].with_indifferent_access[:steps].size
 
-    follow_redirect!
+    follow_redirect_with_trace_visibility
 
     (1..10).each do |i|
-      assert_match /Step #{i}/, response.body
+      assert_match(/Step #{i}/, response.body)
     end
   end
 
@@ -352,8 +430,8 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     ]
     stub_helper_with_trace(trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
     assert_match(/Algorithm Trace/, response.body)
     assert_match(/→/, response.body)
@@ -371,11 +449,11 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     ]
     stub_helper_with_trace(trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
     assert_match(/\[\d+ items:/, response.body)
-    assert_match(/https:\/\/example.com/, response.body)
+    assert_match(%r{https://example.com}, response.body)
     assert_no_match(/extra2/, response.body)
     assert_no_match(/z{70}/, response.body)
   end
@@ -392,14 +470,35 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     ]
     stub_helper_with_trace(trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
-    displayed_code = response.body[/<div class="trace-code">\s*<code>\s*<span[^>]*>([^<]+)<\/span>\s*<\/code>/m, 1]
+    displayed_code = response.body[%r{<div class="trace-code">\s*<code>\s*<span[^>]*>([^<]+)</span>\s*</code>}m, 1]
     assert displayed_code.present?
-    assert_operator displayed_code.length, :<=, 80
+    assert_operator displayed_code.length, :<=, StatementsController::TRACE_CODE_DEFAULT
     assert_match(/x{20}/, displayed_code)
     assert_no_match(/x{150}/, displayed_code)
+    assert_match(/title="/, response.body)
+  end
+
+  test "code truncation honors trace_code_display_length cookie" do
+    trace = [
+      {
+        step: 1,
+        type: "ruby",
+        code: "x" * 500,
+        input_preview: ["in"],
+        output_preview: ["out"]
+      }
+    ]
+    stub_helper_with_trace(trace)
+
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always; trace_code_display_length=200" }
+    follow_redirect_with_trace_visibility
+
+    displayed_code = response.body[%r{<div class="trace-code">\s*<code>\s*<span[^>]*>([^<]+)</span>\s*</code>}m, 1]
+    assert displayed_code.present?
+    assert_operator displayed_code.length, :<=, 200
     assert_match(/title="/, response.body)
   end
 
@@ -407,8 +506,8 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     trace = [{ step: 1, type: "xpath", code: "//div", output_preview: [] }]
     stub_helper_with_trace(trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
     assert_match(/extraction/, response.body)
   end
@@ -420,8 +519,8 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     ]
     stub_helper_with_trace(trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
     assert_match(/filter \(Δ changed\)/, response.body)
   end
@@ -430,8 +529,8 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     trace = [{ step: 1, type: "ruby", code: "alpha_beta", output_preview: [] }]
     stub_helper_with_trace(trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
     assert_match(/title="/, response.body)
     assert_match(/alpha_beta/, response.body)
@@ -449,11 +548,43 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     ]
     stub_helper_with_trace(trace, errors: ["boom"])
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
     assert_match(/⚠/, response.body)
     assert_match(/NoMethodError/, response.body)
+  end
+
+  test "probe result is rendered in trace viewer" do
+    trace = [
+      {
+        step: 1,
+        type: "url",
+        output_preview: []
+      },
+      {
+        step: 2,
+        type: "xpath",
+        code: "//h1/text()",
+        output_preview: [],
+        probe: {
+          xpath: "//title",
+          output: ["Probe Title"]
+        }
+      }
+    ]
+    stub_helper_with_trace(trace)
+
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    trace_payload = session[:dsl_trace].with_indifferent_access
+    second = trace_payload[:steps].second.with_indifferent_access
+    assert_equal "//title", second.dig(:p, :x)
+    assert_match(/Probe Title/, second.dig(:p, :o).to_s)
+
+    follow_redirect_with_trace_visibility
+
+    assert_match(%r{Probe //title}, response.body)
+    assert_match(/Probe Title/, response.body)
   end
 
   test "delta shows added elements in array" do
@@ -463,8 +594,8 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     ]
     stub_helper_with_trace(trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
     assert_match(/Δ added/, response.body)
     assert_no_match(/class="trace-delta"/, response.body)
@@ -472,13 +603,13 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
 
   test "delta shows removed elements in array" do
     trace = [
-      { step: 1, type: "ruby", output_preview: ["A", "B"] },
+      { step: 1, type: "ruby", output_preview: %w[A B] },
       { step: 2, type: "ruby", output_preview: ["A"] }
     ]
     stub_helper_with_trace(trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
     assert_match(/Δ changed/, response.body)
     assert_match(/-B/, response.body)
@@ -493,11 +624,11 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     ]
     stub_helper_with_trace(trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
     assert_match(/Δ changed/, response.body)
-    assert_match(/\+https:\/\/example.com/, response.body)
+    assert_match(%r{\+https://example.com}, response.body)
   end
 
   test "no delta shown when state unchanged" do
@@ -507,8 +638,8 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     ]
     stub_helper_with_trace(trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
     assert_match(/No change/, response.body)
     assert_no_match(/class="trace-delta"/, response.body)
@@ -521,8 +652,8 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     ]
     stub_helper_with_trace(trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
     assert_match(/No change/, response.body)
   end
@@ -534,8 +665,8 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     ]
     stub_helper_with_trace(trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
     assert_match(/No result/, response.body)
   end
@@ -548,8 +679,8 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     ]
     stub_helper_with_trace(trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
     assert_equal 3, response.body.scan(/class="trace-semantic"/).size
   end
@@ -560,8 +691,8 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     ]
     stub_helper_with_trace(trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
     assert_match(/→\s*\[\]/, response.body)
   end
@@ -572,8 +703,8 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     ]
     stub_helper_with_trace(trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
     assert_match(/→\s*\[\]/, response.body)
     assert_no_match(/→\s*INPUT_ONLY_MARKER/, response.body)
@@ -586,13 +717,13 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     ]
     stub_helper_with_trace(trace)
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     compact = session[:dsl_trace].with_indifferent_access
     assert_equal "http://example.com/a", compact[:initial].with_indifferent_access[:url]
     assert_equal ["http://example.com/b"], compact[:urls]
 
-    follow_redirect!
-    assert_match(/http:\/\/example.com\/b/, response.body)
+    follow_redirect_with_trace_visibility
+    assert_match(%r{http://example.com/b}, response.body)
   end
 
   test "v2 step chain reconstruction uses previous output as next input" do
@@ -633,12 +764,32 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "boom", first[:error]
   end
 
+  test "expand_trace_for_view reconstructs v2 probe payload" do
+    compact = {
+      version: 2,
+      initial: { state: nil, url: "http://example.com/start" },
+      urls: [],
+      steps: [
+        { s: 1, t: "url", o: "[]" },
+        { s: 2, t: "xpath", o: "[]", p: { st: "ok", x: "//title", o: ["Probe Title"] } }
+      ]
+    }
+
+    expanded = StatementsController.new.expand_trace_for_view(compact)
+    probe = expanded.second[:probe].with_indifferent_access
+
+    assert_equal true, probe[:ok]
+    assert_equal "ok", probe[:result][:status]
+    assert_equal "//title", probe[:result][:xpath]
+    assert_equal ["Probe Title"], probe[:result][:output]
+  end
+
   test "trace storage does not trigger CookieOverflow" do
     large_trace = build_large_realistic_trace(20)
     stub_helper_with_trace(large_trace)
 
     assert_nothing_raised do
-      patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
+      patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     end
 
     trace = assert_session_trace_present_and_structured
@@ -653,10 +804,10 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
 
     stub_helper_with_trace(trace, errors: ["boom"])
 
-    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
-    follow_redirect!
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility
 
-    assert_match /Statement Error:/, response.body
+    assert_match(/Statement Error:/, response.body)
   end
 
   test "large trace payload does not overflow cookies because trace is truncated for session" do
@@ -681,7 +832,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
 
     assert_nothing_raised do
-      patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true" }
+      patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     end
 
     assert_redirected_to statement_url(@statement)
@@ -694,7 +845,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_operator JSON.generate(trace).bytesize, :<, 3500
     assert_operator Marshal.dump(session.to_hash).bytesize, :<, 3000
 
-    follow_redirect!
+    follow_redirect_with_trace_visibility
     assert_response :success
     assert_nil session[:dsl_trace]
   end
@@ -748,6 +899,12 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
 
 
   private
+
+  def follow_redirect_with_trace_visibility(state = "always", view_mode = nil)
+    cookies[:trace_visibility] = state
+    cookies[:trace_view_mode] = view_mode if view_mode.present?
+    follow_redirect!
+  end
 
   def assert_error_alert_if_present
     return unless response.body.match?(/class=(['"])[^'"]*\balert\b[^'"]*\1/)

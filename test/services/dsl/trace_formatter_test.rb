@@ -283,4 +283,66 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
     assert_match(/\A\[3 items: /, output_state)
     assert_match(/https:\/\/example.com\/beta/, output_state)
   end
+
+  test "for_session_v2 preserves normalized probe payload" do
+    trace = [
+      { step: 1, type: "url", output_preview: [] },
+      {
+        step: 2,
+        type: "xpath",
+        output_preview: [],
+        probe: {
+          status: "ok",
+          xpath: "//title",
+          output: [nil, "Alpha", :beta, "Gamma", "Delta"]
+        }
+      }
+    ]
+
+    compact = Dsl::TraceFormatter.for_session_v2(trace).with_indifferent_access
+    probe = compact[:steps].second.with_indifferent_access[:p].with_indifferent_access
+
+    assert_equal "ok", probe[:st]
+    assert_equal "//title", probe[:x]
+    assert_equal ["Alpha", "beta", "Gamma"], probe[:o]
+  end
+
+  test "for_session_v2 includes full fields for warning and error severities" do
+    trace = [
+      { step: 1, type: "ruby", code: "ok", output_preview: ["ok"] },
+      { step: 2, type: "ruby", code: "warn" * 60, output_preview: [], probe: { skipped: false, result: { status: "ok" } } },
+      { step: 3, type: "ruby", code: "boom" * 60, output_preview: ["very long output " * 20], error_class: "RuntimeError", error_message: "boom" }
+    ]
+
+    compact = Dsl::TraceFormatter.for_session_v2(trace).with_indifferent_access
+    ok_step = compact[:steps].first.with_indifferent_access
+    warning_step = compact[:steps].second.with_indifferent_access
+    error_step = compact[:steps].third.with_indifferent_access
+
+    assert_nil ok_step[:cf]
+    assert_nil ok_step[:of]
+    assert warning_step[:cf].present?
+    assert_equal "[]", warning_step[:of]
+    assert error_step[:cf].present?
+    assert error_step[:of].present?
+  end
+
+  test "for_session_v2 warning output full falls back to output limit" do
+    trace = [
+      {
+        step: 1,
+        type: "ruby",
+        code: "warn",
+        output_preview: ["x" * 400],
+        wringer: { system_error: true }
+      }
+    ]
+
+    compact = Dsl::TraceFormatter.for_session_v2(trace).with_indifferent_access
+    step = compact[:steps].first.with_indifferent_access
+
+    assert step[:o].present?
+    assert step[:of].present?
+    assert_equal step[:o], step[:of]
+  end
 end

@@ -235,6 +235,49 @@ class CcWringerHelperTest < ActionView::TestCase
     assert_equal "<html>event</html>", result
   end
 
+  test "safe_wringer_call preserves false return value" do
+    stubs(:wringer_rules).returns([])
+
+    result = safe_wringer_call { false }
+
+    assert_equal false, result
+    assert_instance_of FalseClass, result
+  end
+
+  test "safe_wringer_call preserves true return value" do
+    stubs(:wringer_rules).returns([])
+
+    result = safe_wringer_call { true }
+
+    assert_equal true, result
+    assert_instance_of TrueClass, result
+  end
+
+  test "safe_wringer_call preserves plain string return value" do
+    stubs(:wringer_rules).returns([])
+
+    result = safe_wringer_call { "hello" }
+
+    assert_equal "hello", result
+  end
+
+  test "safe_wringer_call can return normalized response hash" do
+    stubs(:wringer_rules).returns([])
+
+    fake_response = Struct.new(:code, :body, :uri).new(
+      302,
+      "<html>redirect</html>",
+      URI("https://example.com/events")
+    )
+
+    result = safe_wringer_call(normalize_response: true) { fake_response }
+
+    assert_equal(
+      { body: "<html>redirect</html>", http_code: 302, final_url: "https://example.com/events" },
+      result
+    )
+  end
+
   test "matches only when all conditions are satisfied" do
     rules = {
       "complex_rule" => {

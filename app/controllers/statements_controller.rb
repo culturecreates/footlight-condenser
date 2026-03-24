@@ -5,6 +5,9 @@ class StatementsController < ApplicationController
   helper_method :expand_trace_for_view, :trace_steps_for_view
 
   MANUALLY_ADDED = "Manually added"
+  TRACE_CODE_DEFAULT = 140
+  TRACE_OUTPUT_DEFAULT = 140
+  TRACE_ERROR_DEFAULT = 160
 
   # GET /statements/webpage.json?url=http://
   def webpage
@@ -84,7 +87,45 @@ class StatementsController < ApplicationController
   # GET /statements/1.json
   def show
     @trace = session.delete(:dsl_trace)
+    @trace_view_mode = cookies[:trace_view_mode]&.to_i.presence || 3
+    visibility = cookies[:trace_visibility].presence || "auto"
+    code_len = (cookies[:trace_code_display_length].presence || TRACE_CODE_DEFAULT).to_i
+    output_len = (cookies[:trace_output_display_length].presence || TRACE_OUTPUT_DEFAULT).to_i
+    error_len = (cookies[:trace_error_display_length].presence || TRACE_ERROR_DEFAULT).to_i
+
+    @trace_code_length = code_len.positive? ? code_len : TRACE_CODE_DEFAULT
+    @trace_output_length = output_len.positive? ? output_len : TRACE_OUTPUT_DEFAULT
+    @trace_error_length = error_len.positive? ? error_len : TRACE_ERROR_DEFAULT
+
+    @show_trace =
+      case visibility
+      when "always"
+        true
+      when "hidden"
+        false
+      else
+        trace_has_error?(@trace)
+      end
     @result = nil
+  end
+
+  def trace_has_error?(trace)
+    return false unless trace.is_a?(Hash) || trace.is_a?(Array)
+
+    steps =
+      if trace.is_a?(Hash)
+        raw = trace.respond_to?(:to_h) ? trace.to_h : trace
+        raw[:steps] || raw["steps"] || []
+      else
+        trace
+      end
+
+    Array(steps).any? do |step|
+      source = step.respond_to?(:to_h) ? step.to_h : {}
+      next false unless source.is_a?(Hash)
+
+      (source[:error] || source["error"] || source[:e] || source["e"]).present?
+    end
   end
 
   def expand_trace_for_view(compact_trace)
@@ -102,7 +143,8 @@ class StatementsController < ApplicationController
 
   def trace_steps_for_view(trace)
     interpreter = Dsl::SemanticInterpreter.new
-    interpreter.annotate(expand_trace_for_view(trace))
+    steps = expand_trace_for_view(trace).map { |step| normalize_trace_semantics(step) }
+    interpreter.annotate(steps)
   end
 
   def expand_trace_v1_for_view(payload)
@@ -118,6 +160,8 @@ class StatementsController < ApplicationController
         code: e[:c],
         input: e[:i],
         output: e[:o],
+        probe: expand_compact_probe(e[:p]),
+        wringer: expand_compact_wringer(e[:w]),
         url_before: resolve_trace_url(urls, e[:ub]),
         url_after: resolve_trace_url(urls, e[:ua]),
         duration_ms: e[:d],
@@ -137,16 +181,18 @@ class StatementsController < ApplicationController
       source = step.respond_to?(:to_h) ? step.to_h : step
       s = source.is_a?(Hash) ? source.with_indifferent_access : {}
 
-      output = s[:o]
+      output = s[:of] || s[:o]
       next_url = s.key?(:ua) ? resolve_trace_url(urls, s[:ua]) : current_url
       input = current_state
       output = input if output.nil?
       expanded = {
         step: s[:s],
         type: s[:t],
-        code: s[:c],
+        code: s[:cf] || s[:c],
         input: input,
         output: output,
+        probe: expand_compact_probe(s[:p]),
+        wringer: expand_compact_wringer(s[:w]),
         url_before: current_url,
         url_after: next_url,
         duration_ms: s[:d],
@@ -408,6 +454,91 @@ class StatementsController < ApplicationController
     urls[index.to_i]
   rescue StandardError
     nil
+  end
+
+  def expand_compact_probe(payload)
+    raw = payload.respond_to?(:to_h) ? payload.to_h : payload
+    return { skipped: true } unless raw.is_a?(Hash)
+
+    p = raw.with_indifferent_access
+    return { skipped: true } if p[:sk]
+    return { skipped: true } if p[:x].blank?
+    output = Array(p[:o]).compact.map(&:to_s).first(3)
+    status = p[:st].presence || "ok"
+
+    {
+      result: {
+        status: status,
+        xpath: p[:x],
+        output: output
+      },
+      ok: p.key?(:ok) ? p[:ok] : (status == "ok")
+    }
+  rescue StandardError
+    { skipped: true }
+  end
+
+  def expand_compact_wringer(payload)
+    raw = payload.respond_to?(:to_h) ? payload.to_h : payload
+    return { inherited: true } unless raw.is_a?(Hash)
+
+    w = raw.with_indifferent_access
+    return { inherited: true } if w[:i]
+
+    {
+      error_type: w[:et],
+      retry: w[:r],
+      cache: w[:c],
+      unreachable: w[:u],
+      received_404: w[:r404],
+      system_error: w[:se],
+      policy_action: w[:pa],
+      signals: w[:s],
+      hints: w[:h]
+    }.compact
+  rescue StandardError
+    { inherited: true }
+  end
+
+  def normalize_trace_semantics(step)
+    raw = step.respond_to?(:to_h) ? step.to_h : {}
+    s = raw.is_a?(Hash) ? raw.with_indifferent_access : {}.with_indifferent_access
+
+    normalized_probe =
+      if s[:probe].is_a?(Hash)
+        probe = s[:probe].with_indifferent_access
+        if probe[:skipped]
+          { skipped: true }
+        elsif probe[:result].is_a?(Hash)
+          { result: probe[:result], ok: probe[:ok] }
+        elsif probe[:xpath].present?
+          {
+            result: {
+              status: probe[:status],
+              xpath: probe[:xpath],
+              output: probe[:output]
+            }.compact,
+            ok: probe[:status].to_s == "ok"
+          }
+        else
+          { skipped: true }
+        end
+      else
+        { skipped: true }
+      end
+
+    normalized_wringer =
+      if s[:wringer].is_a?(Hash)
+        wringer = s[:wringer].with_indifferent_access
+        wringer.present? ? wringer : { inherited: true }
+      else
+        { inherited: true }
+      end
+
+    s.merge(
+      probe: normalized_probe,
+      wringer: normalized_wringer
+    )
   end
 
   # Use callbacks to share common setup or constraints between actions.

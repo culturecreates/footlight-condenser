@@ -48,6 +48,9 @@ module Dsl
       @dsl_binding = binding
 
       steps = algorithm.split(';').map(&:strip).reject(&:empty?)
+      previous_prefix = nil
+      previous_step_index = nil
+      @probed_url_step_indices = []
 
       steps.each_with_index do |raw, idx|
         prefix, code = raw.partition('=').values_at(0, 2)
@@ -64,6 +67,7 @@ module Dsl
         Thread.current[:dsl_json]  = @json
 
         out = execute(prefix, code, results)
+        input_preview = trace_preview(input_copy)
 
         # handle abort payload
         if abort_structure?(out)
@@ -74,10 +78,13 @@ module Dsl
             step: step_index,
             type: prefix,
             code: code,
-            input: input_copy,
+            input: input_preview,
             output: [],
+            input_full: input_copy,
+            output_full: [],
+            probe: trace_probe_payload(nil),
             error: out.last,           # error message details
-            wringer: @current_wringer_status,
+            wringer: trace_wringer_payload,
             url_before: url_before,
             url_after: @url,
             duration_ms: duration_ms
@@ -95,10 +102,13 @@ module Dsl
             step: step_index,
             type: prefix,
             code: code,
-            input: input_copy,
+            input: input_preview,
             output: trace_preview(results),
+            input_full: input_copy,
+            output_full: results,
+            probe: trace_probe_payload(nil),
             error: nil,
-            wringer: @current_wringer_status,
+            wringer: trace_wringer_payload,
             url_before: url_before,
             url_after: @url,
             duration_ms: duration_ms
@@ -112,21 +122,27 @@ module Dsl
 
         url_after   = @url
         output      = trace_preview(out)
+        probe       = build_xpath_probe(previous_prefix, prefix, out, previous_step_index)
 
         @tracer.step(
           step: step_index,
           type: prefix,
           code: code,
-          input: input_copy,
+          input: input_preview,
           output: output,
+          input_full: input_copy,
+          output_full: out,
+          probe: trace_probe_payload(probe),
           error: nil,
-          wringer: @current_wringer_status,
+          wringer: trace_wringer_payload,
           url_before: url_before,
           url_after: url_after,
           duration_ms: duration_ms
         )
 
         results = out
+        previous_prefix = prefix
+        previous_step_index = step_index
       rescue StandardError, SyntaxError => e
         end_time    = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         duration_ms = ((end_time - start_time) * 1000).round(1)
@@ -135,10 +151,13 @@ module Dsl
           step: step_index,
           type: prefix,
           code: code,
-          input: input_copy,
+          input: input_preview,
           output: [],
+          input_full: input_copy,
+          output_full: [],
+          probe: trace_probe_payload(nil),
           error: e,
-          wringer: @current_wringer_status,
+          wringer: trace_wringer_payload,
           url_before: url_before,
           url_after: @url,
           duration_ms: duration_ms
@@ -198,8 +217,7 @@ module Dsl
         JSON.parse(data.body)
 
       when 'xpath'
-        ensure_page!
-        @page.xpath(code).map(&:text)
+        execute_xpath(code)
 
       when 'xpath_sanitize'
         ensure_page!
@@ -259,6 +277,33 @@ module Dsl
       end
     end
 
+    def build_xpath_probe(previous_prefix, current_prefix, output, previous_step_index = nil)
+      return nil unless previous_prefix == 'url'
+      return nil unless current_prefix == 'xpath'
+      return nil if output.present?
+      return nil if previous_step_index.nil?
+
+      @probed_url_step_indices ||= []
+      return nil if @probed_url_step_indices.include?(previous_step_index)
+
+      probe_output = Array(execute_xpath("//title")).compact.map(&:to_s).first(3)
+      @probed_url_step_indices << previous_step_index
+
+      {
+        status: "ok",
+        xpath: "//title",
+        output: probe_output
+      }
+    rescue StandardError
+      @probed_url_step_indices << previous_step_index if previous_step_index
+
+      {
+        status: "ok",
+        xpath: "//title",
+        output: []
+      }
+    end
+
     def resolve_and_fetch_url(code, arr, render_js: @render_js, opts: @scrape_opts)
       raw = @dsl_binding.eval(sub(code, arr))
       new_url = Dsl::UrlResolver.extract(raw)
@@ -309,6 +354,11 @@ module Dsl
 
       apply_html_result(result)
       arr
+    end
+
+    def execute_xpath(code)
+      ensure_page!
+      @page.xpath(code).map(&:text)
     end
 
     def halt_structure?(obj)
@@ -365,6 +415,21 @@ module Dsl
 
     def trace_preview(value)
       value.is_a?(Array) ? value : [value]
+    end
+
+    def trace_wringer_payload
+      return @current_wringer_status if @current_wringer_status.present?
+
+      { inherited: true }
+    end
+
+    def trace_probe_payload(probe_result)
+      return { skipped: true } unless probe_result.present?
+
+      {
+        result: probe_result,
+        ok: probe_result[:status].to_s == "ok"
+      }
     end
 
     def snapshot_thread_locals

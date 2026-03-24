@@ -25,6 +25,24 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     assert_equal ["hello"], result
   end
 
+  test "trace uses inherited wringer context for non-fetch steps" do
+    runner, tracer = build_runner
+
+    runner.run("manual=hello")
+    step = tracer.to_h.first
+
+    assert_equal true, step.dig(:wringer, :inherited)
+  end
+
+  test "trace marks probe as skipped when not executed" do
+    runner, tracer = build_runner
+
+    runner.run("manual=hello")
+    step = tracer.to_h.first
+
+    assert_equal true, step.dig(:probe, :skipped)
+  end
+
   test "syntax error in ruby returns abort_update payload instead of raising" do
     runner, = build_runner
     result = runner.run("ruby=$array.each {|a| a")
@@ -127,13 +145,14 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     event = tracer.to_h.last
 
     assert_equal "abort_update", result.first
-    assert_equal(
-      { error_type: "system_cloudflare", retry: true, cache: false },
-      event[:wringer]
-    )
+    assert_equal "system_cloudflare", event[:wringer][:error_type]
+    assert_equal true, event[:wringer][:retry]
+    assert_equal false, event[:wringer][:cache]
+    assert_equal({}, event[:wringer][:signals])
+    assert_equal [], event[:wringer][:hints]
   end
 
-  test "trace event wringer status is nil when safe_wringer_call succeeds" do
+  test "trace event wringer status includes diagnostics when safe_wringer_call succeeds" do
     runner, tracer = build_runner
     runner.stubs(:safe_wringer_call).returns("<html><body><h1>Title</h1></body></html>")
 
@@ -141,7 +160,8 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     url_step_event = tracer.to_h.first
 
     assert_equal ["Title"], result
-    assert_nil url_step_event[:wringer]
+    assert_equal({}, url_step_event[:wringer][:signals])
+    assert_equal [], url_step_event[:wringer][:hints]
   end
 
   test "trace event safely includes partial wringer payload keys only" do
@@ -154,6 +174,102 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     event = tracer.to_h.last
 
     assert_equal "abort_update", result.first
-    assert_equal({ error_type: "system_cloudflare" }, event[:wringer])
+    assert_equal "system_cloudflare", event[:wringer][:error_type]
+    assert_equal({}, event[:wringer][:signals])
+    assert_equal [], event[:wringer][:hints]
+  end
+
+  test "xpath probe runs only when xpath is empty after url step" do
+    html = "<html><head><title>Probe Title</title></head><body><p>body</p></body></html>"
+    stub_request(:get, /localhost:3009\/websites\/wring/).to_return(status: 200, body: html)
+
+    runner, tracer = build_runner
+    result = runner.run("url='http://example.local/events/1';xpath=//h1/text()")
+
+    assert_equal [], result
+
+    url_event = tracer.to_h.first
+    xpath_event = tracer.to_h.second
+
+    assert_equal true, url_event.dig(:probe, :skipped)
+    assert_equal "//title", xpath_event.dig(:probe, :result, :xpath)
+    assert_equal ["Probe Title"], xpath_event.dig(:probe, :result, :output)
+  end
+
+  test "xpath probe does not run for empty xpath when previous step is not url" do
+    html = "<html><head><title>Probe Title</title></head><body><p>body</p></body></html>"
+    stub_request(:get, /localhost:3009\/websites\/wring/).to_return(status: 200, body: html)
+
+    runner, tracer = build_runner
+    result = runner.run("xpath=//h1/text()")
+
+    assert_equal [], result
+    assert_equal true, tracer.to_h.first.dig(:probe, :skipped)
+  end
+
+  test "xpath probe is attached only to first empty xpath after url" do
+    html = "<html><head><title>Probe Title</title></head><body><p>body</p></body></html>"
+    stub_request(:get, /localhost:3009\/websites\/wring/).to_return(status: 200, body: html)
+
+    runner, tracer = build_runner
+    result = runner.run("url='http://example.local/events/1';xpath=//h1/text();xpath=//h2/text()")
+
+    assert_equal [], result
+
+    events = tracer.to_h
+    assert_equal true, events.first.dig(:probe, :skipped)
+    assert_equal "//title", events.second.dig(:probe, :result, :xpath)
+    assert_equal true, events.third.dig(:probe, :skipped)
+  end
+
+  test "xpath probe triggers for all blank outputs after url step" do
+    [[], nil, "", "   "].each do |blank_output|
+      runner, = build_runner
+      runner.stubs(:execute_xpath).returns(["Probe Title"])
+
+      probe = runner.send(:build_xpath_probe, "url", "xpath", blank_output, 1)
+
+      assert_equal "//title", probe[:xpath]
+      assert_equal ["Probe Title"], probe[:output]
+    end
+  end
+
+  test "xpath probe structure is normalized" do
+    runner, = build_runner
+    runner.stubs(:execute_xpath).returns([nil, "Alpha", :beta, "Gamma", "Delta"])
+
+    probe = runner.send(:build_xpath_probe, "url", "xpath", [], 1)
+
+    assert_equal "ok", probe[:status]
+    assert_equal "//title", probe[:xpath]
+    assert_equal ["Alpha", "beta", "Gamma"], probe[:output]
+    assert_operator probe[:output].size, :<=, 3
+    assert probe[:output].all? { |entry| entry.is_a?(String) }
+  end
+
+  test "xpath probe does not run for xpath to xpath empty chain" do
+    html = "<html><head><title>Probe Title</title></head><body><p>body</p></body></html>"
+    stub_request(:get, /localhost:3009\/websites\/wring/).to_return(status: 200, body: html)
+
+    runner, tracer = build_runner
+    result = runner.run("xpath=//h1/text();xpath=//h2/text()")
+
+    assert_equal [], result
+    assert_equal true, tracer.to_h.first.dig(:probe, :skipped)
+    assert_equal true, tracer.to_h.second.dig(:probe, :skipped)
+  end
+
+  test "xpath probe stays trace-only and does not change pipeline output" do
+    html = "<html><head><title>SHOULD_NOT_REPLACE_OUTPUT</title></head><body><p>body</p></body></html>"
+    stub_request(:get, /localhost:3009\/websites\/wring/).to_return(status: 200, body: html)
+
+    runner, tracer = build_runner
+
+    result = runner.run("url='http://example.local/events/1';xpath=//h1/text()")
+    probe_output = tracer.to_h.second.dig(:probe, :result, :output)
+
+    assert_equal [], result
+    assert_equal ["SHOULD_NOT_REPLACE_OUTPUT"], probe_output
+    refute_equal probe_output, result
   end
 end

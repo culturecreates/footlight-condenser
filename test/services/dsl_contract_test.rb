@@ -131,6 +131,14 @@ class DslContractTest < ActiveSupport::TestCase
   # ⚠️ CONTRACT TEST — DO NOT SIMPLIFY
   # This test reflects real-world DSL behavior used in production.
   # If this breaks, the DSL runner contract has been violated.
+  # SENTINEL TEST
+  # Purpose:
+  # Ensures real-world extraction semantics are preserved across:
+  # Wringer → Condenser → DSL
+  #
+  # Known issue:
+  # Currently failing due to extraction drift.
+  # DO NOT REMOVE — used as regression indicator.
   test "real world ticket extraction pipeline preserves semantics" do
     html = <<~HTML
       <html>

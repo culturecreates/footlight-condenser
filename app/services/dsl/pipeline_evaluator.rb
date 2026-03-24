@@ -7,18 +7,19 @@ module Dsl
       policy_action: nil
     }.freeze
 
-    def self.evaluate(event:)
-      new(event: event).evaluate
+    def self.evaluate(event:, wringer: nil)
+      new(event: event, wringer: wringer).evaluate
     end
 
-    def initialize(event:)
+    def initialize(event:, wringer: nil)
       @event = event
+      @wringer = normalize_wringer(wringer)
     end
 
     def evaluate
       steps = pipeline_steps
       metrics = Dsl::PipelineInterpreter.new(steps).metrics
-      diagnosis = Dsl::PipelineDiagnosis.new(metrics: metrics, wringer: DEFAULT_WRINGER).result
+      diagnosis = Dsl::PipelineDiagnosis.new(metrics: metrics, wringer: effective_wringer, steps: steps).result
 
       {
         metrics: metrics,
@@ -29,13 +30,25 @@ module Dsl
     private
 
     def pipeline_steps
-      event_statements.each_with_index.map do |statement, index|
-        {
-          step: index + 1,
-          type: infer_step_type(statement.source&.algorithm_value),
-          output: normalize_output(statement.cache),
-          error: statement_error(statement)
-        }.compact
+      step_counter = 0
+
+      event_statements.flat_map do |statement|
+        step_types = extract_step_types(statement.source&.algorithm_value)
+        next [] if step_types.empty?
+
+        output = normalize_output(statement.cache)
+        error = statement_error(statement)
+
+        step_types.map do |step_type|
+          step_counter += 1
+          {
+            step: step_counter,
+            type: step_type,
+            primitive: infer_primitive(step_type),
+            output: output,
+            error: error
+          }.compact
+        end
       end
     end
 
@@ -66,6 +79,27 @@ module Dsl
       left_side.presence || "unknown"
     end
 
+    def extract_step_types(algorithm_value)
+      expression = algorithm_value.to_s
+      return [] if expression.blank?
+
+      expression.split(";").map(&:strip).reject(&:blank?).filter_map do |segment|
+        segment.split("=", 2).first.to_s.strip.downcase.presence
+      end
+    end
+
+    def infer_primitive(type)
+      t = type.to_s
+
+      return :branch if t.start_with?("if_xpath")
+      return :extract if t.include?("xpath")
+      return :navigate if t.include?("url")
+      return :transform if t.include?("ruby")
+      return :transform if t.include?("sparql")
+
+      :unknown
+    end
+
     def normalize_output(value)
       string_value = value.to_s.strip
       return nil if string_value.empty?
@@ -88,6 +122,17 @@ module Dsl
       return "statement_error_cache" if statement.cache.to_s.downcase.include?("error:")
 
       nil
+    end
+
+    def normalize_wringer(value)
+      return {} unless value.respond_to?(:to_h)
+
+      hash = value.to_h
+      hash.is_a?(Hash) ? hash.symbolize_keys : {}
+    end
+
+    def effective_wringer
+      DEFAULT_WRINGER.merge(@wringer.slice(:unreachable, :received_404, :system_error, :policy_action))
     end
   end
 end

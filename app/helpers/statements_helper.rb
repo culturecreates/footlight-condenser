@@ -78,6 +78,189 @@ module StatementsHelper
     value.to_s
   end
 
+  def split_algorithm_steps(algorithm)
+    return [] if algorithm.blank?
+
+    algorithm
+      .split(";")
+      .map(&:strip)
+      .reject(&:blank?)
+  end
+
+  def compute_warning_type(step)
+    current = normalize_step_hash(step)
+    output = current.key?(:output_full) ? current[:output_full] : current[:output]
+
+    return :empty if output.is_a?(Array) && output.empty?
+
+    probe = current[:probe].is_a?(Hash) ? current[:probe].with_indifferent_access : {}
+    return :probe if probe.present? && !probe[:skipped]
+
+    nil
+  end
+
+  def compute_step_status(step)
+    current = normalize_step_hash(step)
+    return :error if current[:error].present?
+    return :warning if compute_warning_type(current).present?
+
+    :ok
+  end
+
+  def semantic_label(step)
+    current = normalize_step_hash(step)
+    step_type = current[:type].to_s.strip
+    normalized_type = step_type.downcase
+
+    case normalized_type
+    when "xpath", "css"
+      "Extraction"
+    when "ruby"
+      "Filter"
+    when "url"
+      "Navigation"
+    when "if_xpath"
+      "Condition"
+    when "json"
+      "JSON parse"
+    else
+      return step_type.capitalize if step_type.present?
+
+      "Unknown"
+    end
+  end
+
+  def explain_step(step, previous_step = nil)
+    current = normalize_step_hash(step)
+    output = current.key?(:output_full) ? current[:output_full] : current[:output]
+    label = semantic_label(current)
+
+    return "Execution failed" if current[:error].present?
+    return "No elements matched selector" if label == "Extraction" && output.blank?
+    return "All items were filtered out" if label == "Filter" && output.blank?
+    return "Navigated to new page" if label == "Navigation"
+
+    # Keep fallback nil when we do not have a clear explanation.
+    nil
+  end
+
+  def suggest_fix(step, previous_step = nil)
+    current = normalize_step_hash(step)
+    previous = normalize_step_hash(previous_step)
+    return nil if current.blank?
+
+    semantic = current[:semantic].to_s.downcase
+    previous_semantic = previous[:semantic].to_s.downcase
+    output = current.key?(:output_full) ? current[:output_full] : current[:output]
+    previous_output = previous.key?(:output_full) ? previous[:output_full] : previous[:output]
+    output_blank = output.blank?
+    probe = current[:probe].is_a?(Hash) ? current[:probe].with_indifferent_access : {}
+    probe_status = probe.dig(:result, :status)
+
+    if semantic == "extraction" && output_blank && probe_status == "ok"
+      return "Try using contains(@class, '...') instead of exact match"
+    end
+
+    if semantic == "filter" && output_blank
+      return "Check filter condition — it may be too restrictive"
+    end
+
+    if current[:error].present? && previous.present? && previous_output.blank?
+      return "Add a guard clause before this step (e.g. return if $array.empty?)"
+    end
+
+    if previous.present? &&
+       previous_semantic == "navigation" &&
+       semantic == "extraction" &&
+       output_blank
+      return "Verify selector on target page — structure may differ after navigation"
+    end
+
+    nil
+  end
+
+  def trace_display_output(step)
+    current = normalize_step_hash(step)
+    output = current.key?(:output_full) ? current[:output_full] : current[:output]
+    output = current[:input] if output.nil?
+
+    if semantic_label(current) == "Navigation"
+      current[:url_after].presence || (output.is_a?(Array) ? output.last : output)
+    else
+      output
+    end
+  end
+
+  def interactive_wringer_meta(step)
+    current = normalize_step_hash(step)
+    wringer = current[:wringer].is_a?(Hash) ? current[:wringer].with_indifferent_access : {}
+    return nil if wringer.blank?
+
+    signals = wringer[:signals].is_a?(Hash) ? wringer[:signals].with_indifferent_access : {}
+    error_type = wringer[:error_type].presence
+    network_status = signals[:network_status].presence.to_s
+    return nil if error_type.blank? && network_status.blank?
+    return nil if error_type.blank? && network_status == "ok"
+
+    network = error_type.presence || network_status
+    content = signals[:content_type].presence || wringer[:content_type].presence || "HTML"
+
+    "Network: #{network.to_s.upcase} • Content: #{content.to_s.upcase}"
+  end
+
+  def interactive_probe_text(step)
+    current = normalize_step_hash(step)
+    probe = current[:probe]
+    return nil unless probe.present?
+
+    probe = probe.with_indifferent_access if probe.is_a?(Hash)
+    result = probe[:result].is_a?(Hash) ? probe[:result].with_indifferent_access : {}
+    return nil unless result[:status].to_s == "ok" && result[:output].present?
+
+    output_value = result[:output]
+    output_value = output_value.first if output_value.is_a?(Array)
+    output_preview = truncate(output_value.to_s, length: 60)
+    "Probe: page loaded (#{output_preview})"
+  end
+
+  def wringer_links_for_step(step)
+    current = normalize_step_hash(step)
+    wringer = current[:wringer].is_a?(Hash) ? current[:wringer].with_indifferent_access : {}
+    return nil if wringer.blank?
+
+    url = current[:url_after].presence || current[:url_before]
+    return nil if url.blank?
+
+    encoded = CGI.escape(CGI.escape(url))
+    base = get_wringer_url_per_environment
+
+    {
+      wringer_search: "#{base}/websites?term=#{encoded}",
+      raw_url: url
+    }
+  end
+
+  def interactive_redirect_info(step)
+    current = normalize_step_hash(step)
+    wringer = current[:wringer].is_a?(Hash) ? current[:wringer].with_indifferent_access : {}
+    return nil if wringer.blank?
+
+    final_url =
+      wringer[:final_url] ||
+      wringer.dig(:signals, :final_url)
+
+    base_url = current[:url_after] || current[:url_before]
+
+    return nil if final_url.blank? || base_url.blank?
+    return nil if final_url.to_s == base_url.to_s
+
+    final_url
+  end
+
+  def normalize_step_hash(step)
+    step.is_a?(Hash) ? step.with_indifferent_access : {}
+  end
+
   # Refreshes a statement by executing its DSL algorithm.
   #
   # @param stat [Statement]  The statement object to refresh.
@@ -164,6 +347,7 @@ module StatementsHelper
       abort_error_message = "Scrape aborted (#{info[:error_type]}): #{info[:error]}"
       stat.errors.add(:base, abort_error_message)
       error_messages << abort_error_message
+      return build_result.call
     end
 
     # Blank result is not valid for existing statements
@@ -280,12 +464,20 @@ module StatementsHelper
           Rails.logger.warn ">>> ⚠ trace event isn’t a Hash — class=#{evt.class}"
         end
 
+        output_full = evt[:output_full] || evt["output_full"]
+        input_full = evt[:input_full] || evt["input_full"]
+        output_full ||= evt[:output_preview] || evt["output_preview"]
+        input_full ||= evt[:input_preview] || evt["input_preview"]
+
         normalized_events << {
           step: evt[:step]           || evt["step"],
           type: evt[:type]           || evt["type"],
           code: evt[:code]           || evt["code"],
           input_preview: evt[:input_preview]  || evt["input_preview"]  || [],
           output_preview: evt[:output_preview] || evt["output_preview"] || [],
+          input_full: input_full,
+          output_full: output_full,
+          probe: evt[:probe] || evt["probe"],
           url_before: (evt[:url_before]     || evt["url_before"]     || "").to_s,
           url_after: (evt[:url_after]      || evt["url_after"]      || "").to_s,
           duration_ms: evt[:duration_ms]    || evt["duration_ms"]    || 0,

@@ -160,6 +160,8 @@ module Dsl
           code: payload[:code].nil? ? nil : payload[:code].to_s,
           input: summarize_for_session(first_present(payload, :input, :input_preview), max: 120),
           output: summarize_for_session(first_present(payload, :output, :output_preview), max: 120),
+          probe: normalize_probe_for_session(payload[:probe]),
+          wringer: normalize_wringer_for_session(payload[:wringer]),
           url_before: normalize_session_url(payload[:url_before]),
           url_after: normalize_session_url(payload[:url_after]),
           duration_ms: payload[:duration_ms],
@@ -190,18 +192,59 @@ module Dsl
 
         steps = normalized.map do |event|
           step_payload = {}
+          severity = event_severity(event)
           step_payload[:s] = event[:step]
           step_payload[:t] = truncate_str(event[:type], 30) if event[:type].present?
 
           if event[:code].present?
-            code_max = event[:error].present? ? error_code_limit : code_limit
+            code_max = severity == :error ? error_code_limit : code_limit
             step_payload[:c] = truncate_str(event[:code], code_max)
+
+            if severity != :ok
+              step_payload[:cf] = truncate_str(event[:code], error_code_limit)
+            end
           end
 
           if event[:output].present?
             step_payload[:o] = truncate_str(event[:output], output_limit)
+
+            if severity == :error
+              step_payload[:of] = truncate_str(event[:output], output_limit * 2)
+            elsif severity == :warning
+              step_payload[:of] = truncate_str(event[:output], output_limit)
+            end
           elsif event[:output] == "[]"
             step_payload[:o] = "[]"
+            step_payload[:of] = "[]" if severity != :ok
+          end
+
+          if event[:probe].is_a?(Hash)
+            if event[:probe][:skipped]
+              step_payload[:p] = { sk: true }
+            else
+              probe_result = event[:probe][:result] || {}
+              step_payload[:p] = {
+                st: probe_result[:status],
+                x: probe_result[:xpath],
+                o: probe_result[:output],
+                ok: event[:probe][:ok]
+              }.compact
+            end
+          end
+
+          if event[:wringer].is_a?(Hash)
+            step_payload[:w] = {
+              i: event[:wringer][:inherited],
+              et: event[:wringer][:error_type],
+              r: event[:wringer][:retry],
+              c: event[:wringer][:cache],
+              u: event[:wringer][:unreachable],
+              r404: event[:wringer][:received_404],
+              se: event[:wringer][:system_error],
+              pa: event[:wringer][:policy_action],
+              s: event[:wringer][:signals],
+              h: event[:wringer][:hints]
+            }.compact
           end
 
           next_url = event[:url_after] || current_url
@@ -222,6 +265,26 @@ module Dsl
           urls: urls,
           steps: steps
         }
+      end
+
+      def event_severity(event)
+        return :error if event[:error].present?
+
+        output_empty = event[:output].to_s == "[]"
+
+        probe_used =
+          event[:probe].is_a?(Hash) && !event[:probe][:skipped]
+
+        wringer_issue =
+          event[:wringer].is_a?(Hash) && (
+            event[:wringer][:error_type].present? ||
+            event[:wringer][:unreachable] ||
+            event[:wringer][:system_error]
+          )
+
+        return :warning if output_empty || probe_used || wringer_issue
+
+        :ok
       end
 
       def normalize_session_url(value)
@@ -284,6 +347,59 @@ module Dsl
         else
           truncate_str(value.to_s, max)
         end
+      end
+
+      def normalize_probe_for_session(value)
+        raw = value.respond_to?(:to_h) ? value.to_h : value
+        return { skipped: true } unless raw.is_a?(Hash)
+
+        payload = raw.with_indifferent_access
+        return { skipped: true } if payload[:skipped]
+
+        probe_result =
+          if payload[:result].is_a?(Hash)
+            payload[:result].with_indifferent_access
+          else
+            payload
+          end
+
+        xpath = probe_result[:xpath].to_s
+        return { skipped: true } if xpath.blank?
+
+        status = probe_result[:status].to_s
+        status = "ok" if status.blank?
+        output = Array(probe_result[:output]).compact.map { |entry| truncate_str(entry.to_s, 80) }.first(3)
+
+        {
+          result: {
+            status: status,
+            xpath: truncate_str(xpath, 40),
+            output: output
+          }.compact,
+          ok: payload.key?(:ok) ? payload[:ok] : (status == "ok")
+        }.compact
+      rescue StandardError
+        { skipped: true }
+      end
+
+      def normalize_wringer_for_session(value)
+        raw = value.respond_to?(:to_h) ? value.to_h : value
+        return { inherited: true } unless raw.is_a?(Hash)
+
+        payload = raw.with_indifferent_access
+        return { inherited: true } if payload[:inherited]
+
+        {
+          error_type: payload[:error_type],
+          retry: payload[:retry],
+          cache: payload[:cache],
+          unreachable: payload[:unreachable],
+          received_404: payload[:received_404],
+          system_error: payload[:system_error],
+          policy_action: payload[:policy_action],
+          signals: payload[:signals].is_a?(Hash) ? payload[:signals] : nil,
+          hints: payload[:hints].is_a?(Array) ? payload[:hints] : nil
+        }.compact
       end
 
       def session_error_text(payload)

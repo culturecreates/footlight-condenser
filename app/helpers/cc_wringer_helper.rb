@@ -111,7 +111,7 @@ module CcWringerHelper
   # Catches:
   # - Connection refused, DNS errors, open/read timeouts
   # - Any other StandardError as "unexpected"
-  def safe_wringer_call
+  def safe_wringer_call(normalize_response: false)
     resp = yield
 
     response =
@@ -122,7 +122,7 @@ module CcWringerHelper
           final_url: resp.respond_to?(:uri) ? resp.uri.to_s : nil
         }
       else
-        { body: resp.to_s, http_code: 200, final_url: nil }
+        { body: resp, http_code: 200, final_url: nil }
       end
 
     if (err = wringer_system_error?(response))
@@ -138,7 +138,7 @@ module CcWringerHelper
       return [action, err]
     end
 
-    response[:body]
+    normalize_response ? response : response[:body]
   rescue Errno::ECONNREFUSED, SocketError, Net::OpenTimeout, Net::ReadTimeout => e
     Rails.logger.error "[Wringer] unreachable: #{e.class} - #{e.message}"
 
@@ -261,24 +261,28 @@ module CcWringerHelper
       matched = true
 
       # --- HTTP CODE ---
-      if match["http_code"]
-        codes = Array(match["http_code"]).map(&:to_i)
+      http_code_match = match["http_code"] || match[:http_code]
+      if http_code_match
+        codes = Array(http_code_match).map(&:to_i)
         matched &&= codes.include?(code)
       end
 
       # --- BODY CONTAINS ---
-      if match["body_contains"]
-        matched &&= match["body_contains"].any? { |s| body.include?(s) }
+      body_contains = match["body_contains"] || match[:body_contains]
+      if body_contains
+        matched &&= body_contains.any? { |s| body.include?(s) }
       end
 
       # --- BODY BLANK ---
-      if match["body_blank"]
+      body_blank = match["body_blank"] || match[:body_blank]
+      if body_blank
         matched &&= body.strip.empty?
       end
 
       # --- FINAL URL PATTERNS ---
-      if match["final_url_patterns"]
-        matched &&= match["final_url_patterns"].any? do |pattern|
+      final_url_patterns = match["final_url_patterns"] || match[:final_url_patterns]
+      if final_url_patterns
+        matched &&= final_url_patterns.any? do |pattern|
           Regexp.new(pattern).match?(final_url)
         rescue RegexpError
             false
@@ -291,7 +295,7 @@ module CcWringerHelper
 
       return {
         error: "#{name} detected",
-        error_type: policy["error_code"] || name,
+        error_type: policy["error_code"] || policy[:error_code] || name,
         policy: policy
       }
     end

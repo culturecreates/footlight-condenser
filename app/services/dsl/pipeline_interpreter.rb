@@ -44,25 +44,24 @@ module Dsl
     end
 
     def extraction_empty?
-      xpath_steps = extraction_xpath_steps
-      return false if xpath_steps.empty?
+      return false unless extraction_attempted?
 
-      xpath_steps.all? { |s| blank?(s[:output]) }
+      final_empty?
     end
 
     def extraction_attempted?
-      @steps.any? { |s| s[:type].to_s.include?("xpath") }
+      @steps.any? { |step| step_primitive(step) == :extract }
     end
 
     def suspicious_navigation?
       return false unless has_navigation?
 
-      navigation_index = @steps.find_index { |s| step_type(s).include?("url") }
+      navigation_index = @steps.find_index { |step| step_primitive(step) == :navigate }
       return false if navigation_index.nil?
 
       post_navigation_steps = @steps[(navigation_index + 1)..] || []
       extraction_steps = post_navigation_steps.take_while do |step|
-        step_type(step).include?("xpath")
+        step_primitive(step) == :extract
       end
 
       return false if extraction_steps.empty?
@@ -74,10 +73,10 @@ module Dsl
       first_error = first_error_step
       return extract_step_number(first_error) if first_error
 
-      first_loss = first_loss_step
-      return extract_step_number(first_loss) if first_loss
+      return nil unless extraction_attempted?
+      return nil unless final_empty?
 
-      nil
+      extract_step_number(@steps.last)
     end
 
     def recovered_after_loss?
@@ -93,11 +92,29 @@ module Dsl
     end
 
     def has_navigation?
-      @steps.any? { |s| s[:type].to_s.include?("url") }
+      @steps.any? { |step| step_primitive(step) == :navigate }
     end
 
     def step_type(step)
       step.is_a?(Hash) ? step[:type].to_s : ""
+    end
+
+    def step_primitive(step)
+      return :unknown unless step.is_a?(Hash)
+
+      (step[:primitive]&.to_sym) || infer_primitive_from_type(step[:type])
+    end
+
+    def infer_primitive_from_type(type)
+      t = type.to_s
+
+      return :branch if t.start_with?("if_xpath")
+      return :extract if t.include?("xpath")
+      return :navigate if t.include?("url")
+      return :transform if t.include?("ruby")
+      return :transform if t.include?("sparql")
+
+      :unknown
     end
 
     def blank?(value)
@@ -172,42 +189,11 @@ module Dsl
     end
 
     def extraction_xpath_steps
-      steps = []
-      seen_navigation = false
-
-      @steps.each do |step|
-        type = step[:type].to_s
-
-        if type.include?("url")
-          seen_navigation = true
-          next
-        end
-
-        if type.include?("xpath")
-          steps << step unless seen_navigation
-          next
-        end
-
-        # Extraction phase is bounded: stop at first non-xpath/non-url transform step.
-        break
-      end
-
-      steps
+      @steps.select { |step| step[:type].to_s.include?("xpath") }
     end
 
     def enforce_consistency(metric_values)
-      # Keep truth signals untouched; only enrich location metadata when possible.
-      if metric_values[:failure_step].nil?
-        first_error = first_error_step
-        step_number =
-          if first_error.present?
-            extract_step_number(first_error)
-          else
-            extract_step_number(first_loss_step)
-          end
-        metric_values[:failure_step] = step_number if step_number.present?
-      end
-
+      # Keep truth signals untouched; failure_step is best-effort location metadata.
       metric_values
     end
   end

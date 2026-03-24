@@ -1,8 +1,13 @@
 module Dsl
   class PipelineDiagnosis
-    def initialize(metrics:, wringer: {})
+    def initialize(metrics:, wringer: {}, steps: nil)
       @metrics = normalize_hash(metrics)
       @wringer = normalize_hash(wringer)
+      wringer_signals = normalize_hash(@wringer[:signals])
+      wringer_hints = Array(@wringer[:hints]).map(&:to_s)
+      @wringer_signals = wringer_signals
+      @wringer_hints = wringer_hints
+      @steps = normalize_steps(steps)
     end
 
     def result
@@ -33,11 +38,14 @@ module Dsl
     end
 
     def wringer_failure?
-      @wringer[:unreachable] || @wringer[:received_404] || @wringer[:system_error]
+      return true if @wringer[:unreachable] || @wringer[:received_404] || @wringer[:system_error]
+      return true if @wringer_signals[:network_status] == "failed"
+
+      false
     end
 
     def extraction_failure?
-      @metrics[:extraction_attempted] && @metrics[:extraction_empty]
+      extraction_attempted? && @metrics[:extraction_empty]
     end
 
     def error_diagnosis
@@ -53,6 +61,25 @@ module Dsl
     end
 
     def wringer_diagnosis
+      if @wringer_signals[:network_status] == "failed"
+        message =
+          if @wringer_hints.include?("timeout")
+            "Network timeout occurred during fetch."
+          elsif @wringer_hints.include?("empty_body")
+            "Fetched page returned empty content."
+          else
+            "Network request failed before extraction."
+          end
+
+        return {
+          status: :error,
+          category: :wringer_failure,
+          message: message,
+          suggested_action: :retry,
+          details: { wringer: @wringer }
+        }
+      end
+
       if @wringer[:received_404]
         {
           status: :error,
@@ -97,11 +124,11 @@ module Dsl
       {
         status: :warning,
         category: :navigation_failure,
-        message: "Navigation likely contributed to extraction issues; post-navigation extraction appears empty.",
+        message: "Navigation succeeded, but extraction after navigation produced no data.",
         suggested_action: :check_url,
         details: {
-          has_navigation: @metrics[:has_navigation],
-          extraction_attempted: @metrics[:extraction_attempted]
+          has_navigation: has_navigation?,
+          extraction_attempted: extraction_attempted?
         }
       }
     end
@@ -110,10 +137,10 @@ module Dsl
       {
         status: :warning,
         category: :extraction_failure,
-        message: "Extraction was attempted but returned no usable data.",
+        message: extraction_message,
         suggested_action: :check_xpath,
         details: {
-          extraction_attempted: @metrics[:extraction_attempted],
+          extraction_attempted: extraction_attempted?,
           extraction_empty: @metrics[:extraction_empty]
         }
       }
@@ -127,6 +154,60 @@ module Dsl
         suggested_action: :none,
         details: { failure_step: @metrics[:failure_step] }
       }
+    end
+
+    def normalize_steps(steps)
+      Array(steps).map do |step|
+        source = step.respond_to?(:to_h) ? step.to_h : step
+        source.is_a?(Hash) ? source.with_indifferent_access : {}.with_indifferent_access
+      end
+    end
+
+    def extract_steps
+      @steps.select { |step| step_primitive(step) == :extract }
+    end
+
+    def navigate_steps
+      @steps.select { |step| step_primitive(step) == :navigate }
+    end
+
+    def extraction_attempted?
+      return @metrics[:extraction_attempted] if @steps.empty?
+
+      extract_steps.any?
+    end
+
+    def has_navigation?
+      return @metrics[:has_navigation] if @steps.empty?
+
+      navigate_steps.any?
+    end
+
+    def step_primitive(step)
+      primitive = step[:primitive]
+      return primitive.to_sym if primitive.present?
+
+      infer_primitive_from_type(step[:type])
+    end
+
+    def infer_primitive_from_type(type)
+      value = type.to_s
+
+      return :branch if value.start_with?("if_xpath")
+      return :extract if value.include?("xpath")
+      return :navigate if value.include?("url")
+      return :transform if value.include?("ruby")
+      return :transform if value.include?("sparql")
+
+      :unknown
+    end
+
+    def extraction_message
+      if has_navigation? && extract_steps.any?
+        "Extraction failed after navigation; no data was produced."
+      else
+        "Extraction failed; no data was produced."
+      end
     end
   end
 end
