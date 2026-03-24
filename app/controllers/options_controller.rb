@@ -16,6 +16,55 @@ class OptionsController < ApplicationController
     redirect_to options_path, notice: "DSL Trace #{state == 'true' ? 'enabled' : 'disabled'}"
   end
 
+  def set_trace_visibility
+    cookies[:trace_visibility] = {
+      value: params[:state],
+      expires: 1.day.from_now
+    }
+
+    redirect_back fallback_location: root_path
+  end
+
+  def set_trace_code_length
+    cookies[:trace_code_display_length] = {
+      value: params[:length],
+      expires: 1.day.from_now
+    }
+    redirect_back fallback_location: root_path
+  end
+
+  def set_trace_output_length
+    cookies[:trace_output_display_length] = {
+      value: params[:length],
+      expires: 1.day.from_now
+    }
+    redirect_back fallback_location: root_path
+  end
+
+  def set_trace_view_mode
+    cookies[:trace_view_mode] = {
+      value: params[:mode],
+      expires: 1.day.from_now
+    }
+
+    redirect_back fallback_location: root_path
+  end
+
+  def set_trace_preset
+    case params[:preset]
+    when "clean"
+      cookies[:dsl_trace] = { value: "false", expires: 1.day.from_now }
+      cookies[:trace_view_mode] = { value: "1", expires: 1.day.from_now }
+      cookies[:trace_visibility] = { value: "hidden", expires: 1.day.from_now }
+    when "debug"
+      cookies[:dsl_trace] = { value: "true", expires: 1.day.from_now }
+      cookies[:trace_view_mode] = { value: "5", expires: 1.day.from_now }
+      cookies[:trace_visibility] = { value: "always", expires: 1.day.from_now }
+    end
+
+    redirect_back fallback_location: root_path
+  end
+
   def update_trace_options
     cookies[:trace_code_display_length]     = params[:trace_code_display_length]     if params[:trace_code_display_length]
     cookies[:trace_code_tooltip_length]     = params[:trace_code_tooltip_length]     if params[:trace_code_tooltip_length]
@@ -36,5 +85,3 @@ class OptionsController < ApplicationController
   end
 
 end
-
-

@@ -104,6 +104,21 @@ Rails.application.routes.draw do
   get 'options', to: 'options#index', as: :options
   get 'options/wringer/:target', to: 'options#wringer', as: :set_wringer
   get 'options/set_dsl_trace/:state', to: 'options#set_dsl_trace', as: :set_dsl_trace_options
+  get 'options/set_trace_visibility/:state',
+      to: 'options#set_trace_visibility',
+      as: :set_trace_visibility_options
+  get 'options/set_trace_code_length/:length',
+      to: 'options#set_trace_code_length',
+      as: :set_trace_code_length_options
+  get 'options/set_trace_output_length/:length',
+      to: 'options#set_trace_output_length',
+      as: :set_trace_output_length_options
+  post "options/trace_view_mode/:mode",
+       to: "options#set_trace_view_mode",
+       as: :set_trace_view_mode
+  post "options/trace_preset/:preset",
+       to: "options#set_trace_preset",
+       as: :set_trace_preset
 
   post   'options', to: 'options#update'
   patch  'options', to: 'options#update'
