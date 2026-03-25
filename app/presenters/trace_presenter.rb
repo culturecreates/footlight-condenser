@@ -1,6 +1,6 @@
 class TracePresenter
   DEFAULT_MODE = 3
-  VALID_MODES = [1, 2, 3, 4].freeze
+  VALID_MODES = [1, 2, 3, 4, 5].freeze
 
   def initialize(trace)
     @trace = trace

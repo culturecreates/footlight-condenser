@@ -132,7 +132,17 @@ module Dsl
     end
 
     def effective_wringer
-      DEFAULT_WRINGER.merge(@wringer.slice(:unreachable, :received_404, :system_error, :policy_action))
+      DEFAULT_WRINGER.merge(@wringer.slice(
+                              :unreachable,
+                              :received_404,
+                              :system_error,
+                              :policy_action,
+                              :error_type,
+                              :signals,
+                              :hints,
+                              :final_url,
+                              :redirect_chain
+                            ))
     end
   end
 end

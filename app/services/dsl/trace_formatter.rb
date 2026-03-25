@@ -243,7 +243,9 @@ module Dsl
               se: event[:wringer][:system_error],
               pa: event[:wringer][:policy_action],
               s: event[:wringer][:signals],
-              h: event[:wringer][:hints]
+              h: event[:wringer][:hints],
+              fu: event[:wringer][:final_url],
+              rc: event[:wringer][:redirect_chain]
             }.compact
           end
 
