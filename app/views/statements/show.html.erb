@@ -39,10 +39,23 @@
 </p>
 
 <%
+  # === Trace / Mode Setup ===
   current_mode = @trace_view_mode.to_i
-  trace_mode = current_mode == 3
-  interactive_mode = current_mode == 4
-  debug_mode = current_mode == 5
+
+  # Determines which UI mode is active (trace / interactive / debug)
+  is_trace = current_mode == 3
+  is_interactive = current_mode == 4
+  is_debug = current_mode == 5
+
+  # === Trace State ===
+  # trace_raw is the original trace from presenter (read-only)
+  trace_raw = trace_presenter.raw
+  trace_present = trace_raw.present?
+  trace_visible = trace_presenter.visible?(cookies)
+
+  # === Trace Steps (safe extraction) ===
+  # trace_steps are transformed for display purposes
+  trace_steps = trace_present ? trace_steps_for_view(trace_raw) : []
 %>
 
 <p>
@@ -56,14 +69,16 @@
 </p>
 <p>
   <strong>Trace:</strong>
-  <%= @show_trace ? "Enabled" : "Disabled" %>
+  <%= trace_visible ? "Enabled" : "Disabled" %>
 </p>
 
-<div class="dsl-source">
+<!-- ============================= -->
+<!-- DSL SOURCE & STEP OVERVIEW -->
+<!-- ============================= -->
+<div class="dsl-source" data-trace-view-mode="<%= @trace_view_mode.to_i %>">
   <strong>Source:</strong>
   <%
     dsl_steps = split_algorithm_steps(@statement.source.algorithm_value)
-    trace_steps = @trace.present? ? trace_steps_for_view(@trace) : []
     trace_by_step = {}
     trace_steps.each do |trace_step|
       trace_by_step[trace_step[:step].to_i] ||= []
@@ -82,11 +97,11 @@
       <% semantic = semantic_label(primary_step.merge(type: primary_step[:type].presence || type)) %>
       <% explanation = explain_step(primary_step, previous_primary_step) %>
       <% suggestion = suggest_fix(primary_step, previous_primary_step) %>
-      <div class="dsl-step <%= 'clickable' if interactive_mode %> <%= "dsl-#{dsl_status}" if (trace_mode || interactive_mode || debug_mode) %>"
+      <div class="dsl-step <%= 'clickable' if is_interactive %> <%= "dsl-#{dsl_status}" if (is_trace || is_interactive || is_debug) %>"
            data-step="<%= step_number %>"
-           <% if interactive_mode %>onclick="toggleDslStep(this)"<% end %>>
+           <% if is_interactive %>onclick="toggleDslStep(this)"<% end %>>
         <span class="dsl-step-index"><%= i + 1 %></span>
-        <% if interactive_mode %>
+        <% if is_interactive %>
           <div class="dsl-step-main">
             <% if semantic == "Condition" %>
               <span class="dsl-step-type dsl-step-label">Condition</span><span class="dsl-step-subtle">[If found]</span>
@@ -109,8 +124,8 @@
           <code class="dsl-step-code"><%= code %></code>
         <% end %>
       </div>
-      <% if debug_mode || interactive_mode %>
-        <div class="dsl-step-details" data-step="<%= step_number %>" style="display:<%= interactive_mode ? 'none' : 'block' %>;">
+      <% if is_debug || is_interactive %>
+        <div class="dsl-step-details" data-step="<%= step_number %>" style="display:<%= is_interactive ? 'none' : 'block' %>;">
           <% step = trace_entries.last %>
           <% if step.present? %>
               <% full_code = step[:code].to_s %>
@@ -172,11 +187,11 @@
                   </div>
                 <% end %>
 
-                <% if interactive_mode && detail_suggestion.present? %>
+                <% if is_interactive && detail_suggestion.present? %>
                   <div class="dsl-suggestion">💡 <%= detail_suggestion %></div>
                 <% end %>
 
-                <% if interactive_mode && step[:delta].present? %>
+                <% if is_interactive && step[:delta].present? %>
                   <div class="trace-delta">Δ <%= step[:delta] %></div>
                 <% end %>
               </div>
@@ -193,199 +208,6 @@
   <%= link_to "Show", source_path(@statement.source.id) %>
 </div>
 
-<style>
-  .dsl-steps {
-    margin-top: 6px;
-  }
-
-  .dsl-step {
-    display: flex;
-    gap: 8px;
-    padding: 2px 0;
-  }
-
-  .dsl-step.clickable {
-    cursor: pointer;
-  }
-
-  .dsl-step.active {
-    background: #eef6ff;
-    border-left: 3px solid #007bff;
-  }
-
-  .dsl-step.dsl-ok {
-    color: #1e7e34;
-    border-left: 3px solid #28a745;
-    background: #f6fff8;
-    opacity: 0.75;
-  }
-
-  .dsl-step.dsl-warning {
-    color: #b26a00;
-    border-left: 3px solid #ff8c00;
-    background: #fffbe6;
-  }
-
-  .dsl-step.dsl-error {
-    color: #a71d2a;
-    border-left: 3px solid #dc3545;
-    background: #fff0f0;
-    opacity: 1;
-  }
-
-  .dsl-step.dsl-neutral {
-    color: #555;
-    border-left: 3px solid #bdbdbd;
-    background: #fafafa;
-  }
-
-  .dsl-step-index {
-    width: 24px;
-    color: #888;
-  }
-
-  .dsl-step-type {
-    min-width: 80px;
-    font-weight: bold;
-    color: inherit;
-  }
-
-  .dsl-step-code {
-    flex: 1;
-    font-family: monospace;
-  }
-
-  .dsl-step-main {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .dsl-step-label {
-    font-weight: bold;
-  }
-  
-  .dsl-step-subtle {
-    font-size: 0.85em;
-    color: #888;
-    margin-left: 6px;
-  }
-
-  .dsl-step-explanation,
-  .trace-explanation {
-    font-size: 0.9em;
-    color: #666;
-    margin-left: 6px;
-  }
-
-  .dsl-step-details {
-    margin-left: 32px;
-    margin-bottom: 8px;
-    padding: 8px;
-    border-left: 2px dashed #ccc;
-    background: #fafafa;
-    border-radius: 4px;
-  }
-
-  .dsl-step.dsl-error .dsl-step-details {
-    background: #fff5f5;
-  }
-
-  .dsl-step.dsl-warning .dsl-step-details {
-    background: #fffbe6;
-  }
-
-  .dsl-step.dsl-ok .dsl-step-details {
-    background: #f8fff9;
-  }
-
-  .trace-mini {
-    margin-bottom: 6px;
-  }
-
-  .trace-delta {
-    color: #666;
-    font-size: 0.9em;
-  }
-
-  .trace-code-toggle,
-  .trace-output-toggle {
-    cursor: pointer;
-    border-bottom: 1px dashed #aaa;
-  }
-
-  .dsl-step-details .trace-code {
-    font-size: 0.9em;
-    color: #444;
-    margin-top: 4px;
-  }
-
-  .dsl-step-details .trace-output-line {
-    display: flex;
-    gap: 6px;
-    align-items: flex-start;
-    font-weight: 600;
-    margin-left: 6px;
-    margin-top: 4px;
-  }
-
-  .dsl-step .trace-arrow {
-    color: inherit;
-  }
-
-  .dsl-step-details .trace-output-meta {
-    margin-left: 18px;
-    font-size: 0.85em;
-    color: #666;
-  }
-
-  .dsl-step-details .trace-output-meta div {
-    margin-top: 2px;
-  }
-
-  .dsl-step-details .trace-probe-insight {
-    font-style: italic;
-  }
-
-  .trace-navigation-links {
-    margin-left: 18px;
-    margin-top: 6px;
-    font-size: 0.85em;
-  }
-
-  .trace-navigation-links a {
-    margin-right: 12px;
-    color: #007bff;
-    text-decoration: none;
-  }
-
-  .trace-navigation-links a:hover {
-    text-decoration: underline;
-  }
-
-  .trace-redirect {
-    margin-left: 18px;
-    margin-top: 4px;
-    color: #b26a00;
-    font-size: 0.9em;
-    display: flex;
-    gap: 6px;
-    align-items: baseline;
-  }
-
-  .trace-redirect-url {
-    font-family: monospace;
-    word-break: break-all;
-  }
-
-  .dsl-suggestion {
-    margin-top: 6px;
-    font-size: 0.9em;
-    color: #2c7be5;
-    margin-left: 20px;
-  }
-</style>
 
 <p>
   <strong>Webpage:</strong>
@@ -399,8 +221,22 @@
   <%= @statement.updated_at %>
 </p>
 
-<% if @trace.present? && @show_trace && trace_mode %>
-  <% steps = trace_steps_for_view(@trace) %>
+<!-- ============================= -->
+<!-- TRACE DISPLAY (MAIN TRACE) -->
+<!-- ============================= -->
+<% if trace_present && trace_visible && is_trace %>
+  <% steps = trace_steps_for_view(trace_raw) %>
+  <% trace_metrics = Dsl::PipelineInterpreter.new(steps).metrics %>
+  <% wringer_context =
+      steps.reverse.map { |s| s[:wringer] }.find { |w| w.is_a?(Hash) && w.present? && !w.with_indifferent_access[:inherited] } || {} %>
+  <% diagnosis = Dsl::PipelineDiagnosis.new(metrics: trace_metrics, wringer: wringer_context, steps: steps).result %>
+  <% diagnosis_label =
+      case diagnosis[:pipeline_category].to_s
+      when "fetch" then "Fetch error"
+      when "navigation" then "Navigation issue"
+      when "extraction" then "Extraction error"
+      else "Pipeline status"
+      end %>
   <% error_indices = steps.each_index.select { |i| steps[i][:error].present? } %>
   <% first_error_index = error_indices.first %>
   <% visible_indices =
@@ -418,179 +254,27 @@
   <% first_error_step = first_error_index.nil? ? nil : steps[first_error_index]&.dig(:step) %>
   <hr>
   <h3>Algorithm Trace</h3>
-  <style>
-    /* Layout */
-    .dsl-trace {
-      font-family: monospace;
-    }
-
-    .trace-step {
-      margin-bottom: 1em;
-      padding: 0.5em;
-      border-left: 3px solid #ccc;
-    }
-
-    .trace-step.collapsed {
-      display: none;
-    }
-
-    /* Header */
-    .trace-header {
-      margin-bottom: 0.2em;
-    }
-
-    .trace-error {
-      border-left: 3px solid #dc3545;
-      background: #fff5f5;
-    }
-
-    .trace-first-error {
-      border-left: 4px solid #ff0000;
-      background: #fff0f0;
-    }
-
-    /* Title + status */
-    .trace-step-title {
-      font-weight: 600;
-    }
-
-    .trace-step-title.trace-ok {
-      color: #28a745;
-    }
-
-    .trace-step-title.trace-warning {
-      color: #ff8c00;
-    }
-
-    .trace-step-title.trace-error {
-      color: #dc3545;
-      font-weight: 700;
-    }
-
-    /* Step hints */
-    .trace-hint {
-      color: #ff8c00;
-      font-size: 0.85em;
-      margin-top: 0.2em;
-      margin-bottom: 0.25em;
-    }
-
-    /* Expandables */
-    .trace-code {
-      color: #666;
-      font-size: 0.9em;
-      margin: 0.25em 0;
-    }
-
-    .trace-code-toggle,
-    .trace-output-toggle {
-      cursor: pointer;
-      border-bottom: 1px dashed #ccc;
-    }
-
-    .trace-code-toggle:hover,
-    .trace-output-toggle:hover {
-      background: #f8f9fa;
-    }
-
-    .trace-code-toggle.expanded,
-    .trace-output-toggle.expanded {
-      white-space: normal;
-    }
-
-    .trace-output {
-      padding: 6px 8px;
-      margin-top: 4px;
-      border-radius: 4px;
-      font-weight: bold;
-    }
-
-    .trace-output.ok {
-      background: #f6fff8;
-      border-left: 3px solid #28a745;
-    }
-
-    .trace-output.warning {
-      background: #fffbe6;
-      border-left: 3px solid #ffc107;
-    }
-
-    .trace-output.error {
-      background: #fff0f0;
-      border-left: 3px solid #dc3545;
-    }
-
-    .trace-output span {
-      display: inline-block;
-      width: 100%;
-      cursor: pointer;
-    }
-
-    .trace-output span.expanded {
-      white-space: normal;
-      font-family: monospace;
-    }
-
-    /* Meta blocks */
-    .trace-meta,
-    .trace-semantic,
-    .trace-delta,
-    .trace-probe,
-    .trace-wringer {
-      color: #555;
-      font-size: 0.9em;
-      margin-top: 2px;
-    }
-
-    .trace-meta {
-      margin-top: 0.35em;
-    }
-
-    .trace-error-message {
-      color: #dc3545;
-      margin-top: 0.25em;
-    }
-
-    .trace-divider {
-      border: 0;
-      border-top: 1px solid #e6e6e6;
-      margin: 0.45em 0;
-    }
-
-    /* Collapse controls */
-    .trace-expand-block {
-      cursor: pointer;
-      color: #007bff;
-      margin: 10px 0;
-    }
-
-    .trace-badge {
-      margin-left: 8px;
-      padding: 2px 6px;
-      font-size: 11px;
-      background: #dc3545;
-      color: #fff;
-      border-radius: 3px;
-    }
-
-    .trace-diagnosis {
-      font-size: 12px;
-      color: #666;
-      margin-top: 4px;
-      margin-bottom: 4px;
-    }
-
-    .trace-step.focused {
-      border-left: 4px solid #007bff;
-      background: #f4f9ff;
-    }
-  </style>
-
+  <% if diagnosis[:status].to_sym != :ok %>
+    <div class="trace-diagnosis">
+      <strong><%= diagnosis_label %>:</strong>
+      <%= diagnosis[:message] %>
+      <% if diagnosis[:source].present? || diagnosis[:error_type].present? %>
+        <span class="trace-diagnosis-meta">
+          [source: <%= diagnosis[:source].presence || "dsl" %><% if diagnosis[:error_type].present? %> • type: <%= diagnosis[:error_type] %><% end %>]
+        </span>
+      <% end %>
+    </div>
+  <% end %>
+  
   <div class="dsl-trace">
+    <!-- ============================= -->
+    <!-- TRACE STEP DETAILS -->
+    <!-- ============================= -->
     <% steps.each_with_index do |step, index| %>
       <%
         warning_type = compute_warning_type(step)
         status = compute_step_status(step)
+        error_details = trace_error_details(step)
         visible = visible_indices.include?(index)
         collapsed = !visible
         show_expand_block = collapsed && index == visible_indices.first.to_i - 1
@@ -740,6 +424,12 @@
         </div>
 
         <% if step[:error].present? %>
+          <div class="trace-error-origin <%= error_details[:category] %>">
+            <strong><%= error_details[:label] %></strong>
+            <% if error_details[:source].present? || error_details[:error_type].present? %>
+              <span>[source: <%= error_details[:source] %><% if error_details[:error_type].present? %> • type: <%= error_details[:error_type] %><% end %>]</span>
+            <% end %>
+          </div>
           <div class="trace-error-message">
             ⚠ <%= truncate(step[:error].to_s, length: @trace_error_length) %>
           </div>
@@ -755,63 +445,11 @@
   </div>
 <% end %>
 
-<script>
-  const TRACE_VIEW_MODE = <%= @trace_view_mode.to_i %>;
-
-  function toggleTraceExpandable(el) {
-    if (!el || !el.dataset) return;
-    const expanded = el.classList.toggle("expanded");
-    const full = el.dataset.full;
-    const truncated = el.dataset.truncated;
-    el.textContent = expanded ? full : truncated;
-  }
-
-  function toggleDslStep(el) {
-    if (TRACE_VIEW_MODE !== 4 || !el) return;
-
-    const step = el.dataset.step;
-    if (!step) return;
-
-    el.classList.toggle("active");
-
-    const details = document.querySelector('.dsl-step-details[data-step="' + step + '"]');
-    if (!details) return;
-
-    const isVisible = details.style.display === "block";
-    details.style.display = isVisible ? "none" : "block";
-
-    if (!isVisible) {
-      const rect = details.getBoundingClientRect();
-      const offset = window.innerHeight / 2 - rect.height / 2;
-
-      window.scrollTo({
-        top: window.scrollY + rect.top - offset,
-        behavior: "smooth"
-      });
-    }
-  }
-
-  document.addEventListener("DOMContentLoaded", function() {
-    if (TRACE_VIEW_MODE === 4) {
-      const firstError = document.querySelector(".dsl-step.dsl-error");
-      if (firstError) toggleDslStep(firstError);
-      return;
-    }
-
-    const el = document.querySelector(".trace-first-error");
-    if (!el) return;
-
-    const rect = el.getBoundingClientRect();
-    const offset = window.innerHeight / 2 - rect.height / 2;
-
-    window.scrollTo({
-      top: window.scrollY + rect.top - offset,
-      behavior: "smooth"
-    });
-  });
-</script>
 
 
+<!-- ============================= -->
+<!-- ACTIONS & CONTROLS -->
+<!-- ============================= -->
 <hr>
 <p>
 Change status:
