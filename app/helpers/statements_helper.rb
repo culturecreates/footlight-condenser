@@ -191,6 +191,41 @@ module StatementsHelper
     end
   end
 
+  def trace_error_details(step)
+    current = normalize_step_hash(step)
+    raw_error = current[:error]
+    error_payload = raw_error.is_a?(Hash) ? raw_error.with_indifferent_access : {}.with_indifferent_access
+    source = error_payload[:source].to_s.presence
+    error_type = error_payload[:error_type].to_s.presence
+    semantic = semantic_label(current)
+
+    category =
+      if source == "wringer" || %w[WringerFetchError WringerSkip WringerUnsupportedAction].include?(error_type)
+        "fetch"
+      elsif semantic == "Navigation"
+        "navigation"
+      elsif raw_error.present?
+        "extraction"
+      else
+        "unknown"
+      end
+
+    label =
+      case category
+      when "fetch" then "Fetch error"
+      when "navigation" then "Navigation issue"
+      when "extraction" then "Extraction error"
+      else "Pipeline issue"
+      end
+
+    {
+      source: source || "dsl",
+      error_type: error_type,
+      category: category,
+      label: label
+    }
+  end
+
   def interactive_wringer_meta(step)
     current = normalize_step_hash(step)
     wringer = current[:wringer].is_a?(Hash) ? current[:wringer].with_indifferent_access : {}
@@ -242,7 +277,8 @@ module StatementsHelper
 
   def interactive_redirect_info(step)
     current = normalize_step_hash(step)
-    wringer = current[:wringer].is_a?(Hash) ? current[:wringer].with_indifferent_access : {}
+    wringer = current[:wringer]
+    wringer = wringer.is_a?(Hash) ? wringer.with_indifferent_access : {}
     return nil if wringer.blank?
 
     final_url =
@@ -250,11 +286,17 @@ module StatementsHelper
       wringer.dig(:signals, :final_url)
 
     base_url = current[:url_after] || current[:url_before]
+    redirect_chain_present = wringer[:redirect_chain].present?
+    redirected = redirect_chain_present || (final_url.present? && base_url.present? && final_url.to_s != base_url.to_s)
+    return nil unless redirected
 
-    return nil if final_url.blank? || base_url.blank?
-    return nil if final_url.to_s == base_url.to_s
+    info = "Network: redirected"
+    info += " -> #{final_url}" if final_url.present?
+    info
+  end
 
-    final_url
+  def wringer_network_metadata(step)
+    interactive_redirect_info(step)
   end
 
   def normalize_step_hash(step)

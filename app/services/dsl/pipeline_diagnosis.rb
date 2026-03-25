@@ -40,6 +40,7 @@ module Dsl
     def wringer_failure?
       return true if @wringer[:unreachable] || @wringer[:received_404] || @wringer[:system_error]
       return true if @wringer_signals[:network_status] == "failed"
+      return true if wringer_error_type.present?
 
       false
     end
@@ -49,11 +50,19 @@ module Dsl
     end
 
     def error_diagnosis
+      if wringer_specific_message(wringer_error_type).present?
+        return wringer_diagnosis
+      end
+
       {
         status: :error,
         category: :error,
         message: "Pipeline reported an execution error.",
         suggested_action: :investigate,
+        source: "dsl",
+        error_type: nil,
+        step: @metrics[:failure_step],
+        pipeline_category: "unknown",
         details: {
           failure_step: @metrics[:failure_step]
         }
@@ -61,6 +70,20 @@ module Dsl
     end
 
     def wringer_diagnosis
+      if wringer_specific_message(wringer_error_type).present?
+        return {
+          status: :error,
+          category: :wringer_failure,
+          message: wringer_specific_message(wringer_error_type),
+          suggested_action: :retry,
+          source: "wringer",
+          error_type: wringer_error_type,
+          step: @metrics[:failure_step],
+          pipeline_category: "fetch",
+          details: { wringer: @wringer }
+        }
+      end
+
       if @wringer_signals[:network_status] == "failed"
         message =
           if @wringer_hints.include?("timeout")
@@ -76,6 +99,10 @@ module Dsl
           category: :wringer_failure,
           message: message,
           suggested_action: :retry,
+          source: "wringer",
+          error_type: wringer_error_type,
+          step: @metrics[:failure_step],
+          pipeline_category: "fetch",
           details: { wringer: @wringer }
         }
       end
@@ -86,6 +113,10 @@ module Dsl
           category: :wringer_failure,
           message: "Wringer returned 404 for the requested resource.",
           suggested_action: :check_url,
+          source: "wringer",
+          error_type: wringer_error_type,
+          step: @metrics[:failure_step],
+          pipeline_category: "fetch",
           details: { wringer: @wringer }
         }
       elsif @wringer[:unreachable]
@@ -94,6 +125,10 @@ module Dsl
           category: :wringer_failure,
           message: "Wringer appears unreachable during pipeline execution.",
           suggested_action: :retry,
+          source: "wringer",
+          error_type: wringer_error_type,
+          step: @metrics[:failure_step],
+          pipeline_category: "fetch",
           details: { wringer: @wringer }
         }
       else
@@ -102,6 +137,10 @@ module Dsl
           category: :wringer_failure,
           message: "Wringer reported a system-level failure.",
           suggested_action: :check_wringer,
+          source: "wringer",
+          error_type: wringer_error_type,
+          step: @metrics[:failure_step],
+          pipeline_category: "fetch",
           details: { wringer: @wringer }
         }
       end
@@ -113,6 +152,10 @@ module Dsl
         category: :data_loss,
         message: "Pipeline output lost data between steps.",
         suggested_action: :investigate,
+        source: "dsl",
+        error_type: nil,
+        step: @metrics[:failure_step],
+        pipeline_category: "unknown",
         details: {
           failure_step: @metrics[:failure_step],
           recovered_after_loss: @metrics[:recovered_after_loss]
@@ -126,6 +169,10 @@ module Dsl
         category: :navigation_failure,
         message: "Navigation succeeded, but extraction after navigation produced no data.",
         suggested_action: :check_url,
+        source: "dsl",
+        error_type: nil,
+        step: @metrics[:failure_step],
+        pipeline_category: "navigation",
         details: {
           has_navigation: has_navigation?,
           extraction_attempted: extraction_attempted?
@@ -139,6 +186,10 @@ module Dsl
         category: :extraction_failure,
         message: extraction_message,
         suggested_action: :check_xpath,
+        source: "dsl",
+        error_type: nil,
+        step: @metrics[:failure_step],
+        pipeline_category: "extraction",
         details: {
           extraction_attempted: extraction_attempted?,
           extraction_empty: @metrics[:extraction_empty]
@@ -152,8 +203,27 @@ module Dsl
         category: :healthy,
         message: "Pipeline metrics look healthy.",
         suggested_action: :none,
+        source: "dsl",
+        error_type: nil,
+        step: @metrics[:failure_step],
+        pipeline_category: "unknown",
         details: { failure_step: @metrics[:failure_step] }
       }
+    end
+
+    def wringer_error_type
+      @wringer[:error_type].to_s.presence
+    end
+
+    def wringer_specific_message(error_type)
+      case error_type.to_s
+      when "WringerFetchError"
+        "Failed to fetch page (network or upstream service error). No data could be retrieved."
+      when "WringerSkip"
+        "Request was skipped by upstream policy."
+      when "WringerUnsupportedAction"
+        "Upstream service returned an unsupported control action."
+      end
     end
 
     def normalize_steps(steps)

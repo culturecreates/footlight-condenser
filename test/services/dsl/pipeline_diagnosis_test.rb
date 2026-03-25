@@ -239,6 +239,59 @@ class Dsl::PipelineDiagnosisTest < ActiveSupport::TestCase
     assert_includes diagnosis[:message], "Wringer"
   end
 
+  test "wringer fetch error diagnosis is source-aware with fetch category" do
+    diagnosis = Dsl::PipelineDiagnosis.new(
+      metrics: base_metrics(error_present: true, failure_step: 1),
+      wringer: base_wringer(error_type: "WringerFetchError", source: "wringer")
+    ).result
+
+    assert_equal :error, diagnosis[:status]
+    assert_equal :wringer_failure, diagnosis[:category]
+    assert_equal "wringer", diagnosis[:source]
+    assert_equal "WringerFetchError", diagnosis[:error_type]
+    assert_equal "fetch", diagnosis[:pipeline_category]
+    assert_includes diagnosis[:message], "Failed to fetch page"
+  end
+
+  test "wringer skip diagnosis is source-aware" do
+    diagnosis = Dsl::PipelineDiagnosis.new(
+      metrics: base_metrics(error_present: true, failure_step: 2),
+      wringer: base_wringer(error_type: "WringerSkip", source: "wringer")
+    ).result
+
+    assert_equal :wringer_failure, diagnosis[:category]
+    assert_equal "wringer", diagnosis[:source]
+    assert_equal "fetch", diagnosis[:pipeline_category]
+    assert_equal "WringerSkip", diagnosis[:error_type]
+    assert_includes diagnosis[:message], "skipped by upstream policy"
+  end
+
+  test "wringer unsupported action diagnosis is source-aware" do
+    diagnosis = Dsl::PipelineDiagnosis.new(
+      metrics: base_metrics(error_present: true, failure_step: 3),
+      wringer: base_wringer(error_type: "WringerUnsupportedAction", source: "wringer")
+    ).result
+
+    assert_equal :wringer_failure, diagnosis[:category]
+    assert_equal "wringer", diagnosis[:source]
+    assert_equal "fetch", diagnosis[:pipeline_category]
+    assert_equal "WringerUnsupportedAction", diagnosis[:error_type]
+    assert_includes diagnosis[:message], "unsupported control action"
+  end
+
+  test "dsl extraction failure keeps extraction category and dsl source" do
+    diagnosis = Dsl::PipelineDiagnosis.new(
+      metrics: base_metrics(extraction_attempted: true, extraction_empty: true),
+      wringer: base_wringer
+    ).result
+
+    assert_equal :extraction_failure, diagnosis[:category]
+    assert_equal "dsl", diagnosis[:source]
+    assert_equal "extraction", diagnosis[:pipeline_category]
+    assert_nil diagnosis[:error_type]
+    assert_includes diagnosis[:message], "Extraction failed"
+  end
+
   test "healthy message unchanged" do
     diagnosis = Dsl::PipelineDiagnosis.new(
       metrics: { extraction_attempted: true, extraction_empty: false },

@@ -229,6 +229,43 @@ class StatementsHelperRefreshTest < ActionView::TestCase
       trace_enabled_for_request?
     end
   end
+
+  test "interactive_redirect_info returns redirected with final_url" do
+    step = {
+      url_before: "https://example.com/start",
+      wringer: {
+        final_url: "https://example.com/final"
+      }
+    }
+
+    assert_equal "Network: redirected -> https://example.com/final", interactive_redirect_info(step)
+    assert_equal "Network: redirected -> https://example.com/final", wringer_network_metadata(step)
+  end
+
+  test "interactive_redirect_info falls back to signals final_url" do
+    step = {
+      url_after: "https://example.com/base",
+      wringer: {
+        signals: {
+          final_url: "https://example.com/from-signals"
+        }
+      }
+    }
+
+    assert_equal "Network: redirected -> https://example.com/from-signals", interactive_redirect_info(step)
+  end
+
+  test "interactive_redirect_info reports redirect when only redirect_chain is present" do
+    step = {
+      url_after: "https://example.com/base",
+      wringer: {
+        redirect_chain: ["https://example.com/step-1"],
+        final_url: nil
+      }
+    }
+
+    assert_equal "Network: redirected", interactive_redirect_info(step)
+  end
   
  # 'abort_update' in cache
 

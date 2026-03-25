@@ -42,6 +42,117 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/Algorithm Trace/, response.body)
   end
 
+  test "trace persists across refresh" do
+    @statement.source.update!(algorithm_value: "manual=Traceable value")
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    assert_redirected_to statement_url(@statement)
+    assert session[:dsl_trace].present?
+    cookies[:trace_visibility] = "always"
+    cookies[:trace_view_mode] = "3"
+
+    get statement_url(@statement)
+    assert_response :success
+    assert assigns(:trace).present?
+    assert session[:dsl_trace].present?
+
+    get statement_url(@statement)
+    assert_response :success
+    assert assigns(:trace).present?
+    assert session[:dsl_trace].present?
+  end
+
+  test "trace is not mutated between requests" do
+    @statement.source.update!(algorithm_value: "manual=Traceable value")
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    assert_redirected_to statement_url(@statement)
+    original = Marshal.load(Marshal.dump(session[:dsl_trace]))
+    cookies[:trace_visibility] = "always"
+    cookies[:trace_view_mode] = "3"
+
+    get statement_url(@statement)
+    trace_for_view = assigns(:trace)
+    steps = trace_for_view[:steps] || trace_for_view["steps"] || []
+    steps << { "step" => "mutated" }
+    assert_equal original.deep_stringify_keys, session[:dsl_trace].deep_stringify_keys
+  end
+
+  test "nested trace structures are not mutated" do
+    helper_proxy = mock("helper_proxy")
+    helper_proxy.expects(:refresh_statement_helper).with(@statement).returns(
+      data: ["value"],
+      trace: [
+        {
+          step: 1,
+          type: "url",
+          code: "url='http://example.com'",
+          input: [],
+          output: [],
+          probe: { result: { status: "ok", xpath: "//title", output: ["value"] } },
+          wringer: { signals: { network_status: "ok" } }
+        }
+      ],
+      errors: []
+    )
+    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    assert_redirected_to statement_url(@statement)
+    original = Marshal.load(Marshal.dump(session[:dsl_trace]))
+    cookies[:trace_visibility] = "always"
+    cookies[:trace_view_mode] = "3"
+    get statement_url(@statement)
+
+    trace = assigns(:trace)
+    mutate_nested = lambda do |obj|
+      case obj
+      when Hash
+        obj.each do |k, v|
+          if v.is_a?(Hash) || v.is_a?(Array)
+            return true if mutate_nested.call(v)
+          elsif v.is_a?(String)
+            obj[k] = "changed"
+            return true
+          end
+        end
+      when Array
+        obj.each_with_index do |v, i|
+          if v.is_a?(Hash) || v.is_a?(Array)
+            return true if mutate_nested.call(v)
+          elsif v.is_a?(String)
+            obj[i] = "changed"
+            return true
+          end
+        end
+      end
+      false
+    end
+
+    mutated = mutate_nested.call(trace)
+
+    assert mutated, "Expected to find mutable nested trace signals in assigns(:trace)"
+    assert_equal original.deep_stringify_keys, session[:dsl_trace].deep_stringify_keys
+  end
+
+  test "trace defaults to empty array when not present" do
+    get statement_url(@statement)
+    session[:dsl_trace] = nil
+
+    get statement_url(@statement)
+
+    assert_equal [], assigns(:trace)
+  end
+
+  test "refresh + show uses real DSL pipeline" do
+    @statement.source.update!(algorithm_value: "manual=Traceable value")
+
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+
+    follow_redirect_with_trace_visibility("always", "3")
+
+    assert_response :success
+    assert_match(/Algorithm Trace/, response.body)
+  end
+
   test "should get edit" do
     get edit_statement_url(@statement)
     assert_response :success
@@ -65,6 +176,124 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to webpage_statements_path(url: webpages(:six).url)
   end
 
+  test "refresh json success returns structured ok payload without redirect" do
+    helper_proxy = mock("helper_proxy")
+    helper_proxy.expects(:refresh_statement_helper).with(@statement).returns(
+      data: ["value"],
+      trace: nil,
+      errors: []
+    )
+    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+
+    patch refresh_statement_path(@statement, format: :json)
+
+    assert_response :success
+    assert_not response.redirect?
+    body = JSON.parse(response.body).with_indifferent_access
+    assert_equal "ok", body[:status]
+    assert_equal @statement.id, body[:statement_id]
+    assert_equal true, body[:result_present]
+    assert_equal false, body[:trace_present]
+  end
+
+  test "refresh json abort returns structured error payload with 422 and no redirect" do
+    helper_proxy = mock("helper_proxy")
+    helper_proxy.expects(:refresh_statement_helper).with(@statement).returns(
+      data: ["abort_update", { error: "Invalid URL resolved from nil", error_type: "InvalidURL", step: "url", source: "dsl_runner" }],
+      trace: nil,
+      errors: ["Scrape aborted (InvalidURL): Invalid URL resolved from nil"]
+    )
+    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+
+    patch refresh_statement_path(@statement, format: :json)
+
+    assert_response :unprocessable_entity
+    assert_not response.redirect?
+    body = JSON.parse(response.body).with_indifferent_access
+    assert_equal "error", body[:status]
+    assert_equal "dsl_abort", body[:kind]
+    assert_equal "Invalid URL resolved from nil", body[:error]
+    assert_equal "InvalidURL", body[:error_type]
+    assert_equal "url", body[:step]
+    assert_equal "dsl_runner", body[:source]
+  end
+
+  test "refresh json non-abort error returns refresh_error kind with 422 and no redirect" do
+    helper_proxy = mock("helper_proxy")
+    helper_proxy.expects(:refresh_statement_helper).with(@statement).returns(
+      data: nil,
+      trace: nil,
+      errors: ["DSL returned blank result (possible parsing failure)"]
+    )
+    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+
+    patch refresh_statement_path(@statement, format: :json)
+
+    assert_response :unprocessable_entity
+    assert_not response.redirect?
+    body = JSON.parse(response.body).with_indifferent_access
+    assert_equal "error", body[:status]
+    assert_equal "refresh_error", body[:kind]
+    assert_equal "DSL returned blank result (possible parsing failure)", body[:error]
+    assert_equal "RefreshError", body[:error_type]
+    assert_nil body[:step]
+    assert_equal "statements_controller", body[:source]
+  end
+
+  test "refresh json malformed abort payload is explicit invalid abort payload error" do
+    helper_proxy = mock("helper_proxy")
+    helper_proxy.expects(:refresh_statement_helper).with(@statement).returns(
+      data: ["abort_update", "invalid_payload"],
+      trace: nil,
+      errors: ["Scrape aborted"]
+    )
+    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+
+    patch refresh_statement_path(@statement, format: :json)
+
+    assert_response :unprocessable_entity
+    assert_not response.redirect?
+    body = JSON.parse(response.body).with_indifferent_access
+    assert_equal "error", body[:status]
+    assert_equal "dsl_abort", body[:kind]
+    assert_equal "InvalidAbortPayload", body[:error_type]
+    assert_equal "Malformed abort payload", body[:error]
+    assert_equal "statements_controller", body[:source]
+  end
+
+  test "refresh html success redirects with notice" do
+    helper_proxy = mock("helper_proxy")
+    helper_proxy.expects(:refresh_statement_helper).with(@statement).returns(
+      data: ["value"],
+      trace: nil,
+      errors: []
+    )
+    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+
+    patch refresh_statement_path(@statement)
+
+    assert_redirected_to statement_url(@statement)
+    assert_equal "Statement was successfully refreshed.", flash[:notice]
+    assert_nil flash[:alert]
+  end
+
+  test "refresh html abort redirects with alert and without success notice" do
+    helper_proxy = mock("helper_proxy")
+    helper_proxy.expects(:refresh_statement_helper).with(@statement).returns(
+      data: ["abort_update", { error: "Invalid URL resolved from nil", error_type: "InvalidURL", step: "url", source: "dsl_runner" }],
+      trace: nil,
+      errors: ["Scrape aborted (InvalidURL): Invalid URL resolved from nil"]
+    )
+    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+
+    patch refresh_statement_path(@statement)
+
+    assert_redirected_to statement_url(@statement)
+    assert_match(/Statement Error:/, flash[:alert].to_s)
+    assert_match(/InvalidURL/, flash[:alert].to_s)
+    assert_nil flash[:notice]
+  end
+
   test "success with trace shows notice and trace on redirected show page" do
     @statement.source.update!(algorithm_value: "manual=Traceable value")
 
@@ -80,7 +309,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Step 1/, response.body)
     assert_match(/Step 1 — manual/, response.body)
     assert_match(/Traceable value/, response.body)
-    assert_nil session[:dsl_trace]
+    assert_not_nil session[:dsl_trace]
   end
 
   test "no error + auto trace visibility hides trace" do
@@ -93,7 +322,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     follow_redirect_with_trace_visibility("auto")
     assert_response :success
     assert_no_match(/Algorithm Trace/, response.body)
-    assert_nil session[:dsl_trace]
+    assert_not_nil session[:dsl_trace]
   end
 
   test "error + auto trace visibility shows trace" do
@@ -106,7 +335,63 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     follow_redirect_with_trace_visibility("auto")
     assert_response :success
     assert_match(/Algorithm Trace/, response.body)
-    assert_nil session[:dsl_trace]
+    assert_not_nil session[:dsl_trace]
+  end
+
+  test "trace view labels wringer fetch failures as fetch error" do
+    helper_proxy = mock("helper_proxy")
+    helper_proxy.expects(:refresh_statement_helper).with(@statement).returns(
+      data: nil,
+      trace: [
+        {
+          step: 1,
+          type: "url",
+          code: "url='http://example.com'",
+          input: [],
+          output: [],
+          error: { error: "network down", error_type: "WringerFetchError", source: "wringer" },
+          wringer: { error_type: "WringerFetchError", source: "wringer", signals: {}, hints: [] }
+        }
+      ],
+      errors: ["network down"]
+    )
+    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    assert_redirected_to statement_url(@statement)
+    assert_session_trace_present_and_structured
+
+    follow_redirect_with_trace_visibility("always", "3")
+    assert_response :success
+    assert_match(/Fetch error/, response.body)
+  end
+
+  test "trace view labels dsl extraction failures as extraction error" do
+    helper_proxy = mock("helper_proxy")
+    helper_proxy.expects(:refresh_statement_helper).with(@statement).returns(
+      data: nil,
+      trace: [
+        {
+          step: 1,
+          type: "xpath",
+          code: "xpath=//h1/text()",
+          input: [],
+          output: [],
+          error: { error: "No nodes matched", error_type: "ExtractionFailed", source: "dsl_runner" },
+          wringer: { signals: {}, hints: [] }
+        }
+      ],
+      errors: ["No nodes matched"]
+    )
+    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    assert_redirected_to statement_url(@statement)
+    assert_session_trace_present_and_structured
+
+    follow_redirect_with_trace_visibility("always", "3")
+    assert_response :success
+    assert_match(/Extraction error/, response.body)
   end
 
   test "always trace visibility always shows trace" do
@@ -119,7 +404,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     follow_redirect_with_trace_visibility
     assert_response :success
     assert_match(/Algorithm Trace/, response.body)
-    assert_nil session[:dsl_trace]
+    assert_not_nil session[:dsl_trace]
   end
 
   test "hidden trace visibility never shows trace" do
@@ -132,7 +417,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     follow_redirect_with_trace_visibility("hidden")
     assert_response :success
     assert_no_match(/Algorithm Trace/, response.body)
-    assert_nil session[:dsl_trace]
+    assert_not_nil session[:dsl_trace]
   end
 
   test "defaults trace_view_mode to trace rendering when cookie is missing" do
@@ -145,7 +430,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     follow_redirect_with_trace_visibility("always")
     assert_response :success
     assert_match(/Algorithm Trace/, response.body)
-    assert_nil session[:dsl_trace]
+    assert_not_nil session[:dsl_trace]
   end
 
   test "uses cookie trace_view_mode to hide trace when mode is 2" do
@@ -158,7 +443,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     follow_redirect_with_trace_visibility("always", "2")
     assert_response :success
     assert_no_match(/Algorithm Trace/, response.body)
-    assert_nil session[:dsl_trace]
+    assert_not_nil session[:dsl_trace]
   end
 
   test "success without trace shows notice and does not render trace on redirected show page" do
@@ -194,7 +479,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/SyntaxError/, response.body)
     body = response.body
     assert body.index("Statement Error") < body.index("Algorithm Trace")
-    assert_nil session[:dsl_trace]
+    assert_not_nil session[:dsl_trace]
   end
 
   test "error without trace shows alert and no trace rendering" do
@@ -257,7 +542,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Algorithm Trace/, response.body)
     body = response.body
     assert body.index("Statement Error") < body.index("Algorithm Trace")
-    assert_nil session[:dsl_trace]
+    assert_not_nil session[:dsl_trace]
   end
 
   test "error is not swallowed when trace is present" do
@@ -281,7 +566,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Algorithm Trace/, response.body)
     body = response.body
     assert body.index("Statement Error") < body.index("Algorithm Trace")
-    assert_nil session[:dsl_trace]
+    assert_not_nil session[:dsl_trace]
   end
 
   test "empty trace still shows error" do
@@ -307,7 +592,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Algorithm Trace/, response.body)
     body = response.body
     assert body.index("Statement Error") < body.index("Algorithm Trace")
-    assert_nil session[:dsl_trace]
+    assert_not_nil session[:dsl_trace]
   end
 
   test "refresh stores formatted trace in session" do
@@ -325,10 +610,10 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
 
     follow_redirect_with_trace_visibility
     assert_response :success
-    assert_nil session[:dsl_trace]
+    assert_not_nil session[:dsl_trace]
   end
 
-  test "show retrieves trace after redirect and clears session trace" do
+  test "show retrieves trace after redirect and keeps session trace" do
     @statement.source.update!(algorithm_value: "manual=Traceable value")
 
     patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
@@ -338,7 +623,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     follow_redirect_with_trace_visibility
     assert_response :success
     assert_match(/Algorithm Trace/, response.body)
-    assert_nil session[:dsl_trace]
+    assert_not_nil session[:dsl_trace]
   end
 
   test "helper contract returns structured result" do
@@ -847,7 +1132,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
 
     follow_redirect_with_trace_visibility
     assert_response :success
-    assert_nil session[:dsl_trace]
+    assert_not_nil session[:dsl_trace]
   end
 
   test "should destroy statement" do

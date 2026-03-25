@@ -2,7 +2,7 @@ class StatementsController < ApplicationController
   before_action :set_statement, only: [:refresh, :show, :edit, :update, :destroy, :add_linked_data, :remove_linked_data, :activate]
   skip_before_action :verify_authenticity_token
   skip_before_action :authenticate, only: [:show, :index]
-  helper_method :expand_trace_for_view, :trace_steps_for_view
+  helper_method :expand_trace_for_view, :trace_steps_for_view, :trace_presenter
 
   MANUALLY_ADDED = "Manually added"
   TRACE_CODE_DEFAULT = 140
@@ -51,10 +51,14 @@ class StatementsController < ApplicationController
   def refresh
     result = helpers.refresh_statement_helper(@statement)
     trace_enabled = cookies[:dsl_trace] == "true"
+    data = result[:data]
+    abort_payload = extract_abort_payload(data)
 
     if trace_enabled
-      Rails.logger.debug do
-        "[DSL TRACE FULL]\n#{JSON.pretty_generate(result[:trace] || [])}"
+      if Rails.env.development? || ENV["DSL_TRACE_DEBUG"]
+        Rails.logger.debug do
+          "[DSL TRACE FULL]\n#{JSON.pretty_generate(result[:trace] || [])}"
+        end
       end
 
       trace_for_session = Dsl::TraceFormatter.for_session_v2(result[:trace] || [])
@@ -65,13 +69,55 @@ class StatementsController < ApplicationController
       session.delete(:dsl_trace)
     end
 
-    if result[:errors].present?
-      flash[:alert] = "Statement Error: " + result[:errors].to_sentence    
-    else
-      flash[:notice] = "Statement was successfully refreshed."
-    end
+    respond_to do |format|
+      if abort_payload.present?
+        error_message = abort_payload[:error].presence || "DSL runner aborted"
+        error_type = abort_payload[:error_type].presence || "DslAbort"
 
-    redirect_to @statement
+        format.html do
+          flash[:alert] = "Statement Error: (#{error_type}) #{error_message}"
+          redirect_to @statement
+        end
+        format.json do
+          render json: {
+            status: "error",
+            kind: "dsl_abort",
+            error: error_message,
+            error_type: error_type,
+            step: abort_payload[:step],
+            source: abort_payload[:source]
+          }, status: :unprocessable_entity
+        end
+      elsif result[:errors].present?
+        format.html do
+          flash[:alert] = "Statement Error: " + result[:errors].to_sentence
+          redirect_to @statement
+        end
+        format.json do
+          render json: {
+            status: "error",
+            kind: "refresh_error",
+            error: result[:errors].to_sentence,
+            error_type: "RefreshError",
+            step: nil,
+            source: "statements_controller"
+          }, status: :unprocessable_entity
+        end
+      else
+        format.html do
+          flash[:notice] = "Statement was successfully refreshed."
+          redirect_to @statement
+        end
+        format.json do
+          render json: {
+            status: "ok",
+            statement_id: @statement.id,
+            result_present: data.present?,
+            trace_present: result[:trace].present?
+          }
+        end
+      end
+    end
   end
 
 
@@ -86,9 +132,13 @@ class StatementsController < ApplicationController
   # GET /statements/1
   # GET /statements/1.json
   def show
-    @trace = session.delete(:dsl_trace)
-    @trace_view_mode = cookies[:trace_view_mode]&.to_i.presence || 3
-    visibility = cookies[:trace_visibility].presence || "auto"
+    trace = session[:dsl_trace]
+    trace = trace.to_h if trace.respond_to?(:to_h)
+    trace = nil if trace == {}
+    @trace = safe_trace_copy(trace)
+    @trace ||= []
+    @trace_presenter = TracePresenter.new(@trace)
+    @trace_view_mode = @trace_presenter.mode(cookies)
     code_len = (cookies[:trace_code_display_length].presence || TRACE_CODE_DEFAULT).to_i
     output_len = (cookies[:trace_output_display_length].presence || TRACE_OUTPUT_DEFAULT).to_i
     error_len = (cookies[:trace_error_display_length].presence || TRACE_ERROR_DEFAULT).to_i
@@ -97,35 +147,12 @@ class StatementsController < ApplicationController
     @trace_output_length = output_len.positive? ? output_len : TRACE_OUTPUT_DEFAULT
     @trace_error_length = error_len.positive? ? error_len : TRACE_ERROR_DEFAULT
 
-    @show_trace =
-      case visibility
-      when "always"
-        true
-      when "hidden"
-        false
-      else
-        trace_has_error?(@trace)
-      end
+    @show_trace = @trace_presenter.visible?(cookies)
     @result = nil
   end
 
-  def trace_has_error?(trace)
-    return false unless trace.is_a?(Hash) || trace.is_a?(Array)
-
-    steps =
-      if trace.is_a?(Hash)
-        raw = trace.respond_to?(:to_h) ? trace.to_h : trace
-        raw[:steps] || raw["steps"] || []
-      else
-        trace
-      end
-
-    Array(steps).any? do |step|
-      source = step.respond_to?(:to_h) ? step.to_h : {}
-      next false unless source.is_a?(Hash)
-
-      (source[:error] || source["error"] || source[:e] || source["e"]).present?
-    end
+  def trace_presenter
+    @trace_presenter
   end
 
   def expand_trace_for_view(compact_trace)
@@ -448,6 +475,43 @@ class StatementsController < ApplicationController
 
   private
 
+  def safe_trace_copy(obj)
+    case obj
+    when Array
+      obj.map { |e| safe_trace_copy(e) }
+    when Hash
+      obj.transform_values do |v|
+        safe_trace_copy(v)
+      end
+    else
+      obj
+    end
+  end
+
+  # Must stay in sync with DSL runner abort contract:
+  # ["abort_update", payload]
+  def abort_structure?(obj)
+    obj.is_a?(Array) && obj.first == "abort_update"
+  end
+
+  def extract_abort_payload(data)
+    return nil unless abort_structure?(data)
+
+    payload = data.second
+    payload = payload.to_h if payload.respond_to?(:to_h)
+
+    unless payload.is_a?(Hash)
+      payload = {
+        error: "Malformed abort payload",
+        error_type: "InvalidAbortPayload",
+        source: "statements_controller"
+      }
+    end
+
+    payload = payload.with_indifferent_access if payload.respond_to?(:with_indifferent_access)
+    payload
+  end
+
   def resolve_trace_url(urls, index)
     return nil if index.nil?
 
@@ -463,6 +527,7 @@ class StatementsController < ApplicationController
     p = raw.with_indifferent_access
     return { skipped: true } if p[:sk]
     return { skipped: true } if p[:x].blank?
+
     output = Array(p[:o]).compact.map(&:to_s).first(3)
     status = p[:st].presence || "ok"
 
@@ -530,7 +595,7 @@ class StatementsController < ApplicationController
     normalized_wringer =
       if s[:wringer].is_a?(Hash)
         wringer = s[:wringer].with_indifferent_access
-        wringer.present? ? wringer : { inherited: true }
+        (wringer.presence || { inherited: true })
       else
         { inherited: true }
       end

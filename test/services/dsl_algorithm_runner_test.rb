@@ -179,6 +179,163 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     assert_equal [], event[:wringer][:hints]
   end
 
+  test "probe abort is not converted into a successful probe payload" do
+    runner, = build_runner
+    runner.stubs(:execute_xpath).with("//title").returns(
+      ["abort_update", { error: "Probe fetch failed", error_type: "ProbeAbort", step: "xpath", source: "dsl_runner" }]
+    )
+
+    probe = runner.send(:build_xpath_probe, "url", "xpath", [], 1)
+
+    assert_equal "abort_update", probe.first
+    assert_equal "ProbeAbort", probe.last[:error_type]
+  end
+
+  test "probe abort stops pipeline and prevents downstream steps" do
+    runner, tracer = build_runner
+    runner.stubs(:safe_wringer_call).returns("<html><body><h1>ok</h1></body></html>")
+    runner.stubs(:execute_xpath).with("//h1/text()").returns([])
+    runner.stubs(:execute_xpath).with("//title").returns(
+      ["abort_update", { error: "Probe fetch failed", error_type: "ProbeAbort", step: "xpath", source: "dsl_runner" }]
+    )
+
+    result = runner.run("url='http://example.local/page';xpath=//h1/text();ruby=['SHOULD_NOT_RUN']")
+
+    assert_equal "abort_update", result.first
+    assert_equal "ProbeAbort", result.last[:error_type]
+    assert_equal 2, tracer.to_h.size
+    assert_equal "xpath", tracer.to_h.last[:type]
+  end
+
+  test "url step resolving to nil aborts and traces abort step without running later steps" do
+    runner, tracer = build_runner
+    runner.stubs(:safe_wringer_call).returns("<html><body><h1>Fresh</h1></body></html>")
+    runner.expects(:execute_xpath).never
+
+    result = runner.run("url='http://example.local/page';url=nil;xpath=//h1/text()")
+
+    assert_equal "abort_update", result.first
+    assert_equal "InvalidURL", result.last[:error_type]
+    assert_equal "url", result.last[:step]
+    assert_match(/invalid url/i, result.last[:error].to_s)
+
+    events = tracer.to_h
+    assert_equal 2, events.size
+    assert_equal "url", events.second[:type]
+    assert_equal "Hash", events.second[:error_class]
+    assert_match(/InvalidURL/, events.second[:error_message].to_s)
+    assert_match(/step: \"url\"/, events.second[:error_message].to_s)
+  end
+
+  test "non trace runner aborts on nil resolved url and does not reuse previous page state" do
+    ctx = {
+      url: "http://example.local",
+      render_js: false,
+      scrape_options: {},
+      tracer: Dsl::DslNullTracer.new
+    }
+    runner = Dsl::DslAlgorithmRunner.new(ctx)
+    runner.stubs(:safe_wringer_call).returns("<html><body><h1>Fresh</h1></body></html>")
+    runner.expects(:execute_xpath).never
+
+    result = runner.run("url='http://example.local/page';url=nil;xpath=//h1/text()")
+
+    assert_equal "abort_update", result.first
+    assert_equal "InvalidURL", result.last[:error_type]
+    assert_equal "url", result.last[:step]
+    assert_equal "dsl_runner", result.last[:source]
+  end
+
+  test "ensure_page abort stops pipeline without raising and prevents downstream ruby" do
+    runner, tracer = build_runner
+    runner.stubs(:safe_wringer_call).returns(["abort_update", { error: "Wringer unreachable", error_type: "SocketError" }])
+
+    result = runner.run("xpath=//h1/text();ruby=$array.map(&:upcase)")
+
+    assert_equal "abort_update", result.first
+    assert_equal "SocketError", result.last[:error_type]
+    assert_equal "xpath", result.last[:step]
+    assert_equal "dsl_runner", result.last[:source]
+
+    events = tracer.to_h
+    assert_equal 1, events.size
+    assert_equal "xpath", events.first[:type]
+  end
+
+  test "wringer abort source is preserved when upstream provides it" do
+    runner, = build_runner
+    runner.stubs(:safe_wringer_call).returns(
+      ["abort_update", { error: "Wringer unreachable", error_type: "SocketError", source: "wringer" }]
+    )
+
+    result = runner.run("xpath=//h1/text()")
+
+    assert_equal "abort_update", result.first
+    assert_equal "wringer", result.last[:source]
+    assert_equal "xpath", result.last[:step]
+  end
+
+  test "resolve_url_only nil URL aborts in api step without silent continuation" do
+    runner, tracer = build_runner
+
+    result = runner.run("api=nil;ruby=['SHOULD_NOT_RUN']")
+
+    assert_equal "abort_update", result.first
+    assert_equal "InvalidURL", result.last[:error_type]
+    assert_equal "api", result.last[:step]
+    assert_equal "dsl_runner", result.last[:source]
+
+    events = tracer.to_h
+    assert_equal 1, events.size
+    assert_equal "api", events.first[:type]
+  end
+
+  test "trace and non-trace runs return identical abort payload for invalid URL" do
+    trace_runner, = build_runner
+    trace_result = trace_runner.run("api=nil")
+
+    non_trace_runner = Dsl::DslAlgorithmRunner.new(
+      url: "http://example.local",
+      render_js: false,
+      scrape_options: {},
+      tracer: Dsl::DslNullTracer.new
+    )
+    non_trace_result = non_trace_runner.run("api=nil")
+
+    assert_equal trace_result, non_trace_result
+    assert_equal "abort_update", trace_result.first
+    assert_equal "dsl_runner", trace_result.last[:source]
+  end
+
+  test "trace events always include wringer signals and hints keys" do
+    runner, tracer = build_runner
+    runner.run("manual=hello")
+
+    wringer = tracer.to_h.first[:wringer]
+    assert wringer.key?(:signals)
+    assert wringer.key?(:hints)
+    assert_equal({}, wringer[:signals])
+    assert_equal [], wringer[:hints]
+  end
+
+  test "all abort payloads include error error_type and source" do
+    runner, = build_runner
+    result = runner.run("api=nil")
+
+    assert_equal "abort_update", result.first
+    assert result.last[:error].is_a?(String)
+    assert result.last[:error_type].is_a?(String)
+    assert result.last[:source].is_a?(String)
+  end
+
+  test "runner uses single abort_update contract without tuple wrappers" do
+    source = File.read(Rails.root.join("app/services/dsl/dsl_algorithm_runner.rb"))
+
+    refute_match(/def\s+ok\(/, source)
+    refute_match(/def\s+abort\(/, source)
+    refute_match(/\[:abort,/, source)
+  end
+
   test "xpath probe runs only when xpath is empty after url step" do
     html = "<html><head><title>Probe Title</title></head><body><p>body</p></body></html>"
     stub_request(:get, /localhost:3009\/websites\/wring/).to_return(status: 200, body: html)
@@ -245,6 +402,40 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     assert_equal ["Alpha", "beta", "Gamma"], probe[:output]
     assert_operator probe[:output].size, :<=, 3
     assert probe[:output].all? { |entry| entry.is_a?(String) }
+  end
+
+  test "xpath probe exception is explicit error and never reported as ok" do
+    runner, = build_runner
+    runner.stubs(:execute_xpath).with("//title").raises(StandardError, "probe exploded")
+
+    probe = runner.send(:build_xpath_probe, "url", "xpath", [], 1)
+
+    assert_equal "error", probe[:status]
+    assert_equal true, probe[:exception]
+    assert_equal "//title", probe[:xpath]
+    assert_equal [], probe[:output]
+  end
+
+  test "abort_update and normalize_abort_result share the same core payload shape" do
+    runner, = build_runner
+
+    direct = runner.send(
+      :abort_update,
+      error: "Invalid URL resolved from nil",
+      error_type: "InvalidURL",
+      step: "url",
+      source: "dsl_runner"
+    )
+    normalized = runner.send(
+      :normalize_abort_result,
+      ["abort_update", { error: "Invalid URL resolved from nil", error_type: "InvalidURL", step: "url", source: "dsl_runner", retry: true }],
+      step: "url"
+    )
+
+    assert_equal "abort_update", direct.first
+    assert_equal "abort_update", normalized.first
+    assert_equal direct.last.slice(:error, :error_type, :step, :source), normalized.last.slice(:error, :error_type, :step, :source)
+    assert_equal true, normalized.last[:retry]
   end
 
   test "xpath probe does not run for xpath to xpath empty chain" do

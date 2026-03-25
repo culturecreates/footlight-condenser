@@ -16,11 +16,12 @@ module Dsl
         raw_response = fetch_wringer_response(url, render_js, scrape_options)
       end
 
-      if abort_structure?(safe_result)
+      control = normalize_control_result(safe_result)
+      if control.present?
         return {
           status: :abort,
-          body: safe_result,
-          wringer: build_wringer_status(safe_result, raw_response)
+          body: control,
+          wringer: build_wringer_status(control, raw_response)
         }
       end
 
@@ -67,6 +68,15 @@ module Dsl
           final_url: nil
         }
       end
+    ensure
+      unexpected_type =
+        !result.is_a?(Hash) &&
+        !(result.respond_to?(:code) && result.respond_to?(:body)) &&
+        !result.is_a?(String) &&
+        !result.nil?
+      if unexpected_type
+        @logger.debug { "[WringerClient] Unexpected body type: #{result.class}" }
+      end
     end
 
     def abort_structure?(obj)
@@ -74,6 +84,53 @@ module Dsl
         obj.length == 2 &&
         obj.first == "abort_update" &&
         obj.last.is_a?(Hash)
+    end
+
+    def control_structure?(obj)
+      obj.is_a?(Array) &&
+        obj.length == 2 &&
+        obj.first.is_a?(String)
+    end
+
+    def normalize_control_result(result)
+      return nil unless control_structure?(result)
+
+      action = result.first
+      payload = result.second
+      payload = payload.to_h if payload.respond_to?(:to_h)
+
+      unless payload.is_a?(Hash)
+        payload = {
+          error: "Malformed Wringer control payload",
+          error_type: "WringerMalformedControlPayload",
+          source: "wringer"
+        }
+      end
+
+      normalized = payload.transform_keys { |k| k.respond_to?(:to_sym) ? k.to_sym : k }
+
+      case action
+      when "abort_update"
+        if %w[wringer_unreachable wringer_error].include?(normalized[:error_type].to_s)
+          normalized[:original_error_type] = normalized[:error_type]
+          normalized[:error_type] = "WringerFetchError"
+          normalized[:source] ||= "wringer"
+          normalized[:step] ||= "url"
+        end
+        ["abort_update", normalized]
+      when "skip"
+        ["abort_update", {
+          error: "Wringer skipped request",
+          error_type: "WringerSkip",
+          source: "wringer"
+        }]
+      else
+        ["abort_update", {
+          error: "Unsupported Wringer action: #{action}",
+          error_type: "WringerUnsupportedAction",
+          source: "wringer"
+        }]
+      end
     end
 
     def build_wringer_status(result, raw_response = nil)
@@ -97,8 +154,11 @@ module Dsl
 
         status = {
           error_type: error_type,
+          source: error_payload[:source] || error_payload["source"],
           retry: retry_value,
-          cache: cache_value
+          cache: cache_value,
+          signals: normalize_signals(error_payload[:signals] || error_payload["signals"]),
+          hints: normalize_hints(error_payload[:hints] || error_payload["hints"])
         }
 
         if raw_response.respond_to?(:code) && raw_response.respond_to?(:uri)
@@ -108,8 +168,9 @@ module Dsl
 
         status[:policy_action] = policy_action if policy_action.present?
 
+        canonical_error_type = error_payload[:original_error_type] || error_payload["original_error_type"] || error_type
         canonical = canonical_wringer_signals(
-          error_type: error_type,
+          error_type: canonical_error_type,
           http_code: status[:http_code],
           policy_action: policy_action
         )
@@ -136,7 +197,22 @@ module Dsl
         status[:hints] ||= []
       end
 
+      status[:signals] = normalize_signals(status[:signals])
+      status[:hints] = normalize_hints(status[:hints])
+
       status
+    end
+
+    def normalize_signals(value)
+      return value if value.is_a?(Hash)
+
+      {}
+    end
+
+    def normalize_hints(value)
+      return value if value.is_a?(Array)
+
+      []
     end
 
     def extract_signals(raw_response)

@@ -202,7 +202,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
     assert_equal options, captured[:scrape_options]
   end
 
-  test "nil and malformed abort payloads do not crash and still include wringer diagnostics" do
+  test "nil response remains ok and includes normalized wringer diagnostics" do
     client = Dsl::WringerClient.new(
       agent: mock("agent"),
       render_js: false,
@@ -217,7 +217,9 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
     assert_nil result[:body]
     assert_equal({}, result[:wringer][:signals])
     assert_equal [], result[:wringer][:hints]
+  end
 
+  test "malformed abort payload is normalized to explicit wringer abort error" do
     malformed_payload = ["abort_update", "broken-payload"]
     malformed_client = Dsl::WringerClient.new(
       agent: mock("agent"),
@@ -229,10 +231,126 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
     )
 
     malformed = malformed_client.fetch(url: "https://example.com/events")
-    assert_equal :ok, malformed[:status]
-    assert_equal malformed_payload, malformed[:body]
+    assert_equal :abort, malformed[:status]
+    assert_equal "abort_update", malformed[:body].first
+    assert_equal "WringerMalformedControlPayload", malformed[:body].last[:error_type]
+    assert_equal "wringer", malformed[:body].last[:source]
     assert_equal({}, malformed[:wringer][:signals])
     assert_equal [], malformed[:wringer][:hints]
+  end
+
+  test "skip control action is normalized to abort_update wringer skip" do
+    client = Dsl::WringerClient.new(
+      agent: mock("agent"),
+      render_js: false,
+      scrape_options: {},
+      use_wringer: ->(*_) { "wringer://resolved" },
+      safe_wringer_call: ->(&_) { ["skip", { reason: "policy_skip" }] },
+      logger: Rails.logger
+    )
+
+    result = client.fetch(url: "https://example.com/events")
+
+    assert_equal :abort, result[:status]
+    assert_equal "abort_update", result[:body].first
+    assert_equal "WringerSkip", result[:body].last[:error_type]
+    assert_equal "wringer", result[:body].last[:source]
+  end
+
+  test "unknown wringer control action is normalized to unsupported action abort_update" do
+    client = Dsl::WringerClient.new(
+      agent: mock("agent"),
+      render_js: false,
+      scrape_options: {},
+      use_wringer: ->(*_) { "wringer://resolved" },
+      safe_wringer_call: ->(&_) { ["foo", { reason: "unknown" }] },
+      logger: Rails.logger
+    )
+
+    result = client.fetch(url: "https://example.com/events")
+
+    assert_equal :abort, result[:status]
+    assert_equal "abort_update", result[:body].first
+    assert_equal "WringerUnsupportedAction", result[:body].last[:error_type]
+    assert_equal "Unsupported Wringer action: foo", result[:body].last[:error]
+    assert_equal "wringer", result[:body].last[:source]
+  end
+
+  test "single-element arrays are not treated as control tuples" do
+    payload = ["skip"]
+    client = Dsl::WringerClient.new(
+      agent: mock("agent"),
+      render_js: false,
+      scrape_options: {},
+      use_wringer: ->(*_) { "wringer://resolved" },
+      safe_wringer_call: ->(&_) { payload },
+      logger: Rails.logger
+    )
+
+    result = client.fetch(url: "https://example.com/events")
+
+    assert_equal :ok, result[:status]
+    assert_equal payload, result[:body]
+  end
+
+  test "fetch failure is normalized to WringerFetchError with url step" do
+    client = Dsl::WringerClient.new(
+      agent: mock("agent"),
+      render_js: false,
+      scrape_options: {},
+      use_wringer: ->(*_) { "wringer://resolved" },
+      safe_wringer_call: ->(&_) { ["abort_update", { error: "connection refused", error_type: "wringer_unreachable", source: "wringer" }] },
+      logger: Rails.logger
+    )
+
+    result = client.fetch(url: "https://example.com/events")
+
+    assert_equal :abort, result[:status]
+    assert_equal "abort_update", result[:body].first
+    assert_equal "WringerFetchError", result[:body].last[:error_type]
+    assert_equal "url", result[:body].last[:step]
+    assert_equal "wringer", result[:body].last[:source]
+  end
+
+  test "metadata normalization enforces signals hash and hints array for abort payload" do
+    payload = ["abort_update", { error_type: "system_cloudflare", signals: "bad-shape", hints: "bad-shape" }]
+    client = Dsl::WringerClient.new(
+      agent: mock("agent"),
+      render_js: false,
+      scrape_options: {},
+      use_wringer: ->(*_) { "wringer://resolved" },
+      safe_wringer_call: ->(&_) { payload },
+      logger: Rails.logger
+    )
+
+    result = client.fetch(url: "https://example.com/events")
+
+    assert_equal :abort, result[:status]
+    assert_equal({}, result[:wringer][:signals])
+    assert_equal [], result[:wringer][:hints]
+  end
+
+  test "control tuples never return html body content" do
+    agent = mock("agent")
+    agent.expects(:get_file).with("wringer://resolved").returns("<html>should_not_escape_control</html>")
+
+    client = Dsl::WringerClient.new(
+      agent: agent,
+      render_js: false,
+      scrape_options: {},
+      use_wringer: ->(*_) { "wringer://resolved" },
+      safe_wringer_call: lambda do |&blk|
+        blk.call
+        ["skip", { reason: "policy_skip" }]
+      end,
+      logger: Rails.logger
+    )
+
+    result = client.fetch(url: "https://example.com/events")
+
+    assert_equal :abort, result[:status]
+    assert_equal "abort_update", result[:body].first
+    refute_equal "<html>should_not_escape_control</html>", result[:body]
   end
 
   test "fetch detects 404 from response metadata and exposes wringer status" do

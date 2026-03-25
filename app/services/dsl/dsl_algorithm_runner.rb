@@ -123,6 +123,25 @@ module Dsl
         url_after   = @url
         output      = trace_preview(out)
         probe       = build_xpath_probe(previous_prefix, prefix, out, previous_step_index)
+        if abort_structure?(probe)
+          @tracer.step(
+            step: step_index,
+            type: prefix,
+            code: code,
+            input: input_preview,
+            output: [],
+            input_full: input_copy,
+            output_full: [],
+            probe: trace_probe_payload(nil),
+            error: probe.last,
+            wringer: trace_wringer_payload,
+            url_before: url_before,
+            url_after: url_after,
+            duration_ms: duration_ms
+          )
+
+          return probe
+        end
 
         @tracer.step(
           step: step_index,
@@ -162,7 +181,11 @@ module Dsl
           url_after: @url,
           duration_ms: duration_ms
         )
-        return ["abort_update", { error: e.message, error_type: e.class.to_s }]
+        return abort_update(
+          error: e.message,
+          error_type: e.class.to_s,
+          step: prefix
+        )
       end
 
       results
@@ -171,10 +194,6 @@ module Dsl
     end
 
     private
-
-    def ok(v)    = [:ok, v].freeze
-    def skip     = [:skip, nil].freeze
-    def abort(v) = [:abort, v].freeze
 
     def execute(prefix, code, arr)
       case prefix
@@ -186,30 +205,28 @@ module Dsl
           rows = SPARQL.execute(sparql, @graph)
           [*(rows.count == 1 ? rows.first.answer.value : rows.map { |r| r.answer.value })]
         rescue StandardError => e
-          ["abort_update", { error: e.message, error_type: e.class.to_s }]
+          abort_update(error: e.message, error_type: e.class.to_s, step: 'sparql')
         end
 
-      when 'url'           then handle_url_step(code, arr)
+      when 'url'           then handle_url_step(code, arr, step: 'url')
 
-      when 'renderjs_url'  then handle_url_step(code, arr, render_js: true)
+      when 'renderjs_url'  then handle_url_step(code, arr, render_js: true, step: 'renderjs_url')
 
       when 'post_url'
         temp_opts = @scrape_opts.merge(json_post: true).merge(force_scrape_every_hrs: 1)
-        handle_url_step(code, arr, opts: temp_opts)
+        handle_url_step(code, arr, opts: temp_opts, step: 'post_url')
 
       when 'json_url'
-        status, result = resolve_and_fetch_url(code, arr)
-
-        return result if status == :abort
-        return arr if status == :skip
+        result = resolve_and_fetch_url(code, arr, step: 'json_url')
+        return result if abort_structure?(result)
 
         apply_json_text_result(result)
 
         arr
 
       when 'api'
-        new_url = resolve_url_only(code, arr)
-        return arr unless new_url
+        new_url = resolve_url_only(code, arr, step: 'api')
+        return new_url if abort_structure?(new_url)
 
         data = HTTParty.get(new_url)
         raise "API error #{data.code}" unless data.code.to_s.start_with?('2')
@@ -220,7 +237,8 @@ module Dsl
         execute_xpath(code)
 
       when 'xpath_sanitize'
-        ensure_page!
+        page_status = ensure_page!(step: 'xpath_sanitize')
+        return page_status if abort_structure?(page_status)
         @page.xpath(code).map do |node|
           sanitize(node.to_s,
                    tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br],
@@ -228,25 +246,29 @@ module Dsl
         end
 
       when 'if_xpath'
-        ensure_page!
+        page_status = ensure_page!(step: 'if_xpath')
+        return page_status if abort_structure?(page_status)
         nodes = @page.xpath(code)
         return [HALT, arr] if nodes.blank?
 
         nodes.map(&:text)
 
       when 'unless_xpath'
-        ensure_page!
+        page_status = ensure_page!(step: 'unless_xpath')
+        return page_status if abort_structure?(page_status)
         nodes = @page.xpath(code)
         return [HALT, arr] if nodes.present?
 
         arr
 
       when 'css'
-        ensure_page!
+        page_status = ensure_page!(step: 'css')
+        return page_status if abort_structure?(page_status)
         @page.css(code).map(&:text)
 
       when 'json'
-        ensure_page!
+        page_status = ensure_page!(step: 'json')
+        return page_status if abort_structure?(page_status)
         text = @page.respond_to?(:text) ? @page.text : @html.to_s
         @json ||= JSON.parse(text)
         Thread.current[:dsl_json] = @json
@@ -286,7 +308,12 @@ module Dsl
       @probed_url_step_indices ||= []
       return nil if @probed_url_step_indices.include?(previous_step_index)
 
-      probe_output = Array(execute_xpath("//title")).compact.map(&:to_s).first(3)
+      probe_result = execute_xpath("//title")
+      if abort_structure?(probe_result)
+        return probe_result
+      end
+
+      probe_output = Array(probe_result).compact.map(&:to_s).first(3)
       @probed_url_step_indices << previous_step_index
 
       {
@@ -298,18 +325,23 @@ module Dsl
       @probed_url_step_indices << previous_step_index if previous_step_index
 
       {
-        status: "ok",
+        status: "error",
+        exception: true,
         xpath: "//title",
         output: []
       }
     end
 
-    def resolve_and_fetch_url(code, arr, render_js: @render_js, opts: @scrape_opts)
+    def resolve_and_fetch_url(code, arr, render_js: @render_js, opts: @scrape_opts, step: 'url')
       raw = @dsl_binding.eval(sub(code, arr))
       new_url = Dsl::UrlResolver.extract(raw)
       if new_url.blank?
-        Rails.logger.debug { "[DSL] skipped invalid URL from #{raw.inspect}" }
-        return skip 
+        Rails.logger.warn { "[DSL] abort invalid URL from #{raw.inspect}" }
+        return abort_update(
+          error: "Invalid URL resolved from #{raw.inspect}",
+          error_type: "InvalidURL",
+          step: step
+        )
       end
 
       Rails.logger.debug { "[DSL] #{code} → #{new_url}" }
@@ -322,14 +354,22 @@ module Dsl
 
       if fetch_result[:status] == :abort
         Rails.logger.warn("[DSL] abort on #{new_url} (#{@current_wringer_status&.dig(:error_type)})")
-        return abort(raw)
+        return normalize_abort_result(raw, step: step)
       end
 
-      ok(raw)
+      raw
     end
 
-    def resolve_url_only(code, arr)
-      Dsl::UrlResolver.extract(@dsl_binding.eval(sub(code, arr)))
+    def resolve_url_only(code, arr, step: 'url')
+      raw = @dsl_binding.eval(sub(code, arr))
+      new_url = Dsl::UrlResolver.extract(raw)
+      return new_url if new_url.present?
+
+      abort_update(
+        error: "Invalid URL resolved from #{raw.inspect}",
+        error_type: "InvalidURL",
+        step: step
+      )
     end
 
     def apply_html_result(html)
@@ -346,18 +386,17 @@ module Dsl
       Thread.current[:dsl_json] = nil
     end
 
-    def handle_url_step(code, arr, render_js: false, opts: @scrape_opts)
-      status, result = resolve_and_fetch_url(code, arr, render_js: render_js, opts: opts)
-
-      return result if status == :abort
-      return arr    if status == :skip
+    def handle_url_step(code, arr, render_js: false, opts: @scrape_opts, step: 'url')
+      result = resolve_and_fetch_url(code, arr, render_js: render_js, opts: opts, step: step)
+      return result if abort_structure?(result)
 
       apply_html_result(result)
       arr
     end
 
     def execute_xpath(code)
-      ensure_page!
+      page_status = ensure_page!(step: 'xpath')
+      return page_status if abort_structure?(page_status)
       @page.xpath(code).map(&:text)
     end
 
@@ -375,19 +414,55 @@ module Dsl
           .gsub('$json',  'Thread.current[:dsl_json]')
     end
 
-    def ensure_page!
-      return if @page
+    def ensure_page!(step: nil)
+      return :ok if @page
 
       fetch_result = wringer_client.fetch(url: @url, render_js: @render_js, scrape_options: @scrape_opts)
       @current_wringer_status = fetch_result[:wringer]
       raw = fetch_result[:body]
 
       if fetch_result[:status] == :abort
-        raise StandardError, raw.last[:error]
+        return normalize_abort_result(raw, step: step)
       end
 
       @html = raw
       @page = Nokogiri::HTML(@html, nil, Encoding::UTF_8.to_s)
+      :ok
+    end
+
+    def abort_update(error:, error_type:, step: nil, source: "dsl_runner")
+      payload = {
+        error: error.to_s,
+        error_type: error_type.to_s,
+        source: source
+      }
+      payload[:step] = step if step.present?
+      ["abort_update", payload]
+    end
+
+    def normalize_abort_result(result, step: nil)
+      payload =
+        if abort_structure?(result)
+          result.last.respond_to?(:to_h) ? result.last.to_h.dup : {}
+        else
+          {}
+        end
+
+      error = payload[:error] || payload["error"] || "DSL runner abort"
+      error_type = payload[:error_type] || payload["error_type"] || "DslAbort"
+      normalized = payload.transform_keys { |k| k.respond_to?(:to_sym) ? k.to_sym : k }
+      effective_step = normalized[:step].presence || step
+      effective_source = normalized[:source].presence || "dsl_runner"
+
+      built = abort_update(
+        error: error,
+        error_type: error_type,
+        step: effective_step,
+        source: effective_source
+      ).last
+
+      # Preserve upstream metadata (retry/cache/signals/etc.) while enforcing the shared abort shape.
+      ["abort_update", built.merge(normalized.except(:error, :error_type, :step, :source))]
     end
 
     def use_wringer(u, rj, opt)
@@ -418,9 +493,13 @@ module Dsl
     end
 
     def trace_wringer_payload
-      return @current_wringer_status if @current_wringer_status.present?
-
-      { inherited: true }
+      wringer = @current_wringer_status.is_a?(Hash) ? @current_wringer_status.dup : {}
+      wringer = wringer.transform_keys { |k| k.respond_to?(:to_sym) ? k.to_sym : k }
+      wringer[:signals] = {} unless wringer[:signals].is_a?(Hash)
+      wringer[:hints] = [] unless wringer[:hints].is_a?(Array)
+      wringer[:inherited] = true if wringer.blank?
+      wringer[:inherited] = true if @current_wringer_status.blank?
+      wringer
     end
 
     def trace_probe_payload(probe_result)
