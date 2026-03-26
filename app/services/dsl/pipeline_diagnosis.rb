@@ -1,8 +1,34 @@
 module Dsl
   class PipelineDiagnosis
-    def initialize(metrics:, wringer: {}, steps: nil)
+    def self.call(steps:, metrics:, wringer: {}, statement_status: nil)
+      normalized_metrics = metrics.respond_to?(:to_h) ? metrics.to_h : {}
+
+      if normalized_metrics.key?(:extraction) || normalized_metrics.key?("extraction")
+        extraction = normalized_metrics[:extraction] || normalized_metrics["extraction"]
+        normalized_metrics[:extraction_attempted] = true
+        normalized_metrics[:extraction_empty] = extraction.to_i == 0
+      end
+
+      if normalized_metrics.key?(:navigation) || normalized_metrics.key?("navigation")
+        navigation = normalized_metrics[:navigation] || normalized_metrics["navigation"]
+        if navigation.to_i > 0
+          normalized_metrics[:has_navigation] = true
+          normalized_metrics[:suspicious_navigation] = true if normalized_metrics[:extraction_empty]
+        end
+      end
+
+      new(
+        steps: steps,
+        metrics: normalized_metrics,
+        wringer: wringer,
+        statement_status: statement_status
+      ).result
+    end
+
+    def initialize(metrics:, wringer: {}, steps: nil, statement_status: nil)
       @metrics = normalize_hash(metrics)
       @wringer = normalize_hash(wringer)
+      @statement_status = statement_status.to_s
       wringer_signals = normalize_hash(@wringer[:signals])
       wringer_hints = Array(@wringer[:hints]).map(&:to_s)
       @wringer_signals = wringer_signals
@@ -25,6 +51,13 @@ module Dsl
       return wringer_diagnosis if wringer_failure?
       return data_loss_diagnosis if @metrics[:data_loss]
       return navigation_diagnosis if @metrics[:suspicious_navigation]
+      if @statement_status == "missing" && extraction_failure?
+        return {
+          status: :warning,
+          category: :empty_extraction,
+          message: "No data extracted despite successful pipeline execution."
+        }
+      end
       return extraction_diagnosis if extraction_failure?
 
       healthy_diagnosis
@@ -71,10 +104,13 @@ module Dsl
 
     def wringer_diagnosis
       if wringer_specific_message(wringer_error_type).present?
+        message = wringer_specific_message(wringer_error_type)
+        message += wringer_context_suffix(@wringer)
+
         return {
           status: :error,
           category: :wringer_failure,
-          message: wringer_specific_message(wringer_error_type),
+          message: message,
           suggested_action: :retry,
           source: "wringer",
           error_type: wringer_error_type,
@@ -93,6 +129,7 @@ module Dsl
           else
             "Network request failed before extraction."
           end
+        message += wringer_context_suffix(@wringer)
 
         return {
           status: :error,
@@ -108,10 +145,13 @@ module Dsl
       end
 
       if @wringer[:received_404]
+        message = "Wringer returned 404 for the requested resource."
+        message += wringer_context_suffix(@wringer)
+
         {
           status: :error,
           category: :wringer_failure,
-          message: "Wringer returned 404 for the requested resource.",
+          message: message,
           suggested_action: :check_url,
           source: "wringer",
           error_type: wringer_error_type,
@@ -120,10 +160,13 @@ module Dsl
           details: { wringer: @wringer }
         }
       elsif @wringer[:unreachable]
+        message = "Wringer appears unreachable during pipeline execution."
+        message += wringer_context_suffix(@wringer)
+
         {
           status: :error,
           category: :wringer_failure,
-          message: "Wringer appears unreachable during pipeline execution.",
+          message: message,
           suggested_action: :retry,
           source: "wringer",
           error_type: wringer_error_type,
@@ -132,10 +175,13 @@ module Dsl
           details: { wringer: @wringer }
         }
       else
+        message = "Wringer reported a system-level failure."
+        message += wringer_context_suffix(@wringer)
+
         {
           status: :error,
           category: :wringer_failure,
-          message: "Wringer reported a system-level failure.",
+          message: message,
           suggested_action: :check_wringer,
           source: "wringer",
           error_type: wringer_error_type,
@@ -164,10 +210,13 @@ module Dsl
     end
 
     def navigation_diagnosis
+      message = "Navigation succeeded, but extraction after navigation produced no data."
+      message += wringer_context_suffix(@wringer)
+
       {
         status: :warning,
         category: :navigation_failure,
-        message: "Navigation succeeded, but extraction after navigation produced no data.",
+        message: message,
         suggested_action: :check_url,
         source: "dsl",
         error_type: nil,
@@ -181,10 +230,13 @@ module Dsl
     end
 
     def extraction_diagnosis
+      message = extraction_message
+      message += wringer_context_suffix(@wringer)
+
       {
         status: :warning,
         category: :extraction_failure,
-        message: extraction_message,
+        message: message,
         suggested_action: :check_xpath,
         source: "dsl",
         error_type: nil,
@@ -278,6 +330,28 @@ module Dsl
       else
         "Extraction failed; no data was produced."
       end
+    end
+
+    def wringer_context_suffix(wringer)
+      return "" unless wringer.is_a?(Hash)
+
+      parts = []
+
+      if wringer[:error_type].present?
+        parts << "error: #{wringer[:error_type]}"
+      end
+
+      if wringer[:duration_ms].to_i > 1500
+        parts << "slow response (#{wringer[:duration_ms]}ms)"
+      end
+
+      if wringer[:redirect_chain].is_a?(Array) && wringer[:redirect_chain].size > 1
+        parts << "after redirect"
+      end
+
+      return "" if parts.empty?
+
+      " (#{parts.join(', ')})"
     end
   end
 end

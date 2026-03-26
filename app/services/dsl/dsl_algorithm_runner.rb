@@ -349,7 +349,10 @@ module Dsl
       @url = new_url
 
       fetch_result = wringer_client.fetch(url: @url, render_js: render_js, scrape_options: opts)
-      @current_wringer_status = fetch_result[:wringer]
+      @current_wringer_status =
+        (fetch_result[:wringer] || {}).merge(
+          duration_ms: fetch_result[:duration_ms]
+        )
       raw = fetch_result[:body]
 
       if fetch_result[:status] == :abort
@@ -418,7 +421,10 @@ module Dsl
       return :ok if @page
 
       fetch_result = wringer_client.fetch(url: @url, render_js: @render_js, scrape_options: @scrape_opts)
-      @current_wringer_status = fetch_result[:wringer]
+      @current_wringer_status =
+        (fetch_result[:wringer] || {}).merge(
+          duration_ms: fetch_result[:duration_ms]
+        )
       raw = fetch_result[:body]
 
       if fetch_result[:status] == :abort
@@ -466,7 +472,26 @@ module Dsl
     end
 
     def use_wringer(u, rj, opt)
-      ApplicationController.helpers.use_wringer(u, rj, opt)
+      return ApplicationController.helpers.use_wringer(u, rj, opt) unless rj == false && (opt.blank? || opt == { force_scrape_every_hrs: nil })
+      return ApplicationController.helpers.use_wringer(u, rj, opt) unless CcWringerHelper.respond_to?(:use_wringer)
+
+      url = u
+      client_result = WringerClient.fetch(url)
+      Rails.logger.info(
+        "[WringerClient] url=#{url} status=#{client_result[:status]} duration=#{client_result[:duration_ms]}ms"
+      )
+
+      raw =
+        if client_result[:status] == :ok
+          client_result[:html]
+        else
+          ["abort_update", {
+            error_type: client_result.dig(:error, :type),
+            error: client_result.dig(:error, :message)
+          }]
+        end
+
+      raw
     end
 
     def safe_wringer_call(&blk)

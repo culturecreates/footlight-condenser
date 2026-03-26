@@ -179,6 +179,55 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     assert_equal [], event[:wringer][:hints]
   end
 
+  test "trace includes wringer duration from client" do
+    runner, tracer = build_runner
+
+    fake_result = {
+      body: "<html>ok</html>",
+      wringer: {
+        error_type: nil,
+        signals: {},
+        hints: []
+      },
+      duration_ms: 123
+    }
+
+    runner.stubs(:wringer_client).returns(stub(fetch: fake_result))
+
+    runner.run("url='http://example.local/events/1'")
+
+    trace = tracer.to_h
+    step = trace.find { |s| s[:wringer].is_a?(Hash) }
+
+    assert_equal 123, step[:wringer][:duration_ms]
+  end
+
+  test "trace includes wringer final_url and redirect_chain" do
+    runner, tracer = build_runner
+
+    fake_result = {
+      body: "<html>ok</html>",
+      wringer: {
+        error_type: nil,
+        signals: {},
+        hints: [],
+        final_url: "https://final.example.com",
+        redirect_chain: ["http://start", "https://final.example.com"]
+      },
+      duration_ms: 50
+    }
+
+    runner.stubs(:wringer_client).returns(stub(fetch: fake_result))
+
+    runner.run("url='http://example.local/events/1'")
+
+    trace = tracer.to_h
+    step = trace.find { |s| s[:wringer].is_a?(Hash) }
+
+    assert_equal "https://final.example.com", step[:wringer][:final_url]
+    assert_equal ["http://start", "https://final.example.com"], step[:wringer][:redirect_chain]
+  end
+
   test "probe abort is not converted into a successful probe payload" do
     runner, = build_runner
     runner.stubs(:execute_xpath).with("//title").returns(

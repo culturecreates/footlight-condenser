@@ -303,4 +303,45 @@ class Dsl::PipelineDiagnosisTest < ActiveSupport::TestCase
     assert_equal :healthy, diagnosis[:category]
     assert_includes diagnosis[:message], "healthy"
   end
+
+  test "extraction failure includes wringer error_type as context" do
+    diagnosis = Dsl::PipelineDiagnosis.call(
+      steps: [],
+      metrics: { extraction: 0 },
+      wringer: { error_type: "system_cloudflare" }
+    )
+
+    assert_match(/\(error: system_cloudflare\)/, diagnosis[:message])
+  end
+
+  test "extraction failure includes slow response context" do
+    diagnosis = Dsl::PipelineDiagnosis.call(
+      steps: [],
+      metrics: { extraction: 0 },
+      wringer: { duration_ms: 2000 }
+    )
+
+    assert_match(/slow response/i, diagnosis[:message])
+  end
+
+  test "navigation failure includes redirect context" do
+    diagnosis = Dsl::PipelineDiagnosis.call(
+      steps: [],
+      metrics: { navigation: 1, extraction: 0 },
+      wringer: { redirect_chain: ["a", "b"] }
+    )
+
+    assert_match(/after redirect/i, diagnosis[:message])
+  end
+
+  test "ok pipeline but missing content yields extraction warning" do
+    diagnosis = Dsl::PipelineDiagnosis.call(
+      steps: [],
+      metrics: { extraction: 0 },
+      wringer: {},
+      statement_status: "missing"
+    )
+
+    assert_match(/no data extracted/i, diagnosis[:message])
+  end
 end
