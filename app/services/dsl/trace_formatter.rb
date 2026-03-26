@@ -8,6 +8,35 @@ module Dsl
     MAX_SESSION_BYTES = 3000
 
     class << self
+      def normalize(raw_events)
+        return [] unless raw_events.is_a?(Array)
+
+        raw_events.map do |evt|
+          output_full = evt[:output_full] || evt["output_full"]
+          input_full  = evt[:input_full]  || evt["input_full"]
+
+          output_full ||= evt[:output_preview] || evt["output_preview"]
+          input_full  ||= evt[:input_preview]  || evt["input_preview"]
+
+          {
+            step: evt[:step] || evt["step"],
+            type: evt[:type] || evt["type"],
+            code: evt[:code] || evt["code"],
+            input_preview: evt[:input_preview] || evt["input_preview"] || [],
+            output_preview: evt[:output_preview] || evt["output_preview"] || [],
+            input_full: input_full,
+            output_full: output_full,
+            probe: evt[:probe] || evt["probe"],
+            url_before: (evt[:url_before] || evt["url_before"] || "").to_s,
+            url_after: (evt[:url_after] || evt["url_after"] || "").to_s,
+            duration_ms: evt[:duration_ms] || evt["duration_ms"] || 0,
+            error_class: evt[:error_class] || evt["error_class"],
+            error_message: evt[:error_message] || evt["error_message"],
+            wringer: evt[:wringer] || evt["wringer"]
+          }
+        end
+      end
+
       def for_session_v2(trace)
         return { version: 2, initial: { state: nil, url: nil }, urls: [], steps: [] } unless trace.is_a?(Array)
 

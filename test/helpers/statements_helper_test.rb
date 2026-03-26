@@ -338,4 +338,52 @@ end
     expected_output = ["The Show Reporté - again", "EventStatusType", ["EventRescheduled", "http://schema.org/EventRescheduled"]]
     assert_equal expected_output, reconcile_event_status(scraped_data)
   end
+
+  test "pipeline ok + missing yields extraction hint" do
+    diagnosis = { status: :ok }
+    hint = TracePresenter.new([]).diagnosis_relationship_hint(diagnosis, "missing")
+
+    assert_match(/no data extracted/i, hint)
+  end
+
+  test "pipeline error + missing yields failure hint" do
+    diagnosis = { status: :error }
+    hint = TracePresenter.new([]).diagnosis_relationship_hint(diagnosis, "missing")
+
+    assert_match(/pipeline failure/i, hint)
+  end
+
+  test "pipeline ok + problem yields content warning hint" do
+    diagnosis = { status: :ok }
+    hint = TracePresenter.new([]).diagnosis_relationship_hint(diagnosis, "problem")
+
+    assert_match(/problematic/i, hint)
+  end
+
+  test "first empty step is detected" do
+    steps = [
+      { step: 1, output_full: ["a"], type: "xpath" },
+      { step: 2, output_full: [], type: "xpath" }
+    ]
+
+    diagnosis = { status: :ok }
+
+    hint = TracePresenter.new([]).diagnosis_relationship_hint(diagnosis, "missing", steps)
+
+    assert_match(/step 2/i, hint)
+  end
+
+  test "freshness label for recent cache" do
+    statement = OpenStruct.new(cache_refreshed: Time.current - 1800)
+    label = cache_freshness_label(statement)
+
+    assert_equal "fresh", label
+  end
+
+  test "freshness label for old cache" do
+    statement = OpenStruct.new(cache_refreshed: Time.current - 40.days)
+    label = cache_freshness_label(statement)
+
+    assert_equal "stale", label
+  end
 end

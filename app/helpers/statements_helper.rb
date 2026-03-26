@@ -87,175 +87,37 @@ module StatementsHelper
       .reject(&:blank?)
   end
 
-  def compute_warning_type(step)
-    current = normalize_step_hash(step)
-    output = current.key?(:output_full) ? current[:output_full] : current[:output]
-
-    return :empty if output.is_a?(Array) && output.empty?
-
-    probe = current[:probe].is_a?(Hash) ? current[:probe].with_indifferent_access : {}
-    return :probe if probe.present? && !probe[:skipped]
-
-    nil
-  end
-
-  def compute_step_status(step)
-    current = normalize_step_hash(step)
-    return :error if current[:error].present?
-    return :warning if compute_warning_type(current).present?
-
-    :ok
-  end
-
-  def semantic_label(step)
-    current = normalize_step_hash(step)
-    step_type = current[:type].to_s.strip
-    normalized_type = step_type.downcase
-
-    case normalized_type
-    when "xpath", "css"
-      "Extraction"
-    when "ruby"
-      "Filter"
-    when "url"
-      "Navigation"
-    when "if_xpath"
-      "Condition"
-    when "json"
-      "JSON parse"
-    else
-      return step_type.capitalize if step_type.present?
-
-      "Unknown"
-    end
-  end
-
-  def explain_step(step, previous_step = nil)
-    current = normalize_step_hash(step)
-    output = current.key?(:output_full) ? current[:output_full] : current[:output]
-    label = semantic_label(current)
-
-    return "Execution failed" if current[:error].present?
-    return "No elements matched selector" if label == "Extraction" && output.blank?
-    return "All items were filtered out" if label == "Filter" && output.blank?
-    return "Navigated to new page" if label == "Navigation"
-
-    # Keep fallback nil when we do not have a clear explanation.
-    nil
-  end
-
-  def suggest_fix(step, previous_step = nil)
-    current = normalize_step_hash(step)
-    previous = normalize_step_hash(previous_step)
-    return nil if current.blank?
-
-    semantic = current[:semantic].to_s.downcase
-    previous_semantic = previous[:semantic].to_s.downcase
-    output = current.key?(:output_full) ? current[:output_full] : current[:output]
-    previous_output = previous.key?(:output_full) ? previous[:output_full] : previous[:output]
-    output_blank = output.blank?
-    probe = current[:probe].is_a?(Hash) ? current[:probe].with_indifferent_access : {}
-    probe_status = probe.dig(:result, :status)
-
-    if semantic == "extraction" && output_blank && probe_status == "ok"
-      return "Try using contains(@class, '...') instead of exact match"
-    end
-
-    if semantic == "filter" && output_blank
-      return "Check filter condition — it may be too restrictive"
-    end
-
-    if current[:error].present? && previous.present? && previous_output.blank?
-      return "Add a guard clause before this step (e.g. return if $array.empty?)"
-    end
-
-    if previous.present? &&
-       previous_semantic == "navigation" &&
-       semantic == "extraction" &&
-       output_blank
-      return "Verify selector on target page — structure may differ after navigation"
-    end
-
-    nil
-  end
-
   def trace_display_output(step)
     current = normalize_step_hash(step)
     output = current.key?(:output_full) ? current[:output_full] : current[:output]
     output = current[:input] if output.nil?
 
-    if semantic_label(current) == "Navigation"
+    if trace_presenter.semantic_label(current) == "Navigation"
       current[:url_after].presence || (output.is_a?(Array) ? output.last : output)
     else
       output
     end
   end
 
-  def trace_error_details(step)
-    current = normalize_step_hash(step)
-    raw_error = current[:error]
-    error_payload = raw_error.is_a?(Hash) ? raw_error.with_indifferent_access : {}.with_indifferent_access
-    source = error_payload[:source].to_s.presence
-    error_type = error_payload[:error_type].to_s.presence
-    semantic = semantic_label(current)
+  def cache_freshness_label(statement)
+    return nil unless statement.cache_refreshed.present?
 
-    category =
-      if source == "wringer" || %w[WringerFetchError WringerSkip WringerUnsupportedAction].include?(error_type)
-        "fetch"
-      elsif semantic == "Navigation"
-        "navigation"
-      elsif raw_error.present?
-        "extraction"
-      else
-        "unknown"
-      end
+    age_seconds = Time.current - statement.cache_refreshed
 
-    label =
-      case category
-      when "fetch" then "Fetch error"
-      when "navigation" then "Navigation issue"
-      when "extraction" then "Extraction error"
-      else "Pipeline issue"
-      end
-
-    {
-      source: source || "dsl",
-      error_type: error_type,
-      category: category,
-      label: label
-    }
-  end
-
-  def interactive_wringer_meta(step)
-    current = normalize_step_hash(step)
-    wringer = current[:wringer].is_a?(Hash) ? current[:wringer].with_indifferent_access : {}
-    return nil if wringer.blank?
-
-    signals = wringer[:signals].is_a?(Hash) ? wringer[:signals].with_indifferent_access : {}
-    error_type = wringer[:error_type].presence
-    network_status = signals[:network_status].presence.to_s
-    return nil if error_type.blank? && network_status.blank?
-    return nil if error_type.blank? && network_status == "ok"
-
-    network = error_type.presence || network_status
-    content = signals[:content_type].presence || wringer[:content_type].presence || "HTML"
-
-    "Network: #{network.to_s.upcase} • Content: #{content.to_s.upcase}"
-  end
-
-  def interactive_probe_text(step)
-    current = normalize_step_hash(step)
-    probe = current[:probe]
-    return nil unless probe.present?
-
-    probe = probe.with_indifferent_access if probe.is_a?(Hash)
-    result = probe[:result].is_a?(Hash) ? probe[:result].with_indifferent_access : {}
-    return nil unless result[:status].to_s == "ok" && result[:output].present?
-
-    output_value = result[:output]
-    output_value = output_value.first if output_value.is_a?(Array)
-    output_preview = truncate(output_value.to_s, length: 60)
-    "Probe: page loaded (#{output_preview})"
+    case age_seconds
+    when 0..3600
+      "fresh"
+    when 3600..86_400
+      "#{(age_seconds / 3600).to_i}h ago"
+    when 86_400..7 * 86_400
+      "#{(age_seconds / 86_400).to_i}d ago"
+    when 7*86_400..14*86_400
+      "#{(age_seconds / (7*86_400)).to_i}w ago"
+    when 14*86_400..30*86_400
+      "2–4w ago"
+    else
+      "stale"
+    end
   end
 
   def wringer_links_for_step(step)
@@ -496,41 +358,7 @@ module StatementsHelper
     raw_events = tracer.to_h
     Rails.logger.debug ">>> tracer.to_h returned array: #{raw_events.inspect}"
 
-    normalized_events = []
-
-    if raw_events.is_a?(Array)
-      raw_events.each_with_index do |evt, index|
-        Rails.logger.debug ">>> trace event[#{index}] raw: #{evt.inspect}"
-
-        unless evt.is_a?(Hash)
-          Rails.logger.warn ">>> ⚠ trace event isn’t a Hash — class=#{evt.class}"
-        end
-
-        output_full = evt[:output_full] || evt["output_full"]
-        input_full = evt[:input_full] || evt["input_full"]
-        output_full ||= evt[:output_preview] || evt["output_preview"]
-        input_full ||= evt[:input_preview] || evt["input_preview"]
-
-        normalized_events << {
-          step: evt[:step]           || evt["step"],
-          type: evt[:type]           || evt["type"],
-          code: evt[:code]           || evt["code"],
-          input_preview: evt[:input_preview]  || evt["input_preview"]  || [],
-          output_preview: evt[:output_preview] || evt["output_preview"] || [],
-          input_full: input_full,
-          output_full: output_full,
-          probe: evt[:probe] || evt["probe"],
-          url_before: (evt[:url_before]     || evt["url_before"]     || "").to_s,
-          url_after: (evt[:url_after]      || evt["url_after"]      || "").to_s,
-          duration_ms: evt[:duration_ms]    || evt["duration_ms"]    || 0,
-          error_class: evt[:error_class]    || evt["error_class"],
-          error_message: evt[:error_message]  || evt["error_message"],
-          wringer: evt[:wringer] || evt["wringer"]
-        }
-      end
-    else
-      Rails.logger.warn ">>> ⚠ tracer.to_h did not return an Array! class=#{raw_events.class}"
-    end
+    normalized_events = Dsl::TraceFormatter.normalize(raw_events)
 
     Rails.logger.debug ">>> normalized_events: #{normalized_events.inspect}"
 
