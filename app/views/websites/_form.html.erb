@@ -27,6 +27,34 @@
   </div>
 
   <div class="field">
+    <%= form.label :province %>
+    <%= form.select :province,
+      [
+        ["Québec", "QC"],
+        ["Ontario", "ON"],
+        ["British Columbia", "BC"],
+        ["Alberta", "AB"],
+        ["Manitoba", "MB"],
+        ["Saskatchewan", "SK"],
+        ["Nova Scotia", "NS"],
+        ["New Brunswick", "NB"],
+        ["Newfoundland and Labrador", "NL"],
+        ["Prince Edward Island", "PE"],
+        ["Northwest Territories", "NT"],
+        ["Yukon", "YT"],
+        ["Nunavut", "NU"]
+      ],
+      { include_blank: true },
+      { id: :website_province }
+    %>
+  </div>
+
+  <div class="field">
+    <%= form.label :city %>
+    <%= form.text_field :city, id: :website_city %>
+  </div>
+
+  <div class="field">
     <%= form.label :schedule_every_days %>
     <%= form.text_field :schedule_every_days, id: :website_schedule_every_days %>
   </div>
