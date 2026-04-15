@@ -69,18 +69,31 @@ module CcKg
         best_hits = select_cckg_hits(hits, @query, @type, @webpage, clean)
         filtered_hits = filter_cckg_hits(best_hits, @query, clean)
 
-        # 🔥 Critical fallback (prevents silent data loss)
+        # 🔥 FIX: avoid false positives
         if filtered_hits.empty? && best_hits.present?
-          Rails.logger.warn("[CCKG][FALLBACK] filter removed all hits → using best_hits")
-          filtered_hits = best_hits
+          Rails.logger.warn("[CCKG][DROP] query=#{@query.inspect} filter removed all hits → returning empty")
+          filtered_hits = []
         end
 
         result = map_cckg_results(filtered_hits)
+
+        # 🔥 FIX: restore SearchException filtering
+        if result.present?
+          rdfs_class_ids = RdfsClass.where(name: @type).pluck(:id)
+
+          names_to_remove = SearchException
+                            .where(rdfs_class_id: rdfs_class_ids)
+                            .pluck(:name)
+
+          result.reject! { |name, _| names_to_remove.include?(name) }
+        end
+
         reason = CcKg::SelectionReason.for(
           query: @query,
           selected_hits: filtered_hits,
           province: province
         )
+
         selected_count = filtered_hits.size
       end
 
@@ -122,7 +135,13 @@ module CcKg
       }
 
       response = HTTParty.get("#{artsdata_recon_url}?queries=#{CGI.escape(payload.to_json)}")
+
+      unless response.code == 200
+        raise StandardError, "CCKG structured recon failed with status #{response.code}"
+      end
+
       cckg_log("REQUEST", mode: "structured")
+
       parsed = normalize_cckg_response(response)
       parsed.dig("q0", "result") || []
     end
@@ -258,12 +277,10 @@ module CcKg
     end
 
     def artsdata_recon_url
-      if Rails.env.test?
-        "http://localhost:#{ARTSDATA_API_PORT}/recon"
-      elsif Rails.env.development?
-        "http://localhost:#{ARTSDATA_API_PORT}/recon"
-      else
+      if Rails.env.production?
         'http://api.artsdata.ca/recon'
+      else
+        "http://localhost:#{ARTSDATA_API_PORT}/recon"
       end
     end
   end
