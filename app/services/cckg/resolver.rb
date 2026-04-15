@@ -103,6 +103,11 @@ module CcKg
     def fetch_basic_cckg_hits(str, recon_type)
       escaped_query = cckg_escaped_query(str)
       response = HTTParty.get("#{artsdata_recon_url}?query=#{escaped_query}&type=#{recon_type}")
+
+      unless response.code == 200
+        raise StandardError, "CCKG recon request failed with status #{response.code}"
+      end
+
       parsed = normalize_cckg_response(response)
       parsed["result"] || parsed.dig("q0", "result") || []
     end
@@ -256,7 +261,7 @@ module CcKg
       if Rails.env.test?
         "http://localhost:#{ARTSDATA_API_PORT}/recon"
       elsif Rails.env.development?
-        'http://api.artsdata.ca/recon'
+        "http://localhost:#{ARTSDATA_API_PORT}/recon"
       else
         'http://api.artsdata.ca/recon'
       end
