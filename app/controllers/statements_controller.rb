@@ -80,9 +80,15 @@ class StatementsController < ApplicationController
 
   # GET /statements/search_name.json?str=expected_class=
   def search_name
+     webpage = Webpage.find_by(id: params[:webpage_id])
 
-    uris = helpers.search_everywhere(params["str"], params["expected_class"])
-    render json: uris
+     uris = helpers.search_everywhere(
+       params["str"],
+       params["expected_class"],
+       webpage
+     )
+     
+     render json: uris
   end
 
   # GET /statements/new

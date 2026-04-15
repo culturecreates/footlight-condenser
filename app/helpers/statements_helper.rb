@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_dependency 'cckg/resolver'
+
 module StatementsHelper
   include CcKgHelper
   include CcWringerHelper
@@ -515,7 +517,7 @@ module StatementsHelper
       # Patch: for now take first expected class type only
       rdfs_class = rdfs_class.split(',').first
     end
-    uris = search_everywhere(uri_string,rdfs_class)
+    uris = search_everywhere(uri_string,rdfs_class, current_webpage)
     
     # DO not add the URI of the current URI (can happen when adding sameAs)
     uris[2..-1].select { |uri| uri unless uri[1] == current_webpage.rdf_uri }
@@ -524,7 +526,7 @@ module StatementsHelper
   end
 
   # Used when refreshing and also when manually adding in Console
-  def search_everywhere(uri_string,rdfs_class)
+  def search_everywhere(uri_string, rdfs_class, current_webpage = nil)
     uri_string = uri_string.to_s.squish
     uris = [uri_string]
     uris << rdfs_class
@@ -541,12 +543,12 @@ module StatementsHelper
       end
     end
 
-    # When nothing is found locally then search in artsdata.ca CC KG 
-    if uris.count == 2  
+    # When nothing is found locally then search in artsdata.ca CC KG
+    if uris.count == 2
       #############################
       # search KG
       #############################
-      cckg_results = search_cckg(uri_string, rdfs_class)
+      cckg_results = search_cckg(uri_string, rdfs_class, current_webpage)
 
       if cckg_results[:error]
         logger.error("*** search kg ERROR:  #{cckg_results}")
@@ -600,55 +602,49 @@ module StatementsHelper
       webpage = Webpage.find(hit[1])
       hits[index][1] = webpage.rdf_uri if webpage
     end
-    
+
     #################################################
     # REMOVE NAMES THAT CREATE MANY FALSE POSITIVES - until better analysis with NLP is available
     names_to_remove = SearchException.where(rdfs_class: RdfsClass.where(name: expected_class)).pluck(:name)
     hits.reject! { |hit| names_to_remove.include? hit[0] }
     #################################################
-    
+
     { data: hits.uniq }
     # #TODO: ????also check (s.webpage.website == webpage.website)
   end
 
-  def search_cckg(str, rdfs_class) # returns a HASH
-    if str.length > 3
+  def extract_province(webpage)
+    webpage&.website&.province
+  end
 
-      # setup recon variables
-      recon_type =  if rdfs_class == "EventType"
-                      "ado:EventType"
-                    else
-                      rdfs_class
-                    end
+  def extract_locality(webpage)
+    webpage&.website&.city
+  end
 
-      # call Reconciliation service
-      begin
-        results = HTTParty.get("#{artsdata_recon_url}?query=#{CGI.escape(CGI.unescapeHTML(str))}&type=#{recon_type}")
-      rescue StandardError => e
-        results = { error: "No server running at #{artsdata_recon_url}", method: 'search_cckg', message: "#{e.inspect}"}
-        return results
-      end
+  def extract_context(webpage)
+    {
+      province: extract_province(webpage),
+      locality: extract_locality(webpage)
+    }
+  end
 
-      if results.response.code == "200"
-        # keep results that are matches
-        hits = JSON.parse(results.response.body)
-        hits = hits["result"].select { |h| h["match"] == true }.map { |h| [h["name"], "http://kg.artsdata.ca/resource/#{h["id"]}"]}
-        hits.uniq! { |hit| hit[1] }
+  def search_cckg(str, rdfs_class, webpage = nil) # returns a HASH
+    CcKg::Resolver.call(
+      query: str,
+      type: rdfs_class,
+      context: extract_context(webpage),
+      webpage: webpage
+    )
+  end
 
-        #################################################
-        # REMOVE NAMES THAT CREATE MANY FALSE POSITIVES - until better analysis with NLP is available
-        names_to_remove = SearchException.where(rdfs_class: RdfsClass.where(name: rdfs_class)).pluck(:name)
-        hits.reject! { |hit| names_to_remove.include? hit[0] }
-        #################################################
-
-        { data: hits }
-      else
-        { error: "#{results.response.code}: #{results.response.message}", method: 'search_cckg' } # with error message
-      end
-    else
-     ## { error: "String '#{str} is too short. Needs to be londer than 2 characters", method: 'search_cckg' } # with error message
-     { data: [] } # return nil wihtout causing an error
-    end
+  def fetch_cckg_hits(str, rdfs_class, webpage, use_structured_query)
+    CcKg::Resolver.fetch_hits(
+      query: str,
+      type: rdfs_class,
+      context: extract_context(webpage),
+      webpage: webpage,
+      use_structured_query: use_structured_query
+    )
   end
 
   def ISO_duration(duration_str)
@@ -756,8 +752,10 @@ module StatementsHelper
   end
 
   def artsdata_recon_url
-    if Rails.env.development?  || Rails.env.test?
+    if Rails.env.test?
       "http://localhost:#{ARTSDATA_API_PORT}/recon"
+    elsif Rails.env.development?
+      'http://api.artsdata.ca/recon'
     else
       'http://api.artsdata.ca/recon'
     end
@@ -824,4 +822,3 @@ module StatementsHelper
 end
 
 # app/helpers/statements_helper.rb (minimal example)
-
