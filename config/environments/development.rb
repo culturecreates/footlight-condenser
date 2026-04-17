@@ -55,4 +55,6 @@ Rails.application.configure do
   # Use the bult-in queue adapter in DEV to simplify environment
   # switch to :sidekiq if needed
   config.active_job.queue_adapter = :async
+
+  config.wringer_url = ENV.fetch("WRINGER_URL", "http://localhost:3009")
 end
