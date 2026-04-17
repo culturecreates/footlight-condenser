@@ -277,7 +277,7 @@ module Cckg
     end
 
     def artsdata_recon_url
-      if Rails.env.production?
+      if Rails.env.production? || Rails.env.staging?
         'http://api.artsdata.ca/recon'
       else
         "http://localhost:#{ARTSDATA_API_PORT}/recon"
