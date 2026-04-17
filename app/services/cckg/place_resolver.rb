@@ -2,7 +2,7 @@
 
 require_dependency 'cckg/selection_reason'
 
-module CcKg
+module Cckg
   class PlaceResolver
     def self.call(hits:, query:, province:, locality:)
       new(hits, query, province, locality).resolve

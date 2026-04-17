@@ -1,5 +1,5 @@
 module StructuredDataHelper
-  include CcKgHelper
+  include CckgHelper
 
   def build_jsonld condensor_statements, language, rdf_uri, adr_prefix
     _jsonld = {

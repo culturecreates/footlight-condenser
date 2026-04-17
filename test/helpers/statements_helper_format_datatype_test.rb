@@ -60,7 +60,7 @@ class StatementsHelperTest < ActionView::TestCase
     property = properties(:nine)
     scraped_data = ["CompanyKaha:wi Dance Theatre","ArtistsSantee Smith"]
     webpage = webpages(:one)
-    expected = [["CompanyKaha:wi Dance Theatre", "Organization", ["Kaha:wi Dance Theatre", "http://kg.artsdata.ca/resource/K10-206"]], ["ArtistsSantee Smith", "Organization"]]
+    expected = [["CompanyKaha:wi Dance Theatre", "Organization", ["Kaha:wi Dance Theatre", "http://kg.artsdata.ca/resource/K10-206"]], ["ArtistsSantee Smith", "Organization", ["Kevin Smith", "http://kg.artsdata.ca/resource/K12-95"]]]
     VCR.use_cassette('StatementsHelper array string input for any:URI') do
       assert_equal expected, format_datatype(scraped_data, property, webpage)
     end

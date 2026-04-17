@@ -66,10 +66,6 @@ module CcWringerHelper
   end
 
   def get_wringer_url_per_environment
-    if Rails.env.development? || Rails.env.test?
-      "http://localhost:3009"
-    else
-      "http://footlight-wringer.herokuapp.com"
-    end
+    Rails.configuration.wringer_url
   end
 end

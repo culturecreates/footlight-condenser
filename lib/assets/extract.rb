@@ -5,7 +5,7 @@ seedurl = ARGV[0] || 'theplayhouse-ca'
 target_language = ARGV[1] || 'en'
 condenser_url = "https://footlight-condenser.herokuapp.com" ## "http://localhost:3000"
 
-wringer_url = "http://footlight-wringer.herokuapp.com"
+wringer_url = Rails.configuration.wringer_url
 
 result = {}
 
