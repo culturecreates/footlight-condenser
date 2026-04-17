@@ -57,7 +57,7 @@ module CcKg
       )
 
       if @type == "Place"
-        best, reason = CcKg::PlaceResolver.call(
+        best, reason = Cckg::PlaceResolver.call(
           hits: hits,
           query: @query,
           province: province,
