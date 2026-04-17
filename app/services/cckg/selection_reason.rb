@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module CcKg
+module Cckg
   class SelectionReason
     def self.for(query:, selected_hits:, province:, resolved_by: nil, exact_pool_size: nil)
       new(
