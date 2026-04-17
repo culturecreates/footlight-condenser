@@ -91,5 +91,5 @@ Rails.application.configure do
   # Do not dump schema after migrations.
   config.active_record.dump_schema_after_migration = false
 
-  config.wringer_url = ENV.fetch("WRINGER_URL", "https://footlight-wringer-staging.herokuapp.com")
+  config.wringer_url = ENV.fetch("WRINGER_URL", "https://footlight-wringer-staging-a876afe2e40f.herokuapp.com/")
 end
