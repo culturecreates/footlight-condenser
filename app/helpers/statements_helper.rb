@@ -3,7 +3,7 @@
 require_dependency 'cckg/resolver'
 
 module StatementsHelper
-  include CcKgHelper
+  include CckgHelper
   include CcWringerHelper
   Page = Struct.new(:text) # Used to simulate Nokogiri object's text method
 
@@ -629,7 +629,7 @@ module StatementsHelper
   end
 
   def search_cckg(str, rdfs_class, webpage = nil) # returns a HASH
-    CcKg::Resolver.call(
+    Cckg::Resolver.call(
       query: str,
       type: rdfs_class,
       context: extract_context(webpage),
@@ -638,7 +638,7 @@ module StatementsHelper
   end
 
   def fetch_cckg_hits(str, rdfs_class, webpage, use_structured_query)
-    CcKg::Resolver.fetch_hits(
+    Cckg::Resolver.fetch_hits(
       query: str,
       type: rdfs_class,
       context: extract_context(webpage),

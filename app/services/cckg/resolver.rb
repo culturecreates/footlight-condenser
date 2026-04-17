@@ -3,7 +3,7 @@
 require_dependency 'cckg/place_resolver'
 require_dependency 'cckg/selection_reason'
 
-module CcKg
+module Cckg
   class Resolver
     def self.call(query:, type:, context:, webpage:)
       new(query: query, type: type, context: context, webpage: webpage).search_cckg
@@ -88,7 +88,7 @@ module CcKg
           result.reject! { |name, _| names_to_remove.include?(name) }
         end
 
-        reason = CcKg::SelectionReason.for(
+        reason = Cckg::SelectionReason.for(
           query: @query,
           selected_hits: filtered_hits,
           province: province

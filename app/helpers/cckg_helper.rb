@@ -1,4 +1,4 @@
-module CcKgHelper
+module CckgHelper
 
   def cc_kg_query  q, cache_key
     #If the KG server is down then return an error that will abort the update of the current property.
