@@ -45,7 +45,7 @@ class WringerClient
   private
 
   def call_wringer
-    dsl_client = Dsl::WringerClient.new(
+    dsl_client = Dsl::Support::WringerClient.new(
       agent: Mechanize.new,
       render_js: false,
       scrape_options: {},
