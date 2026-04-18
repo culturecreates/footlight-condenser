@@ -7,14 +7,14 @@ module StatementsHelper
 
 # :nocov:
   def process_algorithm_with_trace(algorithm:, render_js: false, language: "en", url:, scrape_options: {})
-    collector = Dsl::DslTraceCollector.new
+    collector = Dsl::Tracing::TraceCollector.new
     ctx = {
       url: url,
       render_js: render_js,
       scrape_options: scrape_options,
       tracer: collector
     }
-    result = Dsl::DslAlgorithmRunner.new(ctx).run(algorithm)
+    result = Dsl::Core::AlgorithmRunner.new(ctx).run(algorithm)
     [result, collector.to_h]
   end
 
@@ -337,7 +337,7 @@ module StatementsHelper
     Rails.logger.debug ">>> algorithm: #{algorithm.inspect}"
     Rails.logger.debug ">>> start url: #{url.inspect}"
 
-    tracer = trace ? Dsl::DslTraceCollector.new(**trace_opts) : Dsl::DslNullTracer.new
+    tracer = trace ? Dsl::Tracing::TraceCollector.new(**trace_opts) : Dsl::Tracing::NullTracer.new
 
     ctx = {
       url: url,
@@ -346,7 +346,7 @@ module StatementsHelper
       tracer: tracer
     }
 
-    result = Dsl::DslAlgorithmRunner.new(ctx).run(algorithm)
+    result = Dsl::Core::AlgorithmRunner.new(ctx).run(algorithm)
 
     # If not tracing, just return the result
     unless trace
@@ -358,7 +358,7 @@ module StatementsHelper
     raw_events = tracer.to_h
     Rails.logger.debug ">>> tracer.to_h returned array: #{raw_events.inspect}"
 
-    normalized_events = Dsl::TraceFormatter.normalize(raw_events)
+    normalized_events = Dsl::Tracing::TraceFormatter.normalize(raw_events)
 
     Rails.logger.debug ">>> normalized_events: #{normalized_events.inspect}"
 
@@ -502,14 +502,14 @@ module StatementsHelper
   #   results_list 
   # end
   def process_algorithm(algorithm:, render_js: false, language: "en", url:, scrape_options: {})
-    tracer = Dsl::DslNullTracer.new 
+    tracer = Dsl::Tracing::NullTracer.new 
     ctx = {
       url: url,
       render_js: render_js,
       scrape_options: scrape_options,
       tracer: tracer
     }
-    Dsl::DslAlgorithmRunner.new(ctx).run(algorithm)
+    Dsl::Core::AlgorithmRunner.new(ctx).run(algorithm)
   end
 
 
@@ -675,7 +675,7 @@ module StatementsHelper
       # Patch: for now take first expected class type only
       rdfs_class = rdfs_class.split(',').first
     end
-    uris = search_everywhere(uri_string,rdfs_class)
+    uris = search_everywhere(uri_string, rdfs_class, current_webpage)
     
     # DO not add the URI of the current URI (can happen when adding sameAs)
     uris[2..-1].select { |uri| uri unless uri[1] == current_webpage.rdf_uri }
@@ -684,7 +684,7 @@ module StatementsHelper
   end
 
   # Used when refreshing and also when manually adding in Console
-  def search_everywhere(uri_string,rdfs_class)
+  def search_everywhere(uri_string, rdfs_class, current_webpage = nil)
     uri_string = uri_string.to_s.squish
     uris = [uri_string]
     uris << rdfs_class
@@ -706,7 +706,7 @@ module StatementsHelper
       #############################
       # search KG
       #############################
-      cckg_results = search_cckg(uri_string, rdfs_class)
+      cckg_results = search_cckg(uri_string, rdfs_class, current_webpage)
 
       if cckg_results[:error]
         logger.error("*** search kg ERROR:  #{cckg_results}")
@@ -771,44 +771,163 @@ module StatementsHelper
     # #TODO: ????also check (s.webpage.website == webpage.website)
   end
 
-  def search_cckg(str, rdfs_class) # returns a HASH
-    if str.length > 3
+  def clean_query?(str)
+    return false if str.blank?
 
-      # setup recon variables
-      recon_type =  if rdfs_class == "EventType"
-                      "ado:EventType"
-                    else
-                      rdfs_class
-                    end
+    str.length < 60 &&
+      str !~ /\b(and|et)\b/i &&
+      str !~ /,|&/
+  end
 
-      # call Reconciliation service
-      begin
-        results = HTTParty.get("#{artsdata_recon_url}?query=#{CGI.escape(CGI.unescapeHTML(str))}&type=#{recon_type}")
-      rescue StandardError => e
-        results = { error: "No server running at #{artsdata_recon_url}", method: 'search_cckg', message: "#{e.inspect}"}
-        return results
-      end
+  def normalize_string(s)
+    s.to_s
+    .downcase
+    .gsub('&', ' and ')
+    .gsub(/[^a-z0-9\s]/, ' ')
+    .squeeze(' ')
+    .strip
+  end
 
-      if results.response.code == "200"
-        # keep results that are matches
-        hits = JSON.parse(results.response.body)
-        hits = hits["result"].select { |h| h["match"] == true }.map { |h| [h["name"], "http://kg.artsdata.ca/resource/#{h["id"]}"]}
-        hits.uniq! { |hit| hit[1] }
+  def extract_province(webpage)
+    return nil unless webpage&.website&.respond_to?(:province)
 
-        #################################################
-        # REMOVE NAMES THAT CREATE MANY FALSE POSITIVES - until better analysis with NLP is available
-        names_to_remove = SearchException.where(rdfs_class: RdfsClass.where(name: rdfs_class)).pluck(:name)
-        hits.reject! { |hit| names_to_remove.include? hit[0] }
-        #################################################
+    webpage.website.province
+  end
 
-        { data: hits }
-      else
-        { error: "#{results.response.code}: #{results.response.message}", method: 'search_cckg' } # with error message
+  def search_cckg(str, rdfs_class, webpage = nil) # returns a HASH
+    return { data: [] } if str.length <= 3
+
+    clean = clean_query?(str)
+    province = extract_province(webpage)
+
+    use_structured_query = rdfs_class == "Place" && clean && province.present?
+
+    begin
+      hits = fetch_cckg_hits(str, rdfs_class, webpage, use_structured_query)
+    rescue StandardError => e
+      return {
+        error: "No server running at #{artsdata_recon_url}",
+        method: 'search_cckg',
+        message: "#{e.inspect}"
+      }
+    end
+
+    Rails.logger.debug { "[CCKG] hits=#{hits.size}" }
+    best_hits = select_cckg_hits(hits, str, rdfs_class, webpage, clean)
+    Rails.logger.debug { "[CCKG] best_hits=#{best_hits.size}" }
+    filtered_hits = filter_cckg_hits(best_hits, str, clean)
+    Rails.logger.debug { "[CCKG] filtered_hits=#{filtered_hits.size}" }
+    result = map_cckg_results(filtered_hits)
+
+    { data: result }
+  end
+
+  def fetch_cckg_hits(str, rdfs_class, webpage, use_structured_query)
+    recon_type = if rdfs_class == "EventType"
+                  "ado:EventType"
+                else
+                  rdfs_class
+                end
+
+    province = extract_province(webpage)
+
+    if use_structured_query
+      payload = {
+        q0: {
+          query: str,
+          type: "schema:Place",
+          properties: [
+            {
+              pid: "schema:address/schema:addressRegion",
+              v: province
+            }
+          ]
+        }
+      }
+
+      response = HTTParty.get(
+        "#{artsdata_recon_url}?queries=#{CGI.escape(payload.to_json)}"
+      )
+
+      response.dig("q0", "result") || []
+    else
+      escaped_query = CGI.escape(CGI.unescapeHTML(str))
+                         .gsub('+', '%20')
+                         .gsub('%3A', ':')
+      response = HTTParty.get(
+        "#{artsdata_recon_url}?query=#{escaped_query}&type=#{recon_type}"
+      )
+
+      response["result"] || []
+    end
+  end
+
+  def select_cckg_hits(hits, str, rdfs_class, webpage, clean)
+    province = extract_province(webpage)
+    has_webpage_province_context = province.present?
+    missing_province_context = !has_webpage_province_context && webpage&.website&.respond_to?(:province)
+
+    if hits.size <= 1
+      hits
+    elsif clean && !(rdfs_class == "Place" && missing_province_context)
+      best = select_best_hit(hits)
+      best ? [best] : []
+    else
+      hits
+    end
+  end
+
+  def filter_cckg_hits(hits, str, clean)
+    if clean
+      normalized_query = normalize_string(CGI.unescapeHTML(str))
+      hits.select do |h|
+        next true if h["match"] == true
+
+        hit_name = normalize_string(h["name"])
+        normalized_query.include?(hit_name) || hit_name.include?(normalized_query)
       end
     else
-     ## { error: "String '#{str} is too short. Needs to be londer than 2 characters", method: 'search_cckg' } # with error message
-     { data: [] } # return nil wihtout causing an error
+      normalized_query = normalize_string(CGI.unescapeHTML(str))
+      filter_noisy_hits(hits, normalized_query)
     end
+  end
+
+  def filter_noisy_hits(hits, normalized_query)
+    noisy_hits = hits.select do |h|
+      raw_name = h["name"].to_s
+      name = normalize_string(raw_name)
+      trailing_segment = normalize_string(raw_name.split('-').last.to_s)
+
+      (name.length >= 8 && normalized_query.include?(name)) ||
+        (trailing_segment.length >= 8 && normalized_query.include?(trailing_segment))
+    end
+
+    noisy_hits.reject do |candidate|
+      candidate_name = normalize_string(candidate["name"])
+      noisy_hits.any? do |other|
+        other != candidate &&
+          normalize_string(other["name"]).include?(candidate_name) &&
+          normalize_string(other["name"]).length > candidate_name.length
+      end
+    end
+  end
+
+  def map_cckg_results(hits)
+    result = Array(hits).map do |h|
+      [h["name"], "http://kg.artsdata.ca/resource/#{h["id"]}"]
+    end
+
+    result.uniq! { |r| r[1] }
+    result
+  end
+
+  def select_best_hit(hits)
+    return nil if hits.blank?
+
+    auto = hits.select { |h| h["match"] == true }
+    return auto.first if auto.size == 1
+
+    hits.max_by { |h| h["score"].to_f }
   end
 
   def ISO_duration(duration_str)

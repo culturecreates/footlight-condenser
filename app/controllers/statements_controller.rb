@@ -61,7 +61,7 @@ class StatementsController < ApplicationController
         end
       end
 
-      trace_for_session = Dsl::TraceFormatter.for_session_v2(result[:trace] || [])
+      trace_for_session = Dsl::Tracing::TraceFormatter.for_session_v2(result[:trace] || [])
 
       session[:dsl_trace] = trace_for_session
       Rails.logger.debug { "[DSL TRACE SESSION SIZE] #{JSON.generate(session[:dsl_trace]).bytesize}" }
@@ -151,9 +151,7 @@ class StatementsController < ApplicationController
     @result = nil
   end
 
-  def trace_presenter
-    @trace_presenter
-  end
+  attr_reader :trace_presenter
 
   def expand_trace_for_view(compact_trace)
     return [] if compact_trace.nil?
@@ -236,8 +234,14 @@ class StatementsController < ApplicationController
 
   # GET /statements/search_name.json?str=expected_class=
   def search_name
+    webpage = Webpage.find_by(id: params[:webpage_id])
 
-    uris = helpers.search_everywhere(params["str"], params["expected_class"])
+    uris = helpers.search_everywhere(
+      params["str"],
+      params["expected_class"],
+      webpage
+    )
+
     render json: uris
   end
 
