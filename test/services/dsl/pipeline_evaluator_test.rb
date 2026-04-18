@@ -28,7 +28,7 @@ class Dsl::PipelineEvaluatorTest < ActiveSupport::TestCase
   end
 
   test "does not execute dsl runner" do
-    Dsl::DslAlgorithmRunner.expects(:new).never
+    Dsl::Core::AlgorithmRunner.expects(:new).never
 
     Dsl::PipelineEvaluator.evaluate(event: "uri1")
   end

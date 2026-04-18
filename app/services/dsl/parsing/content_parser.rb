@@ -1,6 +1,7 @@
-# app/services/dsl/dsl_content_parser.rb
+# app/services/dsl/parsing/content_parser.rb
 module Dsl
-  class DslContentParser
+  module Parsing
+    class ContentParser
     def initialize(html: nil)
       @html = html
       @page = Nokogiri::HTML(html) if html
@@ -70,5 +71,6 @@ module Dsl
       binding.eval(code.to_s.sub('$array', 'array'))
     end
 
+    end
   end
 end

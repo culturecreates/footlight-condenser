@@ -1,6 +1,7 @@
-# app/services/dsl/url_resolver.rb
+# app/services/dsl/support/url_resolver.rb
 module Dsl
-  class UrlResolver
+  module Support
+    class UrlResolver
     class << self
       def extract(value)
         return nil if value.nil?
@@ -64,6 +65,7 @@ module Dsl
       rescue URI::InvalidURIError
         false
       end
+    end
     end
   end
 end

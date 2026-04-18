@@ -1,12 +1,14 @@
-# app/services/dsl/dsl_context.rb
+# app/services/dsl/support/context.rb
 module Dsl
-  class DslContext
+  module Support
+    class Context
     attr_reader :url, :array, :tracer
 
     def initialize(url:, array:, tracer:)
       @url     = url
       @array   = array
       @tracer  = tracer
+    end
     end
   end
 end

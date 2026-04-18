@@ -1,6 +1,7 @@
-# app/services/dsl/dsl_algorithm_runner.rb
+# app/services/dsl/core/algorithm_runner.rb
 module Dsl
-  class DslAlgorithmRunner
+  module Core
+    class AlgorithmRunner
     HALT = Object.new
 
     StepTrace = Struct.new(
@@ -198,6 +199,14 @@ module Dsl
     def execute(prefix, code, arr)
       case prefix
 
+      # accumulate = map + flatMap
+      # accumulate context:
+      # - $e     = current item
+      # - $array = [current item]
+      # - $url   = current item
+      when 'accumulate'
+        execute_accumulate(code, arr)
+
       when 'sparql'
         begin
           @graph ||= RDF::Graph.load(use_wringer(@url, @render_js, @scrape_opts))
@@ -239,6 +248,7 @@ module Dsl
       when 'xpath_sanitize'
         page_status = ensure_page!(step: 'xpath_sanitize')
         return page_status if abort_structure?(page_status)
+
         @page.xpath(code).map do |node|
           sanitize(node.to_s,
                    tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br],
@@ -248,14 +258,16 @@ module Dsl
       when 'if_xpath'
         page_status = ensure_page!(step: 'if_xpath')
         return page_status if abort_structure?(page_status)
+
         nodes = @page.xpath(code)
         return [HALT, arr] if nodes.blank?
 
-        nodes.map(&:text)
+        nodes.map { |n| n.text.to_s.squish }.reject(&:blank?)
 
       when 'unless_xpath'
         page_status = ensure_page!(step: 'unless_xpath')
         return page_status if abort_structure?(page_status)
+
         nodes = @page.xpath(code)
         return [HALT, arr] if nodes.present?
 
@@ -264,11 +276,13 @@ module Dsl
       when 'css'
         page_status = ensure_page!(step: 'css')
         return page_status if abort_structure?(page_status)
-        @page.css(code).map(&:text)
+
+        @page.css(code).map { |n| n.text.to_s.squish }.reject(&:blank?)
 
       when 'json'
         page_status = ensure_page!(step: 'json')
         return page_status if abort_structure?(page_status)
+
         text = @page.respond_to?(:text) ? @page.text : @html.to_s
         @json ||= JSON.parse(text)
         Thread.current[:dsl_json] = @json
@@ -334,7 +348,7 @@ module Dsl
 
     def resolve_and_fetch_url(code, arr, render_js: @render_js, opts: @scrape_opts, step: 'url')
       raw = @dsl_binding.eval(sub(code, arr))
-      new_url = Dsl::UrlResolver.extract(raw)
+      new_url = Dsl::Support::UrlResolver.extract(raw)
       if new_url.blank?
         Rails.logger.warn { "[DSL] abort invalid URL from #{raw.inspect}" }
         return abort_update(
@@ -365,7 +379,7 @@ module Dsl
 
     def resolve_url_only(code, arr, step: 'url')
       raw = @dsl_binding.eval(sub(code, arr))
-      new_url = Dsl::UrlResolver.extract(raw)
+      new_url = Dsl::Support::UrlResolver.extract(raw)
       return new_url if new_url.present?
 
       abort_update(
@@ -400,7 +414,10 @@ module Dsl
     def execute_xpath(code)
       page_status = ensure_page!(step: 'xpath')
       return page_status if abort_structure?(page_status)
-      @page.xpath(code).map(&:text)
+
+      #@page.xpath(code).map(&:text)
+      # new default behavior
+      @page.xpath(code).map { |n| node_value(n).to_s.squish }.reject(&:blank?)
     end
 
     def halt_structure?(obj)
@@ -415,6 +432,7 @@ module Dsl
           .gsub('$array', 'Thread.current[:dsl_array]')
           .gsub('$url',   'Thread.current[:dsl_url]')
           .gsub('$json',  'Thread.current[:dsl_json]')
+          .gsub(/\$e\b/, 'Thread.current[:dsl_item]') 
     end
 
     def ensure_page!(step: nil)
@@ -481,17 +499,14 @@ module Dsl
         "[WringerClient] url=#{url} status=#{client_result[:status]} duration=#{client_result[:duration_ms]}ms"
       )
 
-      raw =
-        if client_result[:status] == :ok
+      if client_result[:status] == :ok
           client_result[:html]
-        else
+      else
           ["abort_update", {
             error_type: client_result.dig(:error, :type),
             error: client_result.dig(:error, :message)
           }]
-        end
-
-      raw
+      end
     end
 
     def safe_wringer_call(&blk)
@@ -499,7 +514,7 @@ module Dsl
     end
 
     def wringer_client
-      @wringer_client ||= Dsl::WringerClient.new(
+      @wringer_client ||= Dsl::Support::WringerClient.new(
         agent: @agent,
         render_js: @render_js,
         scrape_options: @scrape_opts,
@@ -509,12 +524,16 @@ module Dsl
       )
     end
 
+    def node_value(n)
+      n.respond_to?(:value) ? n.value : n.text
+    end
+
     def sanitize(*args)
       ApplicationController.helpers.sanitize(*args)
     end
 
     def trace_preview(value)
-      value.is_a?(Array) ? value : [value]
+      value.is_a?(Array) ? value.flatten(1) : [value]
     end
 
     def trace_wringer_payload
@@ -534,6 +553,65 @@ module Dsl
         result: probe_result,
         ok: probe_result[:status].to_s == "ok"
       }
+    end
+
+    def maybe_expand(url)
+      return url unless needs_expansion?(url)
+
+      Dsl::Network::UrlExpander.call(url, agent: @agent)
+    end
+
+    def extract_id(url)
+      Dsl::Identity::UrlIdentifier.call(url, @params)
+    end
+
+    def fallback_id(url)
+      Dsl::Identity::UrlFallback.id(url)
+    end
+
+    def execute_accumulate(code, arr)
+      return [] if arr.blank?
+
+      arr.flat_map do |item|
+        prev_item  = Thread.current[:dsl_item]
+        prev_array = Thread.current[:dsl_array]
+        prev_url   = Thread.current[:dsl_url]
+        prev_json  = Thread.current[:dsl_json]
+
+        begin
+          Thread.current[:dsl_item]  = item
+          Thread.current[:dsl_array] = [item]
+          Thread.current[:dsl_url]   = item
+          Thread.current[:dsl_json]  = nil
+
+          result = @dsl_binding.eval(sub(code, [item]))
+
+          result.is_a?(Array) ? result : [result]
+        ensure
+          Thread.current[:dsl_item]  = prev_item
+          Thread.current[:dsl_array] = prev_array
+          Thread.current[:dsl_url]   = prev_url
+          Thread.current[:dsl_json]  = prev_json
+        end
+      end
+    end
+
+    def execute_make_uri(code, arr)
+      return [] if arr.blank?
+
+      # parse params (simple version)
+      params = parse_params(code)
+      prefix = params['prefix'] || 'default'
+
+      arr.map do |url|
+        next if url.blank?
+
+        id = extract_id_from_url(url)
+
+        next if id.blank?
+
+        "footlight:#{prefix}_#{id}"
+      end.compact.uniq
     end
 
     def snapshot_thread_locals
@@ -561,6 +639,7 @@ module Dsl
       else
         Thread.current[key] = value
       end
+    end
     end
   end
 end

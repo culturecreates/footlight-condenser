@@ -4,11 +4,11 @@ class DslContractTest < ActiveSupport::TestCase
   def build_runner(html: "<html></html>")
     stub_request(:get, /wring/).to_return(status: 200, body: html)
 
-    Dsl::DslAlgorithmRunner.new(
+    Dsl::Core::AlgorithmRunner.new(
       url: "http://example.com",
       render_js: false,
       scrape_options: {},
-      tracer: Dsl::DslNullTracer.new
+      tracer: Dsl::Tracing::NullTracer.new
     )
   end
 
@@ -81,11 +81,11 @@ class DslContractTest < ActiveSupport::TestCase
   test "url step does not change results" do
     stub_request(:get, /example.com/).to_return(status: 200, body: "<html></html>")
 
-    runner = Dsl::DslAlgorithmRunner.new(
+    runner = Dsl::Core::AlgorithmRunner.new(
       url: "http://example.com",
       render_js: false,
       scrape_options: {},
-      tracer: Dsl::DslNullTracer.new
+      tracer: Dsl::Tracing::NullTracer.new
     )
 
     result = runner.run("url='http://example.com'; xpath=//h1")
@@ -170,11 +170,11 @@ class DslContractTest < ActiveSupport::TestCase
       }.to_json
     )
 
-    runner = Dsl::DslAlgorithmRunner.new(
+    runner = Dsl::Core::AlgorithmRunner.new(
       url: "http://example.com",
       render_js: false,
       scrape_options: {},
-      tracer: Dsl::DslNullTracer.new
+      tracer: Dsl::Tracing::NullTracer.new
     )
 
     dsl = <<~DSL

@@ -1,6 +1,6 @@
 require "test_helper"
 
-class Dsl::WringerClientTest < ActiveSupport::TestCase
+class Dsl::Support::WringerClientTest < ActiveSupport::TestCase
   test "successful fetch returns status ok, body string, wringer diagnostics" do
     captured = {}
     agent = mock("agent")
@@ -12,7 +12,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
     end
     safe_wringer_call = ->(&blk) { blk.call }
 
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: agent,
       render_js: false,
       scrape_options: { force_scrape_every_hrs: 2 },
@@ -38,7 +38,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
     agent = mock("agent")
     agent.expects(:get_file).with("wringer://resolved").returns("<html>ok</html>")
 
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: agent,
       render_js: false,
       scrape_options: {},
@@ -58,7 +58,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
     payload = ["abort_update", { error_type: "system_cloudflare", retry: true, cache: false }]
     safe_wringer_call = ->(&_) { payload }
 
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: mock("agent"),
       render_js: false,
       scrape_options: {},
@@ -89,7 +89,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
       }
     ]
 
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: mock("agent"),
       render_js: false,
       scrape_options: {},
@@ -116,7 +116,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
       }
     ]
 
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: mock("agent"),
       render_js: false,
       scrape_options: {},
@@ -137,7 +137,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
   test "partial abort payload includes only available wringer status fields" do
     payload = ["abort_update", { error_type: "system_cloudflare" }]
 
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: mock("agent"),
       render_js: false,
       scrape_options: {},
@@ -163,7 +163,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
       "wringer://resolved"
     end
 
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: agent,
       render_js: false,
       scrape_options: {},
@@ -187,7 +187,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
       "wringer://resolved"
     end
 
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: agent,
       render_js: false,
       scrape_options: {},
@@ -203,7 +203,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
   end
 
   test "nil response remains ok and includes normalized wringer diagnostics" do
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: mock("agent"),
       render_js: false,
       scrape_options: {},
@@ -221,7 +221,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
 
   test "malformed abort payload is normalized to explicit wringer abort error" do
     malformed_payload = ["abort_update", "broken-payload"]
-    malformed_client = Dsl::WringerClient.new(
+    malformed_client = Dsl::Support::WringerClient.new(
       agent: mock("agent"),
       render_js: false,
       scrape_options: {},
@@ -240,7 +240,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
   end
 
   test "skip control action is normalized to abort_update wringer skip" do
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: mock("agent"),
       render_js: false,
       scrape_options: {},
@@ -258,7 +258,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
   end
 
   test "unknown wringer control action is normalized to unsupported action abort_update" do
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: mock("agent"),
       render_js: false,
       scrape_options: {},
@@ -278,7 +278,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
 
   test "single-element arrays are not treated as control tuples" do
     payload = ["skip"]
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: mock("agent"),
       render_js: false,
       scrape_options: {},
@@ -294,7 +294,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
   end
 
   test "fetch failure is normalized to WringerFetchError with url step" do
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: mock("agent"),
       render_js: false,
       scrape_options: {},
@@ -314,7 +314,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
 
   test "metadata normalization enforces signals hash and hints array for abort payload" do
     payload = ["abort_update", { error_type: "system_cloudflare", signals: "bad-shape", hints: "bad-shape" }]
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: mock("agent"),
       render_js: false,
       scrape_options: {},
@@ -334,7 +334,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
     agent = mock("agent")
     agent.expects(:get_file).with("wringer://resolved").returns("<html>should_not_escape_control</html>")
 
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: agent,
       render_js: false,
       scrape_options: {},
@@ -371,7 +371,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
     )
     agent.expects(:get).with("wringer://resolved").returns(response)
 
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: agent,
       render_js: false,
       scrape_options: {},
@@ -405,7 +405,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
     )
     agent.expects(:get).with("wringer://resolved").returns(response)
 
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: agent,
       render_js: false,
       scrape_options: {},
@@ -439,7 +439,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
     )
     agent.expects(:get).with("wringer://resolved").returns(response)
 
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: agent,
       render_js: false,
       scrape_options: {},
@@ -469,7 +469,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
     response = Struct.new(:code, :body, :uri).new(404, "Not Found", URI("https://example.com/missing"))
     agent.expects(:get).with("wringer://resolved").returns(response)
 
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: agent,
       render_js: false,
       scrape_options: {},
@@ -500,7 +500,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
     response = Struct.new(:code, :body, :uri).new(500, "Internal Server Error", URI("https://example.com/error"))
     agent.expects(:get).with("wringer://resolved").returns(response)
 
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: agent,
       render_js: false,
       scrape_options: {},
@@ -526,7 +526,7 @@ class Dsl::WringerClientTest < ActiveSupport::TestCase
       }
     ]
 
-    client = Dsl::WringerClient.new(
+    client = Dsl::Support::WringerClient.new(
       agent: mock("agent"),
       render_js: false,
       scrape_options: {},

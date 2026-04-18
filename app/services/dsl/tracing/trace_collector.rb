@@ -1,6 +1,7 @@
-# app/services/dsl/dsl_trace_collector.rb
+# app/services/dsl/tracing/trace_collector.rb
 module Dsl
-  class DslTraceCollector
+  module Tracing
+    class TraceCollector
     attr_reader :events
 
     def initialize
@@ -42,6 +43,7 @@ module Dsl
 
     def to_h
       @events
+    end
     end
   end
 end

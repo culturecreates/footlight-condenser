@@ -8,14 +8,14 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
   end
 
   def build_runner(start_url = "http://example.local")
-    tracer = Dsl::DslTraceCollector.new
+    tracer = Dsl::Tracing::TraceCollector.new
     ctx = {
       url: start_url,
       render_js: false,
       scrape_options: {},
       tracer: tracer
     }
-    [Dsl::DslAlgorithmRunner.new(ctx), tracer]
+    [Dsl::Core::AlgorithmRunner.new(ctx), tracer]
   end
 
   test "manual prefix returns configured literal" do
@@ -281,9 +281,9 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
       url: "http://example.local",
       render_js: false,
       scrape_options: {},
-      tracer: Dsl::DslNullTracer.new
+      tracer: Dsl::Tracing::NullTracer.new
     }
-    runner = Dsl::DslAlgorithmRunner.new(ctx)
+    runner = Dsl::Core::AlgorithmRunner.new(ctx)
     runner.stubs(:safe_wringer_call).returns("<html><body><h1>Fresh</h1></body></html>")
     runner.expects(:execute_xpath).never
 
@@ -343,11 +343,11 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     trace_runner, = build_runner
     trace_result = trace_runner.run("api=nil")
 
-    non_trace_runner = Dsl::DslAlgorithmRunner.new(
+    non_trace_runner = Dsl::Core::AlgorithmRunner.new(
       url: "http://example.local",
       render_js: false,
       scrape_options: {},
-      tracer: Dsl::DslNullTracer.new
+      tracer: Dsl::Tracing::NullTracer.new
     )
     non_trace_result = non_trace_runner.run("api=nil")
 
@@ -378,7 +378,7 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
   end
 
   test "runner uses single abort_update contract without tuple wrappers" do
-    source = File.read(Rails.root.join("app/services/dsl/dsl_algorithm_runner.rb"))
+    source = File.read(Rails.root.join("app/services/dsl/core/algorithm_runner.rb"))
 
     refute_match(/def\s+ok\(/, source)
     refute_match(/def\s+abort\(/, source)

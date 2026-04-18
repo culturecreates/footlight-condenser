@@ -1,6 +1,7 @@
-# app/services/dsl/wringer_client.rb
+# app/services/dsl/support/wringer_client.rb
 module Dsl
-  class WringerClient
+  module Support
+    class WringerClient
     def initialize(agent:, render_js:, scrape_options:, use_wringer:, safe_wringer_call:, logger:)
       @agent = agent
       @render_js = render_js
@@ -291,6 +292,7 @@ module Dsl
         system_error: system_error,
         policy_action: policy_action
       }.compact
+    end
     end
   end
 end

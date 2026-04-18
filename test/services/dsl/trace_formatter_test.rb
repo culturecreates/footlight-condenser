@@ -1,8 +1,8 @@
 require "test_helper"
 
-class Dsl::TraceFormatterTest < ActiveSupport::TestCase
+class Dsl::Tracing::TraceFormatterTest < ActiveSupport::TestCase
   test "for_ui truncates long strings" do
-    formatted = Dsl::TraceFormatter.for_ui([
+    formatted = Dsl::Tracing::TraceFormatter.for_ui([
       {
         step: 1,
         type: "ruby",
@@ -20,7 +20,7 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
   test "format_value summarizes arrays with size and sample" do
     value = (1..10).to_a
 
-    formatted = Dsl::TraceFormatter.format_value(value)
+    formatted = Dsl::Tracing::TraceFormatter.format_value(value)
 
     assert_match(/\A\[Array size=10, sample=/, formatted)
     assert_includes formatted, "1"
@@ -29,13 +29,13 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
   end
 
   test "format_value converts exceptions to message" do
-    formatted = Dsl::TraceFormatter.format_value(StandardError.new("boom"))
+    formatted = Dsl::Tracing::TraceFormatter.format_value(StandardError.new("boom"))
 
     assert_equal "boom", formatted
   end
 
   test "format_value preserves nil" do
-    assert_nil Dsl::TraceFormatter.format_value(nil)
+    assert_nil Dsl::Tracing::TraceFormatter.format_value(nil)
   end
 
   test "for_ui handles mixed hash and to_h structures" do
@@ -74,7 +74,7 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
       )
     ]
 
-    formatted = Dsl::TraceFormatter.for_ui(input)
+    formatted = Dsl::Tracing::TraceFormatter.for_ui(input)
 
     assert_equal 2, formatted.length
     assert_equal "xpath", formatted.first[:type]
@@ -83,8 +83,8 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
   end
 
   test "for_ui returns empty array for nil or invalid structure" do
-    assert_equal [], Dsl::TraceFormatter.for_ui(nil)
-    assert_equal [], Dsl::TraceFormatter.for_ui("invalid")
+    assert_equal [], Dsl::Tracing::TraceFormatter.for_ui(nil)
+    assert_equal [], Dsl::Tracing::TraceFormatter.for_ui("invalid")
   end
 
   test "preserves all trace steps even when large" do
@@ -98,7 +98,7 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
       }
     end
 
-    formatted = Dsl::TraceFormatter.for_ui(trace)
+    formatted = Dsl::Tracing::TraceFormatter.for_ui(trace)
 
     assert_equal 10, formatted.size
   end
@@ -116,7 +116,7 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
       error_message: "boom"
     }
 
-    formatted = Dsl::TraceFormatter.for_ui(trace)
+    formatted = Dsl::Tracing::TraceFormatter.for_ui(trace)
 
     last = formatted.last
 
@@ -131,7 +131,7 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
       { step: 2, type: "xpath", code: "//a" }
     ]
 
-    formatted = Dsl::TraceFormatter.for_ui(trace)
+    formatted = Dsl::Tracing::TraceFormatter.for_ui(trace)
 
     assert_equal 2, formatted.size
   end
@@ -150,7 +150,7 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
       }
     end
 
-    compact = Dsl::TraceFormatter.for_session(trace).with_indifferent_access
+    compact = Dsl::Tracing::TraceFormatter.for_session(trace).with_indifferent_access
 
     assert_equal 1, compact[:version]
     assert_equal 10, compact[:events].size
@@ -168,7 +168,7 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
       }
     ]
 
-    compact = Dsl::TraceFormatter.for_session(trace).with_indifferent_access
+    compact = Dsl::Tracing::TraceFormatter.for_session(trace).with_indifferent_access
     normal = compact[:events].first.with_indifferent_access
     errored = compact[:events].second.with_indifferent_access
 
@@ -183,7 +183,7 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
       { step: 2, type: "ruby", url_before: "http://example.com/a", url_after: "http://example.com/b" }
     ]
 
-    compact = Dsl::TraceFormatter.for_session(trace).with_indifferent_access
+    compact = Dsl::Tracing::TraceFormatter.for_session(trace).with_indifferent_access
 
     assert_equal ["http://example.com/a", "http://example.com/b"], compact[:urls]
     assert_equal 0, compact[:events].first.with_indifferent_access[:ub]
@@ -206,7 +206,7 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
       }
     end
 
-    compact = Dsl::TraceFormatter.for_session_v2(trace).with_indifferent_access
+    compact = Dsl::Tracing::TraceFormatter.for_session_v2(trace).with_indifferent_access
 
     assert_equal 2, compact[:version]
     assert_equal 20, compact[:steps].size
@@ -218,7 +218,7 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
       { step: 2, type: "ruby", input_preview: ["out-1"], output_preview: ["out-2"] }
     ]
 
-    compact = Dsl::TraceFormatter.for_session_v2(trace).with_indifferent_access
+    compact = Dsl::Tracing::TraceFormatter.for_session_v2(trace).with_indifferent_access
 
     assert_match(/\A\[1 items: in-0\]\z/, compact[:initial].with_indifferent_access[:state])
     assert_match(/\A\[1 items: out-1\]\z/, compact[:steps].first.with_indifferent_access[:o])
@@ -232,7 +232,7 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
       { step: 3, type: "ruby", url_before: "http://example.com/b", url_after: "http://example.com/c" }
     ]
 
-    compact = Dsl::TraceFormatter.for_session_v2(trace).with_indifferent_access
+    compact = Dsl::Tracing::TraceFormatter.for_session_v2(trace).with_indifferent_access
     steps = compact[:steps].map { |s| s.with_indifferent_access }
 
     assert_equal "http://example.com/a", compact[:initial].with_indifferent_access[:url]
@@ -254,7 +254,7 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
       }
     ]
 
-    compact = Dsl::TraceFormatter.for_session_v2(trace).with_indifferent_access
+    compact = Dsl::Tracing::TraceFormatter.for_session_v2(trace).with_indifferent_access
     errored = compact[:steps].second.with_indifferent_access
 
     assert_equal 2, errored[:s]
@@ -274,7 +274,7 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
       }
     ]
 
-    compact = Dsl::TraceFormatter.for_session_v2(trace).with_indifferent_access
+    compact = Dsl::Tracing::TraceFormatter.for_session_v2(trace).with_indifferent_access
     initial_state = compact[:initial].with_indifferent_access[:state]
     output_state = compact[:steps].first.with_indifferent_access[:o]
 
@@ -299,7 +299,7 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
       }
     ]
 
-    compact = Dsl::TraceFormatter.for_session_v2(trace).with_indifferent_access
+    compact = Dsl::Tracing::TraceFormatter.for_session_v2(trace).with_indifferent_access
     probe = compact[:steps].second.with_indifferent_access[:p].with_indifferent_access
 
     assert_equal "ok", probe[:st]
@@ -314,7 +314,7 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
       { step: 3, type: "ruby", code: "boom" * 60, output_preview: ["very long output " * 20], error_class: "RuntimeError", error_message: "boom" }
     ]
 
-    compact = Dsl::TraceFormatter.for_session_v2(trace).with_indifferent_access
+    compact = Dsl::Tracing::TraceFormatter.for_session_v2(trace).with_indifferent_access
     ok_step = compact[:steps].first.with_indifferent_access
     warning_step = compact[:steps].second.with_indifferent_access
     error_step = compact[:steps].third.with_indifferent_access
@@ -338,7 +338,7 @@ class Dsl::TraceFormatterTest < ActiveSupport::TestCase
       }
     ]
 
-    compact = Dsl::TraceFormatter.for_session_v2(trace).with_indifferent_access
+    compact = Dsl::Tracing::TraceFormatter.for_session_v2(trace).with_indifferent_access
     step = compact[:steps].first.with_indifferent_access
 
     assert step[:o].present?

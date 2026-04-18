@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
 module Dsl
-  class TraceFormatter
+  module Tracing
+    class TraceFormatter
     MAX_STRING_LENGTH = 200
     ARRAY_SAMPLE_SIZE = 5
     MAX_UI_EVENTS = 20
@@ -481,6 +482,7 @@ module Dsl
       rescue StandardError
         payload.to_s.bytesize
       end
+    end
     end
   end
 end
