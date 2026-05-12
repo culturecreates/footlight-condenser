@@ -1,6 +1,13 @@
 require 'test_helper'
 
 class CcWringerHelperTest < ActionView::TestCase
+  setup do
+    Distillator::WringerRules.reset!
+  end
+
+  teardown do
+    Distillator::WringerRules.reset!
+  end
 
 
   test "should get wringer url for DEV" do
@@ -8,25 +15,60 @@ class CcWringerHelperTest < ActionView::TestCase
     assert_equal expected_output, get_wringer_url_per_environment()
   end
 
+  test "should get distillator compatibility url for DEV" do
+    assert_equal "http://localhost:3000", distillator_compatibility_base_url
+  end
 
   test "should convert url for wringer" do
-    expected_output = "http://localhost:3009/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true"
+    expected_output = "http://localhost:3000/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true"
     assert_equal expected_output, use_wringer("http://culturecreates.com", false)
   end
 
   test "should convert url for wringer using phantomjs" do
-    expected_output = "http://localhost:3009/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true&use_phantomjs=true"
+    expected_output = "http://localhost:3000/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true&use_phantomjs=true"
     assert_equal expected_output, use_wringer("http://culturecreates.com", true)
   end
 
   test "should convert url for wringer using json_post" do
-    expected_output = "http://localhost:3009/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true&json_post=true"
+    expected_output = "http://localhost:3000/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true&json_post=true"
     assert_equal expected_output, use_wringer("http://culturecreates.com", false, { json_post: true })
   end
 
-  test "wringer_received_404 returns false when wringer call aborts" do
+  test "use_wringer preserves fragment so include_fragment can reach wringer uri key logic" do
+    expected_output = "http://localhost:3000/websites/wring?uri=https%3A%2F%2Fculturecreates.com%2Fpeople%23gregory&format=raw&include_fragment=true"
+    assert_equal expected_output, use_wringer("https://culturecreates.com/people#gregory", false)
+  end
+
+  test "use_wringer can explicitly target legacy live wringer fallback" do
+    expected_output = "http://localhost:3009/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true"
+    assert_equal expected_output, use_wringer("http://culturecreates.com", false, { force_legacy: true })
+  end
+
+  test "normalized_fetch_url strips fragment without affecting wringer uri target" do
+    assert_equal "https://culturecreates.com/people", normalized_fetch_url("https://culturecreates.com/people#gregory")
+    assert_equal "https://culturecreates.com/people#gregory", wringer_uri_target("https://culturecreates.com/people#gregory")
+  end
+
+  test "wringer_received_404 uses local distillator cache by default" do
+    key = Distillator::WringerUrlKey.call("https://example.com", include_fragment: true)
+    Distillator::FetchCache.create!(
+      uri_key: key.uri_key,
+      normalized_url: key.normalized_url,
+      http_response_code: 404,
+      scrape_date: Time.zone.now
+    )
+
+    assert wringer_received_404?("https://example.com")
+  end
+
+  test "wringer_received_404 returns false when explicit legacy fallback aborts" do
+    previous = ENV["DISTILLATOR_LEGACY_WRINGER_FALLBACK"]
+    ENV["DISTILLATOR_LEGACY_WRINGER_FALLBACK"] = "true"
     stubs(:safe_wringer_call).returns(["abort_update", { error: "Wringer unreachable", error_type: "SocketError" }])
+
     assert_not wringer_received_404?("https://example.com")
+  ensure
+    ENV["DISTILLATOR_LEGACY_WRINGER_FALLBACK"] = previous
   end
 
   test "safe_wringer_call handles connection error" do
@@ -37,6 +79,36 @@ class CcWringerHelperTest < ActionView::TestCase
     assert_equal "abort_update", result.first
     assert_equal "wringer_unreachable", result.last[:error_type]
     assert result.last[:policy][:retry]
+  end
+
+  test "safe_wringer_call preserves explicit false retry and cache values" do
+    rules = {
+      "empty_body" => {
+        "match" => { "body_blank" => true },
+        "policy" => {
+          "action" => "abort_update",
+          "retry" => false,
+          "cache" => false,
+          "delete" => false,
+          "error_code" => "empty_body"
+        }
+      }
+    }
+
+    stubs(:wringer_rules).returns(rules.to_a)
+
+    fake_response = Struct.new(:code, :body, :uri).new(
+      200,
+      nil,
+      URI("https://example.com/empty")
+    )
+
+    result = safe_wringer_call { fake_response }
+
+    assert_equal "abort_update", result.first
+    assert_equal false, result.last[:retry]
+    assert_equal false, result.last[:cache]
+    assert_equal false, result.last[:policy]["delete"]
   end
 
   # test "should call wringer to condense and add webpage to knowledge graph" do
@@ -174,6 +246,20 @@ class CcWringerHelperTest < ActionView::TestCase
     result = wringer_system_error?(response)
 
     assert_equal "redirect_to_listing", result[:error_type]
+  end
+
+  test "wringer_system_error prefers severity-aware primary issue" do
+    response = {
+      body: "",
+      http_code: 500,
+      final_url: "https://example.org/failure",
+      hints: ["empty_body"],
+      signals: {}
+    }
+
+    issue = wringer_system_error?(response)
+
+    assert_equal "http_server_error", issue[:error_type]
   end
 
 
@@ -332,6 +418,21 @@ class CcWringerHelperTest < ActionView::TestCase
     assert_equal "custom_action", result.last[:error_type]
   end
 
+  test "safe_wringer_call preserves redirect delete policy" do
+    response = Struct.new(:code, :body, :uri).new(
+      200,
+      "<html>listing</html>",
+      URI("https://example.org/events")
+    )
+
+    result = safe_wringer_call { response }
+
+    assert_equal "abort_update", result.first
+    assert_equal "redirect_to_listing", result.last[:error_type]
+    assert_not result.last[:retry]
+    assert_not result.last[:cache]
+    assert result.last[:delete]
+  end
   
   test "invalid regex pattern does not crash rule engine" do
     rules = {

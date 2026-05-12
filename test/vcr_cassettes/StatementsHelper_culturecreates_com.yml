@@ -2,7 +2,7 @@
 http_interactions:
 - request:
     method: get
-    uri: http://localhost:3009/websites/wring?format=raw&include_fragment=true&uri=http://culturecreates.com
+    uri: http://localhost:3000/websites/wring?format=raw&include_fragment=true&uri=http://culturecreates.com
     body:
       encoding: US-ASCII
       string: ''
@@ -19,7 +19,7 @@ http_interactions:
       Accept-Language:
       - en-us,en;q=0.5
       Host:
-      - localhost:3009
+      - localhost:3000
       Connection:
       - keep-alive
       Keep-Alive:

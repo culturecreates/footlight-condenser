@@ -101,3 +101,112 @@ eventPage2:
   rdfs_class: one
   website: two
   archive_date: 2020-01-01 16:46:00 UTC
+
+distillator_simple_title:
+  url: https://fixtures.example/distillator/simple-static-title
+  language: en
+  rdf_uri: adr:distillator-simple-title
+  rdfs_class: one
+  website: distillator_fixture_pack
+  archive_date: 2026-06-01 16:46:00 UTC
+
+distillator_xpath:
+  url: https://fixtures.example/distillator/xpath-extraction
+  language: en
+  rdf_uri: adr:distillator-xpath
+  rdfs_class: one
+  website: distillator_fixture_pack
+  archive_date: 2026-06-01 16:46:00 UTC
+
+distillator_xpath_sanitize:
+  url: https://fixtures.example/distillator/xpath-sanitize
+  language: en
+  rdf_uri: adr:distillator-xpath-sanitize
+  rdfs_class: one
+  website: distillator_fixture_pack
+  archive_date: 2026-06-01 16:46:00 UTC
+
+distillator_jsonld_script:
+  url: https://fixtures.example/distillator/jsonld-script
+  language: en
+  rdf_uri: adr:distillator-jsonld-script
+  rdfs_class: one
+  website: distillator_fixture_pack
+  archive_date: 2026-06-01 16:46:00 UTC
+
+distillator_relative_links:
+  url: https://fixtures.example/distillator/relative-links
+  language: en
+  rdf_uri: adr:distillator-relative-links
+  rdfs_class: one
+  website: distillator_fixture_pack
+  archive_date: 2026-06-01 16:46:00 UTC
+
+distillator_redirected:
+  url: https://fixtures.example/distillator/redirected
+  language: en
+  rdf_uri: adr:distillator-redirected
+  rdfs_class: one
+  website: distillator_fixture_pack
+  archive_date: 2026-06-01 16:46:00 UTC
+
+distillator_failed_fetch:
+  url: https://fixtures.example/distillator/failed-404
+  language: en
+  rdf_uri: adr:distillator-failed-fetch
+  rdfs_class: one
+  website: distillator_fixture_pack
+  archive_date: 2026-06-01 16:46:00 UTC
+
+distillator_json_post:
+  url: https://fixtures.example/distillator/json-post
+  language: en
+  rdf_uri: adr:distillator-json-post
+  rdfs_class: one
+  website: distillator_fixture_pack
+  archive_date: 2026-06-01 16:46:00 UTC
+
+distillator_render_js:
+  url: https://fixtures.example/distillator/render-js
+  language: en
+  rdf_uri: adr:distillator-render-js
+  rdfs_class: one
+  website: distillator_fixture_pack
+  archive_date: 2026-06-01 16:46:00 UTC
+
+distillator_timezone_dates:
+  url: https://fixtures.example/distillator/timezone-dates
+  language: en
+  rdf_uri: adr:distillator-timezone-dates
+  rdfs_class: one
+  website: distillator_fixture_pack
+  archive_date: 2026-06-01 16:46:00 UTC
+
+distillator_full_event:
+  url: https://fixtures.example/distillator/event-full
+  language: en
+  rdf_uri: footlight:distillator-full-event
+  rdfs_class: one
+  website: distillator_fixture_pack
+  archive_date: 2026-06-01 16:46:00 UTC
+
+distillator_main_hall:
+  url: https://fixtures.example/distillator/venues/main-hall
+  language: en
+  rdf_uri: footlight:distillator-main-hall
+  rdfs_class: place
+  website: distillator_fixture_pack
+
+culture3r_refresh_fixture:
+  url: https://fixtures.example/culture3r/gabrielle-caron-rodage
+  language: en
+  rdf_uri: footlight:culture3r-com_gabrielle-caron-rodage
+  rdfs_class: one
+  website: culture3r_refresh_fixture
+
+resource_list_page:
+  url: https://fixtures.example/resource-list
+  language: en
+  rdf_uri: adr:resource-list
+  rdfs_class: one
+  website: two
