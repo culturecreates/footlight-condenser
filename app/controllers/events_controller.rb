@@ -79,8 +79,12 @@ class EventsController < ApplicationController
   def website_statements_by_event(seedurl, archive_date_range = [Time.zone.now - 3000.years..Time.zone.now + 3000.years])
     website_statements =
       Statement
+      .joins(:webpage, source: :website)
       .includes({ source: [:property, :website] }, :webpage)
-      .where({ sources: { websites: { seedurl: seedurl }, webpages: { archive_date: archive_date_range, rdfs_class_id: RdfsClass.where(name:'Event')  } } })
+      .where(
+        websites: { seedurl: seedurl },
+        webpages: { archive_date: archive_date_range, rdfs_class_id: RdfsClass.where(name: "Event") }
+      )
       .where(selected_individual: true)
     
     # Group by event URI

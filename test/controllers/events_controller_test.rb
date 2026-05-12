@@ -49,7 +49,7 @@ class EventsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "pipeline health endpoint does not execute dsl runner" do
-    Dsl::DslAlgorithmRunner.expects(:new).never
+    Dsl::Core::AlgorithmRunner.expects(:new).never
 
     get event_pipeline_health_path(id: "uri1", format: :json)
     assert_response :success
