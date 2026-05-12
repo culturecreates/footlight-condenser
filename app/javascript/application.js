@@ -4,3 +4,4 @@ ujs.start();
 // import "@hotwired/turbo-rails"; // Disabled Turbo for the entire website
 import consumer from "./channels/cable";
 import "./statements_show";
+import "./operator_context_card";

@@ -1,5 +1,7 @@
 # Helper used in mulitple places
 module WebpagesHelper
+  include ApplicationHelper
+
   # Check for missing required properties
   # TODO: replace this with SHACL
   def missing_required_properties(event_statement_collection)
@@ -13,5 +15,17 @@ module WebpagesHelper
     end
 
     problem_statements
+  end
+
+  def webpage_cache_links(webpage)
+    active_cache_links_for(webpage.url, website: webpage.website)
+  end
+
+  def webpage_rollout_badge(webpage)
+    operator_rollout_badge(webpage.website)
+  end
+
+  def webpage_rollout_explanation(webpage)
+    operator_rollout_explanation(webpage.website)
   end
 end

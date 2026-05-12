@@ -17,7 +17,7 @@
 <%= link_to "all websites", websites_path %> >
 
 
-<% if !nav_website.id.nil? %>
+<% if nav_website&.id.present? %>
   <b><%= link_to nav_website.seedurl, website_path(nav_website) %></b> |
   <%= link_to "webpages", webpages_path %> |
   <%= link_to "sources",  sources_path %> |
@@ -40,6 +40,7 @@
 <%= link_to "databus",        databus_index_path %> |
 <%= link_to "messages",       messages_path %> |
 <%= link_to "job queue",      sidekiq_web_path %> |
+<%= link_to "cache",          "/distillator/cache" %> |
 <%= link_to "options",        options_path %> | 
 Current Wringer:
 <%= cookies[:wringer_url] || "default" %> |
@@ -56,4 +57,3 @@ Trace:
     });
   });
 </script>
-

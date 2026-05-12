@@ -11,54 +11,90 @@
     </div>
   <% end %>
 
-  <div class="field">
-    <%= @rdfs_class_name %> <%= form.label :property_id %>
-    <%= form.collection_select(:property_id, @properties.where(rdfs_class_id: @rdfs_class_id), :id, :label, {:prompt => false}) %>
+  <div class="cache-detail-cards source-form-cards">
+    <section class="cache-detail-card">
+      <h2>Identity</h2>
+
+      <div class="field">
+        <%= form.label :website_id, "Website" %>
+        <%= form.collection_select(:website_id, @websites, :id, :seedurl, {selected: @websites.where(seedurl: params[:seedurl]).first&.id }) %>
+      </div>
+
+      <div class="field">
+        <%= @rdfs_class_name %> <%= form.label :property_id, "Property" %>
+        <%= form.collection_select(:property_id, @properties.where(rdfs_class_id: @rdfs_class_id), :id, :label, {:prompt => false}) %>
+      </div>
+
+      <div class="field">
+        <%= form.label :label, "Class / label context" %>
+        <%= form.text_field :label, id: :source_label, size: 60 %>
+        <p class="sources-secondary-text">User-friendly description of where the data is coming from.</p>
+      </div>
+
+      <div class="field">
+        <%= form.label :language, "Language" %>
+        <%= form.text_field :language, id: :source_language, size: 10 %>
+        <p class="sources-secondary-text">Leave blank for linking URIs and photos that are language-independent.</p>
+      </div>
+    </section>
+
+    <section class="cache-detail-card">
+      <h2>Activation</h2>
+
+      <div class="field">
+        <%= form.label :selected, "Website default" %>
+        <%= form.check_box :selected, id: :source_selected %>
+      </div>
+
+      <div class="field">
+        <%= form.label :selected_by, "Selected by" %>
+        <%= form.text_field :selected_by, id: :source_selected_by, size: 40 %>
+      </div>
+
+      <div class="sources-impact-panel">
+        <p><strong>Activation impact:</strong> <%= source_activation_impact(source) %></p>
+        <p class="sources-secondary-text"><%= source_activation_detail(source) %></p>
+      </div>
+    </section>
+
+    <section class="cache-detail-card">
+      <h2>Fetch strategy</h2>
+
+      <div class="field">
+        <%= form.label :render_js, "Rendered fetch" %>
+        <%= form.check_box :render_js, id: :source_render_js %>
+      </div>
+
+      <div class="field">
+        <%= form.label :auto_review, "Auto review" %>
+        <%= form.check_box :auto_review, id: :source_auto_review %>
+      </div>
+
+      <p><strong>Current fetch strategy:</strong> <%= source_form_fetch_strategy_summary(source) %></p>
+      <p class="sources-secondary-text"><%= source_form_fetch_strategy_note(source) %></p>
+    </section>
+
+    <section class="cache-detail-card">
+      <h2>Extraction algorithm</h2>
+
+      <div class="field">
+        <%= form.label :algorithm_value, "Raw extraction DSL" %>
+        <%= form.text_area :algorithm_value, id: :source_algorithm_value, cols: 60, rows: 6, style: "font-size: 18pt" %>
+      </div>
+
+      <p class="sources-secondary-text">Use pipeline steps such as <code>url=</code>, <code>xpath=</code>, <code>ruby=</code>. Test with trace before activating.</p>
+    </section>
+
+    <section class="cache-detail-card">
+      <h2>Diagnostics</h2>
+      <dl class="sources-detail-list">
+        <% source_diagnostics_pairs(source).each do |label, value| %>
+          <dt><%= label %></dt>
+          <dd><%= value %></dd>
+        <% end %>
+      </dl>
+    </section>
   </div>
-
-  <div class="field" >
-    <%= form.label :algorithm_value %>
-    <%= form.text_area :algorithm_value, id: :source_algorithm_value, cols: 60, rows:4, style:"font-size: 18pt"%>
-  </div>
-
- <div class="field">
-    <%= form.label :label %>
-    <%= form.text_field :label, id: :source_label, size: 60 %>
-    User friendly description of where the data is coming from.
-  </div>
-
-
-  <div class="field">
-    <%= form.label :language %>
-    <%= form.text_field :language, id: :source_language, size: 10%>
-    Leave blank for linking URIs and photos that are language independant.
-  </div>
-
-
-  <div class="field" style="margin: 0 5px 0 5px;display:block; float:left;">
-    <%= form.label :selected %>
-    <%= form.check_box :selected, id: :source_selected %>
-  </div>
-
-
-<div class="field"  style="margin: 0 5px 0 5px;display:block; float:left;">
-    <%= form.label :render_js %>
-    <%= form.check_box :render_js, id: :source_render_js %>
-  </div>
-
- <div class="field">
-    <%= form.label :auto_review %>
-    <%= form.check_box :auto_review, id: :source_auto_review %>
-  </div>
-
-  <div style="display:block; float:clear;"></div>
-  
-  <div class="field">
-    <%= form.label :website_id %>
-    <%= form.collection_select(:website_id, @websites, :id, :seedurl, {selected: @websites.where(seedurl: params[:seedurl]).first&.id }) %>
-  </div>
-
-  
 
   <div class="actions">
     <%= form.submit %>

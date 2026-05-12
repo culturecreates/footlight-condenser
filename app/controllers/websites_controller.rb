@@ -1,4 +1,9 @@
 class WebsitesController < ApplicationController
+  include FilterableIndex
+  include SortableIndex
+
+  FILTER_KEYS = %i[q seed_filter default_language graph_name distillator_mode].freeze
+
   before_action :set_website, only: [:show, :edit, :update, :destroy, :delete_all_statements]
 
   def test_api
@@ -27,12 +32,60 @@ class WebsitesController < ApplicationController
   # GET /websites
   # GET /websites.json
   def index
-    if params[:q]
-      like_keyword = "%#{params[:q]}%"
-      @websites = Website.where("name LIKE ?", like_keyword)
-    else
-      @websites = Website.all.order(:name)
+    return render json: Distillator::FetchCacheStore.lookup_by_term(params[:term]) if wringer_lookup_request?
+
+    cleaned = extract_allowed_filters(params, FILTER_KEYS)
+
+    canonical = cleaned.merge(
+      sort: params[:sort],
+      direction: params[:direction]
+    ).compact.stringify_keys
+
+    raw = params.to_unsafe_h.slice(
+      *FILTER_KEYS.map(&:to_s),
+      "sort",
+      "direction"
+    ).compact
+
+    normalized_raw = extract_allowed_filters(raw, FILTER_KEYS).merge(
+      sort: raw["sort"],
+      direction: raw["direction"]
+    ).compact.stringify_keys
+
+    return redirect_to(websites_path(canonical)) if canonical != normalized_raw
+
+    @filters = cleaned
+
+    @current_sort = params[:sort].presence
+    @current_direction = params[:direction].presence
+
+    @websites = Website.all
+
+    if @filters[:q]
+      keyword = "%#{@filters[:q].downcase}%"
+      @websites = @websites.where("LOWER(name) LIKE ?", keyword)
     end
+
+    if @filters[:seed_filter]
+      keyword = "%#{@filters[:seed_filter].downcase}%"
+      @websites = @websites.where("LOWER(seedurl) LIKE ?", keyword)
+    end
+
+    if @filters[:default_language]
+      @websites = @websites.where(default_language: @filters[:default_language])
+    end
+
+    if @filters[:graph_name]
+      keyword = "%#{@filters[:graph_name].downcase}%"
+      @websites = @websites.where("LOWER(graph_name) LIKE ?", keyword)
+    end
+
+    if @filters[:distillator_mode]
+      @websites = @websites.where(distillator_mode: @filters[:distillator_mode])
+    end
+
+    @rollout_counts = Website.group(:distillator_mode).count
+
     @total_statements = Statement.all.count
     @statements_errors = Statement.where("cache LIKE ?", "%error%")
                                    .where(cache_refreshed: [(Time.zone.now - 24.hours)..(Time.zone.now)])
@@ -41,9 +94,15 @@ class WebsitesController < ApplicationController
     @statements_grouped = Statement.joins(webpage: :website).group(:seedurl).count
     @statements_refreshed_24hr = Statement.joins(webpage: :website).where(cache_refreshed: [(Time.zone.now - 24.hours)..(Time.zone.now)]).group(:seedurl).count
     @statements_updated_24hr = Statement.joins(webpage: :website).where(cache_changed: [(Time.zone.now - 24.hours)..(Time.zone.now)]).group(:seedurl).count
-    @webpages = Webpage.group(:website).count
+    @webpages = Webpage.group(:website_id).count
     @flags = Statement.joins(webpage: :website).where(status: ["problem"], selected_individual: true, webpages: { rdfs_class_id: 1}).group(:seedurl).count
     @updated = Statement.joins(webpage: :website).where(status: "updated", selected_individual: true, webpages: { rdfs_class_id: 1}).group(:seedurl).count
+
+    if computed_sort?
+      @websites = sort_in_memory(@websites)
+    else
+      @websites = @websites.order(sort_column => sort_direction.to_sym)
+    end
   
   end
 
@@ -139,6 +198,58 @@ class WebsitesController < ApplicationController
 
   # Never trust parameters from the scary internet, only allow the white list through.
   def website_params
-    params.require(:website).permit(:name, :seedurl, :graph_name, :default_language, :schedule_every_days, :schedule_time, :last_refresh)
+    params.require(:website).permit(:name, :seedurl, :graph_name, :default_language, :schedule_every_days, :schedule_time, :last_refresh, :distillator_mode)
+  end
+
+  def sort_column
+    allowed_columns = %w[
+      name seedurl default_language schedule_every_days
+      schedule_time last_refresh graph_name
+      webpages_count statements_count refreshed_24h updated_24h
+    ]
+    normalized_sort_param(params[:sort], allowed: allowed_columns, default: "name")
+  end
+
+  def sort_direction
+    normalized_direction_param(params[:direction], default: "asc")
+  end
+
+  def computed_sort?
+    %w[webpages_count statements_count refreshed_24h updated_24h].include?(sort_column)
+  end
+
+  def sort_in_memory(relation)
+    direction = sort_direction == "desc" ? -1 : 1
+
+    relation.to_a.sort_by do |website|
+      value =
+        case sort_column
+        when "webpages_count"
+          @webpages[website.id] || 0
+        when "statements_count"
+          @statements_grouped[website.seedurl] || 0
+        when "refreshed_24h"
+          @statements_refreshed_24hr[website.seedurl] || 0
+        when "updated_24h"
+          @statements_updated_24hr[website.seedurl] || 0
+        else
+          0
+        end
+
+      direction == 1 ? value : -value
+    end
+  end
+
+  def wringer_lookup_request?
+    params[:term].present? && request.format.json?
+  end
+
+  def wring_invalid_response
+    case params[:format].to_s
+    when "html"
+      redirect_to websites_path, notice: "INVALID params for wringing."
+    else
+      head :no_content
+    end
   end
 end

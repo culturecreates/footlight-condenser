@@ -1,14 +1,35 @@
 
+<h1>
+  <%= @website.name %>
+  <span class="rollout-inline"><%= website_rollout_badge(@website) %></span>
+</h1>
 
-<p>
-  <strong>Name:</strong>
-  <%= @website.name %> 
-</p>
+<p class="rollout-note"><%= website_rollout_explanation(@website) %></p>
 
 <p>
   <strong>Seedurl:</strong>
   <%= @website.seedurl %>
 </p>
+
+<p>
+  <strong>Cache Rollout:</strong>
+  <%= website_rollout_badge(@website) %>
+</p>
+
+<% cache_links = website_cache_links(@website) %>
+<h2>Cache</h2>
+<p><strong>Production state:</strong> <%= website_rollout_explanation(@website) %></p>
+<ul>
+  <% if cache_links[:active_cache_url].present? %>
+    <li><%= link_to cache_links[:label], cache_links[:active_cache_url] %></li>
+  <% end %>
+  <% cache_links[:secondary_links].each do |link| %>
+    <li><%= link_to link[:label], link[:url] %></li>
+  <% end %>
+</ul>
+<% if cache_links[:warning].present? %>
+  <p><strong>Warning:</strong> <%= cache_links[:warning] %></p>
+<% end %>
 
 <p>
   <strong>Default Language:</strong>
@@ -45,4 +66,3 @@
  <%= button_to 'Destroy all statements', delete_all_statements_websites_path(id: @website.id), method: :delete, data: { confirm: 'Are you sure to delete all #{@website.seedurl} statements ?' } %>
  <%= button_to 'Destroy all webpages', delete_all_webpages_websites_path(id: @website.id), method: :delete, data: { confirm: 'Are you sure to delete all #{@website.seedurl} statements ?' } %>
  <%= button_to 'Destroy all EVENT webpages', delete_all_event_webpages_websites_path(id: @website.id), method: :delete, data: { confirm: 'Are you sure to delete all #{@website.seedurl} statements ?' } %>
-

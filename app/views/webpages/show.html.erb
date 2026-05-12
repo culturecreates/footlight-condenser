@@ -7,6 +7,31 @@
 </p>
 
 <p>
+  <strong>Rollout:</strong>
+  <%= webpage_rollout_badge(@webpage) %>
+</p>
+<p class="rollout-note"><%= webpage_rollout_explanation(@webpage) %></p>
+
+<% cache_links = webpage_cache_links(@webpage) %>
+<p>
+  <strong>Cache:</strong>
+  <% if cache_links[:disabled] %>
+    <span><%= cache_links[:warning] %></span>
+  <% elsif cache_links[:active_cache_url].present? %>
+    <%= link_to cache_links[:label], cache_links[:active_cache_url] %>
+    | <%= operator_active_backend_badge(cache_links) %>
+    <% cache_links[:secondary_links].each do |link| %>
+      | <%= link_to link[:label], link[:url] %>
+    <% end %>
+    <% if cache_links[:warning].present? %>
+      | <span><%= cache_links[:warning] %></span>
+    <% end %>
+    |
+  <% end %>
+  <%= link_to "Diagnose refresh", distillator_refresh_preview_url_for(@webpage.url) %>
+</p>
+
+<p>
   <strong>created:</strong>
   <%= @webpage.created_at %>
 </p>
