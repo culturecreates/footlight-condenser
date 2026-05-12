@@ -1,0 +1,58 @@
+<h1>Cache Comparison</h1>
+
+<p class="cache-page-notice cache-compare-warning">Read-only comparison only. No cache refresh was performed. Legacy data may be read from the configured Wringer cache endpoint.</p>
+
+<p><strong>URI:</strong> <span class="cache-normalized-url"><%= @comparison[:uri] %></span></p>
+<p><strong>URI key:</strong> <span class="cache-uri-key"><%= @comparison[:uri_key] || "Unavailable" %></span></p>
+<p><strong>Legacy source:</strong> <%= @comparison[:legacy_source] %></p>
+<p><strong>Legacy lookup error:</strong> <%= @comparison[:legacy_lookup_error] || "None" %></p>
+<p><strong>Condenser source:</strong> <%= @comparison[:distillator_source] %></p>
+
+<h2>Migration confidence</h2>
+<p><strong>Same:</strong> <%= @comparison.dig(:summary, :same) %></p>
+<p><strong>Promotable:</strong> <%= @comparison.dig(:summary, :promotable) %></p>
+<p><strong>HTTP code difference:</strong> <%= @comparison.dig(:summary, :http_code_difference) %></p>
+<p><strong>Final URL difference:</strong> <%= @comparison.dig(:summary, :final_url_difference) %></p>
+<p><strong>Content type difference:</strong> <%= @comparison.dig(:summary, :content_type_difference) %></p>
+<p><strong>HTML hash difference:</strong> <%= @comparison.dig(:summary, :html_hash_difference) %></p>
+<p><strong>Body byte-size difference:</strong> <%= @comparison.dig(:summary, :body_byte_difference) %></p>
+<p><strong>Title difference:</strong> <%= @comparison.dig(:summary, :title_difference) %></p>
+<p><strong>Blocking regressions:</strong> <%= Array(@comparison.dig(:summary, :blocking_regressions)).join(", ").presence || "None" %></p>
+<p><strong>Improvements:</strong> <%= Array(@comparison.dig(:summary, :improvements)).join(", ").presence || "None" %></p>
+
+<h2>Presence</h2>
+<p><strong>Legacy cache missing:</strong> <%= @comparison.dig(:missing, :legacy) %></p>
+<p><strong>Condenser cache missing:</strong> <%= @comparison.dig(:missing, :distillator) %></p>
+
+<table class="cache-table cache-compare-table">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Same?</th>
+      <th>Status</th>
+      <th>Legacy</th>
+      <th>Condenser</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% @comparison[:diffs].each do |field, diff| %>
+      <tr class="<%= diff[:same] ? 'cache-compare-same' : 'cache-compare-different' %>">
+        <td><%= field %></td>
+        <td><%= diff[:same] %></td>
+        <td><%= diff[:classification] %></td>
+        <td><pre class="cache-json-block"><%= JSON.pretty_generate(diff[:legacy]) rescue diff[:legacy].inspect %></pre></td>
+        <td><pre class="cache-json-block"><%= JSON.pretty_generate(diff[:distillator]) rescue diff[:distillator].inspect %></pre></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+
+<details class="cache-detail-details">
+  <summary>Raw payloads</summary>
+  <div class="cache-detail-card">
+    <h3>Legacy payload</h3>
+    <pre class="cache-json-block"><%= JSON.pretty_generate(@comparison[:legacy_cache]) rescue @comparison[:legacy_cache].inspect %></pre>
+    <h3>Condenser payload</h3>
+    <pre class="cache-json-block"><%= JSON.pretty_generate(@comparison[:distillator_cache]) rescue @comparison[:distillator_cache].inspect %></pre>
+  </div>
+</details>

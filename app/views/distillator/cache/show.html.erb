@@ -1,0 +1,146 @@
+<h1>Condenser Cache Detail</h1>
+
+<% if refresh_ui_enabled? %>
+  <p class="cache-page-note">Fetch and refresh cache entries from this page.</p>
+<% else %>
+  <p class="cache-page-notice">Cache inspection mode. Refresh actions are not available in this environment.</p>
+<% end %>
+<p class="cache-page-note">Cache rows are operational fetch records, not manually edited website records. Refresh instead of edit or destroy.</p>
+
+<section class="cache-detail-cards">
+  <article class="cache-detail-card">
+    <h2>Status card</h2>
+    <p><strong>Operator health:</strong> <%= cache_health_badge(@cache_payload) %></p>
+    <p><strong>HTTP status:</strong> <%= cache_status_badge(@cache_payload) %></p>
+    <p><strong>Transport:</strong> <%= cache_transport_status(@cache_payload) %></p>
+    <p><strong>Content:</strong> <%= cache_content_status(@cache_payload) %></p>
+    <p><strong>Blocking issue:</strong> <%= cache_blocking_issue_key(@cache_payload).presence || "none" %></p>
+    <p><strong>Last good preserved:</strong> <%= cache_last_good_content_preserved?(@cache_payload) ? "yes" : "no" %></p>
+    <% if cache_content_failure_warning(@cache_payload).present? %>
+      <p class="cache-content-warning"><strong><%= cache_content_failure_warning(@cache_payload) %></strong></p>
+      <p><strong>Failed attempt body:</strong> not stored separately.</p>
+    <% end %>
+    <p><strong>Health reasons:</strong> <%= Array(@cache_payload[:health_reasons]).presence&.join(", ") || "None" %></p>
+  </article>
+
+  <article class="cache-detail-card">
+    <h2>Identity card</h2>
+    <p><strong>Normalized URL:</strong> <span class="cache-normalized-url"><%= @cache_payload[:normalized_url] %></span></p>
+    <p><strong>URI key:</strong> <span class="cache-uri-key"><%= @cache_payload[:uri_key] %></span></p>
+    <p><strong>URI alias:</strong> <span class="cache-uri-key"><%= @cache_payload[:uri] %></span></p>
+    <p><strong>Name:</strong> <%= @cache_payload[:name] %></p>
+    <p><strong>Final URL:</strong> <span class="cache-normalized-url"><%= @cache_payload[:final_url].presence || "Not recorded" %></span></p>
+    <p><strong>Redirect summary:</strong> <%= cache_redirect_summary(@cache_payload) %></p>
+  </article>
+
+  <article class="cache-detail-card">
+    <h2>Last fetch card</h2>
+    <p><strong>Scrape date:</strong> <%= cache_timestamp_label(@cache_payload[:scrape_date]) %></p>
+    <p><strong>Successful refresh:</strong> <%= cache_timestamp_label(@cache_payload[:successful_refresh]) %></p>
+    <p><strong>Fetch path:</strong> <%= @cache_payload[:fetch_path].presence || "unknown" %></p>
+    <p><strong>Native ineligible reason:</strong> <%= @cache_payload[:native_ineligible_reason].presence || "None" %></p>
+    <p><strong>Network status:</strong> <%= @cache_payload[:network_status].presence || "unknown" %></p>
+    <p><strong>Content type:</strong> <%= @cache_payload[:content_type].presence || "unknown" %></p>
+    <p><strong>Redirect type:</strong> <%= @cache_payload[:redirect_type].presence || "none" %></p>
+    <p><strong>Updated at:</strong> <%= cache_timestamp_label(@cache_payload[:updated_at]) %></p>
+    <p><strong>Created at:</strong> <%= cache_timestamp_label(@cache_payload[:created_at]) %></p>
+    <% if @last_action_result.present? %>
+      <p><strong>Last fetch mode:</strong> <%= @last_action_result["fetch_kind_label"] %></p>
+      <p><strong>Last fetch path:</strong> <%= @last_action_result["fetch_path"] %></p>
+      <p><strong>Last cache reason:</strong> <%= @last_action_result["cache_reason"] %></p>
+      <p><strong>Last HTML result:</strong> <%= @last_action_result["html_state"] %></p>
+    <% end %>
+  </article>
+
+  <article class="cache-detail-card">
+    <h2>Content card</h2>
+    <p><strong>HTML bytes:</strong> <%= number_with_delimiter(@cache_payload[:html_bytes]) %></p>
+    <p><strong>Body bytes:</strong> <%= number_with_delimiter(@cache_payload[:body_bytes]) %></p>
+    <p><strong>Has HTML:</strong> <%= @cache_payload[:has_html] %></p>
+    <p><strong>Content preview:</strong></p>
+    <p class="cache-content-preview"><%= cache_html_preview_text(@cache_payload) %></p>
+    <p><strong>Raw cached HTML:</strong> <%= link_to "Open raw cached HTML", cache_raw_view_url(@cache), data: { copy_url: cache_raw_url(@cache) } %></p>
+  </article>
+</section>
+
+<details class="cache-detail-details">
+  <summary>Diagnostics card</summary>
+  <div class="cache-detail-card">
+    <p><strong>Signals</strong></p>
+    <pre class="cache-json-block"><%= JSON.pretty_generate(@cache_payload[:signals] || {}) %></pre>
+
+    <p><strong>Hints</strong></p>
+    <% if cache_hints(@cache_payload).any? %>
+      <ul>
+        <% cache_hints(@cache_payload).each do |hint| %>
+          <li><%= hint %></li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p>None.</p>
+    <% end %>
+
+    <p><strong>Redirect Chain</strong></p>
+    <% if cache_redirect_chain(@cache_payload).any? %>
+      <ol>
+        <% cache_redirect_chain(@cache_payload).each do |hop| %>
+          <li><%= hop %></li>
+        <% end %>
+      </ol>
+    <% else %>
+      <p>None.</p>
+    <% end %>
+  </div>
+</details>
+
+<details class="cache-detail-details">
+  <summary>Compatibility card</summary>
+  <div class="cache-detail-card cache-shortcuts">
+    <h2>Compatibility API</h2>
+    <ul class="cache-help-list">
+      <li><strong>Legacy-compatible endpoint:</strong> <code>/websites/wring.json?uri=URL</code></li>
+      <li><strong>Cached Wringer-compatible JSON:</strong> <%= link_to "Open cached Wringer-compatible JSON", cache_wring_json_view_url(@cache), data: { copy_url: cache_wring_json_url(@cache) } %></li>
+      <li><strong>Compare:</strong> <%= link_to "Open cache comparison", cache_compare_url(@cache), data: { copy_url: cache_compare_url(@cache) } %></li>
+      <li><strong>Legacy JSON compatibility URL:</strong> <%= link_to "Open legacy compatibility JSON", legacy_wring_json_url(@cache), data: { copy_url: legacy_wring_json_url(@cache) } %></li>
+    </ul>
+
+    <h2>Compatibility actions</h2>
+    <div class="cache-actions">
+      <div class="cache-action-group">
+        <strong>View</strong>
+        <%= link_to "Show", distillator_cache_path(@cache), data: { copy_url: distillator_cache_path(@cache) } %>
+        <%= link_to "Raw", cache_raw_view_url(@cache), data: { copy_url: cache_raw_url(@cache) } %>
+        <%= link_to ".json", cache_wring_json_url(@cache), data: { copy_url: cache_wring_json_url(@cache) } %>
+        <%= link_to "Pretty JSON", cache_wring_json_view_url(@cache), data: { copy_url: cache_wring_json_url(@cache) } %>
+      </div>
+      <div class="cache-action-group">
+        <strong>Diagnose</strong>
+        <%= link_to "Compare", cache_compare_url(@cache), data: { copy_url: cache_compare_url(@cache) } %>
+      </div>
+    </div>
+  </div>
+</details>
+
+<% if refresh_ui_enabled? %>
+  <div class="cache-action-group">
+    <strong>Refresh</strong>
+    <%= button_to cache_fetch_kind_label("normal"), fetch_distillator_cache_index_path, method: :post, params: { uri: @cache.normalized_url, fetch_kind: "normal", force_scrape: true }, form_class: "cache-refresh-button" %>
+    <%= button_to cache_fetch_kind_label("rendered"), fetch_distillator_cache_index_path, method: :post, params: { uri: @cache.normalized_url, fetch_kind: "rendered", force_scrape: true, include_fragment: true }, form_class: "cache-refresh-button" %>
+    <%= button_to cache_fetch_kind_label("post"), fetch_distillator_cache_index_path, method: :post, params: { uri: @cache.normalized_url, fetch_kind: "post", force_scrape: true }, form_class: "cache-refresh-button" %>
+  </div>
+<% end %>
+
+<% if @preview.present? %>
+  <div class="cache-detail-card">
+    <h2>Refresh Preview</h2>
+    <p><strong>Chosen fetch mode:</strong> <%= @preview[:fetch_kind] %></p>
+    <p><strong>Would refresh?</strong> <%= @preview[:would_refresh] %></p>
+    <p><strong>Reason:</strong> <%= @preview[:reason] %></p>
+    <p><strong>Cache exists?</strong> <%= @preview[:cache_exists] %></p>
+    <p><strong>Scrape date:</strong> <%= cache_timestamp_label(@preview[:scrape_date]) %></p>
+    <p><strong>Successful refresh:</strong> <%= cache_timestamp_label(@preview[:successful_refresh]) %></p>
+    <p><strong>HTTP response code:</strong> <%= @preview[:http_response_code] %></p>
+    <p><strong>URI key:</strong> <%= @preview[:uri_key] %></p>
+    <p><strong>Normalized URL:</strong> <%= @preview[:normalized_url] %></p>
+  </div>
+<% end %>

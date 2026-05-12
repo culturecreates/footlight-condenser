@@ -77,12 +77,12 @@ class WringerClient
     body
   end
 
-  def extract_final_url(_response)
-    nil
+  def extract_final_url(response)
+    response[:final_url]
   end
 
-  def extract_redirect_chain(_response)
-    []
+  def extract_redirect_chain(response)
+    response[:redirect_chain] || []
   end
 
   def extract_signals(response)

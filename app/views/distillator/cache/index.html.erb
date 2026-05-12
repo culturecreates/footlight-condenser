@@ -1,0 +1,310 @@
+<h1>Condenser Cache</h1>
+
+<% if refresh_ui_enabled? %>
+  <p class="cache-page-note">Fetch and refresh cache entries from this page.</p>
+<% else %>
+  <p class="cache-page-notice">Cache inspection mode. Refresh actions are not available in this environment.</p>
+<% end %>
+<% if @last_action_result.present? %>
+  <div class="cache-page-notice cache-last-action-result">
+    <h2>Last Action Result</h2>
+    <p><strong>Fetch mode:</strong> <%= @last_action_result["fetch_kind_label"] %></p>
+    <p><strong>Normalized URL:</strong> <%= @last_action_result["normalized_url"] %></p>
+    <p><strong>HTTP response code:</strong> <%= @last_action_result["http_response_code"] || "Not recorded" %></p>
+    <p><strong>Fetch path:</strong> <%= @last_action_result["fetch_path"].presence || "unknown" %></p>
+    <p><strong>Cache reason:</strong> <%= @last_action_result["cache_reason"].presence || "unknown" %></p>
+    <p><strong>HTML result:</strong> <%= @last_action_result["html_state"].presence || "unknown" %></p>
+  </div>
+<% end %>
+<p class="cache-page-note"><strong>Scrape date</strong> means the last attempted scrape. <strong>Successful refresh</strong> means the last successful 2xx content refresh.</p>
+<p class="cache-page-note">Cache rows are operational fetch records, not manually edited website records. Refresh instead of edit or destroy.</p>
+
+<p class="cache-view-toggle">
+  <strong>Layout:</strong>
+  <%= link_to "Rich view", distillator_cache_index_path(@preserved_index_params.merge(view: "rich")) %>
+  <%= link_to "Compatibility view", distillator_cache_index_path(@preserved_index_params.merge(view: "parity")) %>
+</p>
+
+<section class="cache-summary-cards">
+  <% cache_operator_summary_cards(@summary_cards).each do |card| %>
+    <article class="cache-summary-card cache-summary-card-<%= card[:tone] %>">
+      <p class="cache-summary-card-label"><%= card[:title] %></p>
+      <p class="cache-summary-card-count"><%= number_with_delimiter(card[:count]) %></p>
+      <p class="cache-summary-card-detail"><%= card[:description] %></p>
+    </article>
+  <% end %>
+</section>
+
+<section class="cache-quick-filter-strip">
+  <strong>Quick filters</strong>
+  <% cache_quick_filters.each do |quick_filter| %>
+    <%= link_to quick_filter[:label], distillator_cache_index_path(quick_filter[:params].merge(view: @view_mode)), class: "cache-quick-filter" %>
+  <% end %>
+</section>
+
+<% if refresh_ui_enabled? %>
+  <section class="cache-fetch-panel">
+    <h2>Fetch URL</h2>
+    <%= form_with url: fetch_distillator_cache_index_path, method: :post, local: true, html: { autocomplete: "off" } do %>
+      <p>
+        <%= label_tag :uri, "URI" %><br>
+        <%= text_field_tag :uri, nil, size: 100 %>
+      </p>
+      <%= hidden_field_tag :force_scrape, "true" %>
+      <%= hidden_field_tag :include_fragment, "false" %>
+      <% @preserved_index_params.each do |key, value| %>
+        <%= hidden_field_tag key, value %>
+      <% end %>
+      <p>
+        <%= button_tag cache_fetch_kind_label("normal"), name: "fetch_kind", value: "normal" %>
+        <%= button_tag cache_fetch_kind_label("rendered"), name: "fetch_kind", value: "rendered" %>
+        <%= button_tag cache_fetch_kind_label("post"), name: "fetch_kind", value: "post" %>
+      </p>
+    <% end %>
+    <ul class="cache-help-list">
+      <li><%= cache_fetch_kind_description("normal") %></li>
+      <li><%= cache_fetch_kind_description("rendered") %></li>
+      <li><%= cache_fetch_kind_description("post") %></li>
+    </ul>
+  </section>
+<% end %>
+
+<% sortable_filters = @filters.merge(per_page: @pagination[:per_page]) %>
+
+<% if @view_mode == "parity" %>
+<%= form_with url: distillator_cache_index_path, method: :get, local: true, html: { autocomplete: "off" } do %>
+  <%= hidden_field_tag :sort, @sort if @sort.present? %>
+  <%= hidden_field_tag :direction, @direction if @direction.present? %>
+  <%= hidden_field_tag :per_page, @pagination[:per_page] if @pagination[:per_page].to_i != Distillator::CacheController::DEFAULT_PER_PAGE %>
+  <table class="cache-table cache-table-compact cache-table-parity">
+    <thead>
+      <tr>
+        <th><%= admin_sortable("normalized_url", "Uri", filters: sortable_filters, current_sort: @sort, current_direction: @direction) %></th>
+        <th><%= admin_sortable("http_response_code", "HTTP Response", filters: sortable_filters, current_sort: @sort, current_direction: @direction) %></th>
+        <th><%= admin_sortable("scrape_date", "Scrape Date", filters: sortable_filters, current_sort: @sort, current_direction: @direction) %></th>
+        <th><%= admin_sortable("successful_refresh", "Last Successful Refresh", filters: sortable_filters, current_sort: @sort, current_direction: @direction) %></th>
+        <th><%= admin_sortable("name", "Page Name", filters: sortable_filters, current_sort: @sort, current_direction: @direction) %></th>
+        <th>Html</th>
+        <th>Operations</th>
+        <th>Fetch actions</th>
+      </tr>
+      <tr>
+        <td><%= text_field_tag :term, @filters[:term], autocomplete: "off" %></td>
+        <td class="cache-filter-stack">
+          <%= text_field_tag :http_response_code, @filters[:http_response_code], autocomplete: "off", placeholder: "code" %>
+          <%= select_tag :status_group, options_for_select([["Any group", ""], ["2xx", "2xx"], ["3xx", "3xx"], ["4xx", "4xx"], ["5xx", "5xx"], ["nil", "nil"]], @filters[:status_group]) %>
+        </td>
+        <td><%= select_tag :last_attempt, options_for_select([["Any", ""], ["never", "never"], ["last_hour", "last_hour"], ["last_24h", "last_24h"], ["last_7d", "last_7d"], ["older_7d", "older_7d"]], @filters[:last_attempt]) %></td>
+        <td><%= select_tag :last_success, options_for_select([["Any", ""], ["never", "never"], ["last_hour", "last_hour"], ["last_24h", "last_24h"], ["last_7d", "last_7d"], ["older_7d", "older_7d"]], @filters[:last_success]) %></td>
+        <td><%= select_tag :health, options_for_select([["Any", ""], ["healthy", "healthy"], ["preserved_after_failure", "preserved_after_failure"], ["never_fetched", "never_fetched"], ["network_failed", "network_failed"], ["blocked", "blocked"], ["empty_body", "empty_body"], ["redirect_changed", "redirect_changed"], ["stale", "stale"], ["unknown", "unknown"]], @filters[:health]) %></td>
+        <td><%= select_tag :has_html, options_for_select([["Any", ""], ["true", "true"], ["false", "false"]], @filters[:has_html]) %></td>
+        <td class="cache-filter-actions" colspan="2">
+          <%= submit_tag "Apply filters" %>
+          <%= link_to "Reset filters", distillator_cache_index_path(view: @view_mode) %>
+        </td>
+      </tr>
+    </thead>
+    <tbody>
+      <% @caches.each do |cache| %>
+        <tr>
+          <td>
+            <div class="cache-normalized-url"><%= cache[:normalized_url] %></div>
+            <div class="cache-uri-key"><small><%= cache[:uri_key] %></small></div>
+            <% if cache_content_failure_warning(cache).present? %>
+              <div class="cache-content-warning"><small><strong><%= cache_content_failure_warning(cache) %></strong></small></div>
+              <div class="cache-content-warning"><small>Transport: <%= cache_transport_status(cache) %></small></div>
+              <div class="cache-content-warning"><small>Content: <%= cache_content_status(cache) %></small></div>
+              <div class="cache-content-warning"><small>Blocking issue: <%= cache_blocking_issue_key(cache) %></small></div>
+              <div class="cache-content-warning"><small>Last good content preserved: <%= cache_last_good_content_preserved?(cache) ? "yes" : "no" %></small></div>
+            <% end %>
+          </td>
+          <td><%= cache_status_badge(cache) %></td>
+          <td><%= cache_timestamp_label(cache[:scrape_date]) %></td>
+          <td><%= cache_timestamp_label(cache[:successful_refresh]) %></td>
+          <td><%= cache[:name].presence || "Unnamed cache row" %></td>
+          <td><small><%= cache_html_preview_text(cache) %></small></td>
+          <td class="cache-actions">
+            <div class="cache-action-group">
+              <strong>View</strong>
+              <%= link_to "Show", distillator_cache_path(cache[:id]), data: { copy_url: distillator_cache_path(cache[:id]) } %>
+              <%= link_to "Raw", cache_raw_view_url(cache), data: { copy_url: cache_raw_url(cache) } %>
+              <%= link_to ".json", cache_wring_json_url(cache), data: { copy_url: cache_wring_json_url(cache) } %>
+              <%= link_to "Pretty JSON", cache_wring_json_view_url(cache), data: { copy_url: cache_wring_json_url(cache) } %>
+            </div>
+            <div class="cache-action-group">
+              <strong>Diagnose</strong>
+              <%= link_to "Compare", cache_compare_url(cache), data: { copy_url: cache_compare_url(cache) } %>
+            </div>
+          </td>
+          <td class="cache-actions">
+            <% if refresh_ui_enabled? %>
+              <div class="cache-action-group">
+                <strong>Refresh</strong>
+                <%= button_to cache_fetch_kind_label("normal"), fetch_distillator_cache_index_path, method: :post, params: @preserved_index_params.merge(uri: cache[:normalized_url], fetch_kind: "normal", force_scrape: true), form_class: "cache-refresh-button" %>
+                <%= button_to cache_fetch_kind_label("rendered"), fetch_distillator_cache_index_path, method: :post, params: @preserved_index_params.merge(uri: cache[:normalized_url], fetch_kind: "rendered", force_scrape: true, include_fragment: true), form_class: "cache-refresh-button" %>
+                <%= button_to cache_fetch_kind_label("post"), fetch_distillator_cache_index_path, method: :post, params: @preserved_index_params.merge(uri: cache[:normalized_url], fetch_kind: "post", force_scrape: true), form_class: "cache-refresh-button" %>
+              </div>
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>
+<% else %>
+  <details class="cache-advanced-filters">
+    <summary>Advanced filters</summary>
+    <%= form_with url: distillator_cache_index_path, method: :get, local: true, html: { autocomplete: "off", class: "cache-advanced-filters-form" } do %>
+      <%= hidden_field_tag :sort, @sort if @sort.present? %>
+      <%= hidden_field_tag :direction, @direction if @direction.present? %>
+      <%= hidden_field_tag :per_page, @pagination[:per_page] if @pagination[:per_page].to_i != Distillator::CacheController::DEFAULT_PER_PAGE %>
+      <div class="cache-filter-grid">
+        <div>
+          <%= label_tag :term, "Term" %>
+          <%= text_field_tag :term, @filters[:term], autocomplete: "off" %>
+        </div>
+        <div>
+          <%= label_tag :health, "Health" %>
+          <%= select_tag :health, options_for_select([["Any", ""], ["healthy", "healthy"], ["preserved_after_failure", "preserved_after_failure"], ["never_fetched", "never_fetched"], ["network_failed", "network_failed"], ["blocked", "blocked"], ["empty_body", "empty_body"], ["redirect_changed", "redirect_changed"], ["stale", "stale"], ["unknown", "unknown"]], @filters[:health]) %>
+        </div>
+        <div>
+          <%= label_tag :http_response_code, "HTTP code" %>
+          <%= text_field_tag :http_response_code, @filters[:http_response_code], autocomplete: "off", placeholder: "code" %>
+        </div>
+        <div>
+          <%= label_tag :status_group, "Status group" %>
+          <%= select_tag :status_group, options_for_select([["Any group", ""], ["2xx", "2xx"], ["3xx", "3xx"], ["4xx", "4xx"], ["5xx", "5xx"], ["nil", "nil"]], @filters[:status_group]) %>
+        </div>
+        <div>
+          <%= label_tag :has_html, "Has HTML" %>
+          <%= select_tag :has_html, options_for_select([["Any", ""], ["true", "true"], ["false", "false"]], @filters[:has_html]) %>
+        </div>
+        <div>
+          <%= label_tag :network_status, "Network status" %>
+          <%= text_field_tag :network_status, @filters[:network_status], autocomplete: "off" %>
+        </div>
+        <div>
+          <%= label_tag :content_type, "Content type" %>
+          <%= select_tag :content_type, options_for_select([["Any", ""], ["html", "html"], ["json", "json"], ["unknown", "unknown"]], @filters[:content_type]) %>
+        </div>
+        <div>
+          <%= label_tag :redirected, "Redirected" %>
+          <%= select_tag :redirected, options_for_select([["Any", ""], ["true", "true"], ["false", "false"]], @filters[:redirected]) %>
+        </div>
+        <div>
+          <%= label_tag :hint, "Hint" %>
+          <%= text_field_tag :hint, @filters[:hint], autocomplete: "off" %>
+        </div>
+        <div>
+          <%= label_tag :last_attempt, "Last attempt" %>
+          <%= select_tag :last_attempt, options_for_select([["Any", ""], ["never", "never"], ["last_hour", "last_hour"], ["last_24h", "last_24h"], ["last_7d", "last_7d"], ["older_7d", "older_7d"]], @filters[:last_attempt]) %>
+        </div>
+        <div>
+          <%= label_tag :last_success, "Last success" %>
+          <%= select_tag :last_success, options_for_select([["Any", ""], ["never", "never"], ["last_hour", "last_hour"], ["last_24h", "last_24h"], ["last_7d", "last_7d"], ["older_7d", "older_7d"]], @filters[:last_success]) %>
+        </div>
+      </div>
+      <p class="cache-filter-actions">
+        <%= submit_tag "Apply filters" %>
+        <%= link_to "Reset filters", distillator_cache_index_path(view: @view_mode) %>
+      </p>
+    <% end %>
+  </details>
+
+  <table class="cache-table cache-table-compact">
+    <thead>
+      <tr>
+        <th>Health</th>
+        <th><%= admin_sortable("normalized_url", "URI / Name", filters: sortable_filters, current_sort: @sort, current_direction: @direction) %></th>
+        <th><%= admin_sortable("http_response_code", "HTTP", filters: sortable_filters, current_sort: @sort, current_direction: @direction) %></th>
+        <th><%= admin_sortable("scrape_date", "Last attempt", filters: sortable_filters, current_sort: @sort, current_direction: @direction) %></th>
+        <th><%= admin_sortable("successful_refresh", "Last success", filters: sortable_filters, current_sort: @sort, current_direction: @direction) %></th>
+        <th><%= admin_sortable("html_bytes", "Size", filters: sortable_filters, current_sort: @sort, current_direction: @direction) %></th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      <% @caches.each do |cache| %>
+        <tr>
+          <td><%= cache_health_badge(cache) %></td>
+          <td>
+            <div><strong><%= cache[:name].presence || "Unnamed cache row" %></strong></div>
+            <div class="cache-normalized-url"><%= cache[:normalized_url] %></div>
+            <div class="cache-uri-key"><%= cache[:uri_key] %></div>
+            <% if cache_content_failure_warning(cache).present? %>
+              <div class="cache-content-warning"><small><strong><%= cache_content_failure_warning(cache) %></strong></small></div>
+              <div class="cache-content-warning"><small>Transport: <%= cache_transport_status(cache) %></small></div>
+              <div class="cache-content-warning"><small>Content: <%= cache_content_status(cache) %></small></div>
+              <div class="cache-content-warning"><small>Blocking issue: <%= cache_blocking_issue_key(cache) %></small></div>
+              <div class="cache-content-warning"><small>Last good content preserved: <%= cache_last_good_content_preserved?(cache) ? "yes" : "no" %></small></div>
+            <% end %>
+          </td>
+          <td>
+            <div><%= cache_status_badge(cache) %></div>
+            <div><small>Network: <%= cache_signal(cache, :network_status).presence || "unknown" %></small></div>
+            <div><small>Content: <%= cache_signal(cache, :content_type).presence || "unknown" %></small></div>
+            <div><small>Redirect: <%= cache_redirect_chain(cache).any? ? "yes" : "no" %></small></div>
+            <div><small>Path: <%= cache[:fetch_path].presence || "unknown" %></small></div>
+          </td>
+          <td><%= cache_timestamp_label(cache[:scrape_date]) %></td>
+          <td><%= cache_timestamp_label(cache[:successful_refresh]) %></td>
+          <td>
+            <div><%= cache_html_badge(cache) %></div>
+            <div><small>HTML: <%= number_with_delimiter(cache[:html_bytes]) %></small></div>
+            <div><small>Body: <%= number_with_delimiter(cache[:body_bytes]) %></small></div>
+            <div><small>Hints: <%= cache_hints(cache).presence&.join(", ") || "None" %></small></div>
+            <% if cache[:native_ineligible_reason].present? %>
+              <div><small><%= cache[:native_ineligible_reason] %></small></div>
+            <% end %>
+            <div><small><%= cache_html_preview_text(cache) %></small></div>
+          </td>
+          <td class="cache-actions">
+            <div class="cache-action-group">
+              <strong>View</strong>
+              <%= link_to "Show", distillator_cache_path(cache[:id]), data: { copy_url: distillator_cache_path(cache[:id]) } %>
+              <%= link_to "Raw", cache_raw_view_url(cache), data: { copy_url: cache_raw_url(cache) } %>
+              <%= link_to ".json", cache_wring_json_url(cache), data: { copy_url: cache_wring_json_url(cache) } %>
+              <%= link_to "Pretty JSON", cache_wring_json_view_url(cache), data: { copy_url: cache_wring_json_url(cache) } %>
+            </div>
+            <div class="cache-action-group">
+              <strong>Diagnose</strong>
+              <%= link_to "Compare", cache_compare_url(cache), data: { copy_url: cache_compare_url(cache) } %>
+            </div>
+            <% if refresh_ui_enabled? %>
+              <div class="cache-action-group">
+                <strong>Refresh</strong>
+                <%= button_to cache_fetch_kind_label("normal"), fetch_distillator_cache_index_path, method: :post, params: @preserved_index_params.merge(uri: cache[:normalized_url], fetch_kind: "normal", force_scrape: true), form_class: "cache-refresh-button" %>
+                <%= button_to cache_fetch_kind_label("rendered"), fetch_distillator_cache_index_path, method: :post, params: @preserved_index_params.merge(uri: cache[:normalized_url], fetch_kind: "rendered", force_scrape: true, include_fragment: true), form_class: "cache-refresh-button" %>
+                <%= button_to cache_fetch_kind_label("post"), fetch_distillator_cache_index_path, method: :post, params: @preserved_index_params.merge(uri: cache[:normalized_url], fetch_kind: "post", force_scrape: true), form_class: "cache-refresh-button" %>
+              </div>
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>
+
+<p class="cache-pagination-summary">
+  Showing page <%= @pagination[:page] %> of <%= @pagination[:total_pages] %>.
+  <%= @pagination[:total_count] %> total cache rows.
+</p>
+
+<p class="cache-pagination-links">
+  <% if @pagination[:page] > 1 %>
+    <%= link_to "Previous page", distillator_cache_index_path(request.query_parameters.merge(page: @pagination[:page] - 1)) %>
+  <% end %>
+  <% if @pagination[:page] < @pagination[:total_pages] %>
+    <%= link_to "Next page", distillator_cache_index_path(request.query_parameters.merge(page: @pagination[:page] + 1)) %>
+  <% end %>
+</p>
+
+<div class="cache-shortcuts">
+  <h2>Compatibility API</h2>
+  <ul class="cache-help-list">
+    <li><strong>Legacy-compatible endpoint:</strong> <code>/websites/wring.json?uri=URL</code></li>
+    <li><strong>Cached Wringer-compatible JSON:</strong> available from each cache row&rsquo;s <code>.json</code> link</li>
+    <li><strong>Cache fetch actions:</strong> use <code>Direct fetch</code>, <code>Rendered fetch</code>, and <code>POST fetch</code> from the cache actions.</li>
+  </ul>
+</div>

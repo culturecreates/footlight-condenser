@@ -1,0 +1,52 @@
+<h1>Internal Cache Refresh Diagnostic</h1>
+
+<p>Diagnostic only. No fetch is performed from this page.</p>
+
+<%= form_with url: preview_distillator_cache_index_path, method: :get, local: true do %>
+  <p>
+    <%= label_tag :uri, "URI" %><br>
+    <%= text_field_tag :uri, params[:uri], size: 100 %>
+  </p>
+  <p>
+    <%= label_tag :fetch_kind, "Fetch mode" %><br>
+    <%= select_tag :fetch_kind, options_for_select([["normal", "normal"], ["rendered", "rendered"], ["post", "post"]], params[:fetch_kind].presence || "normal") %>
+  </p>
+  <p>
+    <%= label_tag :include_fragment, "Include fragment" %>
+    <%= check_box_tag :include_fragment, "true", params[:include_fragment].to_s == "true" %>
+  </p>
+  <p>
+    <%= label_tag :force_scrape, "Force scrape" %>
+    <%= check_box_tag :force_scrape, "true", params[:force_scrape].to_s == "true" %>
+  </p>
+  <p>
+    <%= label_tag :force_scrape_every_hrs, "Force scrape every hrs" %><br>
+    <%= text_field_tag :force_scrape_every_hrs, params[:force_scrape_every_hrs] %>
+  </p>
+  <p><%= submit_tag "Run diagnostic" %></p>
+<% end %>
+
+<% if params[:uri].present? %>
+  <h2>Diagnostic Result</h2>
+  <p><strong>Chosen fetch mode:</strong> <%= cache_fetch_kind_label(@preview[:fetch_kind]) %> (<%= @preview[:fetch_kind] %>)</p>
+  <p><strong>Would refresh?</strong> <%= @preview[:would_refresh] %></p>
+  <p><strong>Reason:</strong> <%= @preview[:reason] %></p>
+  <p><strong>Cache exists?</strong> <%= @preview[:cache_exists] %></p>
+  <p><strong>Scrape date:</strong> <%= cache_timestamp_label(@preview[:scrape_date]) %></p>
+  <p><strong>Successful refresh:</strong> <%= cache_timestamp_label(@preview[:successful_refresh]) %></p>
+  <p><strong>HTTP response code:</strong> <%= @preview[:http_response_code] %></p>
+  <p><strong>URI key:</strong> <%= @preview[:uri_key] %></p>
+  <p><strong>Normalized URL:</strong> <%= @preview[:normalized_url] %></p>
+  <p><strong>Diagnostic JSON:</strong> <%= link_to "Open diagnostic JSON", "#{preview_distillator_cache_index_path(format: :json)}?#{request.query_parameters.to_query}" %></p>
+  <% if refresh_ui_enabled? %>
+    <p>
+      <%= button_to cache_fetch_kind_label(@preview[:fetch_kind]), fetch_distillator_cache_index_path, method: :post, params: {
+        uri: @preview[:normalized_url] || params[:uri],
+        fetch_kind: cache_fetch_kind_param(@preview[:fetch_kind]),
+        include_fragment: params[:include_fragment],
+        force_scrape: params[:force_scrape].presence || "true",
+        force_scrape_every_hrs: params[:force_scrape_every_hrs]
+      }, form_class: "cache-refresh-button" %>
+    </p>
+  <% end %>
+<% end %>

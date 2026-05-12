@@ -5,6 +5,14 @@ system_exceptions:
   # -------------------------
 
   cloudflare:
+    label: Cloudflare interstitial
+    severity: blocked
+    category: anti_bot
+    expose_in_ui: true
+    export_to_apify: true
+    hints:
+      - system_cloudflare
+      - cloudflare
     match:
       body_contains:
         - "Attention Required"
@@ -16,6 +24,15 @@ system_exceptions:
       error_code: system_cloudflare
 
   queue_it:
+    label: Queue-it waiting room
+    severity: warning
+    category: anti_bot
+    expose_in_ui: true
+    export_to_apify: true
+    hints:
+      - system_queue
+      - queue_it
+      - waiting_room
     match:
       body_contains:
         - "Queue-it"
@@ -27,6 +44,14 @@ system_exceptions:
       error_code: system_queue
 
   akamai_bot_protection:
+    label: Akamai bot protection
+    severity: blocked
+    category: anti_bot
+    expose_in_ui: true
+    export_to_apify: true
+    hints:
+      - system_akamai
+      - akamai_bot_protection
     match:
       body_contains:
         - "Access Denied"
@@ -37,11 +62,77 @@ system_exceptions:
       cache: false
       error_code: system_akamai
 
+  reservatech_waiting_room:
+    label: Reservatech waiting room
+    severity: warning
+    category: anti_bot
+    expose_in_ui: true
+    export_to_apify: true
+    hints:
+      - system_reservatech_waiting_room
+      - reservatech_waiting_room
+      - waiting_room
+    match:
+      body_contains:
+        - "Reservatech"
+        - "Waiting room"
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      error_code: system_reservatech_waiting_room
+
+  salle_attente:
+    label: Salle d'attente waiting room
+    severity: warning
+    category: anti_bot
+    expose_in_ui: true
+    export_to_apify: true
+    hints:
+      - system_salle_attente
+      - salle_attente
+      - waiting_room
+    match:
+      body_contains:
+        - "Salle d'attente"
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      error_code: system_salle_attente
+
+  captcha:
+    label: Captcha challenge
+    severity: blocked
+    category: anti_bot
+    expose_in_ui: true
+    export_to_apify: true
+    hints:
+      - system_captcha
+      - captcha
+    match:
+      body_contains:
+        - "captcha"
+        - "Captcha"
+        - "CAPTCHA"
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      error_code: system_captcha
+
   # -------------------------
   # CONTENT EDGE CASES
   # -------------------------
 
   empty_body:
+    label: Empty body
+    severity: warning
+    category: content
+    expose_in_ui: true
+    export_to_apify: false
+    hints:
+      - empty_body
     match:
       body_blank: true
     policy:
@@ -51,6 +142,14 @@ system_exceptions:
       error_code: empty_body
 
   html_error_page:
+    label: HTML error page
+    severity: failed
+    category: content
+    expose_in_ui: true
+    export_to_apify: true
+    hints:
+      - html_error_page
+      - generic_error_text
     match:
       body_contains:
         - "Internal Server Error"
@@ -61,12 +160,264 @@ system_exceptions:
       cache: false
       error_code: html_error_page
 
+  forbidden_text:
+    label: Forbidden text observed
+    severity: blocked
+    category: security
+    expose_in_ui: true
+    export_to_apify: true
+    hints:
+      - forbidden_text
+      - blocked_or_forbidden
+    match:
+      body_contains:
+        - "Forbidden"
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      error_code: forbidden_text
+
+  post_call_observed:
+    label: POST call observed
+    severity: info
+    category: fetch_mode
+    expose_in_ui: true
+    export_to_apify: true
+    hints:
+      - post_call_observed
+    match:
+      body_contains:
+        - "POST call"
+    policy:
+      action: observe
+      retry: false
+      cache: true
+      error_code: post_call_observed
+
+  json_post:
+    label: JSON POST request
+    severity: info
+    category: fetch_mode
+    expose_in_ui: true
+    export_to_apify: false
+    hints:
+      - json_post
+    match:
+      signals:
+        request_method: POST
+    policy:
+      action: observe
+      retry: false
+      cache: true
+      delete: false
+      error_code: json_post
+
+  legacy_phantomjs:
+    label: Legacy PhantomJS renderer
+    severity: info
+    category: renderer
+    expose_in_ui: true
+    export_to_apify: false
+    hints:
+      - legacy_phantomjs
+    match:
+      hints:
+        - legacy_phantomjs
+    policy:
+      action: observe
+      retry: false
+      cache: true
+      delete: false
+      error_code: legacy_phantomjs
+
+  phantomjs_unavailable:
+    label: PhantomJS unavailable
+    severity: failed
+    category: network
+    expose_in_ui: true
+    export_to_apify: false
+    hints:
+      - phantomjs_unavailable
+      - legacy_phantomjs
+    match:
+      hints:
+        - phantomjs_unavailable
+      signals:
+        renderer_unavailable: true
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      delete: false
+      error_code: phantomjs_unavailable
+
+  ssl_verify_none_fallback:
+    label: SSL verify none fallback
+    severity: warning
+    category: security
+    expose_in_ui: true
+    export_to_apify: false
+    hints:
+      - ssl_verify_none_fallback
+    match:
+      hints:
+        - ssl_verify_none_fallback
+    policy:
+      action: observe
+      retry: false
+      cache: true
+      delete: false
+      error_code: ssl_verify_none_fallback
+
+  timeout:
+    label: Fetch timeout
+    severity: failed
+    category: network
+    expose_in_ui: true
+    export_to_apify: false
+    hints:
+      - timeout
+    match:
+      hints:
+        - timeout
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      delete: false
+      error_code: timeout
+
+  blocked_url:
+    label: Blocked URL
+    severity: blocked
+    category: network
+    expose_in_ui: true
+    export_to_apify: false
+    hints:
+      - blocked_url
+      - blocked
+    match:
+      signals:
+        network_status: blocked
+      hints:
+        - blocked_url
+    policy:
+      action: abort_update
+      retry: false
+      cache: false
+      delete: false
+      error_code: blocked_url
+
+  phantomjs_iframe_malformed_json:
+    label: PhantomJS iframe malformed JSON
+    severity: failed
+    category: renderer
+    expose_in_ui: true
+    export_to_apify: false
+    hints:
+      - phantomjs_iframe_malformed_json
+    match:
+      hints:
+        - phantomjs_iframe_malformed_json
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      delete: false
+      error_code: phantomjs_iframe_malformed_json
+
+  phantomjs_iframe_missing_child_content:
+    label: PhantomJS iframe missing child content
+    severity: failed
+    category: renderer
+    expose_in_ui: true
+    export_to_apify: false
+    hints:
+      - phantomjs_iframe_missing_child_content
+    match:
+      hints:
+        - phantomjs_iframe_missing_child_content
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      delete: false
+      error_code: phantomjs_iframe_missing_child_content
+
+  phantomjs_iframe_missing_response_body:
+    label: PhantomJS iframe missing response body
+    severity: failed
+    category: renderer
+    expose_in_ui: true
+    export_to_apify: false
+    hints:
+      - phantomjs_iframe_missing_response_body
+    match:
+      hints:
+        - phantomjs_iframe_missing_response_body
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      delete: false
+      error_code: phantomjs_iframe_missing_response_body
+
+  last_good_preserved_failure:
+    label: Last good content preserved after failure
+    severity: warning
+    category: content
+    expose_in_ui: true
+    export_to_apify: false
+    hints:
+      - last_good_preserved_failure
+    match:
+      signals:
+        last_good_preserved_failure: true
+    policy:
+      action: observe
+      retry: false
+      cache: true
+      delete: false
+      error_code: last_good_preserved_failure
+
   # -------------------------
   # REDIRECT / SEMANTIC CASES
   # -------------------------
 
   redirect_to_listing:
+    label: Redirect to listing
+    severity: failed
+    category: redirect
+    expose_in_ui: true
+    export_to_apify: false
+    hints:
+      - redirect_to_listing
     match:
+      signals:
+        redirect_type: normal
+      final_url_patterns:
+        - '/events$'
+        - '/programmation$'
+        - '/$'
+    policy:
+      action: abort_update
+      retry: false
+      cache: false
+      delete: true
+      error_code: redirect_to_listing
+
+  redirect_to_listing_legacy_body:
+    label: Redirect to listing
+    severity: failed
+    category: redirect
+    expose_in_ui: true
+    export_to_apify: false
+    hints:
+      - redirect_to_listing
+    match:
+      body_contains:
+        - "listing"
       final_url_patterns:
         - '/events$'
         - '/programmation$'
@@ -83,6 +434,13 @@ system_exceptions:
   # -------------------------
 
   http_404:
+    label: HTTP 404 Not Found
+    severity: failed
+    category: http
+    expose_in_ui: true
+    export_to_apify: false
+    hints:
+      - http_404
     match:
       http_code: 404
     policy:
@@ -91,7 +449,32 @@ system_exceptions:
       cache: false
       error_code: http_404
 
+  http_403:
+    label: HTTP 403 Forbidden
+    severity: failed
+    category: http
+    expose_in_ui: true
+    export_to_apify: true
+    hints:
+      - http_403
+      - blocked_or_forbidden
+    match:
+      http_code: 403
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      error_code: http_403
+
   http_5xx:
+    label: HTTP 5xx server error
+    severity: failed
+    category: http
+    expose_in_ui: true
+    export_to_apify: true
+    hints:
+      - http_server_error
+      - server_error
     match:
       http_code: [500, 502, 503, 504]
     policy:
@@ -99,3 +482,21 @@ system_exceptions:
       retry: true
       cache: false
       error_code: http_server_error
+
+  generic_error_text:
+    label: Generic error text observed
+    severity: failed
+    category: content
+    expose_in_ui: true
+    export_to_apify: true
+    hints:
+      - generic_error_text
+    match:
+      body_contains:
+        - "Error"
+        - "Erreur"
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      error_code: generic_error_text

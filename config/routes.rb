@@ -8,18 +8,39 @@ Rails.application.routes.draw do
   require 'sidekiq/web'
   mount Sidekiq::Web => '/sidekiq'
 
+  get "websites/wring", to: "wringer_compatibility#show", as: :wring_websites
+
   resources :websites do
     # API: get /websites 
     collection do
       get 'events'         # Internal Webpages Only
       get 'places'         # Internal Webpages Only
       get 'test_api'       # Internal Webpages Only
-
       delete 'delete_all_statements'     # Internal Webpages Only
       delete 'delete_all_webpages'       # Internal Webpages Only
       delete 'delete_all_event_webpages' # Internal Webpages Only
     end
   end
+
+  namespace :distillator do
+    resources :cache, only: [:index, :show], controller: "cache" do
+      collection do
+        get :preview
+        get :compare
+        post :fetch
+      end
+
+      member do
+        get :raw
+        get :raw_view
+        get :wring_json
+        get :wring_json_view
+      end
+    end
+  end
+
+  get "/condenser/cache", to: "distillator/cache#index", as: :condenser_cache_index
+  get "/condenser/cache/compare", to: "distillator/cache#compare", as: :condenser_cache_compare
 
   get 'websites/:seedurl/resources',
       to: "resources#index",

@@ -24,6 +24,10 @@ require "uri"
 #    DSL / Sidekiq reacts
 #    
 module CcWringerHelper
+  DISTILLATOR_COMPATIBILITY_BASE_URL = "http://localhost:3000".freeze
+  LEGACY_WRINGER_TEST_BASE_URL = "http://localhost:3009".freeze
+  LEGACY_WRINGER_PRODUCTION_BASE_URL = "http://footlight-wringer.herokuapp.com".freeze
+
   # Build a Wringer "wring" URL for a given target URL.
   #
   # Purpose:
@@ -53,7 +57,7 @@ module CcWringerHelper
     defaults = { force_scrape_every_hrs: nil }
     options = defaults.merge(options)
     url = url.first if url.is_a?(Array)                                     # Some callers pass arrays; preserve compatibility.
-    url = normalize_url(url)                                                # Normalize URL to a string: remove fragments and sanitize
+    url = wringer_uri_target(url)                                           # Preserve fragment semantics for Wringer-compatible URI keys.
 
     query = {                                                               # Build query string for Wringer
       uri: url,
@@ -65,16 +69,23 @@ module CcWringerHelper
     query[:json_post] = "true" if options[:json_post]
 
     path = "/websites/wring?#{URI.encode_www_form(query)}"
-    logger.info("*** calling wringer with: #{get_wringer_url_per_environment}#{path}")
-    "#{get_wringer_url_per_environment}#{path}"
+    base_url = legacy_wringer_fallback_requested?(options) ? legacy_wringer_base_url : distillator_compatibility_base_url
+
+    if legacy_wringer_fallback_requested?(options)
+      logger.warn("[Wringer] deprecated legacy fallback url=#{base_url}#{path}")
+    else
+      logger.info("*** calling distillator compatibility endpoint with: #{base_url}#{path}")
+    end
+
+    "#{base_url}#{path}"
   end
 
   # Normalize an input URL string.
   #
   # Purpose:
   # - Convert to string, strip whitespace.
-  # - Parse via URI and remove fragment identifiers (e.g., `#section`),
-  #   which are irrelevant to remote fetches and can cause duplication.
+  # - Parse via URI and preserve fragment identifiers so Wringer-compatible
+  #   callers can still decide whether `include_fragment` should affect the key.
   #
   # Parameters:
   # - url: String (or anything responding to `to_s`)
@@ -87,10 +98,22 @@ module CcWringerHelper
   def normalize_url(url)
     u = url.to_s.strip
     uri = URI.parse(u)
-    uri.fragment = nil
     uri.to_s
   rescue URI::InvalidURIError
     u
+  end
+
+  def normalized_fetch_url(url)
+    normalized = normalize_url(url)
+    uri = URI.parse(normalized)
+    uri.fragment = nil
+    uri.to_s
+  rescue URI::InvalidURIError
+    normalized.to_s.split("#").first
+  end
+
+  def wringer_uri_target(url)
+    normalize_url(url)
   end
 
   # Execute a block that may perform network I/O to Wringer, and convert failures into a structured "abort" response.
@@ -132,8 +155,9 @@ module CcWringerHelper
       Rails.logger.error "[Wringer] #{err[:error_type]} (action=#{action})"
 
       err[:action] = action
-      err[:retry] = policy["retry"] || policy[:retry]
-      err[:cache] = policy["cache"] || policy[:cache]
+      err[:retry] = policy.key?("retry") ? policy["retry"] : policy[:retry]
+      err[:cache] = policy.key?("cache") ? policy["cache"] : policy[:cache]
+      err[:delete] = policy.key?("delete") ? policy["delete"] : policy[:delete]
       
       return [action, err]
     end
@@ -189,13 +213,23 @@ module CcWringerHelper
   # - This method *performs a network request*.
   def wringer_received_404?(url)
     url = url.first if url.is_a?(Array)
-    url = normalize_url(url)
+    url = wringer_uri_target(url)
+
+    unless legacy_wringer_fallback_requested?
+      key = Distillator::WringerUrlKey.call(url, include_fragment: true).uri_key
+      cache = Distillator::FetchCache.find_by(uri_key: key)
+      return false unless cache
+
+      return cache.http_response_code.to_i == 404
+    end
 
     result = safe_wringer_call do
       stored_uri = CGI.escape(url)
 
       path = "/websites.json?#{URI.encode_www_form(term: stored_uri)}"
-      resp = HTTParty.get("#{get_wringer_url_per_environment}#{path}")
+      legacy_url = "#{legacy_wringer_base_url}#{path}"
+      Rails.logger.warn("[Wringer] deprecated legacy fallback url=#{legacy_url}")
+      resp = HTTParty.get(legacy_url)
 
       ok = resp.respond_to?(:code) && resp.code.to_i == 200
       next false unless ok
@@ -228,86 +262,54 @@ module CcWringerHelper
   end
 
   def wringer_rules
-    @wringer_rules ||= begin
-      raw_config = Rails.application.config_for(:wringer)
-      raw_hash = raw_config.respond_to?(:to_h) ? raw_config.to_h : raw_config
-      config = raw_hash || {}
-
-      exceptions =
-        if config.key?("system_exceptions")
-          config["system_exceptions"]
-        elsif config.key?(:system_exceptions)
-          config[:system_exceptions]
-        else
-          Rails.logger.warn "[Wringer] No system_exceptions configured" 
-          {}
-        end
-
-      exceptions.to_a # preserves declared order
-    end
+    Distillator::WringerRules.all
   end
 
   def wringer_system_error?(response)
     return nil if response.blank?
 
-    body = response[:body].to_s
-    code = response[:http_code].to_i
-    final_url = response[:final_url].to_s
+    issue = Distillator::WringerIssueSet.call(
+      body: response[:body],
+      http_code: response[:http_code],
+      final_url: response[:final_url],
+      hints: response[:hints] || [],
+      signals: response[:signals] || {},
+      rules: wringer_rules
+    ).primary
 
-    wringer_rules.each do |name, rule|
-      match  = rule["match"] || rule[:match] || {}
-      policy = rule["policy"] || rule[:policy] || {}
-
-      matched = true
-
-      # --- HTTP CODE ---
-      http_code_match = match["http_code"] || match[:http_code]
-      if http_code_match
-        codes = Array(http_code_match).map(&:to_i)
-        matched &&= codes.include?(code)
-      end
-
-      # --- BODY CONTAINS ---
-      body_contains = match["body_contains"] || match[:body_contains]
-      if body_contains
-        matched &&= body_contains.any? { |s| body.include?(s) }
-      end
-
-      # --- BODY BLANK ---
-      body_blank = match["body_blank"] || match[:body_blank]
-      if body_blank
-        matched &&= body.strip.empty?
-      end
-
-      # --- FINAL URL PATTERNS ---
-      final_url_patterns = match["final_url_patterns"] || match[:final_url_patterns]
-      if final_url_patterns
-        matched &&= final_url_patterns.any? do |pattern|
-          Regexp.new(pattern).match?(final_url)
-        rescue RegexpError
-            false
-        end
-      end
-
-      next unless matched
-
-      Rails.logger.warn "[Wringer] #{name} matched (code=#{code}, url=#{final_url})"
-
-      return {
-        error: "#{name} detected",
-        error_type: policy["error_code"] || policy[:error_code] || name,
-        policy: policy
-      }
-    end
-
-    nil
+    issue&.slice(:error, :error_type, :policy)
   end
 
   def get_wringer_url_per_environment
+    legacy_wringer_base_url
+  end
+
+  def distillator_compatibility_base_url
+    ENV["DISTILLATOR_COMPAT_BASE_URL"].presence || DISTILLATOR_COMPATIBILITY_BASE_URL
+  end
+
+  def legacy_wringer_base_url
+    ENV["LEGACY_WRINGER_BASE_URL"].presence ||
+      if Rails.env.development? || Rails.env.test?
+        LEGACY_WRINGER_TEST_BASE_URL
+      else
+        LEGACY_WRINGER_PRODUCTION_BASE_URL
+      end
+  end
+
+  def legacy_wringer_fallback_requested?(options = {})
+    Distillator::BooleanParam.parse(
+      options[:force_legacy] ||
+      options["force_legacy"] ||
+      ENV["DISTILLATOR_LEGACY_WRINGER_FALLBACK"]
+    )
+  end
+
+  def get_legacy_wringer_url_per_environment
     if Rails.env.development? || Rails.env.test?
-      "http://localhost:3009"
+      LEGACY_WRINGER_TEST_BASE_URL
     else
-      "http://footlight-wringer.herokuapp.com"
+      LEGACY_WRINGER_PRODUCTION_BASE_URL
     end
   end
 end
