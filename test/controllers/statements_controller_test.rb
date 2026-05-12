@@ -32,11 +32,115 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "should show statement" do
+    assert_read_only_page_does_not_fetch
     get statement_url(@statement)
     assert_response :success
   end
 
+  test "statement pages render cache links without fetching" do
+    assert_read_only_page_does_not_fetch
+    website = Website.create!(
+      name: "statement rollout active",
+      seedurl: "statement-rollout-active",
+      graph_name: "http://example.com/statement-rollout-active",
+      default_language: "en",
+      distillator_mode: "active"
+    )
+    webpage = Webpage.create!(
+      url: "http://example.com/statement-rollout-active",
+      language: "en",
+      rdf_uri: "rdf:statement-rollout-active",
+      rdfs_class: rdfs_classes(:one),
+      website: website
+    )
+    source = Source.create!(
+      algorithm_value: "xpath=//title/text()",
+      selected: true,
+      selected_by: "Distillator",
+      language: "en",
+      render_js: false,
+      property: properties(:one),
+      website: website
+    )
+    statement = Statement.create!(
+      cache: "Active rollout cache",
+      source: source,
+      webpage: webpage,
+      status: "ok",
+      status_origin: "condenser_refresh"
+    )
+
+    get statement_url(statement)
+    assert_response :success
+    assert_select 'details[data-operator-context-card]'
+    assert_select 'details[data-context-domain="status"]'
+    assert_select 'details[data-context-domain="actions"]'
+    assert_select 'details[data-context-domain="details"]'
+    assert_includes @response.body, "Condenser active"
+    assert_includes @response.body, "Condenser serves fetch/cache results; legacy Wringer remains available for inspection."
+    assert_includes @response.body, "Open active cache"
+    assert_includes @response.body, "Active: Condenser"
+    assert_includes @response.body, "Inspect legacy Wringer"
+    assert_operator @response.body.scan("Inspect legacy Wringer").size, :>=, 2
+    assert_includes @response.body, "Diagnose refresh"
+
+    get webpage_statements_url(url: webpage.url)
+    assert_response :success
+    assert_includes @response.body, "Condenser active"
+    assert_includes @response.body, "Open active cache"
+    assert_includes @response.body, "Active: Condenser"
+  end
+
+  test "trace-step active cache link follows shadow mode" do
+    previous_mode = ENV["DISTILLATOR_FETCH_MODE"]
+    helper_proxy = mock("helper_proxy")
+    @statement.webpage.website.update!(distillator_mode: "shadow")
+    helper_proxy.expects(:refresh_statement_helper).with(@statement).returns(
+      data: ["value"],
+      trace: [
+        {
+          step: 1,
+          type: "url",
+          code: "url='http://example.org/page'",
+          input: [],
+          output: [],
+          url_before: "http://example.org/page",
+          url_after: "http://example.org/page",
+          website_id: @statement.webpage.website_id,
+          wringer: { signals: { network_status: "ok" } }
+        }
+      ],
+      errors: []
+    )
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
+
+    ENV["DISTILLATOR_FETCH_MODE"] = "shadow"
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    assert_redirected_to statement_url(@statement)
+    follow_redirect_with_trace_visibility("always", "3")
+
+    assert_response :success
+    assert_includes @response.body, "/condenser/cache/compare?uri="
+    assert_includes @response.body, "Compare Condenser vs Wringer"
+    assert_includes @response.body, "Active: Wringer + Shadow comparison"
+  ensure
+    ENV["DISTILLATOR_FETCH_MODE"] = previous_mode
+  end
+
+  test "legacy statement page shows legacy warning" do
+    assert_read_only_page_does_not_fetch
+    @statement.webpage.website.update!(distillator_mode: "legacy")
+
+    get statement_url(@statement)
+
+    assert_response :success
+    assert_includes @response.body, "Legacy Wringer active"
+    assert_includes @response.body, "Wringer remains the production fetch path."
+    assert_includes @response.body, "Active: Wringer"
+  end
+
   test "show does not execute trace rendering even when dsl_trace cookie is set" do
+    assert_read_only_page_does_not_fetch
     get statement_url(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     assert_response :success
     assert_no_match(/Algorithm Trace/, response.body)
@@ -93,7 +197,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
       ],
       errors: []
     )
-    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
 
     patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     assert_redirected_to statement_url(@statement)
@@ -176,6 +280,260 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to webpage_statements_path(url: webpages(:six).url)
   end
 
+  test "refresh_webpage keeps html notice compact for nested distillator abort payloads" do
+    nested_errors = [
+      {
+        "Property id 123" => [
+          {
+            error_type: "phantomjs_unavailable",
+            error: "Legacy PhantomJS renderer is unavailable",
+            signals: {
+              blocking_issue_key: "phantomjs_unavailable",
+              renderer_fallback: "direct_url",
+              primary_issue_category: "renderer",
+              phantomjs_iframe_extraction: false
+            }
+          }
+        ]
+      },
+      {
+        "Property id 456" => [
+          {
+            error_type: "redirect_to_listing",
+            error: "Fetch content blocked by redirect_to_listing",
+            signals: {
+              blocking_issue_key: "redirect_to_listing",
+              renderer_fallback: "direct_url"
+            }
+          }
+        ]
+      },
+      {
+        "Property id 789" => [
+          {
+            error_type: "timeout",
+            error: "execution expired",
+            signals: { blocking_issue_key: "timeout" }
+          }
+        ]
+      }
+    ]
+
+    StatementsController.any_instance.expects(:refresh_webpage_statements).returns(nested_errors)
+
+    assert_nothing_raised do
+      patch refresh_webpage_statements_path(url: webpages(:six).url)
+    end
+
+    assert_redirected_to webpage_statements_path(url: webpages(:six).url)
+    assert_match(/Refresh completed with 3 errors\./, flash[:notice].to_s)
+    assert_match(/phantomjs_unavailable/, flash[:notice].to_s)
+    assert_no_match(/renderer_fallback/, flash[:notice].to_s)
+    assert_no_match(/primary_issue_category/, flash[:notice].to_s)
+    assert_operator Marshal.dump(session.to_hash).bytesize, :<, 3000
+  end
+
+  test "refresh_webpage returns explicit missing webpage errors" do
+    patch refresh_webpage_statements_path(format: :json), params: { url: "https://example.org/missing" }
+
+    assert_response :not_found
+    payload = JSON.parse(response.body)
+    assert_equal "Webpage not found for URL: https://example.org/missing", payload["error"]
+    assert_equal "https://example.org/missing", payload["url"]
+
+    patch refresh_webpage_statements_path(url: "https://example.org/missing")
+
+    assert_redirected_to webpage_statements_path(url: "https://example.org/missing")
+    follow_redirect!
+    assert_match(/Webpage not found for URL: https:\/\/example.org\/missing/, response.body)
+  end
+
+  test "refresh_rdf_uri forwards force_scrape_every_hrs 1 and reports per-webpage errors in json" do
+    rdf_uri = webpages(:one).rdf_uri
+    expected_options = { force_scrape_every_hrs: "1" }
+    expected_error = [{ "Property id 123" => { cache: ["failed refresh"] } }]
+
+    StatementsController.any_instance.expects(:refresh_webpage_statements).with do |webpage, default_language, scrape_options|
+      assert_equal rdf_uri, webpage.rdf_uri
+      assert_equal webpage.website.default_language, default_language
+      assert_equal expected_options, scrape_options
+      true
+    end.at_least_once.returns(expected_error)
+
+    patch refresh_rdf_uri_statements_path(format: :json), params: {
+      rdf_uri: rdf_uri,
+      force_scrape_every_hrs: "1"
+    }
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_includes payload["message"], "Webpage id:"
+    assert_includes payload["message"], "failed refresh"
+  end
+
+  test "refresh_rdf_uri keeps html notice compact for nested distillator abort payloads" do
+    rdf_uri = webpages(:one).rdf_uri
+    nested_errors = [
+      {
+        "Property id 123" => [
+          {
+            error_type: "phantomjs_unavailable",
+            error: "Legacy PhantomJS renderer is unavailable",
+            signals: {
+              blocking_issue_key: "phantomjs_unavailable",
+              renderer_fallback: "direct_url",
+              primary_issue_category: "renderer"
+            }
+          }
+        ]
+      }
+    ]
+
+    StatementsController.any_instance.expects(:refresh_webpage_statements).at_least_once.returns(nested_errors)
+
+    assert_nothing_raised do
+      patch refresh_rdf_uri_statements_path, params: { rdf_uri: rdf_uri }
+    end
+
+    assert_redirected_to statements_path(rdf_uri: rdf_uri)
+    assert_match(/URI refreshed with \d+ webpage errors\./, flash[:notice].to_s)
+    assert_match(/phantomjs_unavailable/, flash[:notice].to_s)
+    assert_no_match(/renderer_fallback/, flash[:notice].to_s)
+    assert_no_match(/primary_issue_category/, flash[:notice].to_s)
+    assert_operator Marshal.dump(session.to_hash).bytesize, :<, 3000
+  end
+
+  test "refresh_rdf_uri forwards force_scrape_every_hrs 0 to statement refresh service" do
+    rdf_uri = webpages(:one).rdf_uri
+
+    StatementsController.any_instance.expects(:refresh_webpage_statements).with do |_webpage, _default_language, scrape_options|
+      assert_equal({ force_scrape_every_hrs: "0" }, scrape_options)
+      true
+    end.at_least_once.returns([])
+
+    patch refresh_rdf_uri_statements_path(format: :json), params: {
+      rdf_uri: rdf_uri,
+      force_scrape_every_hrs: "0"
+    }
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_includes payload["message"], "URI refreshed."
+  end
+
+  test "refresh_rdf_uri returns explicit missing rdf_uri errors" do
+    patch refresh_rdf_uri_statements_path(format: :json), params: { rdf_uri: "footlight:missing" }
+
+    assert_response :not_found
+    payload = JSON.parse(response.body)
+    assert_equal "No webpages found for RDF URI: footlight:missing", payload["error"]
+    assert_equal "footlight:missing", payload["rdf_uri"]
+
+    patch refresh_rdf_uri_statements_path(rdf_uri: "footlight:missing")
+
+    assert_redirected_to statements_path(rdf_uri: "footlight:missing")
+    follow_redirect!
+    assert_match(/No webpages found for RDF URI: footlight:missing/, response.body)
+  end
+
+  test "refresh_statement populates distillator fetch cache through the real dsl fetch seam" do
+    previous_mode = ENV["DISTILLATOR_FETCH_MODE"]
+    ENV["DISTILLATOR_FETCH_MODE"] = "internal"
+    Distillator::FetchCache.delete_all
+    website = Website.create!(
+      name: "Controller Refresh Fixture",
+      seedurl: "controller-refresh-fixture",
+      graph_name: "https://fixtures.example/controller-refresh",
+      default_language: "en",
+      distillator_mode: "active"
+    )
+    rdfs_class = RdfsClass.create!(name: "ControllerRefreshClass")
+    property = Property.create!(
+      label: "Controller Refresh Title",
+      value_datatype: "MyString",
+      uri: "http://schema.org/name",
+      rdfs_class: rdfs_class
+    )
+    webpage = Webpage.create!(
+      url: "https://www.culture3r.com/evenements/gabrielle-caron-rodage/",
+      language: "en",
+      rdf_uri: "http://example.org/rdf/culture3r",
+      rdfs_class: rdfs_class,
+      website: website
+    )
+    source_one = Source.create!(
+      algorithm_value: "xpath=//h1/text()",
+      selected: true,
+      selected_by: "test",
+      language: "en",
+      render_js: false,
+      property: property,
+      website: website
+    )
+    stat_one = Statement.create!(
+      cache: "old one",
+      status: "initial",
+      status_origin: "test",
+      cache_refreshed: 1.day.ago,
+      cache_changed: 1.day.ago,
+      source: source_one,
+      webpage: webpage,
+      selected_individual: false
+    )
+    html = "<html><body><h1>Gabrielle Caron</h1></body></html>"
+
+    Distillator::FetchGuard.stubs(:check_url).returns(Distillator::FetchGuard::Result.new(allowed: true))
+    Distillator::FetchGuard.stubs(:check_response).returns(Distillator::FetchGuard::Result.new(allowed: true))
+    Distillator::NativeFetch.expects(:call).once.returns(
+      status: :ok,
+      body: html,
+      raw_body: html,
+      headers: { content_type: "text/html" },
+      final_url: webpage.url,
+      redirect_chain: [webpage.url],
+      wringer: { signals: {}, hints: [] },
+      http_code: 200
+    )
+
+    patch refresh_statement_path(stat_one)
+
+    assert_redirected_to statement_url(stat_one)
+    cache = Distillator::FetchCache.find_by(normalized_url: webpage.url)
+    assert cache
+    assert_equal webpage.url, cache.normalized_url
+    assert_equal 200, cache.http_response_code
+    assert_equal html, cache.html
+    assert_equal html, cache.body
+    assert_equal({ "content_type" => "text/html" }, cache.headers)
+    assert_equal [webpage.url], cache.redirect_chain
+    assert cache.signals.present?
+    assert cache.hints.is_a?(Array)
+    assert cache.scrape_date.present?
+    assert cache.successful_refresh.present?
+    assert_equal "Gabrielle Caron", stat_one.reload.cache
+
+    get "/distillator/cache.json", params: { term: "culture3r" }
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal [cache.id], payload.map { |row| row["id"] }
+  ensure
+    ENV["DISTILLATOR_FETCH_MODE"] = previous_mode
+  end
+
+  test "refresh helper proxy does not leak trace cookies across requests" do
+    @statement.source.update!(algorithm_value: "manual=Traceable value")
+
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+
+    assert_redirected_to statement_url(@statement)
+    assert_session_trace_present_and_structured
+
+    patch refresh_statement_path(@statement)
+
+    assert_redirected_to statement_url(@statement)
+    assert_nil session[:dsl_trace]
+  end
+
   test "refresh json success returns structured ok payload without redirect" do
     helper_proxy = mock("helper_proxy")
     helper_proxy.expects(:refresh_statement_helper).with(@statement).returns(
@@ -183,7 +541,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
       trace: nil,
       errors: []
     )
-    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
 
     patch refresh_statement_path(@statement, format: :json)
 
@@ -203,7 +561,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
       trace: nil,
       errors: ["Scrape aborted (InvalidURL): Invalid URL resolved from nil"]
     )
-    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
 
     patch refresh_statement_path(@statement, format: :json)
 
@@ -225,7 +583,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
       trace: nil,
       errors: ["DSL returned blank result (possible parsing failure)"]
     )
-    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
 
     patch refresh_statement_path(@statement, format: :json)
 
@@ -247,7 +605,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
       trace: nil,
       errors: ["Scrape aborted"]
     )
-    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
 
     patch refresh_statement_path(@statement, format: :json)
 
@@ -268,7 +626,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
       trace: nil,
       errors: []
     )
-    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
 
     patch refresh_statement_path(@statement)
 
@@ -284,7 +642,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
       trace: nil,
       errors: ["Scrape aborted (InvalidURL): Invalid URL resolved from nil"]
     )
-    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
 
     patch refresh_statement_path(@statement)
 
@@ -292,6 +650,38 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Statement Error:/, flash[:alert].to_s)
     assert_match(/InvalidURL/, flash[:alert].to_s)
     assert_nil flash[:notice]
+  end
+
+  test "refresh html abort keeps flash compact and session under threshold" do
+    helper_proxy = mock("helper_proxy")
+    helper_proxy.expects(:refresh_statement_helper).with(@statement).returns(
+      data: ["abort_update", {
+        error: "Legacy PhantomJS renderer is unavailable",
+        error_type: "phantomjs_unavailable",
+        step: "url",
+        signals: {
+          blocking_issue_key: "phantomjs_unavailable",
+          renderer_fallback: "direct_url",
+          primary_issue_category: "renderer",
+          phantomjs_iframe_extraction: false
+        },
+        hints: ["legacy_phantomjs", "phantomjs_unavailable"]
+      }],
+      trace: build_large_realistic_trace(20),
+      errors: ["Scrape aborted (phantomjs_unavailable): issue=phantomjs_unavailable: Legacy PhantomJS renderer is unavailable"]
+    )
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
+
+    assert_nothing_raised do
+      patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    end
+
+    assert_redirected_to statement_url(@statement)
+    assert_match(/phantomjs_unavailable/, flash[:alert].to_s)
+    assert_no_match(/renderer_fallback/, flash[:alert].to_s)
+    assert_no_match(/primary_issue_category/, flash[:alert].to_s)
+    assert_no_match(/phantomjs_iframe_extraction/, flash[:alert].to_s)
+    assert_operator Marshal.dump(session.to_hash).bytesize, :<, 3000
   end
 
   test "success with trace shows notice and trace on redirected show page" do
@@ -355,7 +745,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
       ],
       errors: ["network down"]
     )
-    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
 
     patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     assert_redirected_to statement_url(@statement)
@@ -383,7 +773,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
       ],
       errors: ["No nodes matched"]
     )
-    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
 
     patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     assert_redirected_to statement_url(@statement)
@@ -506,7 +896,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
       trace: nil,
       errors: ["boom"]
     )
-    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
 
     patch refresh_statement_path(@statement)
     assert_redirected_to statement_url(@statement)
@@ -528,7 +918,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
       trace: [{ step: 1, type: "ruby", input: ["in"], output: ["out"] }],
       errors: ["boom"]
     )
-    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
 
     patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     assert_redirected_to statement_url(@statement)
@@ -552,7 +942,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
       trace: [{ step: 1, type: "ruby", input: ["in"], output: ["out"] }],
       errors: ["critical failure"]
     )
-    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
 
     patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     assert_redirected_to statement_url(@statement)
@@ -576,7 +966,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
       trace: [],
       errors: ["failure"]
     )
-    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
 
     patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
     assert_redirected_to statement_url(@statement)
@@ -655,7 +1045,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
       trace: nil,
       errors: []
     )
-    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
 
     patch refresh_statement_path(@statement)
     assert_redirected_to statement_url(@statement)
@@ -1114,7 +1504,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     helper_proxy = mock("helper_proxy")
     helper_proxy.expects(:refresh_statement_helper).with(@statement).returns(data: nil, trace: large_trace, errors: [])
     helper_proxy.expects(:instance_variable_get).never
-    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
 
     assert_nothing_raised do
       patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
@@ -1133,6 +1523,43 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     follow_redirect_with_trace_visibility
     assert_response :success
     assert_not_nil session[:dsl_trace]
+  end
+
+  test "batch update with many abort payloads keeps flash compact and avoids cookie overflow" do
+    statements = Array.new(6, @statement)
+    helper_proxy = mock("helpers_proxy")
+    6.times do
+      helper_proxy.expects(:refresh_statement_helper).returns(
+        data: ["abort_update", {
+          error: "Legacy PhantomJS renderer is unavailable",
+          error_type: "phantomjs_unavailable",
+          step: "url",
+          signals: {
+            blocking_issue_key: "phantomjs_unavailable",
+            renderer_fallback: "direct_url",
+            primary_issue_category: "renderer",
+            phantomjs_iframe_extraction: false
+          },
+          hints: ["legacy_phantomjs", "phantomjs_unavailable"]
+        }],
+        trace: nil,
+        errors: ["Scrape aborted (phantomjs_unavailable): issue=phantomjs_unavailable: Legacy PhantomJS renderer is unavailable"]
+      )
+    end
+    StatementsController.any_instance.stubs(:build_query).returns(statements)
+    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+
+    assert_nothing_raised do
+      post batch_update_statements_path, params: { commit: "Refresh all listed" }
+    end
+
+    assert_redirected_to /statements\?action=batch_update&commit=Refresh\+all\+listed&controller=statements/
+    assert_match(/Refresh completed with 6 errors\./, flash[:notice].to_s)
+    assert_match(/phantomjs_unavailable/, flash[:notice].to_s)
+    assert_no_match(/renderer_fallback/, flash[:notice].to_s)
+    assert_no_match(/primary_issue_category/, flash[:notice].to_s)
+    assert_no_match(/phantomjs_iframe_extraction/, flash[:notice].to_s)
+    assert_operator Marshal.dump(session.to_hash).bytesize, :<, 3000
   end
 
   test "should destroy statement" do
@@ -1181,13 +1608,113 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to show_resources_path(rdf_uri: "uri1.json")
   end
 
+  test "batch update does not write redirect listing title when distillator content failed" do
+    previous_mode = ENV["DISTILLATOR_FETCH_MODE"]
+    ENV["DISTILLATOR_FETCH_MODE"] = "internal"
+    website = Website.create!(
+      name: "culturelatuque-com",
+      seedurl: "culturelatuque-com",
+      graph_name: "https://example.org/culturelatuque-com",
+      default_language: "fr",
+      distillator_mode: "active"
+    )
+    rdfs_class = RdfsClass.create!(name: "OvationBatchUpdateClass")
+    property = Property.create!(
+      label: "Ovation Batch Title",
+      value_datatype: "MyString",
+      uri: "http://schema.org/name",
+      rdfs_class: rdfs_class
+    )
+    ovation_url = "https://www.ovation.ca/00001Q/fr/Event/?seriesId=series&venueId=venue"
+    webpage = Webpage.create!(
+      url: ovation_url,
+      language: "fr",
+      rdf_uri: ovation_url,
+      rdfs_class: rdfs_class,
+      website: website
+    )
+    source = Source.create!(
+      algorithm_value: "xpath=//title;ruby=$array.map{|e| e.gsub(/ \\|.*/,'')}",
+      selected: true,
+      selected_by: "test",
+      language: "fr",
+      render_js: true,
+      property: property,
+      website: website
+    )
+    statement = Statement.create!(
+      cache: "Existing Event Title",
+      status: "ok",
+      status_origin: "test",
+      cache_refreshed: 1.day.ago,
+      cache_changed: 1.day.ago,
+      source: source,
+      webpage: webpage,
+      selected_individual: false
+    )
+
+    Distillator::FetchService.expects(:fetch_result).returns(
+      {
+        status: :ok,
+        body: "<html><title>Recherche par titre</title></html>",
+        raw_body: "<html><title>Recherche par titre</title></html>",
+        headers: { content_type: "text/html" },
+        final_url: "https://www.ovation.ca/Search/Title/",
+        redirect_chain: [ovation_url, "https://www.ovation.ca/Search/Title/"],
+        wringer: {
+          policy_action: "abort_update",
+          retry: false,
+          cache: false,
+          signals: {
+            network_status: "ok",
+            content_type: "html",
+            primary_issue_key: "redirect_to_listing",
+            primary_issue_severity: "failed",
+            blocking_issue_key: "redirect_to_listing",
+            primary_issue_label: "Redirect to listing"
+          },
+          hints: ["redirect_to_listing"]
+        },
+        http_code: 200,
+        duration_ms: 0,
+        fetch_path: "native"
+      }
+    )
+
+    post "/statements/batch_update", params: {
+      seedurl: "culturelatuque-com",
+      rdf_uri: ovation_url,
+      commit: "Refresh all listed"
+    }
+
+    assert_redirected_to(/statements/)
+    follow_redirect!
+
+    cache = Distillator::FetchCache.find_by!(uri_key: CGI.escape(ovation_url))
+
+    assert_equal "Existing Event Title", statement.reload.cache
+    assert_not_equal "Recherche par titre", statement.reload.cache
+    assert_match "Scrape aborted", response.body
+    assert_match "redirect_to_listing", response.body
+    assert_equal "attempt_failed", cache.health_status
+    assert_equal "redirect_to_listing", cache.primary_issue_key
+    assert_nil cache.html
+  ensure
+    ENV["DISTILLATOR_FETCH_MODE"] = previous_mode
+  end
+
 
 
   private
 
   def follow_redirect_with_trace_visibility(state = "always", view_mode = nil)
     cookies[:trace_visibility] = state
-    cookies[:trace_view_mode] = view_mode if view_mode.present?
+    if view_mode.present?
+      cookies[:trace_view_mode] = view_mode
+    else
+      cookies.delete(:trace_view_mode)
+      cookies.delete("trace_view_mode")
+    end
     follow_redirect!
   end
 
@@ -1204,7 +1731,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
       trace: trace,
       errors: errors
     )
-    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+    StatementsController.any_instance.stubs(:statement_refresh_helper_proxy).returns(helper_proxy)
   end
 
   def build_large_realistic_trace(n)
@@ -1238,6 +1765,13 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert first.key?(:s)
     assert first.key?(:t)
     compact
+  end
+
+  def assert_read_only_page_does_not_fetch
+    Distillator::FetchCacheStore.expects(:fetch).never
+    Distillator::FetchService.expects(:fetch).never
+    Distillator::NativeFetch.expects(:call).never
+    Distillator::FetchShadowComparator.expects(:call).never
   end
 
 end

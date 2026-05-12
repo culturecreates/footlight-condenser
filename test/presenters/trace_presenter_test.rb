@@ -63,4 +63,16 @@ class TracePresenterTest < ActiveSupport::TestCase
 
     assert presenter.visible?(cookies)
   end
+
+  test "trace visibility matrix is deterministic across cookie modes" do
+    no_error = TracePresenter.new([])
+    with_error = TracePresenter.new([{ error: "boom" }])
+
+    assert_equal 3, no_error.mode({})
+    refute no_error.visible?({})
+    refute no_error.visible?({ "trace_visibility" => "hidden" })
+    assert with_error.visible?({ "trace_visibility" => "always" })
+    assert with_error.visible?({ "trace_visibility" => "auto" })
+    refute no_error.visible?({ "trace_visibility" => "auto" })
+  end
 end

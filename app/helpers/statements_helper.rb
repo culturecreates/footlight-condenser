@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module StatementsHelper
+  include ApplicationHelper
   include CcKgHelper
   include CcWringerHelper
   Page = Struct.new(:text) # Used to simulate Nokogiri object's text method
@@ -120,8 +121,8 @@ module StatementsHelper
     end
   end
 
-  def wringer_links_for_step(step)
-    current = normalize_step_hash(step)
+  def wringer_links_for_step(step = nil, website: nil, website_id: nil, **step_kwargs)
+    current = normalize_step_hash(step.presence || step_kwargs)
     wringer = current[:wringer].is_a?(Hash) ? current[:wringer].with_indifferent_access : {}
     return nil if wringer.blank?
 
@@ -133,7 +134,12 @@ module StatementsHelper
 
     {
       wringer_search: "#{base}/websites?term=#{encoded}",
-      raw_url: url
+      raw_url: url,
+      active_cache: Distillator::CacheLinkResolver.call(
+        url: url,
+        website: website,
+        website_id: website_id || current[:website_id]
+      )
     }
   end
 
@@ -159,6 +165,18 @@ module StatementsHelper
 
   def wringer_network_metadata(step)
     interactive_redirect_info(step)
+  end
+
+  def statement_cache_links(statement)
+    Distillator::CacheLinkResolver.call(url: statement.webpage.url, website: statement.webpage.website)
+  end
+
+  def statement_rollout_badge(statement)
+    operator_rollout_badge(statement.webpage.website)
+  end
+
+  def statement_rollout_explanation(statement)
+    operator_rollout_explanation(statement.webpage.website)
   end
 
   def normalize_step_hash(step)
@@ -224,7 +242,7 @@ module StatementsHelper
       render_js: stat.source.render_js,
       language: stat.source.language,
       url: stat.webpage.url,
-      scrape_options: scrape_options,
+      scrape_options: statement_refresh_scrape_options(stat, scrape_options),
       trace: trace_enabled
     )
 
@@ -248,7 +266,7 @@ module StatementsHelper
     # Check for abort_update signal
     if data.is_a?(Array) && data.first == "abort_update"
       info = data.second || {}
-      abort_error_message = "Scrape aborted (#{info[:error_type]}): #{info[:error]}"
+      abort_error_message = compact_refresh_error(info)
       stat.errors.add(:base, abort_error_message)
       error_messages << abort_error_message
       return build_result.call
@@ -292,10 +310,68 @@ module StatementsHelper
     build_result.call
   end
 
+  def compact_refresh_error(error)
+    payload =
+      if error.is_a?(Hash)
+        error
+      elsif !error.is_a?(Array) && error.respond_to?(:to_h)
+        error.to_h
+      else
+        {}
+      end
+
+    payload = payload.with_indifferent_access if payload.respond_to?(:with_indifferent_access)
+    error_type = payload[:error_type].presence || "RefreshError"
+    step = payload[:step].presence
+    signals = payload[:signals].respond_to?(:to_h) ? payload[:signals].to_h.with_indifferent_access : {}
+    issue = signals[:blocking_issue_key].presence || signals[:primary_issue_key].presence || payload[:error_type]
+    message = payload[:error].to_s
+    message = message.tr("\n", " ").squish
+    message = message[0, 180] + "..." if message.length > 180
+
+    parts = ["Scrape aborted (#{error_type})"]
+    parts << "step=#{step}" if step.present?
+    parts << "issue=#{issue}" if issue.present? && issue.to_s != error_type.to_s
+    parts << message if message.present?
+    parts.join(": ")
+  end
+
+  def compact_refresh_errors(errors)
+    Array(errors).map { |error| compact_refresh_error(error) }
+  end
+
   def trace_enabled_for_request?
-    value = cookies[:dsl_trace]
+    return false unless respond_to?(:cookies)
+
+    cookie_jar = cookies
+    return false unless cookie_jar.respond_to?(:[])
+
+    value = cookie_jar[:dsl_trace]
     value = value[:value] if value.is_a?(Hash)
     value.to_s == "true"
+  end
+
+  def statement_refresh_scrape_options(stat, scrape_options)
+    options =
+      if scrape_options.respond_to?(:to_h)
+        scrape_options.to_h.symbolize_keys
+      else
+        {}
+      end
+
+    options.reverse_merge(
+      json_post: stat.source.json_post?,
+      use_phantomjs: stat.source.render_js,
+      website: stat.source.website,
+      website_id: stat.source.website_id
+    ).merge(
+      log_context: {
+        statement_id: stat.id,
+        source_id: stat.source_id,
+        webpage_id: stat.webpage_id,
+        website_id: stat.webpage&.website_id || stat.source.website_id
+      }
+    )
   end
 
 
@@ -502,14 +578,74 @@ module StatementsHelper
   #   results_list 
   # end
   def process_algorithm(algorithm:, render_js: false, language: "en", url:, scrape_options: {})
+    if legacy_sparql_algorithm?(algorithm)
+      return process_algorithm_sparql_compat(
+        algorithm: algorithm,
+        render_js: render_js,
+        url: url,
+        scrape_options: scrape_options
+      )
+    end
+
     tracer = Dsl::Tracing::NullTracer.new 
     ctx = {
       url: url,
       render_js: render_js,
-      scrape_options: scrape_options,
+      scrape_options: process_algorithm_scrape_options(scrape_options),
       tracer: tracer
     }
     Dsl::Core::AlgorithmRunner.new(ctx).run(algorithm)
+  end
+
+  def process_algorithm_scrape_options(scrape_options)
+    options = scrape_options.respond_to?(:deep_dup) ? scrape_options.deep_dup : {}
+    options = options.with_indifferent_access if options.respond_to?(:with_indifferent_access)
+    options = options.to_h if options.respond_to?(:to_h)
+
+    return options unless options.is_a?(Hash)
+    return options if process_algorithm_uses_cache_path?(options)
+
+    options.merge(wringer_compatibility: true)
+  end
+
+  def process_algorithm_uses_cache_path?(scrape_options)
+    options = scrape_options.respond_to?(:symbolize_keys) ? scrape_options.symbolize_keys : {}
+    log_context = options[:log_context]
+    log_context = log_context.to_h.symbolize_keys if log_context.respond_to?(:to_h)
+    log_context ||= {}
+
+    options[:website].present? ||
+      options[:website_id].present? ||
+      options[:force_scrape].present? ||
+      options[:force_scrape_every_hrs].present? ||
+      options[:mode].present? ||
+      log_context[:website_id].present? ||
+      log_context[:statement_id].present? ||
+      log_context[:source_id].present? ||
+      log_context[:webpage_id].present?
+  end
+
+  def legacy_sparql_algorithm?(algorithm)
+    algorithm.to_s.strip.start_with?("sparql=")
+  end
+
+  def process_algorithm_sparql_compat(algorithm:, render_js:, url:, scrape_options:)
+    sparql_clause = algorithm.to_s.strip.partition("=").last
+    graph = safe_wringer_call do
+      RDF::Graph.load(use_wringer(url, render_js, scrape_options))
+    end
+    return graph if abort_update_structure?(graph)
+
+    sparql = "PREFIX schema: <http://schema.org/> select * where #{sparql_clause}"
+    rows = SPARQL.execute(sparql, graph)
+    [*(rows.count == 1 ? rows.first.answer.value : rows.map { |r| r.answer.value })]
+  rescue StandardError => e
+    ["abort_update", {
+      error: e.message,
+      error_type: e.class.to_s,
+      source: "dsl_runner",
+      step: "sparql"
+    }]
   end
 
 
@@ -585,7 +721,10 @@ module StatementsHelper
               scraped_data.each do |uri_string|
                 if uri_string.present? && !uri_string.include?("error:")# Do not try to link URIs with empty strings or errors
                   # TODO: Only reconcile location if original cache "based on:" text changed
-                  data << search_for_uri(uri_string, property, webpage)
+                  linked_data = search_for_uri(uri_string, property, webpage)
+                  return linked_data if abort_update_structure?(linked_data)
+
+                  data << linked_data
                 end
               end
             # end
@@ -667,20 +806,29 @@ module StatementsHelper
   def search_for_uri(uri_string, property_obj, current_webpage)
     # data structure of uri = ['name', 'rdfs_class', ['name', 'uri'], ['name','uri'],...]
     # use property object to determine class
-    rdfs_class = property_obj.expected_class
+    expected_classes = expected_classes_for(property_obj.expected_class)
+    rdfs_class = expected_classes.first
+    uris = [uri_string, rdfs_class]
 
-    if rdfs_class.split(',').count > 1
-      # there is a list of class types i.e. ["Place"," VirtualLocation"]
-      # TODO: Fix to search for all types
-      # Patch: for now take first expected class type only
-      rdfs_class = rdfs_class.split(',').first
+    expected_classes.each do |expected_class|
+      results = search_everywhere(uri_string, expected_class, current_webpage)
+      if abort_update_structure?(results)
+        return results if uris.length <= 2
+
+        next
+      end
+
+      uris.concat(Array(results)[2..-1].to_a)
     end
-    uris = search_everywhere(uri_string, rdfs_class, current_webpage)
-    
-    # DO not add the URI of the current URI (can happen when adding sameAs)
-    uris[2..-1].select { |uri| uri unless uri[1] == current_webpage.rdf_uri }
-    
+
+    uris = deduplicate_uri_hits(uris, current_webpage)
     uris
+  end
+
+  def expected_classes_for(expected_class)
+    classes = expected_class.to_s.split(",").map(&:strip).reject(&:blank?)
+    classes = ["Organization", "Person"] if classes == ["Organization"]
+    classes
   end
 
   # Used when refreshing and also when manually adding in Console
@@ -710,7 +858,6 @@ module StatementsHelper
 
       if cckg_results[:error]
         logger.error("*** search kg ERROR:  #{cckg_results}")
-        uris << 'abort_update' # this forces the update to skip when the KG server is down and avoids setting everything to blank
       else
         cckg_results[:data].each do |uri|
           uris << uri if uri
@@ -721,7 +868,6 @@ module StatementsHelper
         cckg_results = search_cckg(uri_string, 'Person')
         if cckg_results[:error]
           logger.error("*** search kg ERROR:  #{cckg_results}")
-          uris << 'abort_update' # this forces the update to skip when the KG server is down and avoids setting everything to blank
         else
           cckg_results[:data].each do |uri|
             uris << uri if uri
@@ -745,9 +891,7 @@ module StatementsHelper
   def search_condenser(uri_string, expected_class) # returns a HASH
     # get names of all statements of expected_class
 
-    if expected_class == "Organization"
-      expected_class = ['Organization','Person']
-    end
+    expected_class = expected_classes_for(expected_class)
 
     hits = Statement.joins(source: :property)
                         .where(status: ['ok','updated'])
@@ -769,6 +913,30 @@ module StatementsHelper
     
     { data: hits.uniq }
     # #TODO: ????also check (s.webpage.website == webpage.website)
+  end
+
+  def deduplicate_uri_hits(uris, current_webpage)
+    base = uris.first(2)
+    hits = Array(uris[2..-1]).compact
+    hits = hits.reject do |uri|
+      uri.is_a?(Array) && current_webpage.present? && uri[1] == current_webpage.rdf_uri
+    end
+    hits = hits.uniq { |uri| uri.is_a?(Array) ? uri[1] : uri }
+    base + hits
+  end
+
+  def abort_update_structure?(value)
+    value.is_a?(Array) && value.first == "abort_update" && value.second.is_a?(Hash)
+  end
+
+  def linked_data_abort(error:, query:, expected_class:, source: "search_cckg")
+    ["abort_update", {
+      error: error.to_s,
+      error_type: "LinkedDataLookupError",
+      source: source,
+      query: query,
+      expected_class: expected_class
+    }]
   end
 
   def clean_query?(str)

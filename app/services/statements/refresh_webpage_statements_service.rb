@@ -6,29 +6,26 @@ module Statements
 
     def call(webpage:, default_language: "en", scrape_options: {})
       error_list = []
+      refresh_options = normalized_scrape_options(scrape_options)
       languages = [webpage.language]
       languages << "" if webpage.language == default_language
 
       property_ids = extract_property_ids(webpage.rdfs_class.name, [])
       property_ids.each do |property_id|
-        sources = Source.where(website_id: webpage.website, language: languages, property_id: property_id)
+        sources = Source.where(website_id: webpage.website_id, language: languages, property_id: property_id)
         sources.each do |src|
-          statements = Statement.where(webpage_id: webpage.id, source_id: src.id)
-          stat = if statements.blank?
-                   source_is_manual = src.algorithm_value.start_with?("manual=")
-                   statements.new(
-                     manual: source_is_manual,
-                     selected_individual: src.selected,
-                     status: "initial",
-                     status_origin: "condenser_create"
-                   )
-                 else
-                   statements.first
-                 end
+          stat = Statement.find_or_initialize_by(webpage_id: webpage.id, source_id: src.id)
+          if stat.new_record?
+            source_is_manual = src.algorithm_value.start_with?("manual=")
+            stat.manual = source_is_manual
+            stat.selected_individual = src.selected
+            stat.status = "initial"
+            stat.status_origin = "condenser_create"
+          end
 
           next if stat.manual && %w[ok updated].include?(stat.status)
 
-          @refresh_helper.refresh_statement_helper(stat, scrape_options)
+          @refresh_helper.refresh_statement_helper(stat, refresh_options.dup)
           stat.update(status: "updated") if src.auto_review && stat.status == "initial"
           error_list << { "Property id #{property_id}" => stat.errors.messages } if stat.errors.any?
         end
@@ -53,6 +50,12 @@ module Statements
         end
       end
       property_ids
+    end
+
+    def normalized_scrape_options(scrape_options)
+      return {} unless scrape_options.respond_to?(:to_h)
+
+      scrape_options.to_h.symbolize_keys
     end
   end
 end

@@ -20,12 +20,12 @@ class TracePresenter
   end
 
   def mode(cookies)
-    value = cookies[:trace_view_mode]&.to_i
+    value = cookie_value(cookies, :trace_view_mode)&.to_i
     VALID_MODES.include?(value) ? value : DEFAULT_MODE
   end
 
   def visibility_setting(cookies)
-    cookies[:trace_visibility].to_s.downcase.presence || "auto"
+    cookie_value(cookies, :trace_visibility).to_s.downcase.presence || "auto"
   end
 
   def visible?(cookies)
@@ -266,6 +266,16 @@ class TracePresenter
   end
 
   private
+
+  def cookie_value(cookies, key)
+    return nil unless cookies.respond_to?(:[])
+
+    value = cookies[key]
+    value = cookies[key.to_s] if value.nil? && key.respond_to?(:to_s)
+    value = value[:value] if value.is_a?(Hash) && value.key?(:value)
+    value = value["value"] if value.is_a?(Hash) && value.key?("value")
+    value
+  end
 
   def normalize_step(step)
     return {}.with_indifferent_access unless step.respond_to?(:to_h)

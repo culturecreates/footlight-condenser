@@ -22,26 +22,29 @@ class StatementsController < ApplicationController
   # PATCH /statements/refresh_webpage.json?url=http://
   def refresh_webpage
     webpage = Webpage.includes(:website).where(url: params[:url]).first
+    return render_missing_refresh_webpage if webpage.blank?
+
     error_list = refresh_webpage_statements(webpage,  webpage.website.default_language)
     respond_to do |format|
-        format.html {redirect_to webpage_statements_path(url: params[:url]), notice:"Refresh result: #{error_list}" }
-        format.json {render json: {message:"statements refreshed. #{error_list}"}.to_json }
+        format.html { redirect_to webpage_statements_path(url: params[:url]), notice: refresh_summary_notice(success_message: "Webpage statements refreshed.", errors: error_list, error_prefix: "Refresh completed") }
+        format.json { render json: { message: refresh_summary_notice(success_message: "Webpage statements refreshed.", errors: error_list, error_prefix: "Refresh completed"), errors: compact_refresh_error_list(error_list) }.to_json }
     end
   end
 
   # PATCH /statements/refresh_rdf_uri.json?rdf_uri=
   # PATCH /statements/refresh_rdf_uri.json?rdf_uri=&force_scrape_every_hrs=24
   def refresh_rdf_uri
-    params[:force_scrape_every_hrs] ||= nil
     error_list = []
     webpages = Webpage.includes(:website).where(rdf_uri: params[:rdf_uri])
+    return render_missing_refresh_rdf_uri if webpages.blank?
+
     webpages.each do |webpage|
-      errors = refresh_webpage_statements(webpage, webpage.website.default_language, {:force_scrape_every_hrs => params[:force_scrape_every_hrs]})
+      errors = refresh_webpage_statements(webpage, webpage.website.default_language, refresh_rdf_uri_scrape_options)
       error_list << {"Webpage id: #{webpage.id}" => errors}
     end
     respond_to do |format|
-      format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri]), notice:"Refresh results: #{error_list}"  }
-      format.json { render json: {message:"URI refreshed. Refresh results: #{error_list}"}.to_json }
+      format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri]), notice: refresh_summary_notice(success_message: "URI refreshed.", errors: error_list, item_label: "webpage errors", error_prefix: "URI refreshed") }
+      format.json { render json: { message: refresh_summary_notice(success_message: "URI refreshed.", errors: error_list, item_label: "webpage errors", error_prefix: "URI refreshed"), errors: compact_refresh_error_list(error_list) }.to_json }
     end
   end
 
@@ -49,7 +52,7 @@ class StatementsController < ApplicationController
   # PATCH /statements/1/refresh
   # PATCH /statements/1/refresh.json
   def refresh
-    result = helpers.refresh_statement_helper(@statement)
+    result = statement_refresh_helper_proxy.refresh_statement_helper(@statement)
     trace_enabled = cookies[:dsl_trace] == "true"
     data = result[:data]
     abort_payload = extract_abort_payload(data)
@@ -71,11 +74,12 @@ class StatementsController < ApplicationController
 
     respond_to do |format|
       if abort_payload.present?
-        error_message = abort_payload[:error].presence || "DSL runner aborted"
+        compact_error = helpers.compact_refresh_error(abort_payload)
         error_type = abort_payload[:error_type].presence || "DslAbort"
+        error_message = abort_payload[:error].presence || "DSL runner aborted"
 
         format.html do
-          flash[:alert] = "Statement Error: (#{error_type}) #{error_message}"
+          flash[:alert] = "Statement Error: #{compact_error}"
           redirect_to @statement
         end
         format.json do
@@ -90,14 +94,14 @@ class StatementsController < ApplicationController
         end
       elsif result[:errors].present?
         format.html do
-          flash[:alert] = "Statement Error: " + result[:errors].to_sentence
+          flash[:alert] = "Statement Error: " + Array(result[:errors]).join(". ")
           redirect_to @statement
         end
         format.json do
           render json: {
             status: "error",
             kind: "refresh_error",
-            error: result[:errors].to_sentence,
+            error: Array(result[:errors]).join(". "),
             error_type: "RefreshError",
             step: nil,
             source: "statements_controller"
@@ -310,10 +314,17 @@ class StatementsController < ApplicationController
       statements = build_query
       error_list = []
       statements.each do |stat|
-        helpers.refresh_statement_helper(stat)
-        error_list << {"Statement id #{stat.id}" => stat.errors.messages} if stat.errors.any?
+        result = helpers.refresh_statement_helper(stat)
+        compact_errors = Array(result[:errors]).presence || stat.errors.full_messages
+        error_list << "Statement id #{stat.id}: #{compact_errors.first}" if compact_errors.present?
       end
-      redirect_to statements_path(request.parameters.except(:authenticity_token)), notice: "Statements refreshed. #{error_list}"
+      notice =
+        if error_list.any?
+          "Refresh completed with #{error_list.size} errors. First: #{error_list.first}"
+        else
+          "Statements refreshed."
+        end
+      redirect_to statements_path(request.parameters.except(:authenticity_token)), notice: notice
     end
     if params[:commit] == "Review all listed" 
       statements = build_query
@@ -469,15 +480,35 @@ class StatementsController < ApplicationController
   #   scrape_options = {} to pass to Footlight-wringer scrapping service
   #
   def refresh_webpage_statements(webpage, default_language = "en", scrape_options={})
-    Statements::RefreshWebpageStatementsService.new(refresh_helper: helpers).call(
+    Statements::RefreshWebpageStatementsService.new(
+      refresh_helper: statement_refresh_helper_proxy
+    ).call(
       webpage: webpage,
       default_language: default_language,
-      scrape_options: scrape_options
+      scrape_options: normalized_scrape_options(scrape_options)
     )
   end
 
 
   private
+
+  def statement_refresh_helper_proxy
+    helper = Object.new
+    helper.extend(StatementsHelper)
+    helper.instance_variable_set(:@_statement_refresh_cookies, request_cookie_snapshot)
+    helper.define_singleton_method(:cookies) { @_statement_refresh_cookies }
+    helper
+  end
+
+  def request_cookie_snapshot
+    return {} unless request.respond_to?(:cookies)
+
+    source = request.cookies || {}
+
+    source.with_indifferent_access
+  rescue StandardError
+    {}
+  end
 
   def safe_trace_copy(obj)
     case obj
@@ -514,6 +545,71 @@ class StatementsController < ApplicationController
 
     payload = payload.with_indifferent_access if payload.respond_to?(:with_indifferent_access)
     payload
+  end
+
+  def refresh_rdf_uri_scrape_options
+    { force_scrape_every_hrs: params[:force_scrape_every_hrs] }
+  end
+
+  def render_missing_refresh_webpage
+    message = "Webpage not found for URL: #{params[:url]}"
+
+    respond_to do |format|
+      format.html { redirect_to webpage_statements_path(url: params[:url]), alert: message }
+      format.json { render json: { error: message, url: params[:url] }, status: :not_found }
+    end
+  end
+
+  def render_missing_refresh_rdf_uri
+    message = "No webpages found for RDF URI: #{params[:rdf_uri]}"
+
+    respond_to do |format|
+      format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri]), alert: message }
+      format.json { render json: { error: message, rdf_uri: params[:rdf_uri] }, status: :not_found }
+    end
+  end
+
+  def normalized_scrape_options(scrape_options)
+    return {} unless scrape_options.respond_to?(:to_h)
+
+    scrape_options.to_h.symbolize_keys
+  end
+
+  def refresh_summary_notice(success_message:, errors:, item_label: "errors", error_prefix: nil)
+    compact_errors = compact_refresh_error_list(errors)
+    return success_message if compact_errors.empty?
+
+    prefix = error_prefix.presence || success_message.delete_suffix(".")
+    "#{prefix} with #{compact_errors.size} #{item_label}. First: #{compact_errors.first}"
+  end
+
+  def compact_refresh_error_list(errors)
+    Array(errors).flat_map { |entry| compact_refresh_entries(entry) }.reject(&:blank?)
+  end
+
+  def compact_refresh_entries(entry, prefix = nil)
+    case entry
+    when String
+      [prefix.present? ? "#{prefix}: #{entry}" : entry]
+    when Hash
+      if entry.key?(:error) || entry.key?("error") || entry.key?(:error_type) || entry.key?("error_type")
+        message = helpers.compact_refresh_error(entry)
+        [prefix.present? ? "#{prefix}: #{message}" : message]
+      else
+      entry.flat_map do |key, value|
+        compact_refresh_entries(value, [prefix, key].compact.join(": "))
+      end
+      end
+    when Array
+      if entry.size == 2 && (entry.first.is_a?(String) || entry.first.is_a?(Symbol))
+        compact_refresh_entries(entry.last, [prefix, entry.first].compact.join(": "))
+      else
+        entry.flat_map { |nested| compact_refresh_entries(nested, prefix) }
+      end
+    else
+      message = helpers.compact_refresh_error(entry)
+      [prefix.present? ? "#{prefix}: #{message}" : message]
+    end
   end
 
   def resolve_trace_url(urls, index)
@@ -612,7 +708,21 @@ class StatementsController < ApplicationController
 
   # Use callbacks to share common setup or constraints between actions.
   def set_statement
-    @statement = Statement.find(params[:id])
+    @statement = Statement.find_by(id: params[:id])
+
+    return if @statement
+
+    respond_to do |format|
+      format.html do
+        redirect_to statements_path, alert: "Statement not found"
+      end
+      format.json do
+        render json: {
+          error: "Statement not found",
+          id: params[:id]
+        }, status: :not_found
+      end
+    end
   end
 
   # Never trust parameters from the scary internet, only allow the white list through.

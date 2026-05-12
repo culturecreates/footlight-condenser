@@ -97,7 +97,7 @@
 
   <% detail_semantic = trace_presenter.semantic_label(step) %>
   <% redirect_url = interactive_redirect_info(step) %>
-  <% links = wringer_links_for_step(step) %>
+  <% links = wringer_links_for_step(step, website: @statement&.webpage&.website) %>
 
   <% if redirect_url.present? && detail_semantic == "Navigation" %>
   <div class="trace-subline trace-redirect">
@@ -108,9 +108,18 @@
 
   <% if detail_semantic == "Navigation" && links.present? %>
     <div class="trace-navigation-links">
-      <a href="<%= links[:wringer_search] %>" target="_blank" rel="noopener noreferrer">🔍 Open in Wringer</a>
+      <% active_cache = links[:active_cache] || {} %>
+      <% if active_cache[:active_cache_url].present? %>
+        <a href="<%= active_cache[:active_cache_url] %>" target="_blank" rel="noopener noreferrer">🧭 <%= active_cache[:label] %></a>
+      <% end %>
+      <% active_cache.fetch(:secondary_links, []).each do |link| %>
+        <a href="<%= link[:url] %>" target="_blank" rel="noopener noreferrer">🔍 <%= link[:label] %></a>
+      <% end %>
       <a href="<%= links[:raw_url] %>" target="_blank" rel="noopener noreferrer">🌐 View page</a>
     </div>
+    <% if active_cache[:warning].present? %>
+      <div class="trace-subline trace-redirect"><span>⚠ <%= active_cache[:warning] %></span></div>
+    <% end %>
   <% end %>
 
   <hr class="trace-divider">

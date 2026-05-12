@@ -1,6 +1,37 @@
 require "test_helper"
 
 class Dsl::Support::WringerClientTest < ActiveSupport::TestCase
+  FakeWringerResponse = Struct.new(:code, :body, :uri, :response, keyword_init: true) do
+    def [](key)
+      response && (response[key] || response[key.to_s])
+    end
+
+    def headers
+      response
+    end
+  end
+
+  FakeHistoryEntry = Struct.new(:uri, keyword_init: true)
+
+  class FakeWringerAgent
+    attr_reader :called_urls
+
+    def initialize(response:, history: [])
+      @response = response
+      @history = history
+      @called_urls = []
+    end
+
+    def get(url)
+      @called_urls << url
+      @response
+    end
+
+    def history
+      @history
+    end
+  end
+
   test "successful fetch returns status ok, body string, wringer diagnostics" do
     captured = {}
     agent = mock("agent")
@@ -196,7 +227,7 @@ class Dsl::Support::WringerClientTest < ActiveSupport::TestCase
       logger: Rails.logger
     )
 
-    options = { json_post: true, force_scrape_every_hrs: 1 }
+    options = { json_post: true, absolute_src: true, force_scrape_every_hrs: 1 }
     client.fetch(url: "https://example.com/events", scrape_options: options)
 
     assert_equal options, captured[:scrape_options]
@@ -541,5 +572,163 @@ class Dsl::Support::WringerClientTest < ActiveSupport::TestCase
     assert_equal false, result[:wringer][:received_404]
     assert_equal false, result[:wringer][:system_error]
     assert_equal "abort_update", result[:wringer][:policy_action]
+  end
+
+  test "matches Distillator fetch normalization for wringer response shapes" do
+    cases = [
+      {
+        name: "successful string response",
+        response: -> { "<html>ok</html>" },
+        safe_wringer_call: passthrough_safe_wringer_call
+      },
+      {
+        name: "Mechanize-like response with headers and final_url",
+        response: lambda {
+          FakeWringerResponse.new(
+            code: 200,
+            body: "<html>ok</html>",
+            uri: URI("https://example.com/final"),
+            response: { "Content-Type" => "text/html" }
+          )
+        },
+        safe_wringer_call: passthrough_safe_wringer_call
+      },
+      {
+        name: "abort_update response",
+        response: -> { "<html>unused</html>" },
+        safe_wringer_call: control_safe_wringer_call(
+          ["abort_update", { error_type: "system_cloudflare", retry: true, cache: false }]
+        )
+      },
+      {
+        name: "404 response",
+        response: lambda {
+          FakeWringerResponse.new(
+            code: 404,
+            body: "Not Found",
+            uri: URI("https://example.com/missing"),
+            response: { "Content-Type" => "text/html" }
+          )
+        },
+        safe_wringer_call: response_policy_safe_wringer_call(
+          http_code: 404,
+          error_type: "http_404",
+          retry_value: false
+        )
+      },
+      {
+        name: "500 response",
+        response: lambda {
+          FakeWringerResponse.new(
+            code: 500,
+            body: "Internal Server Error",
+            uri: URI("https://example.com/error"),
+            response: { "Content-Type" => "text/html" }
+          )
+        },
+        safe_wringer_call: response_policy_safe_wringer_call(
+          http_code: 500,
+          error_type: "http_server_error",
+          retry_value: true
+        )
+      },
+      {
+        name: "malformed control payload",
+        response: -> { "<html>unused</html>" },
+        safe_wringer_call: control_safe_wringer_call(["abort_update", "broken-payload"])
+      },
+      {
+        name: "unsupported control action",
+        response: -> { "<html>unused</html>" },
+        safe_wringer_call: control_safe_wringer_call(["foo", { reason: "unknown" }])
+      },
+      {
+        name: "redirect_chain extraction",
+        response: lambda {
+          FakeWringerResponse.new(
+            code: 200,
+            body: "<html>redirected</html>",
+            uri: URI("https://example.com/final"),
+            response: { "Content-Type" => "text/html" }
+          )
+        },
+        history: [
+          FakeHistoryEntry.new(uri: URI("https://example.com/start")),
+          FakeHistoryEntry.new(uri: URI("https://example.com/final"))
+        ],
+        safe_wringer_call: passthrough_safe_wringer_call
+      }
+    ]
+
+    cases.each do |example|
+      dsl_agent = FakeWringerAgent.new(
+        response: example[:response].call,
+        history: example[:history] || []
+      )
+      distillator_agent = FakeWringerAgent.new(
+        response: example[:response].call,
+        history: example[:history] || []
+      )
+
+      dsl_result = wringer_client(
+        agent: dsl_agent,
+        safe_wringer_call: example[:safe_wringer_call]
+      ).fetch(url: "https://example.com/events")
+      distillator_result = Distillator::FetchService.fetch_wringer_backed(
+        url: "https://example.com/events",
+        render_js: false,
+        scrape_options: {},
+        agent: distillator_agent,
+        use_wringer: wringer_url_resolver,
+        safe_wringer_call: example[:safe_wringer_call],
+        logger: Rails.logger
+      )
+
+      assert_equal distillator_result, dsl_result, example[:name]
+    end
+  end
+
+  private
+
+  def wringer_client(agent:, safe_wringer_call:)
+    Dsl::Support::WringerClient.new(
+      agent: agent,
+      render_js: false,
+      scrape_options: {},
+      use_wringer: wringer_url_resolver,
+      safe_wringer_call: safe_wringer_call,
+      logger: Rails.logger
+    )
+  end
+
+  def wringer_url_resolver
+    ->(*_) { "wringer://resolved" }
+  end
+
+  def passthrough_safe_wringer_call
+    lambda do |normalize_response: false, &blk|
+      blk.call
+    end
+  end
+
+  def control_safe_wringer_call(payload)
+    lambda do |normalize_response: false, &blk|
+      payload
+    end
+  end
+
+  def response_policy_safe_wringer_call(http_code:, error_type:, retry_value:)
+    lambda do |normalize_response: false, &blk|
+      response = blk.call
+      return response unless response.respond_to?(:code) && response.code.to_i == http_code
+
+      [
+        "abort_update",
+        {
+          error_type: error_type,
+          policy: { action: "abort_update", retry: retry_value, cache: false }
+        }
+      ]
+    end
   end
 end

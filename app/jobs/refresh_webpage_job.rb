@@ -1,7 +1,6 @@
 # Refresh Webpages
 class RefreshWebpageJob < ApplicationJob
   queue_as :default
-  include CcWringerHelper
 
   after_perform do |job|
     if job.arguments.last == "resource_list"
@@ -13,16 +12,28 @@ class RefreshWebpageJob < ApplicationJob
   def perform(url, options = nil)
     webpages = Webpage.includes(:website).where(url: url)
     webpages.each do |webpage|
-      Statements::RefreshWebpageStatementsService.new(refresh_helper: ApplicationController.helpers).call(
+      Distillator::RefreshRunner.call(
         webpage: webpage,
-        default_language: webpage.website.default_language,
-        scrape_options: { force_scrape_every_hrs: 1 }
+        refresh_helper: ApplicationController.helpers,
+        scrape_options: extract_scrape_options(options)
       )
-      # if after refresh the webpage is still 404 then delete it
-      if wringer_received_404?(url)
+
+      removal_candidate = Distillator::WebpageRemovalCandidate.call(
+        webpage,
+        include_fragment: extract_scrape_options(options)[:include_fragment]
+      )
+      if removal_candidate.delete?
         webpage.destroy
       end
     end
   end
+  
+  private
 
+  def extract_scrape_options(options)
+    return {} if options.blank? || options == "resource_list"
+    return options.symbolize_keys if options.respond_to?(:symbolize_keys)
+
+    {}
+  end
 end

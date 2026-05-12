@@ -6,7 +6,7 @@ module Dsl
     MAX_STRING_LENGTH = 200
     ARRAY_SAMPLE_SIZE = 5
     MAX_UI_EVENTS = 20
-    MAX_SESSION_BYTES = 3000
+    MAX_SESSION_BYTES = 2000
 
     class << self
       def normalize(raw_events)

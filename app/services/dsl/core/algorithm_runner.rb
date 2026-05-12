@@ -1,4 +1,4 @@
-# app/services/dsl/core/algorithm_runner.rb
+require "stringio"
 module Dsl
   module Core
     class AlgorithmRunner
@@ -22,6 +22,7 @@ module Dsl
       @render_js   = ctx[:render_js]
       @scrape_opts = ctx[:scrape_options] || {}
       @tracer      = ctx[:tracer]
+      @mode        = ctx[:mode] || @scrape_opts[:mode] || @scrape_opts["mode"]
       @agent       = Mechanize.new
       @agent.user_agent_alias = 'Mac Safari'
       @html        = nil
@@ -49,6 +50,12 @@ module Dsl
       @dsl_binding = binding
 
       steps = algorithm.split(';').map(&:strip).reject(&:empty?)
+      if export_debug?
+        Rails.logger.warn(
+          "[EXPORT_DEBUG] DSL.run entry url=#{@url} render_js=#{@render_js.inspect} steps=#{steps.size} " \
+          "algorithm=#{algorithm.to_s[0, 240].inspect}"
+        )
+      end
       previous_prefix = nil
       previous_step_index = nil
       @probed_url_step_indices = []
@@ -91,6 +98,12 @@ module Dsl
             duration_ms: duration_ms
           )
 
+          if export_debug?
+            Rails.logger.warn(
+              "[EXPORT_DEBUG] DSL.run abort step=#{step_index} type=#{prefix} url=#{@url} " \
+              "error_type=#{out.last[:error_type] || out.last['error_type']}"
+            )
+          end
           return out
         end
 
@@ -115,6 +128,11 @@ module Dsl
             duration_ms: duration_ms
           )
 
+          if export_debug?
+            Rails.logger.warn(
+              "[EXPORT_DEBUG] DSL.run halt step=#{step_index} type=#{prefix} url=#{@url} results_count=#{Array(results).size}"
+            )
+          end
           break
         end
 
@@ -189,12 +207,19 @@ module Dsl
         )
       end
 
+      if export_debug?
+        Rails.logger.warn("[EXPORT_DEBUG] DSL.run exit url=#{@url} results_count=#{Array(results).size}")
+      end
       results
     ensure
       restore_thread_locals(previous_locals)
     end
 
-    private
+      private
+
+    def export_debug?
+      ENV["EXPORT_DEBUG"].present?
+    end
 
     def execute(prefix, code, arr)
       case prefix
@@ -209,7 +234,9 @@ module Dsl
 
       when 'sparql'
         begin
-          @graph ||= RDF::Graph.load(use_wringer(@url, @render_js, @scrape_opts))
+          graph_status = ensure_graph!(step: 'sparql')
+          return graph_status if abort_structure?(graph_status)
+
           sparql = "PREFIX schema: <http://schema.org/> select * where #{code}"
           rows = SPARQL.execute(sparql, @graph)
           [*(rows.count == 1 ? rows.first.answer.value : rows.map { |r| r.answer.value })]
@@ -362,7 +389,7 @@ module Dsl
 
       @url = new_url
 
-      fetch_result = wringer_client.fetch(url: @url, render_js: render_js, scrape_options: opts)
+      fetch_result = fetch_result_for(url: @url, render_js: render_js, scrape_options: opts)
       @current_wringer_status =
         (fetch_result[:wringer] || {}).merge(
           duration_ms: fetch_result[:duration_ms]
@@ -438,7 +465,7 @@ module Dsl
     def ensure_page!(step: nil)
       return :ok if @page
 
-      fetch_result = wringer_client.fetch(url: @url, render_js: @render_js, scrape_options: @scrape_opts)
+      fetch_result = fetch_result_for(url: @url, render_js: @render_js, scrape_options: @scrape_opts)
       @current_wringer_status =
         (fetch_result[:wringer] || {}).merge(
           duration_ms: fetch_result[:duration_ms]
@@ -452,6 +479,40 @@ module Dsl
       @html = raw
       @page = Nokogiri::HTML(@html, nil, Encoding::UTF_8.to_s)
       :ok
+    end
+
+    def ensure_graph!(step: nil)
+      return :ok if @graph
+
+      fetch_result = fetch_result_for(url: @url, render_js: @render_js, scrape_options: @scrape_opts)
+      @current_wringer_status =
+        (fetch_result[:wringer] || {}).merge(
+          duration_ms: fetch_result[:duration_ms]
+        )
+      raw = fetch_result[:body]
+
+      if fetch_result[:status] == :abort
+        return normalize_abort_result(raw, step: step)
+      end
+
+      @graph = load_rdf_graph(raw, fetch_result)
+      :ok
+    end
+
+    def load_rdf_graph(body, fetch_result)
+      source_url = fetch_result[:final_url].presence || @url
+      headers = fetch_result[:headers] || {}
+      content_type = headers[:content_type] || headers["content_type"] || headers[:"content-type"] || headers["Content-Type"]
+      content_type = Array(content_type).first.to_s.presence
+      text = body.to_s
+      reader = RDF::Reader.for(content_type: content_type, file_name: source_url) { text[0, 1000] }
+      raise RDF::FormatError, "unknown RDF format for #{source_url}" unless reader
+
+      RDF::Graph.new do |graph|
+        reader.new(StringIO.new(text), base_uri: source_url) do |rdf|
+          graph << rdf
+        end
+      end
     end
 
     def abort_update(error:, error_type:, step: nil, source: "dsl_runner")
@@ -489,24 +550,208 @@ module Dsl
       ["abort_update", built.merge(normalized.except(:error, :error_type, :step, :source))]
     end
 
-    def use_wringer(u, rj, opt)
-      return ApplicationController.helpers.use_wringer(u, rj, opt) unless rj == false && (opt.blank? || opt == { force_scrape_every_hrs: nil })
-      return ApplicationController.helpers.use_wringer(u, rj, opt) unless CcWringerHelper.respond_to?(:use_wringer)
-
-      url = u
-      client_result = WringerClient.fetch(url)
-      Rails.logger.info(
-        "[WringerClient] url=#{url} status=#{client_result[:status]} duration=#{client_result[:duration_ms]}ms"
-      )
-
-      if client_result[:status] == :ok
-          client_result[:html]
+    def fetch_result_for(url:, render_js:, scrape_options:)
+      options, log_context = sanitized_scrape_options(scrape_options)
+      if use_wringer_compatibility_client?(options)
+        wringer_client.fetch(url: url, render_js: render_js, scrape_options: options)
       else
-          ["abort_update", {
-            error_type: client_result.dig(:error, :type),
-            error: client_result.dig(:error, :message)
-          }]
+        fetch_result_from_cache(url: url, render_js: render_js, scrape_options: options, log_context: log_context)
       end
+    end
+
+    def fetch_result_from_cache(url:, render_js:, scrape_options:, log_context:)
+      website = scrape_options[:website] || scrape_options["website"]
+      website_id = scrape_options[:website_id] || scrape_options["website_id"] || log_context[:website_id]
+      fetch = Distillator::FetchCacheStore.fetch(
+        uri: url,
+        include_fragment: scrape_options.fetch(:include_fragment, true),
+        force_scrape: scrape_options.fetch(:force_scrape, false),
+        force_scrape_every_hrs: scrape_options[:force_scrape_every_hrs],
+        render_js: render_js,
+        mode: effective_distillator_mode(scrape_options),
+        use_phantomjs: scrape_options.fetch(:use_phantomjs, false),
+        absolute_src: scrape_options.fetch(:absolute_src, false),
+        json_post: scrape_options.fetch(:json_post, false),
+        website: website,
+        website_id: website_id,
+        agent: @agent,
+        use_wringer: method(:use_wringer),
+        safe_wringer_call: method(:safe_wringer_call),
+        logger: Rails.logger,
+        log_context: log_context
+      )
+      signals = (fetch.signals || {}).to_h.stringify_keys
+      hints = Array(fetch.hints)
+      body = fetch.body.presence || fetch.html
+      if fetch.respond_to?(:content_success?) && !fetch.content_success?
+        error_type = signals["blocking_issue_key"].presence || signals["primary_issue_key"].presence || "DistillatorContentFailure"
+        error_message = "Fetch content blocked by #{error_type}"
+        Rails.logger.warn(
+          {
+            event: "dsl.fetch.content_failure",
+            url: url,
+            error_type: error_type,
+            final_url: fetch.final_url.presence || url,
+            http_response_code: fetch.http_response_code,
+            cache_hit: fetch.cache_hit,
+            cache_write: fetch.cache_write,
+            cache_reason: fetch.cache_reason,
+            statement_id: log_context[:statement_id],
+            source_id: log_context[:source_id],
+            webpage_id: log_context[:webpage_id],
+            website_id: log_context[:website_id]
+          }
+        )
+        return {
+          status: :abort,
+          body: [
+            "abort_update",
+            {
+              error: error_message,
+              error_type: error_type,
+              source: "distillator_fetch_cache",
+              cache: fetch.respond_to?(:cache_policy) ? fetch.cache_policy : signals["cache"],
+              retry: fetch.respond_to?(:retry_policy) ? fetch.retry_policy : signals["retry"],
+              step: "url",
+              signals: signals,
+              hints: hints
+            }
+          ],
+          headers: fetch.headers || {},
+          final_url: fetch.final_url.presence || url,
+          redirect_chain: fetch.redirect_chain || [],
+          wringer: {
+            error_type: error_type,
+            source: "distillator_fetch_cache",
+            cache: fetch.respond_to?(:cache_policy) ? fetch.cache_policy : signals["cache"],
+            retry: fetch.respond_to?(:retry_policy) ? fetch.retry_policy : signals["retry"],
+            signals: signals,
+            hints: hints,
+            final_url: fetch.final_url.presence || url,
+            redirect_chain: fetch.redirect_chain || [],
+            fetch_path: fetch.fetch_path,
+            cache_hit: fetch.cache_hit,
+            cache_write: fetch.cache_write,
+            cache_reason: fetch.cache_reason,
+            uri_key: fetch.uri_key,
+            normalized_url: fetch.normalized_url
+          },
+          duration_ms: fetch.duration_ms,
+          http_code: fetch.http_response_code,
+          raw_body: body
+        }
+      end
+      abort_payload =
+        if body.is_a?(Array) && body.first == "abort_update" && body.second.is_a?(Hash)
+          body.second.with_indifferent_access
+        end
+
+      if abort_payload.present? || (body.blank? && signals["error_type"].present?)
+        error_type = abort_payload&.[](:error_type).presence || signals["error_type"]
+        error_message = abort_payload&.[](:error).presence || hints.first.presence || "Fetch cache returned no content"
+        return {
+          status: fetch.status,
+          body: if abort_payload.present?
+  body
+                else
+  [
+    "abort_update",
+    {
+      error: error_message,
+      error_type: error_type,
+      source: "distillator_fetch_cache",
+      cache: true,
+      step: "url"
+    }
+  ]
+                end,
+          headers: fetch.headers || {},
+          final_url: fetch.final_url.presence || url,
+          redirect_chain: fetch.redirect_chain || [],
+          wringer: {
+            error_type: error_type,
+            source: abort_payload&.[](:source).presence || "distillator_fetch_cache",
+            cache: abort_payload&.key?(:cache) ? abort_payload[:cache] : true,
+            retry: abort_payload&.[](:retry),
+            signals: signals,
+            hints: hints,
+            final_url: fetch.final_url.presence || url,
+            redirect_chain: fetch.redirect_chain || [],
+            fetch_path: fetch.fetch_path,
+            cache_hit: fetch.cache_hit,
+            cache_write: fetch.cache_write,
+            cache_reason: fetch.cache_reason,
+            uri_key: fetch.uri_key,
+            normalized_url: fetch.normalized_url
+          },
+          duration_ms: fetch.duration_ms,
+          http_code: fetch.http_response_code,
+          raw_body: body
+        }
+      end
+
+      {
+        status: fetch.status,
+        body: body,
+        headers: fetch.headers || {},
+        final_url: fetch.final_url.presence || url,
+        redirect_chain: fetch.redirect_chain || [],
+        wringer: {
+          cache: true,
+          signals: signals,
+          hints: hints,
+          final_url: fetch.final_url.presence || url,
+          redirect_chain: fetch.redirect_chain || [],
+          http_response_code: fetch.http_response_code,
+          fetch_path: fetch.fetch_path,
+          cache_hit: fetch.cache_hit,
+          cache_write: fetch.cache_write,
+          cache_reason: fetch.cache_reason,
+          uri_key: fetch.uri_key,
+          normalized_url: fetch.normalized_url
+        },
+        duration_ms: fetch.duration_ms,
+        http_code: fetch.http_response_code,
+        raw_body: body
+      }
+    end
+
+    def sanitized_scrape_options(scrape_options)
+      return [{}, {}] unless scrape_options.respond_to?(:deep_dup)
+
+      website = scrape_options[:website] || scrape_options["website"]
+      options = scrape_options.deep_dup.with_indifferent_access
+      log_context = options.delete(:log_context) || options.delete("log_context") || {}
+      normalized_options = options.to_h.symbolize_keys
+      normalized_options[:website] = website if website
+      [normalized_options, log_context.to_h.symbolize_keys]
+    end
+
+    def use_wringer_compatibility_client?(scrape_options)
+      options = scrape_options.respond_to?(:symbolize_keys) ? scrape_options.symbolize_keys : {}
+      Distillator::BooleanParam.parse(options[:wringer_compatibility] || options["wringer_compatibility"]) == true
+    end
+
+    def truthy?(value)
+      value == true || value.to_s == "true"
+    end
+
+    def effective_distillator_mode(scrape_options)
+      explicit =
+        scrape_options[:mode] ||
+        scrape_options["mode"] ||
+        @mode
+
+      return nil if explicit.blank?
+      normalized = explicit.to_s.strip.downcase
+      normalized = Distillator::FetchMode::ALIASES.fetch(normalized, normalized)
+      return nil unless Distillator::FetchMode::EXECUTION_MODES.include?(normalized)
+
+      normalized.to_sym
+    end
+
+    def use_wringer(u, rj, opt)
+      ApplicationController.helpers.use_wringer(u, rj, opt)
     end
 
     def safe_wringer_call(&blk)
