@@ -16,6 +16,35 @@
 <%= will_paginate @statements %>
 <br>
 
+<details class="statements-batch-actions harmonized-operator-section">
+  <summary>Batch actions</summary>
+
+  <p class="operator-note">
+    These actions apply to the current listed statements after filters and pagination.
+  </p>
+
+  <%= form_tag(batch_update_statements_path, class: "statements-batch-form") do -%>
+    <% @filters.each do |key, value| %>
+      <%= hidden_field_tag key, value %>
+    <% end %>
+    <%= hidden_field_tag :sort, @sort if @sort.present? %>
+    <%= hidden_field_tag :direction, @direction if @direction.present? %>
+    <%= hidden_field_tag :page, @pagination[:page] if @pagination[:page].present? %>
+    <%= hidden_field_tag :per_page, @pagination[:per_page] if @pagination[:per_page].present? %>
+
+    <div class="batch-action-row">
+      <%= label_tag :update_data, "Update" %>
+      <%= text_field_tag "update_data", "", size: 50, placeholder: 'selected: true, cache: ["one"]' %>
+      <%= submit_tag "Update" %>
+    </div>
+
+    <div class="batch-action-row">
+      <%= submit_tag "Review all listed" %>
+      <%= submit_tag "Refresh all listed" %>
+    </div>
+  <% end -%>
+</details>
+
 <%= render "shared/tables/table_shell",
            table_key: :statements,
            records: @statements,
@@ -30,24 +59,6 @@
            table_css_class: "cache-table statements-table",
            render_filters: true,
            empty_message: "No statements match the current filters." %>
-
-<%= form_tag(batch_update_statements_path) do -%>
-  <% @filters.each do |key, value| %>
-    <%= hidden_field_tag key, value %>
-  <% end %>
-  <%= hidden_field_tag :sort, @sort if @sort.present? %>
-  <%= hidden_field_tag :direction, @direction if @direction.present? %>
-  <%= hidden_field_tag :page, @pagination[:page] if @pagination[:page].present? %>
-  <%= hidden_field_tag :per_page, @pagination[:per_page] if @pagination[:per_page].present? %>
-  <br>
-  <%= submit_tag "View" %>
-  Update:
-  <%= text_field_tag "update_data", "", size: 50, placeholder: 'selected: true, cache: ["one"]' %>
-  <%= submit_tag "Update" %>
-  <br>
-  <%= submit_tag "Review all listed" %>
-  <%= submit_tag "Refresh all listed" %>
-<% end -%>
 
 <br>
 

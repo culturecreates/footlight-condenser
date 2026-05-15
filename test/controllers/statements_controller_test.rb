@@ -14,11 +14,50 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     get statements_url
 
     assert_response :success
+    assert_select "details.statements-batch-actions", 1
     assert_select ".harmonized-table-shell", 1
     assert_select ".harmonized-table-filters", 1
     assert_select 'form[action="/statements"][method="get"]', 1
     assert_select 'input[type="submit"][value="Apply filters"]', 1
     assert_select 'a', text: "Reset filters"
+  end
+
+  test "statements index renders batch actions above harmonized table" do
+    get statements_url
+
+    assert_response :success
+    assert_operator @response.body.index("statements-batch-actions"), :<, @response.body.index("harmonized-table-shell")
+  end
+
+  test "statements batch actions are inside collapsible operator section" do
+    get statements_url
+
+    assert_response :success
+    assert_select "details.statements-batch-actions", 1
+    assert_select "details.statements-batch-actions summary", text: "Batch actions"
+    assert_select "details.statements-batch-actions form[action='/statements/batch_update']", 1
+    assert_select "details.statements-batch-actions input[type='submit'][value='View']", 0
+    assert_select ".statements-batch-actions input[type='submit'][value='Update']", 1
+    assert_select ".statements-batch-actions input[type='submit'][value='Review all listed']", 1
+    assert_select ".statements-batch-actions input[type='submit'][value='Refresh all listed']", 1
+  end
+
+  test "statements batch actions do not render redundant view submit" do
+    get statements_url
+
+    assert_response :success
+    assert_select "details.statements-batch-actions input[type='submit'][value='View']", 0
+    assert_select ".harmonized-table-filters input[type='submit'][value='Apply filters']", 1
+    assert_select ".statements-batch-actions input[type='submit'][value='Update']", 1
+    assert_select ".statements-batch-actions input[type='submit'][value='Review all listed']", 1
+    assert_select ".statements-batch-actions input[type='submit'][value='Refresh all listed']", 1
+  end
+
+  test "statements batch actions explain they apply to current listed scope" do
+    get statements_url
+
+    assert_response :success
+    assert_select "details.statements-batch-actions .operator-note", text: /These actions apply to the current listed statements after filters and pagination\./
   end
 
   test "statements index renders sortable headers" do
@@ -1654,19 +1693,19 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     }
 
     assert_response :success
-    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="rdf_uri"][value="uri1"]', 1
-    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="seedurl"][value="one"]', 1
-    assert_select "form[action=\"/statements/batch_update\"] input[type=\"hidden\"][name=\"prop\"][value=\"#{properties(:one).id}\"]", 1
-    assert_select "form[action=\"/statements/batch_update\"] input[type=\"hidden\"][name=\"source\"][value=\"#{sources(:one).id}\"]", 1
-    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="cache"][value="MyString"]', 1
-    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="status"][value="initial"]', 1
-    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="manual"][value="false"]', 1
-    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="selected"][value="true"]', 1
-    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="selected_individual"][value="false"]', 1
-    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="sort"][value="cache"]', 1
-    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="direction"][value="desc"]', 1
-    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="page"][value="2"]', 1
-    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="per_page"][value="10"]', 1
+    assert_select 'details.statements-batch-actions form[action="/statements/batch_update"] input[type="hidden"][name="rdf_uri"][value="uri1"]', 1
+    assert_select 'details.statements-batch-actions form[action="/statements/batch_update"] input[type="hidden"][name="seedurl"][value="one"]', 1
+    assert_select "details.statements-batch-actions form[action=\"/statements/batch_update\"] input[type=\"hidden\"][name=\"prop\"][value=\"#{properties(:one).id}\"]", 1
+    assert_select "details.statements-batch-actions form[action=\"/statements/batch_update\"] input[type=\"hidden\"][name=\"source\"][value=\"#{sources(:one).id}\"]", 1
+    assert_select 'details.statements-batch-actions form[action="/statements/batch_update"] input[type="hidden"][name="cache"][value="MyString"]', 1
+    assert_select 'details.statements-batch-actions form[action="/statements/batch_update"] input[type="hidden"][name="status"][value="initial"]', 1
+    assert_select 'details.statements-batch-actions form[action="/statements/batch_update"] input[type="hidden"][name="manual"][value="false"]', 1
+    assert_select 'details.statements-batch-actions form[action="/statements/batch_update"] input[type="hidden"][name="selected"][value="true"]', 1
+    assert_select 'details.statements-batch-actions form[action="/statements/batch_update"] input[type="hidden"][name="selected_individual"][value="false"]', 1
+    assert_select 'details.statements-batch-actions form[action="/statements/batch_update"] input[type="hidden"][name="sort"][value="cache"]', 1
+    assert_select 'details.statements-batch-actions form[action="/statements/batch_update"] input[type="hidden"][name="direction"][value="desc"]', 1
+    assert_select 'details.statements-batch-actions form[action="/statements/batch_update"] input[type="hidden"][name="page"][value="2"]', 1
+    assert_select 'details.statements-batch-actions form[action="/statements/batch_update"] input[type="hidden"][name="per_page"][value="10"]', 1
   end
 
   test "batch update only applies to the current filtered listed scope and preserves redirect context" do
