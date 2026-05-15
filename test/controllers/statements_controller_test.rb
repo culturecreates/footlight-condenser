@@ -10,6 +10,66 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "statements index renders harmonized table shell and filters" do
+    get statements_url
+
+    assert_response :success
+    assert_select ".harmonized-table-shell", 1
+    assert_select ".harmonized-table-filters", 1
+    assert_select 'form[action="/statements"][method="get"]', 1
+    assert_select 'input[type="submit"][value="Apply filters"]', 1
+    assert_select 'a', text: "Reset filters"
+  end
+
+  test "statements index renders sortable headers" do
+    get statements_url
+
+    assert_response :success
+    assert_select 'th a[href*="sort=id"]'
+    assert_select 'th a[href*="sort=cache"]'
+    assert_select 'th a[href*="sort=status"]'
+    assert_select 'th a[href*="sort=updated_at"]'
+  end
+
+  test "statements index preserves active filters in sort links" do
+    get statements_url, params: { cache: "MyString", status: "initial", manual: "false", per_page: "10" }
+
+    assert_response :success
+    assert_sort_link_preserves_filters(
+      label: "Cache",
+      sort_key: "cache",
+      params: {
+        cache: "MyString",
+        status: "initial",
+        manual: "false",
+        per_page: "10"
+      }
+    )
+  end
+
+  test "statements index falls back safely for invalid sort and direction" do
+    get statements_url, params: { sort: "bogus", direction: "sideways" }
+
+    assert_response :redirect
+    assert_redirected_to statements_url
+  end
+
+  test "statements index renders empty state" do
+    get statements_url, params: { cache: "no-such-statement-cache-value" }
+
+    follow_redirect! if response.redirect?
+    assert_response :success
+    assert_select ".harmonized-table-empty-state", 1
+  end
+
+  test "statements index does not fetch" do
+    assert_read_only_page_does_not_fetch
+
+    get statements_url
+
+    assert_response :success
+  end
+
   test "should get new" do
     get new_statement_url
     assert_response :success
@@ -35,6 +95,20 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_read_only_page_does_not_fetch
     get statement_url(@statement)
     assert_response :success
+  end
+
+  test "statement show renders harmonized card hooks and preserves operator context" do
+    assert_read_only_page_does_not_fetch
+
+    get statement_url(@statement)
+
+    assert_response :success
+    assert_select ".harmonized-card-grid", minimum: 1
+    assert_select ".harmonized-card", minimum: 1
+    assert_select ".harmonized-card-title", minimum: 1
+    assert_select ".harmonized-card-value", minimum: 1
+    assert_select ".harmonized-card-actions", minimum: 1
+    assert_select 'details[data-operator-context-card]'
   end
 
   test "statement pages render cache links without fetching" do
@@ -1553,13 +1627,163 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
       post batch_update_statements_path, params: { commit: "Refresh all listed" }
     end
 
-    assert_redirected_to /statements\?action=batch_update&commit=Refresh\+all\+listed&controller=statements/
+    assert_redirected_to statements_path
     assert_match(/Refresh completed with 6 errors\./, flash[:notice].to_s)
     assert_match(/phantomjs_unavailable/, flash[:notice].to_s)
     assert_no_match(/renderer_fallback/, flash[:notice].to_s)
     assert_no_match(/primary_issue_category/, flash[:notice].to_s)
     assert_no_match(/phantomjs_iframe_extraction/, flash[:notice].to_s)
     assert_operator Marshal.dump(session.to_hash).bytesize, :<, 3000
+  end
+
+  test "batch form preserves full statements filter and pagination context" do
+    get statements_url, params: {
+      rdf_uri: "uri1",
+      seedurl: "one",
+      prop: properties(:one).id.to_s,
+      source: sources(:one).id.to_s,
+      cache: "MyString",
+      status: "initial",
+      manual: "false",
+      selected: "true",
+      selected_individual: "false",
+      sort: "cache",
+      direction: "desc",
+      page: "2",
+      per_page: "10"
+    }
+
+    assert_response :success
+    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="rdf_uri"][value="uri1"]', 1
+    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="seedurl"][value="one"]', 1
+    assert_select "form[action=\"/statements/batch_update\"] input[type=\"hidden\"][name=\"prop\"][value=\"#{properties(:one).id}\"]", 1
+    assert_select "form[action=\"/statements/batch_update\"] input[type=\"hidden\"][name=\"source\"][value=\"#{sources(:one).id}\"]", 1
+    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="cache"][value="MyString"]', 1
+    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="status"][value="initial"]', 1
+    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="manual"][value="false"]', 1
+    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="selected"][value="true"]', 1
+    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="selected_individual"][value="false"]', 1
+    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="sort"][value="cache"]', 1
+    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="direction"][value="desc"]', 1
+    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="page"][value="2"]', 1
+    assert_select 'form[action="/statements/batch_update"] input[type="hidden"][name="per_page"][value="10"]', 1
+  end
+
+  test "batch update only applies to the current filtered listed scope and preserves redirect context" do
+    matching_one, matching_two, other_page, other_filter = create_batch_scope_statements
+    StatementsController.any_instance.stubs(:build_query).returns([matching_one, matching_two])
+
+    post batch_update_statements_path, params: {
+      seedurl: matching_one.webpage.website.seedurl,
+      source: matching_one.source_id.to_s,
+      status: "initial",
+      manual: "false",
+      selected: "true",
+      selected_individual: "false",
+      sort: "id",
+      direction: "asc",
+      page: "1",
+      per_page: "2",
+      update_data: "{ manual: true, cache: 'batch-scope-updated' }",
+      commit: "Update"
+    }
+
+    assert_redirected_to statements_path(
+      seedurl: matching_one.webpage.website.seedurl,
+      source: matching_one.source_id.to_s,
+      status: "initial",
+      manual: "false",
+      selected: "true",
+      selected_individual: "false",
+      sort: "id",
+      direction: "asc",
+      page: "1",
+      per_page: "2"
+    )
+    assert_equal true, matching_one.reload.manual
+    assert_equal true, matching_two.reload.manual
+    assert_equal "batch-scope-updated", matching_one.reload.cache
+    assert_equal "batch-scope-updated", matching_two.reload.cache
+    assert_equal false, other_page.reload.manual
+    assert_equal false, other_filter.reload.manual
+  end
+
+  test "refresh all listed only applies to the current filtered listed scope and preserves redirect context" do
+    matching_one, matching_two, = create_batch_scope_statements
+    StatementsController.any_instance.stubs(:build_query).returns([matching_one, matching_two])
+    helper_proxy = mock("batch_refresh_helpers")
+    helper_proxy.expects(:refresh_statement_helper).with(matching_one).returns(data: ["ok"], trace: nil, errors: [])
+    helper_proxy.expects(:refresh_statement_helper).with(matching_two).returns(data: ["ok"], trace: nil, errors: [])
+    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+
+    post batch_update_statements_path, params: {
+      seedurl: matching_one.webpage.website.seedurl,
+      source: matching_one.source_id.to_s,
+      status: "initial",
+      manual: "false",
+      selected: "true",
+      selected_individual: "false",
+      sort: "id",
+      direction: "asc",
+      page: "1",
+      per_page: "2",
+      commit: "Refresh all listed"
+    }
+
+    assert_redirected_to statements_path(
+      seedurl: matching_one.webpage.website.seedurl,
+      source: matching_one.source_id.to_s,
+      status: "initial",
+      manual: "false",
+      selected: "true",
+      selected_individual: "false",
+      sort: "id",
+      direction: "asc",
+      page: "1",
+      per_page: "2"
+    )
+  end
+
+  test "review all listed only applies to the current filtered listed scope and preserves redirect context" do
+    matching_one, matching_two, other_page, other_filter = create_batch_scope_statements
+    StatementsController.any_instance.stubs(:build_query).returns([matching_one, matching_two])
+    matching_one.update!(status: "updated", status_origin: "before")
+    matching_two.update!(status: "updated", status_origin: "before")
+    other_page.update!(status: "updated", status_origin: "before")
+    other_filter.update!(status: "updated", status_origin: "before")
+
+    post batch_update_statements_path, params: {
+      seedurl: matching_one.webpage.website.seedurl,
+      source: matching_one.source_id.to_s,
+      status: "updated",
+      manual: "false",
+      selected: "true",
+      selected_individual: "false",
+      sort: "id",
+      direction: "asc",
+      page: "1",
+      per_page: "2",
+      commit: "Review all listed"
+    }
+
+    assert_redirected_to statements_path(
+      seedurl: matching_one.webpage.website.seedurl,
+      source: matching_one.source_id.to_s,
+      status: "updated",
+      manual: "false",
+      selected: "true",
+      selected_individual: "false",
+      sort: "id",
+      direction: "asc",
+      page: "1",
+      per_page: "2"
+    )
+    assert_equal "ok", matching_one.reload.status
+    assert_equal "ok", matching_two.reload.status
+    assert_equal "condenser-admin-review-all", matching_one.reload.status_origin
+    assert_equal "condenser-admin-review-all", matching_two.reload.status_origin
+    assert_equal "updated", other_page.reload.status
+    assert_equal "updated", other_filter.reload.status
   end
 
   test "should destroy statement" do
@@ -1772,6 +1996,89 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     Distillator::FetchService.expects(:fetch).never
     Distillator::NativeFetch.expects(:call).never
     Distillator::FetchShadowComparator.expects(:call).never
+  end
+
+  def create_batch_scope_statements
+    suffix = Statement.maximum(:id).to_i + 1
+    website = Website.create!(
+      name: "batch scope website #{suffix}",
+      seedurl: "batch-scope-website-#{suffix}",
+      graph_name: "http://example.com/batch-scope-website-#{suffix}",
+      default_language: "en"
+    )
+    property = Property.create!(
+      label: "Batch scope property #{suffix}",
+      value_datatype: "MyString",
+      uri: "http://example.com/properties/batch-scope-#{suffix}",
+      rdfs_class: rdfs_classes(:one)
+    )
+    selected_source = Source.create!(
+      algorithm_value: "manual=Batch scope selected",
+      selected: true,
+      selected_by: "test",
+      language: "en",
+      render_js: false,
+      property: property,
+      website: website
+    )
+    unselected_source = Source.create!(
+      algorithm_value: "manual=Batch scope unselected",
+      selected: false,
+      selected_by: "test",
+      language: "en",
+      render_js: false,
+      property: property,
+      website: website
+    )
+
+    webpages = 4.times.map do |index|
+      Webpage.create!(
+        url: "http://example.com/batch-scope/#{suffix}/#{index}",
+        language: "en",
+        rdf_uri: "rdf:batch-scope:#{suffix}:#{index}",
+        rdfs_class: rdfs_classes(:one),
+        website: website
+      )
+    end
+
+    matching_one = Statement.create!(
+      cache: "batch-scope-cache-1",
+      status: "initial",
+      status_origin: "seed",
+      source: selected_source,
+      webpage: webpages[0],
+      manual: false,
+      selected_individual: false
+    )
+    matching_two = Statement.create!(
+      cache: "batch-scope-cache-2",
+      status: "initial",
+      status_origin: "seed",
+      source: selected_source,
+      webpage: webpages[1],
+      manual: false,
+      selected_individual: false
+    )
+    other_page = Statement.create!(
+      cache: "batch-scope-cache-3",
+      status: "initial",
+      status_origin: "seed",
+      source: selected_source,
+      webpage: webpages[2],
+      manual: false,
+      selected_individual: false
+    )
+    other_filter = Statement.create!(
+      cache: "batch-scope-cache-4",
+      status: "initial",
+      status_origin: "seed",
+      source: unselected_source,
+      webpage: webpages[3],
+      manual: false,
+      selected_individual: false
+    )
+
+    [matching_one, matching_two, other_page, other_filter]
   end
 
 end

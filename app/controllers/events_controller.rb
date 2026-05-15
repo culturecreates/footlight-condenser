@@ -1,5 +1,6 @@
 
 class EventsController < ApplicationController
+  include HarmonizedIndexParams
   include ResourcesHelper
    
   ##
@@ -46,32 +47,40 @@ class EventsController < ApplicationController
   #     params[:startDate] # "2018-01-01"
   #     params[:endDate] # "2021-01-01"
   def index
-    seedurl = params[:seedurl]
-    time_span = create_timespan(params[:startDate], params[:endDate])
-    
-    @events = []
+    index_params = harmonized_index_params(
+      allowed_filters: Events::IndexQuery::FILTER_KEYS,
+      allowed_sorts: Events::IndexQuery::SORT_COLUMNS,
+      default_sort: Events::IndexQuery::DEFAULT_SORT,
+      default_direction: Events::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Events::IndexQuery::DEFAULT_PER_PAGE,
+      max_per_page: Events::IndexQuery::MAX_PER_PAGE
+    )
+    index_params[:filters] = index_params[:filters].merge(seedurl: params[:seedurl])
 
-    website_statements_by_event(seedurl, time_span).each do |k,v|
-      title = v.dig('title',:cache) || v.dig('title_fr',:cache) || v.dig('title_en',:cache)
-      title = 'Error' if title.blank? || title.include?('error:')
-      date =  helpers.parse_date_string_array(v.dig('dates', :cache)) || helpers.patch_invalid_date
-      @events << {
-        rdf_uri: k,
-        statements_status:
-          {
-            to_review: v.any? { |_a, b| b.flatten.include?('initial') },
-            updated: v.any? { |_a,b| b.flatten.include?('updated') },
-            problem: v.any? { |_a,b| b.flatten.include?('problem') },
-            publishable: event_publishable?(v)
-          },
-        photo: v.dig('photo',:cache),
-        title: title,
-        date: date,
-        archive_date: v.dig(:archive_date,:cache)
-      }
-    end
+    canonical = harmonized_index_canonical_params(
+      index_params,
+      default_sort: Events::IndexQuery::DEFAULT_SORT,
+      default_direction: Events::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Events::IndexQuery::DEFAULT_PER_PAGE,
+      preserve: {},
+      exclude_filters: [:seedurl]
+    )
+    raw = harmonized_index_raw_params(allowed_filters: Events::IndexQuery::FILTER_KEYS - [:seedurl], preserve: %w[sort direction page per_page])
+    return redirect_to(website_events_path(canonical)) if request.format.html? && canonical != raw
 
-    @events.sort_by! { |item| item[:archive_date] }
+    @filters = index_params[:filters]
+    @sort = index_params[:sort]
+    @direction = index_params[:direction]
+    @pagination = { page: index_params[:page], per_page: index_params[:per_page] }
+    @sortable_filters = @filters.except(:seedurl).merge(per_page: @pagination[:per_page])
+    @event_table_headers = HarmonizedTableHeaders.events
+    @events = Events::IndexQuery.call(
+      filters: @filters,
+      sort: @sort,
+      direction: @direction,
+      page: @pagination[:page],
+      per_page: @pagination[:per_page]
+    )
     @total_events = @events.count
   end
 

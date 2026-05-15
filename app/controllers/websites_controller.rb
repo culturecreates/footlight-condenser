@@ -34,7 +34,9 @@ class WebsitesController < ApplicationController
   def index
     return render json: Distillator::FetchCacheStore.lookup_by_term(params[:term]) if wringer_lookup_request?
 
+    requested_rollout_mode = params[:distillator_mode].presence
     cleaned = extract_allowed_filters(params, FILTER_KEYS)
+    cleaned[:distillator_mode] = helpers.normalize_website_rollout_filter(cleaned[:distillator_mode])
 
     canonical = cleaned.merge(
       sort: params[:sort],
@@ -51,8 +53,11 @@ class WebsitesController < ApplicationController
       sort: raw["sort"],
       direction: raw["direction"]
     ).compact.stringify_keys
+    normalized_raw["distillator_mode"] = helpers.normalize_website_rollout_filter(normalized_raw["distillator_mode"])
+    normalized_raw.compact!
 
-    return redirect_to(websites_path(canonical)) if canonical != normalized_raw
+    invalid_rollout_filter = requested_rollout_mode.present? && cleaned[:distillator_mode].nil?
+    return redirect_to(websites_path(canonical)) if invalid_rollout_filter || canonical != normalized_raw
 
     @filters = cleaned
 
@@ -80,7 +85,12 @@ class WebsitesController < ApplicationController
       @websites = @websites.where("LOWER(graph_name) LIKE ?", keyword)
     end
 
-    if @filters[:distillator_mode]
+    case @filters[:distillator_mode]
+    when "unknown"
+      @websites = @websites.where(distillator_mode: [nil, ""])
+    when nil
+      nil
+    else
       @websites = @websites.where(distillator_mode: @filters[:distillator_mode])
     end
 

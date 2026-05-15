@@ -1,0 +1,14 @@
+<%
+cards = Array(local_assigns[:cards])
+variant = local_assigns[:variant] || :record
+css_class = local_assigns[:css_class]
+%>
+<section class="<%= [css_class, 'harmonized-card-grid'].compact.join(' ') %>">
+  <% cards.each do |card| %>
+    <% if variant == :summary %>
+      <%= render "shared/cards/summary_card", card: card %>
+    <% else %>
+      <%= render "shared/cards/record_card", card: card %>
+    <% end %>
+  <% end %>
+</section>

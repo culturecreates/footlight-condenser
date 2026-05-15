@@ -1,36 +1,60 @@
 class SourcesController < ApplicationController
+  include HarmonizedIndexParams
+
   before_action :set_source, only: [:show, :edit, :update, :destroy]
   skip_before_action :verify_authenticity_token
 
   # GET /sources
   # GET /sources.json
   def index
-    seedurl = params[:seedurl] || cookies[:seedurl]
+    @seedurl = params[:seedurl].presence || cookies[:seedurl].presence
+    @website = find_source_index_website(@seedurl)
+    return render_missing_sources_website(@seedurl) if @seedurl.present? && @seedurl != "all" && @website.nil?
 
-    if seedurl.present? && seedurl != 'all'
-      website = Website.find_by(seedurl: seedurl)
+    cookies[:seedurl] = @seedurl if @website.present?
+    @website_id = @website&.id
 
-      if website.nil?
-        respond_to do |format|
-          format.html do
-            flash.now[:alert] = "No website found for seedurl: #{seedurl}"
-            @sources = Source.none
-          end
-          format.json { render json: {error: "Website not found"}, status: :not_found }
-        end
-        @website_id = nil
-      else
-        @sources = Source.where(website_id: website.id)
-                         .order(selected: :desc, property_id: :asc, language: :asc)
-        @website_id = website.id
-        cookies[:seedurl] = seedurl # store valid seedurl in cookie
-      end
-    else
-      # show all if no seedurl or seedurl == 'all'
-      @sources = Source.all.order(selected: :desc, property_id: :asc, language: :asc)
-      @website_id = nil
-    end
+    index_params = harmonized_index_params(
+      allowed_filters: Sources::IndexQuery::FILTER_KEYS,
+      allowed_sorts: Sources::IndexQuery::SORT_COLUMNS.keys,
+      default_sort: Sources::IndexQuery::DEFAULT_SORT,
+      default_direction: Sources::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Sources::IndexQuery::DEFAULT_PER_PAGE,
+      max_per_page: Sources::IndexQuery::MAX_PER_PAGE
+    )
 
+    canonical = harmonized_index_canonical_params(
+      index_params,
+      default_sort: Sources::IndexQuery::DEFAULT_SORT,
+      default_direction: Sources::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Sources::IndexQuery::DEFAULT_PER_PAGE,
+      preserve: @seedurl.present? && @seedurl != "all" ? { seedurl: @seedurl } : {}
+    )
+    raw = harmonized_index_raw_params(
+      allowed_filters: Sources::IndexQuery::FILTER_KEYS,
+      preserve: %w[seedurl sort direction page per_page]
+    )
+    return redirect_to(sources_path(canonical)) if canonical != raw
+
+    @filters = index_params[:filters]
+    query_filters = @filters.merge(website_id: @website.id) if @website.present?
+    query_filters ||= @filters
+    @sort = index_params[:sort]
+    @direction = index_params[:direction]
+    @pagination = {
+      page: index_params[:page],
+      per_page: index_params[:per_page]
+    }
+    @sources = Sources::IndexQuery.call(
+      filters: query_filters,
+      sort: @sort,
+      direction: @direction,
+      page: @pagination[:page],
+      per_page: @pagination[:per_page]
+    )
+    @sortable_filters = @filters.merge(per_page: @pagination[:per_page])
+    @source_table_headers = HarmonizedTableHeaders.sources
+    @source_quick_filters = source_index_quick_filters
     @rdfs_classes = RdfsClass.all
   end
 
@@ -139,5 +163,47 @@ class SourcesController < ApplicationController
   # Never trust parameters from the scary internet, only allow the white list through.
   def source_params
     params.require(:source).permit(:algorithm_value, :label, :language, :selected, :selected_by, :render_js, :property_id, :website_id, :auto_review)
+  end
+
+  def find_source_index_website(seedurl)
+    return nil if seedurl.blank? || seedurl == "all"
+
+    Website.find_by(seedurl: seedurl)
+  end
+
+  def render_missing_sources_website(seedurl)
+    respond_to do |format|
+      format.html do
+        flash.now[:alert] = "No website found for seedurl: #{seedurl}"
+        @sources = Source.none
+        @website_id = nil
+        @seedurl = nil
+        @filters = {}
+        @sort = Sources::IndexQuery::DEFAULT_SORT
+        @direction = Sources::IndexQuery::DEFAULT_DIRECTION
+        @pagination = { page: 1, per_page: Sources::IndexQuery::DEFAULT_PER_PAGE }
+        @sortable_filters = @filters.merge(per_page: @pagination[:per_page])
+        @source_table_headers = HarmonizedTableHeaders.sources
+        @source_quick_filters = []
+        @rdfs_classes = RdfsClass.all
+        render :index
+      end
+      format.json { render json: {error: "Website not found"}, status: :not_found }
+    end
+  end
+
+  def source_index_quick_filters
+    [
+      { label: "Website defaults", params: quick_filter_params(selected: "true") },
+      { label: "Alternatives", params: quick_filter_params(selected: "false") },
+      { label: "Rendered fetch", params: quick_filter_params(render_js: "true") },
+      { label: "Auto review", params: quick_filter_params(auto_review: "true") }
+    ]
+  end
+
+  def quick_filter_params(overrides = {})
+    base = @filters.slice(:term, :language, :property_id).merge(overrides)
+    base[:seedurl] = @seedurl if @seedurl.present? && @seedurl != "all"
+    base
   end
 end

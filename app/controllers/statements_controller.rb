@@ -1,4 +1,6 @@
 class StatementsController < ApplicationController
+  include HarmonizedIndexParams
+
   before_action :set_statement, only: [:refresh, :show, :edit, :update, :destroy, :add_linked_data, :remove_linked_data, :activate]
   skip_before_action :verify_authenticity_token
   skip_before_action :authenticate, only: [:show, :index]
@@ -128,9 +130,39 @@ class StatementsController < ApplicationController
   # GET /statements?rdf_uri=&seedurl=&prop=&status=
   # GET /statements.json
   def index
-    @statements = build_query
-    # Paginate
-    @statements = @statements.paginate(page: params[:page], per_page: params[:per_page])
+    index_params = harmonized_index_params(
+      allowed_filters: Statements::IndexQuery::FILTER_KEYS,
+      allowed_sorts: Statements::IndexQuery::SORT_COLUMNS.keys,
+      default_sort: Statements::IndexQuery::DEFAULT_SORT,
+      default_direction: Statements::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Statements::IndexQuery::DEFAULT_PER_PAGE,
+      max_per_page: Statements::IndexQuery::MAX_PER_PAGE
+    )
+
+    canonical = harmonized_index_canonical_params(
+      index_params,
+      default_sort: Statements::IndexQuery::DEFAULT_SORT,
+      default_direction: Statements::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Statements::IndexQuery::DEFAULT_PER_PAGE
+    )
+    raw = harmonized_index_raw_params(allowed_filters: Statements::IndexQuery::FILTER_KEYS, preserve: %w[sort direction page per_page])
+    return redirect_to(statements_path(canonical)) if request.format.html? && canonical != raw
+
+    @filters = index_params[:filters]
+    @sort = index_params[:sort]
+    @direction = index_params[:direction]
+    @pagination = { page: index_params[:page], per_page: index_params[:per_page] }
+    @sortable_filters = @filters.merge(per_page: @pagination[:per_page])
+    @statement_table_headers = HarmonizedTableHeaders.statements(
+      show_seedurl_col: @filters[:seedurl].blank? || @filters[:seedurl] == "all"
+    )
+    @statements = Statements::IndexQuery.call(
+      filters: @filters,
+      sort: @sort,
+      direction: @direction,
+      page: @pagination[:page],
+      per_page: @pagination[:per_page]
+    )
   end
 
   # GET /statements/1
@@ -298,17 +330,17 @@ class StatementsController < ApplicationController
   # For INTERNAL use of Condenser admin webpages
   def batch_update 
     if params[:commit] == "View"
-      redirect_to statements_path(request.parameters.except(:authenticity_token))
+      redirect_to statements_path(batch_redirect_params)
     end
     if params[:commit] == "Update"
       @statements = build_query
       update_data = eval(params[:update_data])
       @statements.each do |stat|
         if !stat.update(update_data)
-          redirect_to statements_path(request.parameters.except(:authenticity_token), notice: 'Failed to update.')
+          return redirect_to statements_path(batch_redirect_params), notice: 'Failed to update.'
         end
       end
-      redirect_to statements_path(request.parameters.except(:authenticity_token))
+      redirect_to statements_path(batch_redirect_params)
     end
     if params[:commit] == "Refresh all listed"
       statements = build_query
@@ -324,7 +356,7 @@ class StatementsController < ApplicationController
         else
           "Statements refreshed."
         end
-      redirect_to statements_path(request.parameters.except(:authenticity_token)), notice: notice
+      redirect_to statements_path(batch_redirect_params), notice: notice
     end
     if params[:commit] == "Review all listed" 
       statements = build_query
@@ -336,7 +368,7 @@ class StatementsController < ApplicationController
         statement.status_origin = status_origin
         statement.save
       end
-      redirect_to statements_path(request.parameters.except(:authenticity_token)), notice: 'Statements successfully reviewed.'
+      redirect_to statements_path(batch_redirect_params), notice: 'Statements successfully reviewed.'
     end
 
   end
@@ -750,47 +782,25 @@ class StatementsController < ApplicationController
   end
 
   def build_query
-    statements = Statement.all
+    Statements::IndexQuery.call(
+      filters: harmonized_index_filters(allowed: Statements::IndexQuery::FILTER_KEYS),
+      sort: params[:sort],
+      direction: params[:direction],
+      page: params[:page],
+      per_page: params[:per_page].presence || Statements::IndexQuery::DEFAULT_PER_PAGE,
+      paginate: true
+    )
+  end
 
-    # filter by a Resource URI
-    if params[:rdf_uri].present?
-      webpage = Webpage.where(rdf_uri: params[:rdf_uri])
-      statements = statements.joins(:source).where(webpage_id: webpage).order( "sources.selected DESC" , "sources.property_id" )
-    end
-    # filter by seedurl
-    if params[:seedurl].present? && params[:seedurl] != 'all'
-      statements = statements.joins(webpage: :website).where(webpages: { websites: {seedurl:  params[:seedurl] }}).order(:id)
-    end
-    # filter by a property
-    if params[:prop].present?
-      statements = statements.joins(source: :property).where(sources: { properties: {id: params[:prop] }} )
-    end
-    # filter by source
-    if params[:source].present?
-      statements = statements.where(source: params[:source] )
-    end
-    # filter by cache
-    if params[:cache].present?
-      statements = statements.where("cache LIKE ?" , "%#{params[:cache]}%" )
-    end
-    # filter by status
-    if params[:status].present?
-      statements = statements.where(status: params[:status])
-    end
-    # filter by manual
-    if params[:manual].present?
-      statements = statements.where(manual: params[:manual])
-    end
-    # filter by selected
-    if params[:selected].present?
-      statements = statements.includes(:source).where(sources: { selected: params[:selected] } )
-    end
-     # filter by selected_individual
-    if params[:selected_individual].present?
-      statements = statements.where(selected_individual: params[:selected_individual] )
-    end
-    
-    statements
+  def batch_redirect_params
+    harmonized_index_filters(allowed: Statements::IndexQuery::FILTER_KEYS)
+      .merge(
+        sort: params[:sort].presence,
+        direction: params[:direction].presence,
+        page: params[:page].presence,
+        per_page: params[:per_page].presence
+      )
+      .compact
   end
 
 end

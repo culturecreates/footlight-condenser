@@ -15,41 +15,127 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Legacy Wringer active"
     assert_match "Quick filters", @response.body
     assert_match "Advanced filters", @response.body
-    assert_match "name=\"source_term\"", @response.body
-    assert_match "name=\"source_property\"", @response.body
-    assert_match "name=\"source_language\"", @response.body
-    assert_match "name=\"source_selected_by\"", @response.body
-    assert_match "name=\"source_status\"", @response.body
-    assert_match "name=\"source_strategy\"", @response.body
-    assert_match "name=\"source_pipeline\"", @response.body
-    assert_match "name=\"source_needs_test\"", @response.body
-    assert_no_match "<th>Algorithm value</th>", @response.body
+    assert_match "name=\"term\"", @response.body
+    assert_match "name=\"property_id\"", @response.body
+    assert_match "name=\"language\"", @response.body
+    assert_match "name=\"selected\"", @response.body
+    assert_match "name=\"auto_review\"", @response.body
+    assert_match "name=\"render_js\"", @response.body
 
     header_positions = [
-      @response.body.index("<th>Status</th>"),
-      @response.body.index("<th>Property / Language</th>"),
-      @response.body.index("<th>Pipeline</th>"),
+      @response.body.index("Status"),
+      @response.body.index("Property / Language"),
+      @response.body.index("Pipeline"),
       @response.body.index("<th>Fetch strategy</th>"),
       @response.body.index("<th>Impact</th>"),
-      @response.body.index("<th>Last test</th>"),
+      @response.body.index("Last test"),
       @response.body.index("<th>Actions</th>")
     ]
 
     assert header_positions.all?
     assert_operator @response.body.index("Quick filters"), :<, @response.body.index("Advanced filters")
-    assert_operator @response.body.index("Advanced filters"), :<, @response.body.index("<th>Status</th>")
+    assert_operator @response.body.index("Advanced filters"), :<, @response.body.index("Status")
     assert_equal header_positions.sort, header_positions
   end
 
-  # test "should get new" do
-  #   get new_source_url
-  #   assert_response :success
-  # end
-  #
-  # test "should get new of specific class rdfs_class :one" do
-  #   get new_source_url(rdfs_class_id: :one)
-  #   assert_response :success
-  # end
+  test "sources index renders harmonized table shell and filters" do
+    Distillator::FetchService.expects(:fetch).never
+
+    get sources_url
+
+    assert_response :success
+    assert_select ".harmonized-table-shell", 1
+    assert_select ".harmonized-table-filters", 1
+    assert_select 'form[action="/sources"][method="get"]', 1
+    assert_select 'input[type="submit"][value="Apply filters"]', 1
+    assert_select 'a', text: "Reset filters"
+  end
+
+  test "sources index renders sortable headers" do
+    Distillator::FetchService.expects(:fetch).never
+
+    get sources_url
+
+    assert_response :success
+    assert_select 'th a[href*="sort=selected"]', text: /Status/
+    assert_select 'th a[href*="sort=algorithm_value"]', text: /Pipeline/
+    assert_select 'th a[href*="sort=updated_at"]', text: /Last test/
+  end
+
+  test "sources index preserves active filters in sort links" do
+    Distillator::FetchService.expects(:fetch).never
+
+    get sources_url, params: { term: "query", selected: "true", language: "en", per_page: "10" }
+
+    assert_response :success
+    assert_sort_link_preserves_filters(
+      label: "Pipeline",
+      sort_key: "algorithm_value",
+      params: {
+        term: "query",
+        selected: "true",
+        language: "en",
+        per_page: "10"
+      }
+    )
+  end
+
+  test "sources index filters through controller params using sources index query" do
+    Distillator::FetchService.expects(:fetch).never
+    matching = Source.create!(
+      algorithm_value: "controller query match",
+      selected: true,
+      selected_by: "Operator",
+      language: "fr",
+      render_js: true,
+      property: properties(:one),
+      website: websites(:one),
+      auto_review: true
+    )
+    non_matching = Source.create!(
+      algorithm_value: "controller query miss",
+      selected: false,
+      selected_by: "Operator",
+      language: "en",
+      render_js: false,
+      property: properties(:two),
+      website: websites(:two),
+      auto_review: false
+    )
+
+    get sources_url, params: { term: "controller query", language: "fr", render_js: "true" }
+
+    assert_response :success
+    assert_includes @response.body, matching.algorithm_value
+    assert_not_includes @response.body, non_matching.algorithm_value
+  end
+
+  test "sources index falls back safely for invalid sort and direction" do
+    Distillator::FetchService.expects(:fetch).never
+
+    get sources_url, params: { sort: "bogus", direction: "sideways" }
+
+    assert_response :redirect
+    assert_redirected_to "/sources"
+  end
+
+  test "sources index renders empty state" do
+    Distillator::FetchService.expects(:fetch).never
+
+    get sources_url, params: { term: "no-such-source-filter" }
+
+    follow_redirect! if response.redirect?
+    assert_response :success
+    assert_select ".harmonized-table-empty-state", 1
+  end
+
+  test "sources index does not fetch" do
+    assert_read_only_page_does_not_fetch
+
+    get sources_url
+
+    assert_response :success
+  end
 
   test "should create source" do
     assert_difference('Source.count') do

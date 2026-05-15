@@ -4,7 +4,25 @@
   Review source templates, narrow the list with quick filters, and open testing or cache tools without exposing raw DSL by default.
 </p>
 
-<%= render "view_table" %>
+<%= render "shared/tables/toolbar",
+           table_key: :sources,
+           quick_filters: @source_quick_filters,
+           seedurl: @seedurl %>
+
+<%= render "shared/tables/table_shell",
+           table_key: :sources,
+           records: @sources,
+           row_partial: "sources/harmonized_row",
+           row_name: :source,
+           headers: @source_table_headers,
+           filters: @filters,
+           pagination: @pagination,
+           sort: @sort,
+           direction: @direction,
+           sortable_filters: @sortable_filters,
+           table_css_class: "cache-table sources-table",
+           seedurl: @seedurl,
+           empty_message: "No sources match the current filters." %>
 
 <br>
 

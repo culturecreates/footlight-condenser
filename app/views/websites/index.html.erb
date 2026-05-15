@@ -5,36 +5,36 @@ Total Statements: <%= number_to_human(@total_statements) %>
 Last 24 hrs:  <%= @statements_errors %> errors
 <br>
 
-<div class="website-rollout-summary">
-  <span class="website-rollout-summary-item">
-    <strong>Legacy Wringer active:</strong>
-    <%= website_rollout_count(:legacy, @rollout_counts) %>
-  </span>
-  <span class="website-rollout-summary-item">
-    <strong>Shadow comparison:</strong>
-    <%= website_rollout_count(:shadow, @rollout_counts) %>
-  </span>
-  <span class="website-rollout-summary-item">
-    <strong>Condenser active:</strong>
-    <%= website_rollout_count(:active, @rollout_counts) %>
-  </span>
-</div>
+<div class="harmonized-table-shell">
+  <div class="website-rollout-summary">
+    <% website_rollout_summary_items.each do |item| %>
+      <span class="website-rollout-summary-item">
+        <%= website_rollout_summary_link(
+          mode: item.fetch(:mode),
+          label: item.fetch(:label),
+          rollout_counts: @rollout_counts,
+          current_sort: @current_sort,
+          current_direction: @current_direction
+        ) %>
+      </span>
+    <% end %>
+  </div>
 
-<nav class="website-rollout-filters" aria-label="Website rollout filters">
-  <% website_rollout_filter_options.each do |label, mode| %>
-    <span class="website-rollout-filter-link">
-      <%= website_rollout_filter_link(
-        label: label,
-        mode: mode,
-        current_filters: @filters,
-        current_sort: @current_sort,
-        current_direction: @current_direction
-      ) %>
-    </span>
-  <% end %>
-</nav>
+  <nav class="website-rollout-filters" aria-label="Website rollout filters">
+    <% website_rollout_filter_options.each do |label, mode| %>
+      <span class="website-rollout-filter-link">
+        <%= website_rollout_filter_link(
+          label: label,
+          mode: mode,
+          current_filters: @filters,
+          current_sort: @current_sort,
+          current_direction: @current_direction
+        ) %>
+      </span>
+    <% end %>
+  </nav>
 
-<%= form_with url: websites_path, method: :get, local: true, html: { autocomplete: "off" } do %>
+<%= form_with url: websites_path, method: :get, local: true, html: { autocomplete: "off", class: "harmonized-table-filters" } do %>
   <%= hidden_field_tag :sort, @current_sort if @current_sort.present? %>
   <%= hidden_field_tag :direction, @current_direction if @current_direction.present? %>
 
@@ -69,7 +69,7 @@ Last 24 hrs:  <%= @statements_errors %> errors
           <div class="website-rollout-inline-filter">
             <%= select_tag :distillator_mode,
                            options_for_select(
-                             [["All rollout states", ""]] + website_rollout_filter_options.reject { |_label, mode| mode.nil? },
+                             website_rollout_filter_form_options,
                              @filters[:distillator_mode]
                            ) %>
           </div>
@@ -118,6 +118,7 @@ Last 24 hrs:  <%= @statements_errors %> errors
     </tbody>
   </table>
 <% end %>
+</div>
 
 <br>
 

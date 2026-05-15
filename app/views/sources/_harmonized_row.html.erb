@@ -1,0 +1,76 @@
+<% status = source_operator_status(source) %>
+<% strategy = source_fetch_strategy(source) %>
+<tr>
+  <td class="sources-status-cell">
+    <%= source_status_badge(source) %>
+    <div class="sources-secondary-text"><%= status[:detail] %></div>
+  </td>
+
+  <td>
+    <strong><%= source_property_language_text(source) %></strong>
+    <% if source_property_context(source).present? %>
+      <div class="sources-secondary-text"><%= source_property_context(source) %></div>
+    <% end %>
+  </td>
+
+  <td>
+    <div class="sources-pipeline-list">
+      <% source_pipeline_summary(source).each do |step_label| %>
+        <span class="sources-pill"><%= step_label %></span>
+      <% end %>
+    </div>
+    <div class="sources-secondary-text"><%= truncate(source.algorithm_value.to_s, length: 90) %></div>
+  </td>
+
+  <td>
+    <%= source_fetch_strategy_badge(source) %>
+    <div class="sources-secondary-text"><%= strategy[:detail] %></div>
+  </td>
+
+  <td>
+    <strong><%= source_impact_summary(source) %></strong>
+    <div class="sources-secondary-text"><%= source.website&.seedurl %></div>
+    <div class="rollout-note"><%= source_rollout_badge(source) %></div>
+  </td>
+
+  <td>
+    <strong><%= source_last_test_summary(source) %></strong>
+    <div class="sources-secondary-text"><%= source_last_test_detail(source) %></div>
+  </td>
+
+  <td class="sources-actions-cell">
+    <div class="cache-action-group">
+      <strong>Actions</strong>
+      <%= source_inline_test_action(source) %>
+      <%= link_to "Edit", edit_source_path(source) %>
+      <%= source_inline_trace_action(source) %>
+    </div>
+
+    <details class="sources-row-details">
+      <summary>More</summary>
+
+      <div class="cache-action-group">
+        <strong>Secondary actions</strong>
+        <%= source_more_actions(source) %>
+      </div>
+
+      <div class="cache-action-group">
+        <strong>Source details</strong>
+        <dl class="sources-detail-list">
+          <% source_metadata_pairs(source).each do |label, value| %>
+            <dt><%= label %></dt>
+            <dd><%= value %></dd>
+          <% end %>
+        </dl>
+      </div>
+
+      <div class="cache-action-group">
+        <strong>Compatibility links</strong>
+        <% if source_cache_rollout_badge(source).present? %>
+          <p><%= source_cache_rollout_badge(source) %></p>
+        <% end %>
+        <p class="sources-secondary-text"><%= source_cache_note(source) %></p>
+      </div>
+    </details>
+  </td>
+</tr>

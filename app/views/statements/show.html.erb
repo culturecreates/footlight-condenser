@@ -1,4 +1,31 @@
 
+<%= render "shared/cards/card_grid",
+           cards: [
+             {
+               title: "Statement ##{@statement.id}",
+               rows: [
+                 { label: "Cache", value: @statement.cache.to_s.truncate(160) },
+                 { label: "Manual", value: @statement.manual },
+                 { label: "Selected individual", value: @statement.selected_individual },
+                 { label: "Status origin", value: @statement.status_origin },
+                 { label: "Cache refreshed", value: @statement.cache_refreshed },
+                 { label: "Cache changed", value: @statement.cache_changed },
+                 { label: "Updated", value: @statement.updated_at }
+               ],
+               actions: [
+                 {
+                   title: "Actions",
+                   links: [
+                     { label: "Edit", url: edit_statement_path(@statement) },
+                     { label: "Webpage", url: webpage_path(@statement.webpage) },
+                     { label: "Source", url: source_path(@statement.source) }
+                   ]
+                 }
+               ]
+             }
+           ],
+           variant: :record,
+           css_class: "statement-detail-cards" %>
 
 <p>
   <strong>Cache:</strong>

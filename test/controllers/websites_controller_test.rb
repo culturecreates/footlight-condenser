@@ -11,15 +11,20 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "should get index" do
-    Distillator::FetchCacheStore.expects(:fetch).never
+    assert_read_only_page_does_not_fetch
     @website.update!(distillator_mode: "legacy")
 
     get websites_url
 
     assert_response :success
-    assert_includes @response.body, "Legacy Wringer active"
+    assert_harmonized_table_shell
+    assert_harmonized_filter_form(action: "/websites")
+    assert_harmonized_apply_filters_button
+    assert_harmonized_reset_filters_link(path: "/websites")
+    assert_includes @response.body, "Legacy Wringer active:"
     assert_includes @response.body, "Shadow comparison:"
     assert_includes @response.body, "Condenser active:"
+    assert_includes @response.body, "Unknown rollout:"
     assert_includes @response.body, "Website rollout filters"
     assert_select 'details[data-operator-context-card]', 0
   end
@@ -56,11 +61,14 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_select 'details[data-context-domain="status"]'
     assert_select 'details[data-context-domain="actions"]'
     assert_select 'details[data-context-domain="details"]'
-    assert_includes @response.body, "Cache Rollout:"
+    assert_includes @response.body, Distillator::RolloutCopy.rollout_panel_title
+    assert_includes @response.body, "Current mode:"
+    assert_includes @response.body, "Active backend:"
+    assert_includes @response.body, "Next step:"
     assert_includes @response.body, "Shadow comparison"
-    assert_includes @response.body, "Wringer serves production results; Condenser compares in the background."
+    assert_includes @response.body, "Wringer"
+    assert_includes @response.body, "Compare Condenser output before promotion."
     assert_includes @response.body, "Compare Condenser vs Wringer"
-    assert_not_includes @response.body, "Distillator"
     assert_not_includes @response.body, "/distillator/cache/preview?uri=#{CGI.escape(@website.seedurl)}"
   end
 
@@ -72,7 +80,8 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes @response.body, "Condenser active"
-    assert_includes @response.body, "Condenser serves fetch/cache results; legacy Wringer remains available for inspection."
+    assert_includes @response.body, "Condenser"
+    assert_includes @response.body, "Inspect legacy Wringer"
     assert_not_includes @response.body, "internal"
   end
 
@@ -83,7 +92,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
 
     assert_response :success
-    assert_includes @response.body, "Wringer remains the production fetch path."
+    assert_includes @response.body, "Inspect Condenser cache before promotion."
     refute_includes @response.body, "Legacy mode keeps Wringer as the active fetch path."
   end
 
@@ -328,7 +337,30 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes @response.body, "lang-filter-en"
   end
 
-  test "index filters by distillator_mode" do
+  test "websites index filters by legacy distillator mode" do
+    legacy = Website.create!(
+      name: "legacy rollout site",
+      seedurl: "legacy-rollout-site",
+      graph_name: "http://example.com/legacy-rollout-site",
+      default_language: "en",
+      distillator_mode: "legacy"
+    )
+    shadow = Website.create!(
+      name: "shadow rollout site",
+      seedurl: "shadow-rollout-site",
+      graph_name: "http://example.com/shadow-rollout-site",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+
+    get websites_url, params: { distillator_mode: "legacy" }
+
+    assert_response :success
+    assert_includes @response.body, legacy.name
+    assert_not_includes @response.body, shadow.name
+  end
+
+  test "websites index filters by shadow distillator mode" do
     legacy = Website.create!(
       name: "legacy rollout site",
       seedurl: "legacy-rollout-site",
@@ -350,6 +382,70 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, shadow.name
     assert_not_includes @response.body, legacy.name
     assert_includes @response.body, 'name="distillator_mode"'
+  end
+
+  test "websites index filters by active distillator mode" do
+    active = Website.create!(
+      name: "active rollout site",
+      seedurl: "active-rollout-site",
+      graph_name: "http://example.com/active-rollout-site",
+      default_language: "en",
+      distillator_mode: "active"
+    )
+    legacy = Website.create!(
+      name: "legacy rollout site two",
+      seedurl: "legacy-rollout-site-two",
+      graph_name: "http://example.com/legacy-rollout-site-two",
+      default_language: "en",
+      distillator_mode: "legacy"
+    )
+
+    get websites_url, params: { distillator_mode: "active" }
+
+    assert_response :success
+    assert_includes @response.body, active.name
+    assert_not_includes @response.body, legacy.name
+  end
+
+  test "websites index ignores invalid distillator mode safely" do
+    safe = Website.create!(
+      name: "safe rollout site",
+      seedurl: "safe-rollout-site",
+      graph_name: "http://example.com/safe-rollout-site",
+      default_language: "en",
+      distillator_mode: "legacy"
+    )
+
+    get websites_url, params: { distillator_mode: "shadow;DROP TABLE websites" }
+
+    assert_response :redirect
+    assert_redirected_to "/websites"
+    follow_redirect!
+    assert_response :success
+    assert_includes @response.body, safe.name
+  end
+
+  test "websites index filters by unknown unset distillator mode" do
+    Website.create!(
+      name: "unknown rollout blank",
+      seedurl: "unknown-rollout-blank",
+      graph_name: "http://example.com/unknown-rollout-blank",
+      default_language: "en",
+      distillator_mode: "legacy"
+    ).update_column(:distillator_mode, "")
+    Website.create!(
+      name: "known rollout active",
+      seedurl: "known-rollout-active",
+      graph_name: "http://example.com/known-rollout-active",
+      default_language: "en",
+      distillator_mode: "active"
+    )
+
+    get websites_url, params: { distillator_mode: "unknown" }
+
+    assert_response :success
+    assert_includes @response.body, "unknown rollout blank"
+    assert_not_includes @response.body, "known rollout active"
   end
 
   test "index filters by graph_name partial match" do
@@ -399,6 +495,25 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes body, "compose sort outside"
   end
 
+  test "websites index preserves distillator mode filter in sort links" do
+    get websites_url, params: { distillator_mode: "shadow", q: "sort-target", sort: "name", direction: "asc" }
+
+    assert_response :success
+    assert_sort_link_preserves_params(
+      label: "Name",
+      sort_key: "name",
+      params: { distillator_mode: "shadow", q: "sort-target" }
+    )
+  end
+
+  test "websites index reset filters clears distillator mode" do
+    get websites_url, params: { distillator_mode: "shadow", q: "needle" }
+
+    assert_response :success
+    assert_harmonized_reset_filters_link(path: "/websites")
+    assert_select 'a[href="/websites"]', text: "Reset filters"
+  end
+
   test "index handles empty or invalid filter params without breaking" do
     get websites_url, params: { q: "", seed_filter: "", default_language: "xx", graph_name: "" }
     assert_response :success
@@ -432,7 +547,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "websites index renders active cache link in legacy and internal modes" do
-    Distillator::FetchCacheStore.expects(:fetch).never
+    assert_read_only_page_does_not_fetch
 
     ENV["DISTILLATOR_FETCH_MODE"] = "legacy"
     get websites_url
@@ -445,42 +560,238 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Open active cache"
   end
 
-  test "websites index keeps rollout rows compact with badge and cache action" do
-    Distillator::FetchCacheStore.expects(:fetch).never
+  test "websites index renders rollout badge for legacy website" do
+    assert_read_only_page_does_not_fetch
     @website.update!(distillator_mode: "legacy")
 
     get websites_url
 
     assert_response :success
-    assert_includes @response.body, "Open active cache"
     assert_includes @response.body, "Legacy Wringer active"
-    refute_includes @response.body, "Wringer remains the production fetch path.</div>"
+    assert_not_includes @response.body, ">legacy<"
   end
 
-  test "website detail renders cache panel without fetching" do
-    Distillator::FetchCacheStore.expects(:fetch).never
-    ENV["DISTILLATOR_FETCH_MODE"] = "shadow"
+  test "websites index renders rollout badge for shadow website" do
+    assert_read_only_page_does_not_fetch
+    @website.update!(distillator_mode: "shadow")
+
+    get websites_url
+
+    assert_response :success
+    assert_includes @response.body, "Shadow comparison"
+    assert_not_includes @response.body, ">shadow<"
+  end
+
+  test "websites index renders rollout badge for active website" do
+    assert_read_only_page_does_not_fetch
+    @website.update!(distillator_mode: "active")
+
+    get websites_url
+
+    assert_response :success
+    assert_includes @response.body, "Condenser active"
+    assert_not_includes @response.body, ">active<"
+  end
+
+  test "websites index renders safe fallback for unknown rollout mode" do
+    assert_read_only_page_does_not_fetch
+    @website.update_column(:distillator_mode, "")
+
+    get websites_url
+
+    assert_response :success
+    assert_includes @response.body, "Unknown rollout"
+  end
+
+  test "websites index rollout badges do not expose internal mode names" do
+    assert_read_only_page_does_not_fetch
+    @website.update!(distillator_mode: "active")
+
+    get websites_url
+
+    assert_response :success
+    assert_not_includes @response.body, ">internal<"
+  end
+
+  test "website detail shows rollout panel for legacy website" do
+    assert_read_only_page_does_not_fetch
+    @website.update!(distillator_mode: "legacy")
+
+    get website_url(@website)
+
+    assert_response :success
+    assert_includes @response.body, Distillator::RolloutCopy.rollout_panel_title
+    assert_includes @response.body, "Current mode:</strong> Legacy Wringer active"
+    assert_includes @response.body, "Active backend:</strong> Wringer"
+    assert_includes @response.body, "Next step:</strong> Inspect Condenser cache before promotion."
+    assert_includes @response.body, "Open Condenser cache"
+  end
+
+  test "website detail shows rollout panel for shadow website" do
+    assert_read_only_page_does_not_fetch
     @website.update!(distillator_mode: "shadow")
 
     get website_url(@website)
 
     assert_response :success
-    assert_includes @response.body, "Cache"
-    assert_includes @response.body, "Open active cache"
+    assert_includes @response.body, "Current mode:</strong> Shadow comparison"
+    assert_includes @response.body, "Active backend:</strong> Wringer"
+    assert_includes @response.body, "Next step:</strong> Compare Condenser output before promotion."
     assert_includes @response.body, "Compare Condenser vs Wringer"
-    assert_not_includes @response.body, "Preview Distillator refresh"
   end
 
-  test "website detail renders legacy inspection link for active website" do
-    Distillator::FetchCacheStore.expects(:fetch).never
+  test "website detail shows rollout panel for active website" do
+    assert_read_only_page_does_not_fetch
     @website.update!(distillator_mode: "active")
 
     get website_url(@website)
 
     assert_response :success
-    assert_includes @response.body, "Open active cache"
+    assert_includes @response.body, "Current mode:</strong> Condenser active"
+    assert_includes @response.body, "Active backend:</strong> Condenser"
+    assert_includes @response.body, "Next step:</strong> Inspect legacy Wringer when validating parity."
+  end
+
+  test "website detail shows comparison link only for shadow website" do
+    assert_read_only_page_does_not_fetch
+    @website.update!(distillator_mode: "shadow")
+
+    get website_url(@website)
+
+    assert_response :success
+    assert_includes @response.body, "Compare Condenser vs Wringer"
+  end
+
+  test "website detail shows legacy inspection link for active website" do
+    assert_read_only_page_does_not_fetch
+    @website.update!(distillator_mode: "active")
+
+    get website_url(@website)
+
+    assert_response :success
     assert_includes @response.body, "Inspect legacy Wringer"
-    refute_includes @response.body, "Wringer remains the production fetch path."
+  end
+
+  test "website detail rollout panel does not fetch" do
+    assert_read_only_page_does_not_fetch
+    @website.update!(distillator_mode: "shadow")
+
+    get website_url(@website)
+
+    assert_response :success
+  end
+
+  test "website rollout panel uses centralized operator copy and avoids retired wording" do
+    assert_read_only_page_does_not_fetch
+    @website.update!(distillator_mode: "active")
+
+    get website_url(@website)
+
+    assert_response :success
+    assert_includes @response.body, Distillator::RolloutCopy.rollout_panel_title
+    assert_includes @response.body, Distillator::RolloutCopy.label(:active)
+    assert_includes @response.body, Distillator::RolloutCopy.description(:active)
+    assert_not_includes @response.body, "Distillator rollout"
+    assert_not_includes @response.body, "internal"
+    assert_not_includes @response.body, "new cache"
+    assert_not_includes @response.body, "phase I"
+    assert_not_includes @response.body, "preview only"
+  end
+
+  test "websites index shows rollout summary counts" do
+    Website.create!(
+      name: "summary shadow",
+      seedurl: "summary-shadow",
+      graph_name: "http://example.com/summary-shadow",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+
+    get websites_url
+
+    assert_response :success
+    assert_includes @response.body, "Legacy Wringer active:"
+    assert_includes @response.body, "Shadow comparison:"
+    assert_includes @response.body, "Condenser active:"
+    assert_includes @response.body, "Unknown rollout:"
+  end
+
+  test "websites index summary counts include legacy shadow active and unknown" do
+    Website.create!(
+      name: "summary legacy",
+      seedurl: "summary-legacy",
+      graph_name: "http://example.com/summary-legacy",
+      default_language: "en",
+      distillator_mode: "legacy"
+    )
+    Website.create!(
+      name: "summary active",
+      seedurl: "summary-active",
+      graph_name: "http://example.com/summary-active",
+      default_language: "en",
+      distillator_mode: "active"
+    )
+    Website.create!(
+      name: "summary unknown",
+      seedurl: "summary-unknown",
+      graph_name: "http://example.com/summary-unknown",
+      default_language: "en",
+      distillator_mode: "legacy"
+    ).update_column(:distillator_mode, "")
+
+    get websites_url
+
+    assert_response :success
+    assert_select 'a[href="/websites?distillator_mode=legacy"]', text: /Legacy Wringer active:/
+    assert_select 'a[href="/websites?distillator_mode=shadow"]', text: /Shadow comparison:/
+    assert_select 'a[href="/websites?distillator_mode=active"]', text: /Condenser active:/
+    assert_select 'a[href="/websites?distillator_mode=unknown"]', text: /Unknown rollout:/
+  end
+
+  test "websites index summary counts remain global when search is applied" do
+    Website.create!(
+      name: "global legacy count",
+      seedurl: "global-legacy-count",
+      graph_name: "http://example.com/global-legacy-count",
+      default_language: "en",
+      distillator_mode: "legacy"
+    )
+    Website.create!(
+      name: "global shadow count",
+      seedurl: "global-shadow-count",
+      graph_name: "http://example.com/global-shadow-count",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+
+    get websites_url, params: { q: "global legacy count" }
+
+    assert_response :success
+    assert_includes @response.body, "Shadow comparison: 1"
+  end
+
+  test "websites index does not fetch" do
+    assert_read_only_page_does_not_fetch
+
+    get websites_url
+
+    assert_response :success
+  end
+
+  test "website edit does not fetch" do
+    assert_read_only_page_does_not_fetch
+
+    get edit_website_url(@website)
+
+    assert_response :success
+  end
+
+  test "website new does not fetch" do
+    assert_read_only_page_does_not_fetch
+
+    get new_website_url
+
+    assert_response :success
   end
 
   private

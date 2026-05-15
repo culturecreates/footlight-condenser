@@ -28,4 +28,16 @@ module WebpagesHelper
   def webpage_rollout_explanation(webpage)
     operator_rollout_explanation(webpage.website)
   end
+
+  def webpage_rollout_label_for(webpage)
+    Distillator::RolloutCopy.label(webpage&.website&.distillator_mode)
+  end
+
+  def webpage_rollout_backend_for(webpage)
+    operator_active_backend_label(webpage.website)
+  end
+
+  def webpage_rollout_next_step_for(webpage)
+    operator_rollout_next_step(webpage.website)
+  end
 end

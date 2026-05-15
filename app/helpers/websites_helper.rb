@@ -20,12 +20,7 @@ module WebsitesHelper
   end
 
   def website_rollout_filter_options
-    [
-      ["All", nil],
-      [Distillator::RolloutCopy.label(:legacy), "legacy"],
-      [Distillator::RolloutCopy.label(:shadow), "shadow"],
-      [Distillator::RolloutCopy.label(:active), "active"]
-    ]
+    Distillator::RolloutCopy.website_index_filter_options
   end
 
   def website_rollout_filter_link(label:, mode:, current_filters:, current_sort:, current_direction:)
@@ -36,6 +31,63 @@ module WebsitesHelper
   end
 
   def website_rollout_count(mode, rollout_counts)
-    rollout_counts.to_h[mode.to_s].to_i
+    counts = rollout_counts.to_h
+
+    case mode.to_s
+    when "unknown"
+      counts[nil].to_i + counts[""].to_i
+    else
+      counts[mode.to_s].to_i
+    end
+  end
+
+  def website_rollout_summary_items
+    [
+      { mode: "legacy", label: Distillator::RolloutCopy.label(:legacy) },
+      { mode: "shadow", label: Distillator::RolloutCopy.label(:shadow) },
+      { mode: "active", label: Distillator::RolloutCopy.label(:active) },
+      { mode: "unknown", label: Distillator::RolloutCopy.label(:unknown) }
+    ]
+  end
+
+  def website_rollout_summary_link(mode:, label:, rollout_counts:, current_sort:, current_direction:)
+    count = website_rollout_count(mode, rollout_counts)
+    params = { distillator_mode: mode == "unknown" ? "unknown" : mode }
+    params[:sort] = current_sort if current_sort.present?
+    params[:direction] = current_direction if current_direction.present?
+    link_to "#{label}: #{count}", websites_path(params.compact), class: "website-rollout-summary-link"
+  end
+
+  def website_rollout_filter_form_options
+    website_rollout_filter_options
+  end
+
+  def website_rollout_label_for(website)
+    Distillator::RolloutCopy.label(website&.distillator_mode)
+  end
+
+  def website_rollout_description_for(website)
+    Distillator::RolloutCopy.description(website&.distillator_mode)
+  end
+
+  def website_rollout_backend_for(website)
+    operator_active_backend_label(website)
+  end
+
+  def website_rollout_next_step_for(website)
+    operator_rollout_next_step(website)
+  end
+
+  def website_cache_panel_links(website)
+    website_cache_links(website)
+  end
+
+  def normalize_website_rollout_filter(raw_mode)
+    mode = raw_mode.to_s.presence
+    return nil if mode.blank?
+    return "unknown" if mode == "unknown"
+
+    allowed = %w[legacy shadow active replay]
+    allowed.include?(mode) ? mode : nil
   end
 end

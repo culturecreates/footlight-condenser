@@ -1,8 +1,20 @@
 
-
 <h1>Webpages</h1>
 
-<%= render 'view_table' %>
+<%= render "shared/tables/table_shell",
+           table_key: :webpages,
+           records: @webpages,
+           row_partial: "webpages/harmonized_row",
+           row_name: :webpage,
+           headers: @webpage_table_headers,
+           filters: @filters,
+           pagination: @pagination,
+           sort: @sort,
+           direction: @direction,
+           sortable_filters: @sortable_filters,
+           table_css_class: "cache-table webpages-table",
+           seedurl: @seedurl,
+           empty_message: "No webpages match the current filters." %>
 <br>
 
 <%= link_to 'New Webpage', new_webpage_path %>

@@ -39,6 +39,14 @@ module ApplicationHelper
     content_tag(:span, state[:label], class: "active-backend-badge #{state[:css_class]}")
   end
 
+  def operator_active_backend_label(rollout_or_cache)
+    Distillator::RolloutCopy.active_backend_label(normalize_rollout_state(rollout_or_cache))
+  end
+
+  def operator_rollout_next_step(rollout_or_cache)
+    Distillator::RolloutCopy.next_step(normalize_rollout_state(rollout_or_cache))
+  end
+
   def operator_active_backend_state(rollout_or_cache)
     rollout_key = normalize_rollout_state(rollout_or_cache)
 

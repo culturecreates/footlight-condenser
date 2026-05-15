@@ -1,0 +1,22 @@
+<% show_seedurl_col = @filters[:seedurl].blank? || @filters[:seedurl] == "all" %>
+<tr <%= "style=color:red;" if !statement.source.selected %>>
+  <td><%= statement.id %></td>
+  <% if show_seedurl_col %><td><%= statement.webpage.website.seedurl %></td><% end %>
+  <td><%= statement.source.property.label %>(<%= statement.source.property.id %>) <%= format_language statement.source.language %></td>
+  <td><%= statement.source.id %></td>
+  <td><%= statement.cache %></td>
+  <td><%= statement.status %></td>
+  <td><%= statement.manual %></td>
+  <td <%= "style=background-color:pink;" if !statement.source.selected %>><%= statement.source.selected %></td>
+  <td <%= "style=background-color:green;" if statement.selected_individual %>><%= statement.selected_individual %></td>
+  <td><%= statement.status_origin %></td>
+  <td><%= statement.cache_refreshed %></td>
+  <td><%= statement.cache_changed %></td>
+  <td><%= statement.updated_at %></td>
+  <td>
+    <%= link_to "Show", statement %>
+    <%= link_to "Edit", edit_statement_path(statement) %>
+    <%= link_to "Destroy", statement, method: :delete, data: { confirm: "Are you sure?" } %>
+    <%= link_to "Report", source_reports_path(source_id: statement.source) %>
+  </td>
+</tr>

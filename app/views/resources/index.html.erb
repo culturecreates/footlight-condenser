@@ -1,0 +1,15 @@
+<h1>Resources for <%= params[:seedurl] %></h1>
+
+<%= render "shared/tables/table_shell",
+           table_key: :resources,
+           records: @resource_rows,
+           row_partial: "resources/harmonized_row",
+           row_name: :resource_row,
+           headers: @resource_table_headers,
+           filters: @filters,
+           pagination: @pagination,
+           sort: @sort,
+           direction: @direction,
+           sortable_filters: @sortable_filters.merge(seedurl: params[:seedurl]),
+           table_css_class: "cache-table resources-table",
+           empty_message: "No resources match the current scope." %>

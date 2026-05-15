@@ -1,0 +1,60 @@
+<%
+table_key = local_assigns[:table_key]
+quick_filters = Array(local_assigns[:quick_filters])
+seedurl = local_assigns[:seedurl]
+preserved_index_params = local_assigns[:preserved_index_params] || {}
+refresh_ui_enabled = local_assigns[:refresh_ui_enabled]
+view_mode = local_assigns[:view_mode] || "rich"
+%>
+
+<section class="harmonized-table-toolbar">
+  <% if table_key == :sources %>
+    <section class="cache-quick-filter-strip">
+      <strong>Quick filters</strong>
+      <% quick_filters.each do |quick_filter| %>
+        <%= link_to quick_filter[:label], sources_path(quick_filter[:params]), class: "cache-quick-filter" %>
+      <% end %>
+      <%= link_to "Clear filters", sources_path(seedurl: seedurl.presence), class: "cache-quick-filter" %>
+    </section>
+  <% else %>
+    <p class="cache-view-toggle">
+      <strong>Layout:</strong>
+      <%= link_to "Rich view", distillator_cache_index_path(preserved_index_params.merge(view: "rich")) %>
+      <%= link_to "Compatibility view", distillator_cache_index_path(preserved_index_params.merge(view: "parity")) %>
+    </p>
+
+    <section class="cache-quick-filter-strip">
+      <strong>Quick filters</strong>
+      <% cache_quick_filters.each do |quick_filter| %>
+        <%= link_to quick_filter[:label], distillator_cache_index_path(quick_filter[:params].merge(view: view_mode)), class: "cache-quick-filter" %>
+      <% end %>
+    </section>
+
+    <% if refresh_ui_enabled %>
+      <section class="cache-fetch-panel">
+        <h2>Fetch URL</h2>
+        <%= form_with url: fetch_distillator_cache_index_path, method: :post, local: true, html: { autocomplete: "off" } do %>
+          <p>
+            <%= label_tag :uri, "URI" %><br>
+            <%= text_field_tag :uri, nil, size: 100 %>
+          </p>
+          <%= hidden_field_tag :force_scrape, "true" %>
+          <%= hidden_field_tag :include_fragment, "false" %>
+          <% preserved_index_params.each do |key, value| %>
+            <%= hidden_field_tag key, value %>
+          <% end %>
+          <p>
+            <%= button_tag cache_fetch_kind_label("normal"), name: "fetch_kind", value: "normal" %>
+            <%= button_tag cache_fetch_kind_label("rendered"), name: "fetch_kind", value: "rendered" %>
+            <%= button_tag cache_fetch_kind_label("post"), name: "fetch_kind", value: "post" %>
+          </p>
+        <% end %>
+        <ul class="cache-help-list">
+          <li><%= cache_fetch_kind_description("normal") %></li>
+          <li><%= cache_fetch_kind_description("rendered") %></li>
+          <li><%= cache_fetch_kind_description("post") %></li>
+        </ul>
+      </section>
+    <% end %>
+  <% end %>
+</section>

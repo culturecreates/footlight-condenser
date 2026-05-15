@@ -1,0 +1,38 @@
+<% cache_links = @webpage_cache_link_rows.fetch(webpage.id) %>
+<tr>
+  <td><%= webpage.id %></td>
+  <td><%= webpage.rdfs_class.name %></td>
+  <td><%= webpage.language %></td>
+  <td><%= webpage.url %></td>
+  <td><%= @publishable[webpage.id] %></td>
+  <td><%= webpage.rdf_uri %></td>
+  <td><%= webpage.archive_date %></td>
+  <td><%= l(webpage.updated_at, format: :short) %></td>
+  <td><%= webpage.jsonld_output&.name %></td>
+  <td>
+    <% if cache_links[:disabled] %>
+      <span><%= cache_links[:warning] %></span>
+    <% elsif cache_links[:active_cache_url].present? %>
+      <%= link_to cache_links[:label], cache_links[:active_cache_url] %>
+      <div class="rollout-note"><%= operator_active_backend_badge(cache_links) %></div>
+      <div class="rollout-note"><%= webpage_rollout_badge(webpage) %></div>
+    <% end %>
+  </td>
+  <% if @show_distillator_cache_column %>
+    <td>
+      <% distillator_link = cache_links[:secondary_links].find { |link| link[:label] == Distillator::RolloutCopy.condenser_cache_label } %>
+      <% if distillator_link.present? %>
+        <%= link_to distillator_link[:label], distillator_link[:url] %>
+      <% end %>
+    </td>
+  <% end %>
+  <td>
+    <%= link_to "statements", statements_path(rdf_uri: webpage.rdf_uri) %>
+    <%= link_to "Show", webpage %>
+    <%= link_to "Edit", edit_webpage_path(webpage) %>
+    <%= button_to "Destroy",
+                  webpage_path(webpage),
+                  method: :delete,
+                  form: { data: { confirm: "Are you sure?", turbo: false } } %>
+  </td>
+</tr>

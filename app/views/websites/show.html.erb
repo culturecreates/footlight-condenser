@@ -11,25 +11,16 @@
   <%= @website.seedurl %>
 </p>
 
-<p>
-  <strong>Cache Rollout:</strong>
-  <%= website_rollout_badge(@website) %>
-</p>
+<% cache_links = website_cache_panel_links(@website) %>
+<section class="website-rollout-panel">
+  <h2><%= Distillator::RolloutCopy.rollout_panel_title %></h2>
+  <p><strong>Current mode:</strong> <%= website_rollout_label_for(@website) %></p>
+  <p><strong>Active backend:</strong> <%= website_rollout_backend_for(@website) %></p>
+  <p><strong>Next step:</strong> <%= website_rollout_next_step_for(@website) %></p>
 
-<% cache_links = website_cache_links(@website) %>
-<h2>Cache</h2>
-<p><strong>Production state:</strong> <%= website_rollout_explanation(@website) %></p>
-<ul>
-  <% if cache_links[:active_cache_url].present? %>
-    <li><%= link_to cache_links[:label], cache_links[:active_cache_url] %></li>
-  <% end %>
-  <% cache_links[:secondary_links].each do |link| %>
-    <li><%= link_to link[:label], link[:url] %></li>
-  <% end %>
-</ul>
-<% if cache_links[:warning].present? %>
-  <p><strong>Warning:</strong> <%= cache_links[:warning] %></p>
-<% end %>
+  <h3>Links</h3>
+  <%= render "shared/cache_link_panel", cache_links: cache_links, diagnose_url: nil %>
+</section>
 
 <p>
   <strong>Default Language:</strong>

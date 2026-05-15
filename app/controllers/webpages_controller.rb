@@ -1,24 +1,66 @@
 class WebpagesController < ApplicationController
+  include HarmonizedIndexParams
+
   skip_before_action :verify_authenticity_token
   before_action :set_webpage, only: [:show, :edit, :update, :destroy]
 
   # GET /webpages
   # GET /webpages.json
   def index
-    params[:page] ||= 1
+    @seedurl, website = normalized_seedurl_website
+    cookies[:seedurl] = @seedurl if @seedurl.present?
 
-    seedurl = params[:seedurl] || cookies[:seedurl]
-    website = Website.find_by(seedurl: seedurl)
-    website_id = website&.id
+    index_params = harmonized_index_params(
+      allowed_filters: Webpages::IndexQuery::FILTER_KEYS,
+      allowed_sorts: Webpages::IndexQuery::SORT_COLUMNS.keys,
+      default_sort: Webpages::IndexQuery::DEFAULT_SORT,
+      default_direction: Webpages::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Webpages::IndexQuery::DEFAULT_PER_PAGE,
+      max_per_page: Webpages::IndexQuery::MAX_PER_PAGE
+    )
 
-    cookies[:seedurl] = seedurl if seedurl
+    canonical = harmonized_index_canonical_params(
+      index_params,
+      default_sort: Webpages::IndexQuery::DEFAULT_SORT,
+      default_direction: Webpages::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Webpages::IndexQuery::DEFAULT_PER_PAGE,
+      preserve: @seedurl.present? ? { seedurl: @seedurl } : {}
+    )
+    raw = harmonized_index_raw_params(
+      allowed_filters: Webpages::IndexQuery::FILTER_KEYS,
+      preserve: %w[seedurl sort direction page per_page]
+    )
+    return redirect_to(webpages_path(canonical)) if canonical != raw
 
-    if website
-      @webpages = website.webpages.order(:archive_date)
-    else
-      @webpages = Webpage.all
+    @filters = index_params[:filters]
+    query_filters = @filters.merge(website_id: website.id) if website.present?
+    query_filters ||= @filters
+    @sort = index_params[:sort]
+    @direction = index_params[:direction]
+    @pagination = {
+      page: index_params[:page],
+      per_page: index_params[:per_page]
+    }
+    @webpages = Webpages::IndexQuery.call(
+      filters: query_filters,
+      sort: @sort,
+      direction: @direction,
+      page: @pagination[:page],
+      per_page: @pagination[:per_page]
+    )
+
+    @sortable_filters = @filters.merge(per_page: @pagination[:per_page])
+    @webpage_cache_link_rows = @webpages.each_with_object({}) do |webpage, rows|
+      rows[webpage.id] = helpers.webpage_cache_links(webpage)
     end
+    @show_distillator_cache_column = @webpage_cache_link_rows.values.any? do |cache_links|
+      cache_links[:secondary_links].any? { |link| link[:label] == Distillator::RolloutCopy.condenser_cache_label }
+    end
+    @webpage_table_headers = HarmonizedTableHeaders.webpages(
+      show_distillator_cache_column: @show_distillator_cache_column
+    )
 
+    website_id = website&.id
     @locations = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Location", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri,  :cache, :status)
     @locations_hash = @locations.map{ |l| l = l[0],[l[1],l[2]] }.to_h
     ####### locaton data structures
@@ -146,4 +188,13 @@ class WebpagesController < ApplicationController
   def webpage_api_params
     params.require(:webpage).permit(:url, :language, :rdf_uri, :rdfs_class, :seedurl)
   end
+
+  def normalized_seedurl_website
+    seedurl = params[:seedurl].presence || cookies[:seedurl].presence
+    return [nil, nil] if seedurl.blank? || seedurl == "all"
+
+    website = Website.find_by(seedurl: seedurl)
+    website.present? ? [seedurl, website] : [nil, nil]
+  end
+
 end

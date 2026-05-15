@@ -1,11 +1,43 @@
 class PropertiesController < ApplicationController
+  include HarmonizedIndexParams
+
   before_action :set_property, only: [:show, :edit, :update, :destroy]
   skip_before_action :verify_authenticity_token
 
   # GET /properties
   # GET /properties.json
   def index
-    @properties = Property.all.order(:rdfs_class_id, :label)
+    index_params = harmonized_index_params(
+      allowed_filters: Properties::IndexQuery::FILTER_KEYS,
+      allowed_sorts: Properties::IndexQuery::SORT_COLUMNS.keys,
+      default_sort: Properties::IndexQuery::DEFAULT_SORT,
+      default_direction: Properties::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Properties::IndexQuery::DEFAULT_PER_PAGE,
+      max_per_page: Properties::IndexQuery::MAX_PER_PAGE
+    )
+
+    canonical = harmonized_index_canonical_params(
+      index_params,
+      default_sort: Properties::IndexQuery::DEFAULT_SORT,
+      default_direction: Properties::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Properties::IndexQuery::DEFAULT_PER_PAGE
+    )
+    raw = harmonized_index_raw_params(allowed_filters: Properties::IndexQuery::FILTER_KEYS, preserve: %w[sort direction page per_page])
+    return redirect_to(properties_path(canonical)) if request.format.html? && canonical != raw
+
+    @filters = index_params[:filters]
+    @sort = index_params[:sort]
+    @direction = index_params[:direction]
+    @pagination = { page: index_params[:page], per_page: index_params[:per_page] }
+    @sortable_filters = @filters.merge(per_page: @pagination[:per_page])
+    @property_table_headers = HarmonizedTableHeaders.properties
+    @properties = Properties::IndexQuery.call(
+      filters: @filters,
+      sort: @sort,
+      direction: @direction,
+      page: @pagination[:page],
+      per_page: @pagination[:per_page]
+    )
   end
 
   # GET /properties/1

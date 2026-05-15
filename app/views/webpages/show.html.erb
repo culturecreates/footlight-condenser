@@ -13,23 +13,15 @@
 <p class="rollout-note"><%= webpage_rollout_explanation(@webpage) %></p>
 
 <% cache_links = webpage_cache_links(@webpage) %>
-<p>
-  <strong>Cache:</strong>
-  <% if cache_links[:disabled] %>
-    <span><%= cache_links[:warning] %></span>
-  <% elsif cache_links[:active_cache_url].present? %>
-    <%= link_to cache_links[:label], cache_links[:active_cache_url] %>
-    | <%= operator_active_backend_badge(cache_links) %>
-    <% cache_links[:secondary_links].each do |link| %>
-      | <%= link_to link[:label], link[:url] %>
-    <% end %>
-    <% if cache_links[:warning].present? %>
-      | <span><%= cache_links[:warning] %></span>
-    <% end %>
-    |
-  <% end %>
-  <%= link_to "Diagnose refresh", distillator_refresh_preview_url_for(@webpage.url) %>
-</p>
+<section class="webpage-rollout-panel">
+  <h2><%= Distillator::RolloutCopy.rollout_panel_title %></h2>
+  <p><strong>Current mode:</strong> <%= webpage_rollout_label_for(@webpage) %></p>
+  <p><strong>Active backend:</strong> <%= webpage_rollout_backend_for(@webpage) %></p>
+  <p><strong>Next step:</strong> <%= webpage_rollout_next_step_for(@webpage) %></p>
+
+  <h3>Links</h3>
+  <%= render "shared/cache_link_panel", cache_links: cache_links, diagnose_url: distillator_refresh_preview_url_for(@webpage.url) %>
+</section>
 
 <p>
   <strong>created:</strong>

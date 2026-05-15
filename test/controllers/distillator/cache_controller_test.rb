@@ -85,6 +85,15 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_select 'details[data-operator-context-card]', 0
   end
 
+  test "distillator cache index does not fetch" do
+    create_cache
+    assert_read_only_page_does_not_fetch
+
+    get "/distillator/cache"
+
+    assert_response :success
+  end
+
   test "cache index uses condenser cache demo-facing language" do
     create_cache(uri: "https://fixtures.example/cache/simple-title")
     Distillator::FetchCacheStore.expects(:fetch).never
@@ -291,6 +300,21 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_match "Content: failed", text
     assert_match "Blocking issue: redirect_to_listing", text
     assert_match "Last good preserved: yes", text
+  end
+
+  test "cache show keeps condenser cache demo-facing language" do
+    cache = create_cache(uri: "https://fixtures.example/cache/show-demo-facing")
+    assert_read_only_page_does_not_fetch
+
+    get "/distillator/cache/#{cache.id}"
+
+    assert_response :success
+    text = visible_text(@response.body)
+    assert_match "Condenser Cache", text
+    assert_no_match "new cache", text
+    assert_no_match "phase i", text.downcase
+    assert_no_match "preview only", text.downcase
+    assert_no_match "internal", text.downcase
   end
 
   test "show page renders failed operator health for blocked cache state" do
@@ -1415,26 +1439,16 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     get "/distillator/cache"
 
     assert_response :success
-    assert_select 'form[action="/distillator/cache"][method="get"]', 1
-    assert_select "details.cache-advanced-filters", 1
-    assert_select "details.cache-advanced-filters summary", text: "Advanced filters"
-    assert_select "details.cache-advanced-filters input[name='term']", 1
-    assert_select "details.cache-advanced-filters select[name='health']", 1
-    assert_select "details.cache-advanced-filters input[name='http_response_code']", 1
-    assert_select "details.cache-advanced-filters select[name='has_html']", 1
-    assert_select "details.cache-advanced-filters input[name='network_status']", 1
-    assert_select "details.cache-advanced-filters select[name='content_type']", 1
-    assert_select "details.cache-advanced-filters select[name='redirected']", 1
-    assert_select "details.cache-advanced-filters input[name='hint']", 1
-    assert_select "details.cache-advanced-filters select[name='last_attempt']", 1
-    assert_select "details.cache-advanced-filters select[name='last_success']", 1
-    assert_select "details.cache-advanced-filters select[name='status_group']", 1
+    assert_harmonized_table_shell
+    assert_harmonized_filter_form(action: "/distillator/cache")
+    assert_harmonized_filter_shell
+    assert_harmonized_advanced_filters
     assert_select "table thead tr", 1
     assert_select "table thead tr th:nth-child(1)", text: /Health/
-    assert_select "table thead tr th:nth-child(2) a[href*='sort=normalized_url']", text: /URI \/ Name/
-    assert_select "table thead tr th:nth-child(3) a[href*='sort=http_response_code']", text: /HTTP/
-    assert_match "Apply filters", @response.body
-    assert_match "Reset filters", @response.body
+    assert_harmonized_sortable_header(label: "URI / Name", sort_key: "normalized_url")
+    assert_harmonized_sortable_header(label: "HTTP", sort_key: "http_response_code")
+    assert_harmonized_apply_filters_button
+    assert_harmonized_reset_filters_link(params: { view: "rich" })
   end
 
   test "html index shows summary cards before advanced filters" do
@@ -1446,7 +1460,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match "Healthy", @response.body
     assert_match "Advanced filters", @response.body
-    assert_operator @response.body.index("Healthy"), :<, @response.body.index("Advanced filters")
+    assert_harmonized_summary_cards_before_filters
   end
 
   test "html sortable links toggle direction and preserve filters" do
@@ -1458,10 +1472,36 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match /sort=http_response_code/, @response.body
     assert_match /direction=desc/, @response.body
-    assert_match /term=needle/, @response.body
-    assert_match /health=healthy/, @response.body
-    assert_match /http_response_code=404/, @response.body
-    assert_match /per_page=25/, @response.body
+    assert_sort_link_preserves_filters(
+      label: "HTTP",
+      sort_key: "http_response_code",
+      params: {
+        term: "needle",
+        health: "healthy",
+        http_response_code: "404",
+        per_page: "25"
+      }
+    )
+  end
+
+  test "show page matches harmonized record card contract" do
+    cache = create_cache
+    assert_read_only_page_does_not_fetch
+
+    get "/distillator/cache/#{cache.id}"
+
+    assert_response :success
+    assert_harmonized_record_card
+    assert_harmonized_card_action_bar
+  end
+
+  test "distillator cache show does not fetch" do
+    cache = create_cache
+    assert_read_only_page_does_not_fetch
+
+    get "/distillator/cache/#{cache.id}"
+
+    assert_response :success
   end
 
   test "html index canonical redirect strips blank filters" do
