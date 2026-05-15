@@ -5,6 +5,7 @@ class Distillator::RolloutCopyTest < ActiveSupport::TestCase
     assert_equal "Legacy Wringer active", Distillator::RolloutCopy.label(:legacy)
     assert_equal "Shadow comparison", Distillator::RolloutCopy.label(:shadow)
     assert_equal "Condenser active", Distillator::RolloutCopy.label(:active)
+    assert_equal "Fetch rollout", Distillator::RolloutCopy.rollout_panel_title
 
     assert_equal "Wringer remains the production fetch path.", Distillator::RolloutCopy.description(:legacy)
     assert_equal "Wringer serves production results; Condenser compares in the background.", Distillator::RolloutCopy.description(:shadow)
@@ -28,5 +29,25 @@ class Distillator::RolloutCopyTest < ActiveSupport::TestCase
       ["Shadow - Wringer production path + Condenser comparison", "shadow"],
       ["Active - Condenser active", "active"]
     ], Distillator::RolloutCopy.website_form_options
+  end
+
+  test "operator rollout copy avoids internal and phased rollout wording" do
+    operator_copy = [
+      Distillator::RolloutCopy.rollout_panel_title,
+      Distillator::RolloutCopy.label(:legacy),
+      Distillator::RolloutCopy.label(:shadow),
+      Distillator::RolloutCopy.label(:active),
+      Distillator::RolloutCopy.description(:legacy),
+      Distillator::RolloutCopy.description(:shadow),
+      Distillator::RolloutCopy.description(:active),
+      Distillator::RolloutCopy.next_step(:legacy),
+      Distillator::RolloutCopy.next_step(:shadow),
+      Distillator::RolloutCopy.next_step(:active)
+    ].join(" ").downcase
+
+    refute_includes operator_copy, "internal"
+    refute_includes operator_copy, "new cache"
+    refute_includes operator_copy, "phase i"
+    refute_includes operator_copy, "preview only"
   end
 end

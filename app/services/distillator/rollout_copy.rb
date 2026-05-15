@@ -41,6 +41,17 @@ module Distillator
       active: "Active - Condenser active"
     }.freeze
 
+    INDEX_FILTER_OPTION_LABELS = {
+      all: "All rollout modes",
+      legacy: "Legacy - Wringer active",
+      shadow: "Shadow - comparison",
+      active: "Active - Condenser active",
+      replay: "Replay - diagnostic",
+      unknown: "Unknown / unset"
+    }.freeze
+
+    ROLLOUT_PANEL_TITLE = "Fetch rollout".freeze
+
     def self.label(mode)
       state(mode)[:label]
     end
@@ -79,6 +90,47 @@ module Distillator
         [FORM_OPTION_LABELS.fetch(:shadow), "shadow"],
         [FORM_OPTION_LABELS.fetch(:active), "active"]
       ]
+    end
+
+    def self.website_index_filter_options
+      [
+        [INDEX_FILTER_OPTION_LABELS.fetch(:all), nil],
+        [INDEX_FILTER_OPTION_LABELS.fetch(:legacy), "legacy"],
+        [INDEX_FILTER_OPTION_LABELS.fetch(:shadow), "shadow"],
+        [INDEX_FILTER_OPTION_LABELS.fetch(:active), "active"],
+        [INDEX_FILTER_OPTION_LABELS.fetch(:replay), "replay"],
+        [INDEX_FILTER_OPTION_LABELS.fetch(:unknown), "unknown"]
+      ]
+    end
+
+    def self.rollout_panel_title
+      ROLLOUT_PANEL_TITLE
+    end
+
+    def self.active_backend_label(mode)
+      case normalize(mode)
+      when :active, :replay
+        "Condenser"
+      when :shadow, :legacy
+        "Wringer"
+      else
+        "Unknown"
+      end
+    end
+
+    def self.next_step(mode)
+      case normalize(mode)
+      when :active
+        "Inspect legacy Wringer when validating parity."
+      when :shadow
+        "Compare Condenser output before promotion."
+      when :legacy
+        "Inspect Condenser cache before promotion."
+      when :replay
+        "Use replay output only for diagnostics."
+      else
+        "Confirm rollout configuration before promotion decisions."
+      end
     end
 
     def self.normalize(mode)
