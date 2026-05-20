@@ -1,0 +1,35 @@
+lavitrine_pipeline:
+  label: "La Vitrine pipeline"
+  source_url: "https://raw.githubusercontent.com/artsdata-stewards/artsdata-actions/main/queries/lavitrine_pipeline.sparql"
+  match_fields:
+    - seedurl
+    - name
+    - code
+  feed_names:
+    - gatineau-cloud
+    - ccat-qc-ca
+    - theatredumarais-com
+    - ptitbonheur-org
+    - centredesartsbc-com
+    - culturegaspesie-org
+    - diffusion-saguenay-ca
+    - theatregillesvigneault-com
+    - quoivivrerimouski-ca
+    - hector-charland-com
+    - diffusionmordicus-tuxedobillet-com
+    - theatrepatriote-com
+    - amphitheatrecogeco-com
+    - spectaclesjoliette-com
+    - stprime-tuxedobillet-com
+    - petittheatre-org
+    - lecarre150-com
+    - centredecreationdiffusiondegaspe-com
+    - placedesarts-com
+    - maisondelaculture-ca
+    - chasse-galerie-ca
+    - minotaure-ca
+    - derived-grandtheatre-qc-ca
+    - signe-laval
+    - theatregranada-com
+    - tout-culture
+    - culture-mauricie
