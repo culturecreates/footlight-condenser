@@ -4,10 +4,14 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
   setup do
     @website = websites(:one)
     @old_fetch_mode = ENV["DISTILLATOR_FETCH_MODE"]
+    @old_override_flag = ENV["DISTILLATOR_ALLOW_ACTIVE_OVERRIDE"]
+    @old_heroku_app_name = ENV["HEROKU_APP_NAME"]
   end
 
   teardown do
     ENV["DISTILLATOR_FETCH_MODE"] = @old_fetch_mode
+    ENV["DISTILLATOR_ALLOW_ACTIVE_OVERRIDE"] = @old_override_flag
+    ENV["HEROKU_APP_NAME"] = @old_heroku_app_name
   end
 
   test "should get index" do
@@ -59,18 +63,20 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     @website.update!(distillator_mode: "shadow")
     get website_url(@website)
     assert_response :success
-    assert_select 'details[data-operator-context-card]'
-    assert_select 'details[data-context-domain="status"]'
-    assert_select 'details[data-context-domain="actions"]'
-    assert_select 'details[data-context-domain="details"]'
-    assert_includes @response.body, Distillator::RolloutCopy.rollout_panel_title
-    assert_includes @response.body, "Current mode:"
+    assert_select 'details[data-operator-context-card]', 0
+    assert_includes @response.body, "Production transition"
+    assert_includes @response.body, "Current public mode:"
     assert_includes @response.body, "Production backend:"
-    assert_includes @response.body, "Next step:"
+    assert_includes @response.body, "Readiness:"
     assert_includes @response.body, "Shadow comparison"
     assert_includes @response.body, "Wringer"
-    assert_includes @response.body, "Compare Condenser output before promotion."
+    assert_includes @response.body, "Run transition check"
     assert_includes @response.body, "Compare Condenser vs Wringer"
+    assert_includes @response.body, "Operations"
+    assert_includes @response.body, "Batch jobs"
+    assert_includes @response.body, "Danger zone"
+    assert_includes @response.body, "Edit"
+    assert_includes @response.body, "Back"
     assert_not_includes @response.body, "/distillator/cache/preview?uri=#{CGI.escape(@website.seedurl)}"
     assert_no_cohort_source_requests
   end
@@ -155,7 +161,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes @response.body, "Condenser active"
     assert_includes @response.body, "Condenser"
-    assert_includes @response.body, "Inspect legacy Wringer"
+    assert_includes @response.body, "Rollback to Legacy Wringer"
     assert_not_includes @response.body, "internal"
   end
 
@@ -168,6 +174,57 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes @response.body, "Inspect Condenser cache before promotion."
     refute_includes @response.body, "Legacy mode keeps Wringer as the active fetch path."
+  end
+
+  test "website show for legacy shows simple transition controls when override is allowed" do
+    assert_read_only_page_does_not_fetch
+    @website.update!(distillator_mode: "legacy")
+
+    get website_url(@website)
+
+    assert_response :success
+    assert_includes @response.body, "Move to shadow"
+    assert_includes @response.body, "Run transition check"
+    assert_includes @response.body, "Activate anyway"
+    assert_includes @response.body, "Use after manual inspection or on staging. Records current blockers and reason."
+  end
+
+  test "website show for shadow shows readiness summary and transition check" do
+    assert_read_only_page_does_not_fetch
+    @website.update!(distillator_mode: "shadow")
+
+    get website_url(@website)
+
+    assert_response :success
+    assert_includes @response.body, "Readiness:"
+    assert_includes @response.body, "Run transition check"
+  end
+
+  test "website show hides activate anyway when override is not allowed" do
+    assert_read_only_page_does_not_fetch
+    @website.update!(distillator_mode: "legacy")
+    Distillator::TransitionRuntime.stubs(:allow_active_override?).returns(false)
+
+    get website_url(@website)
+
+    assert_response :success
+    assert_not_includes @response.body, "Activate anyway"
+  end
+
+  test "website show keeps rollout copy compact and destructive actions collapsed" do
+    assert_read_only_page_does_not_fetch
+    @website.update!(distillator_mode: "legacy")
+
+    get website_url(@website)
+
+    assert_response :success
+    assert_operator @response.body.scan("Legacy Wringer active").length, :<=, 2
+    assert_operator @response.body.scan("Wringer remains the production fetch path").length, :<=, 1
+    assert_includes @response.body, "Open Condenser cache"
+    assert_includes @response.body, "Refresh upcoming events"
+    assert_select "details.website-danger-zone[open]", 0
+    assert_select "details.website-danger-zone summary", text: "Danger zone"
+    assert_select "details.website-danger-zone form", 3
   end
 
   test "should get edit" do
@@ -185,6 +242,50 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     patch website_url(@website), params: { website: { name: @website.name, seedurl: @website.seedurl, distillator_mode: "active" } }
     assert_response :success
     assert_equal "legacy", @website.reload.distillator_mode
+  end
+
+  test "activate anyway requires a reason" do
+    website = Website.create!(
+      name: "Override reason required",
+      seedurl: "override-reason-required",
+      graph_name: "https://example.org/override-reason-required",
+      default_language: "en",
+      distillator_mode: "legacy"
+    )
+
+    post activate_anyway_website_path(website), params: { reason: "" }
+
+    assert_redirected_to website_url(website)
+    assert_equal "legacy", website.reload.distillator_mode
+    follow_redirect!
+    assert_includes @response.body, "Reason is required for Activate anyway"
+  end
+
+  test "activate anyway succeeds in test runtime and records override details" do
+    website = Website.create!(
+      name: "Override success",
+      seedurl: "override-success",
+      graph_name: "https://example.org/override-success",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/override-success",
+      check_kind: "fetch_parity",
+      status: "pending",
+      checked_at: 1.hour.ago
+    )
+
+    post activate_anyway_website_path(website), params: { reason: "Manual inspection complete" }
+
+    assert_redirected_to website_url(website)
+    assert_equal "active", website.reload.distillator_mode
+    event = website.rollout_events.order(:created_at).last
+    assert_equal "Manual inspection complete", event.reason
+    assert_equal true, event.readiness_snapshot["override"]
+    assert_equal "rollout.override", event.readiness_snapshot["event"]
+    assert event.readiness_snapshot["blockers"].is_a?(Array)
+    assert event.readiness_snapshot["warnings"].is_a?(Array)
   end
 
   test "la vitrine shadow site cannot be promoted to active with missing export evidence" do
@@ -786,10 +887,10 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
 
     assert_response :success
-    assert_includes @response.body, Distillator::RolloutCopy.rollout_panel_title
-    assert_includes @response.body, "Current mode:</strong> Legacy Wringer active"
+    assert_includes @response.body, "Production transition"
+    assert_includes @response.body, "Current public mode:</strong> Legacy Wringer active"
     assert_includes @response.body, "Production backend:</strong> Wringer"
-    assert_includes @response.body, "Next step:</strong> Inspect Condenser cache before promotion."
+    assert_includes @response.body, "Next recommended action:</strong> Inspect Condenser cache before promotion."
     assert_includes @response.body, "Open Condenser cache"
   end
 
@@ -800,9 +901,10 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
 
     assert_response :success
-    assert_includes @response.body, "Current mode:</strong> Shadow comparison"
+    assert_includes @response.body, "Current public mode:</strong> Shadow comparison"
     assert_includes @response.body, "Production backend:</strong> Wringer"
-    assert_includes @response.body, "Next step:</strong> Compare Condenser output before promotion."
+    assert_includes @response.body, "Readiness:</strong>"
+    assert_includes @response.body, "Run transition check"
     assert_includes @response.body, "Compare Condenser vs Wringer"
   end
 
@@ -813,9 +915,10 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
 
     assert_response :success
-    assert_includes @response.body, "Current mode:</strong> Condenser active"
+    assert_includes @response.body, "Current public mode:</strong> Condenser active"
     assert_includes @response.body, "Production backend:</strong> Condenser"
-    assert_includes @response.body, "Next step:</strong> Inspect legacy Wringer when validating parity."
+    assert_includes @response.body, "Latest rollout event:</strong>"
+    assert_includes @response.body, "Rollback to Legacy Wringer"
   end
 
   test "website detail shows comparison link only for shadow website" do
@@ -854,9 +957,9 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
 
     assert_response :success
-    assert_includes @response.body, Distillator::RolloutCopy.rollout_panel_title
+    assert_includes @response.body, "Production transition"
     assert_includes @response.body, Distillator::RolloutCopy.label(:active)
-    assert_includes @response.body, Distillator::RolloutCopy.description(:active)
+    assert_not_includes @response.body, Distillator::RolloutCopy.rollout_panel_title
     assert_not_includes @response.body, "Distillator rollout"
     assert_not_includes @response.body, "internal"
     assert_not_includes @response.body, "new cache"

@@ -6,13 +6,14 @@ module Distillator
       new(...).call
     end
 
-    def initialize(website:, to_mode:, actor: nil, reason: nil, force: false, attributes: {})
+    def initialize(website:, to_mode:, actor: nil, reason: nil, force: false, override: false, attributes: {})
       @website = website
       @raw_to_mode = to_mode
       @to_mode = normalize_mode(to_mode)
       @actor = actor
       @reason = reason
       @force = force
+      @override = override
       @attributes = attributes.to_h.symbolize_keys.except(:distillator_mode)
     end
 
@@ -36,7 +37,8 @@ module Distillator
           to_mode: to_mode,
           actor: actor,
           reason: reason,
-          readiness_snapshot: readiness_snapshot(warnings)
+          readiness_snapshot: readiness_snapshot(warnings),
+          event: override_requested? ? "rollout.override" : nil
         )
         return Result.new(success?: true, website: website, from_mode: from_mode, to_mode: to_mode, warnings: warnings, blockers: [], errors: [])
       end
@@ -46,7 +48,7 @@ module Distillator
 
     private
 
-    attr_reader :website, :to_mode, :actor, :reason, :force, :attributes, :raw_to_mode
+    attr_reader :website, :to_mode, :actor, :reason, :force, :override, :attributes, :raw_to_mode
 
     def current_mode
       website.distillator_mode.presence || "legacy"
@@ -58,6 +60,8 @@ module Distillator
 
     def blocked_transition_errors
       @blocked_transition_errors ||= begin
+        override_errors = explicit_override_errors
+        return override_errors if override_errors.any?
         return [] if current_mode == to_mode
         return [] if current_mode == "legacy" && to_mode == "shadow"
         return [] if current_mode == "shadow" && to_mode == "legacy"
@@ -70,16 +74,17 @@ module Distillator
     end
 
     def legacy_to_active_errors
-      return [] if force && !Rails.env.production? && !Rails.env.test?
+      return [] if override_requested? && Distillator::TransitionRuntime.allow_active_override?
 
       ["Direct legacy to active promotion is blocked"]
     end
 
     def shadow_to_active_errors
-      return [] if transition_status.status == :ready
+      return [] if override_requested? && Distillator::TransitionRuntime.allow_active_override?
+      return [] if promotion_readiness.blockers.blank? && promotion_readiness.warnings.blank?
 
-      return transition_status.blockers if transition_status.blockers.any?
-      return transition_status.warnings.map { |message| activation_error_message(message) } if transition_status.warnings.any?
+      return promotion_readiness.blockers if promotion_readiness.blockers.any?
+      return promotion_readiness.warnings.map { |message| activation_error_message(message) } if promotion_readiness.warnings.any?
 
       ["Cannot activate yet: checks are not complete."]
     end
@@ -88,8 +93,8 @@ module Distillator
       []
     end
 
-    def transition_status
-      @transition_status ||= Distillator::TransitionStatus.call(
+    def promotion_readiness
+      @promotion_readiness ||= Distillator::PromotionReadiness.call(
         website: website,
         cache: Distillator::ShadowReportQuery.latest_cache_for_website(website),
         evidence_by_kind: website.latest_transition_evidences_by_kind
@@ -98,10 +103,19 @@ module Distillator
 
     def readiness_snapshot(warnings)
       {
-        blockers: transition_status.blockers,
-        warnings: warnings.presence || transition_status.warnings,
-        cohort_key: website.distillator_primary_cohort_key
+        blockers: promotion_readiness.blockers,
+        warnings: warnings.presence || promotion_readiness.warnings,
+        cohort_key: website.distillator_primary_cohort_key,
+        override: override_requested?
       }
+    end
+
+    def explicit_override_errors
+      return [] unless override_requested?
+      return ["Activate anyway is not allowed in this runtime"] unless Distillator::TransitionRuntime.allow_active_override?
+      return ["Reason is required for Activate anyway"] if reason.to_s.strip.blank?
+
+      []
     end
 
     def normalize_mode(mode)
@@ -112,6 +126,10 @@ module Distillator
 
     def failure(errors)
       Result.new(success?: false, website: website, from_mode: current_mode, to_mode: to_mode, warnings: [], blockers: blocked_transition_errors, errors: Array(errors))
+    end
+
+    def override_requested?
+      override || force
     end
 
     def activation_error_message(message)

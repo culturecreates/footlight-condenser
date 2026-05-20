@@ -85,7 +85,7 @@ module Distillator
         active_cache_url: nil,
         label: Distillator::RolloutCopy.active_cache_label,
         secondary_links: [],
-        warning: "Invalid cache URL",
+        warning: "",
         disabled: true
       }
     end

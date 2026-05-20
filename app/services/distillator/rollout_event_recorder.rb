@@ -4,13 +4,14 @@ module Distillator
       new(...).call
     end
 
-    def initialize(website:, from_mode:, to_mode:, actor: nil, reason: nil, readiness_snapshot: {})
+    def initialize(website:, from_mode:, to_mode:, actor: nil, reason: nil, readiness_snapshot: {}, event: nil)
       @website = website
       @from_mode = from_mode
       @to_mode = to_mode
       @actor = actor
       @reason = reason
       @readiness_snapshot = readiness_snapshot
+      @event = event
     end
 
     def call
@@ -28,12 +29,18 @@ module Distillator
 
     private
 
-    attr_reader :website, :from_mode, :to_mode, :actor, :reason, :readiness_snapshot
+    attr_reader :website, :from_mode, :to_mode, :actor, :reason, :readiness_snapshot, :event
 
     def event_snapshot
       readiness_snapshot.to_h.merge(
-        "event" => rollback? ? "rollout.rollback" : "rollout.transition"
+        "event" => event.presence || inferred_event
       )
+    end
+
+    def inferred_event
+      return "rollout.rollback" if rollback?
+
+      "rollout.transition"
     end
 
     def rollback?

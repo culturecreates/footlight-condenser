@@ -12,6 +12,9 @@ Rails.application.routes.draw do
 
   resources :websites do
     # API: get /websites 
+    member do
+      post :activate_anyway
+    end
     collection do
       get 'events'         # Internal Webpages Only
       get 'places'         # Internal Webpages Only
@@ -25,6 +28,7 @@ Rails.application.routes.draw do
   namespace :distillator do
     get :shadow_report, to: "shadow_reports#index", as: :shadow_report
     get "shadow_report/:id", to: "shadow_reports#show", as: :shadow_report_site
+    resources :transition_checks, only: [:create]
 
     resources :cache, only: [:index, :show], controller: "cache" do
       collection do

@@ -40,4 +40,22 @@ class Distillator::RolloutEventRecorderTest < ActiveSupport::TestCase
 
     assert_equal "rollout.rollback", Distillator::RolloutEvent.order(:created_at).last.readiness_snapshot["event"]
   end
+
+  test "keeps explicit override event when provided" do
+    website = websites(:one)
+
+    Distillator::RolloutEventRecorder.call(
+      website: website,
+      from_mode: "shadow",
+      to_mode: "active",
+      reason: "Manual inspection",
+      readiness_snapshot: { override: true, blockers: [], warnings: ["Needs review: export check is missing."] },
+      event: "rollout.override"
+    )
+
+    event = Distillator::RolloutEvent.order(:created_at).last
+    assert_equal "rollout.override", event.readiness_snapshot["event"]
+    assert_equal true, event.readiness_snapshot["override"]
+    assert_equal "Manual inspection", event.reason
+  end
 end

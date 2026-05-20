@@ -1,41 +1,75 @@
+<section class="website-show-section">
+  <h1>
+    <%= @website.name %>
+    <% if website_cohort_badge(@website).present? %>
+      <span class="rollout-inline"><%= website_cohort_badge(@website) %></span>
+    <% end %>
+    <span class="rollout-inline"><%= website_rollout_badge(@website) %></span>
+  </h1>
 
-<h1>
-  <%= @website.name %>
-  <% if website_cohort_badge(@website).present? %>
-    <span class="rollout-inline"><%= website_cohort_badge(@website) %></span>
-  <% end %>
-  <span class="rollout-inline"><%= website_rollout_badge(@website) %></span>
-</h1>
+  <dl class="website-identity-list">
+    <% website_identity_rows(@website).each do |label, value| %>
+      <dt><%= label %></dt>
+      <dd><%= value %></dd>
+    <% end %>
+  </dl>
 
-<p class="rollout-note"><%= website_rollout_explanation(@website) %></p>
-
-<p>
-  <strong>Seedurl:</strong>
-  <%= @website.seedurl %>
-</p>
-
-<% cache_links = website_cache_panel_links(@website) %>
-<section class="website-rollout-panel">
-  <h2><%= Distillator::RolloutCopy.rollout_panel_title %></h2>
-  <p><strong>Current mode:</strong> <%= website_rollout_label_for(@website) %></p>
-  <p><strong>Production backend:</strong> <%= website_rollout_backend_for(@website) %></p>
-  <p><strong>Next step:</strong> <%= website_rollout_next_step_for(@website) %></p>
-
-  <h3>Links</h3>
-  <%= render "shared/cache_link_panel", cache_links: cache_links, diagnose_url: nil %>
+  <p class="website-debug-id"><%= website_debug_id_label(@website) %></p>
 </section>
 
-<p>
-  <strong>Default Language:</strong>
-  <%= @website.default_language %>
-</p>
+<% cache_links = website_cache_panel_links(@website) %>
+<section class="website-rollout-panel website-show-section">
+  <h2>Production transition</h2>
+  <p><strong>Current public mode:</strong> <%= website_rollout_label_for(@website) %></p>
+  <p><strong>Production backend:</strong> <%= website_rollout_backend_for(@website) %></p>
+  <% if @website.distillator_mode == "shadow" %>
+    <p><strong>Readiness:</strong> <%= website_transition_summary_for(@website) %></p>
+  <% elsif @website.distillator_mode == "active" %>
+    <p><strong>Latest rollout event:</strong> <%= website_transition_latest_event_summary(@website) %></p>
+  <% else %>
+    <p><strong>Next recommended action:</strong> <%= website_rollout_next_step_for(@website) %></p>
+  <% end %>
 
-<p>
-  <strong>graph_name:</strong>
-  <%= @website.graph_name %>
-</p>
+  <h3>Cache links</h3>
+  <%= render "shared/cache_link_panel", cache_links: cache_links, diagnose_url: nil %>
 
-<section class="website-rollout-panel">
+  <div class="website-transition-actions">
+    <% if @website.distillator_mode == "legacy" %>
+      <%= button_to "Move to shadow", website_path(@website), method: :patch, params: { website: { distillator_mode: "shadow" } }, class: "website-transition-button" %>
+      <%= button_to website_show_transition_check_label(@website), distillator_transition_checks_path(website_id: @website.id), method: :post, class: "website-transition-button" %>
+      <% if website_transition_runtime_override_allowed? %>
+        <details class="website-transition-override">
+          <summary>Activate anyway</summary>
+          <p><%= website_show_override_copy %></p>
+          <%= form_with url: activate_anyway_website_path(@website), method: :post, local: true, class: "website-transition-override-form" do |form| %>
+            <%= form.label :reason, "Reason" %>
+            <%= form.text_field :reason, required: true %>
+            <%= form.submit "Activate anyway" %>
+          <% end %>
+        </details>
+      <% end %>
+    <% elsif @website.distillator_mode == "shadow" %>
+      <%= button_to website_show_transition_check_label(@website), distillator_transition_checks_path(website_id: @website.id), method: :post, class: "website-transition-button" %>
+      <% if website_transition_ready?(@website) %>
+        <%= button_to "Promote to active", website_path(@website), method: :patch, params: { website: { distillator_mode: "active" } }, class: "website-transition-button" %>
+      <% elsif website_transition_runtime_override_allowed? %>
+        <details class="website-transition-override">
+          <summary>Activate anyway</summary>
+          <p><%= website_show_override_copy %></p>
+          <%= form_with url: activate_anyway_website_path(@website), method: :post, local: true, class: "website-transition-override-form" do |form| %>
+            <%= form.label :reason, "Reason" %>
+            <%= form.text_field :reason, required: true %>
+            <%= form.submit "Activate anyway" %>
+          <% end %>
+        </details>
+      <% end %>
+    <% else %>
+      <%= button_to "Rollback to Legacy Wringer", website_path(@website), method: :patch, params: { website: { distillator_mode: "legacy" } }, class: "website-transition-button" %>
+    <% end %>
+  </div>
+</section>
+
+<section class="website-rollout-panel website-show-section">
   <h2>Recent rollout events</h2>
   <% if @website.rollout_events.order(created_at: :desc).limit(5).any? %>
     <ul>
@@ -56,27 +90,32 @@
   <% end %>
 </section>
 
-<%= link_to 'Edit', edit_website_path(@website) %> |
-<%= link_to 'Back', websites_path %>
-<hr>
-<h1> Jobs</h1>
-<%= link_to 'View resources with lists', lists_path(seedurl: @website.seedurl) %> 
-<br>
-<%= link_to 'Export step-by-step', graphs_website_path(seedurl: @website.seedurl) %>
+<section class="website-show-section">
+  <h2>Operations</h2>
+  <ul class="website-show-link-list">
+    <li><%= link_to "Edit", edit_website_path(@website) %></li>
+    <li><%= link_to "Back", websites_path %></li>
+    <li><%= link_to "View resources with lists", lists_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Export step-by-step", graphs_website_path(seedurl: @website.seedurl) %></li>
+  </ul>
+</section>
 
+<section class="website-show-section">
+  <h2>Batch jobs</h2>
+  <ul class="website-show-link-list">
+    <li><%= link_to "Refresh upcoming events", refresh_upcoming_events_batch_jobs_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Refresh lists and add webpages", check_for_new_webpages_batch_jobs_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Refresh all Webpages (all classes, all dates)", refresh_webpages_batch_jobs_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Export Events to Artsdata", graphs_website_queue_path(seedurl: @website.seedurl) %></li>
+  </ul>
+</section>
 
-<h1>Batch Jobs</h1>
-<%= link_to 'Refresh upcoming events', refresh_upcoming_events_batch_jobs_path(seedurl: @website.seedurl) %> 
-<br>
-<%= link_to 'Refresh lists and add webpages', check_for_new_webpages_batch_jobs_path(seedurl: params[:seedurl]) %>
-<br>
-<%= link_to 'Refresh all Webpages (all classes, all dates)', refresh_webpages_batch_jobs_path(seedurl: @website.seedurl) %> 
-<br>
-<%= link_to 'Export Events to Artsdata', graphs_website_queue_path(seedurl: @website.seedurl) %>
+<details class="website-danger-zone website-show-section">
+  <summary>Danger zone</summary>
 
-
-<h3 style="color:red">  DESTROY </h3>
-<div style="display:block;float: left">
- <%= button_to 'Destroy all statements', delete_all_statements_websites_path(id: @website.id), method: :delete, data: { confirm: 'Are you sure to delete all #{@website.seedurl} statements ?' } %>
- <%= button_to 'Destroy all webpages', delete_all_webpages_websites_path(id: @website.id), method: :delete, data: { confirm: 'Are you sure to delete all #{@website.seedurl} statements ?' } %>
- <%= button_to 'Destroy all EVENT webpages', delete_all_event_webpages_websites_path(id: @website.id), method: :delete, data: { confirm: 'Are you sure to delete all #{@website.seedurl} statements ?' } %>
+  <div class="website-danger-zone-body">
+    <%= button_to "Destroy all statements", delete_all_statements_websites_path(id: @website.id), method: :delete, data: { confirm: "Are you sure to delete all #{@website.seedurl} statements ?" } %>
+    <%= button_to "Destroy all webpages", delete_all_webpages_websites_path(id: @website.id), method: :delete, data: { confirm: "Are you sure to delete all #{@website.seedurl} statements ?" } %>
+    <%= button_to "Destroy all EVENT webpages", delete_all_event_webpages_websites_path(id: @website.id), method: :delete, data: { confirm: "Are you sure to delete all #{@website.seedurl} statements ?" } %>
+  </div>
+</details>

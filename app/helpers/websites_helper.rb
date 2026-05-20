@@ -101,8 +101,66 @@ module WebsitesHelper
     operator_rollout_next_step(website)
   end
 
+  def website_transition_runtime_override_allowed?
+    Distillator::TransitionRuntime.allow_active_override?
+  end
+
+  def website_transition_readiness(website)
+    @website_transition_readiness ||= {}
+    @website_transition_readiness[website.id] ||= Distillator::PromotionReadiness.call(
+      website: website,
+      cache: website_transition_cache(website),
+      evidence_by_kind: website.latest_transition_evidences_by_kind
+    )
+  end
+
+  def website_transition_ready?(website)
+    readiness = website_transition_readiness(website)
+    readiness.blockers.blank? && readiness.warnings.blank?
+  end
+
+  def website_transition_summary_for(website)
+    readiness = website_transition_readiness(website)
+    return "Ready for active promotion." if readiness.blockers.blank? && readiness.warnings.blank?
+    return readiness.blockers.join(" ") if readiness.blockers.any?
+    return readiness.warnings.join(" ") if readiness.warnings.any?
+
+    "Transition checks have not been recorded yet."
+  end
+
+  def website_transition_latest_event_summary(website)
+    event = website.rollout_events.order(created_at: :desc).first
+    return "No rollout events recorded yet." unless event.present?
+
+    summary = "#{event.from_mode.presence || 'unknown'} to #{event.to_mode} on #{event.created_at}"
+    summary += " | blockers: #{Array(event.readiness_snapshot['blockers']).join(', ')}" if event.readiness_snapshot["blockers"].present?
+    summary += " | warnings: #{Array(event.readiness_snapshot['warnings']).join(', ')}" if event.readiness_snapshot["warnings"].present?
+    summary += " | reason: #{event.reason}" if event.reason.present?
+    summary
+  end
+
+  def website_show_transition_check_label(website)
+    website.distillator_mode == "active" ? "Run transition check again" : "Run transition check"
+  end
+
+  def website_show_override_copy
+    "Use after manual inspection or on staging. Records current blockers and reason."
+  end
+
   def website_cache_panel_links(website)
     website_cache_links(website)
+  end
+
+  def website_identity_rows(website)
+    [
+      ["Seedurl", website.seedurl],
+      ["Default language", website.default_language],
+      ["Graph name", website.graph_name]
+    ]
+  end
+
+  def website_debug_id_label(website)
+    "Website ##{website.id}"
   end
 
   def normalize_website_rollout_filter(raw_mode)
@@ -120,5 +178,12 @@ module WebsitesHelper
 
     allowed = [Distillator::Cohorts::LavitrinePipeline.key]
     allowed.include?(cohort) ? cohort : nil
+  end
+
+  private
+
+  def website_transition_cache(website)
+    @website_transition_caches ||= {}
+    @website_transition_caches[website.id] ||= Distillator::ShadowReportQuery.latest_cache_for_website(website)
   end
 end
