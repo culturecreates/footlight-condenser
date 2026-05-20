@@ -5,6 +5,14 @@ class Website < ApplicationRecord
 
   has_many :webpages, dependent: :destroy
   has_many :sources, dependent: :destroy
+  has_many :transition_evidences,
+           class_name: "Distillator::TransitionEvidence",
+           dependent: :destroy,
+           inverse_of: :website
+  has_many :rollout_events,
+           class_name: "Distillator::RolloutEvent",
+           dependent: :destroy,
+           inverse_of: :website
 
   validates :graph_name, presence: true, format: { with: /\Ahttp.*\..*\w\z/ } # must start with http, contain a "." and not end with "/"
   validates :default_language, inclusion: { in: %w(en fr) }
@@ -19,10 +27,35 @@ class Website < ApplicationRecord
   end
 
   def distillator_fetch_mode
-    # "active" rollout means the Distillator internal fetch path is the active execution path.
-    return :internal if distillator_mode == "active"
-
     distillator_mode.to_sym
+  end
+
+  def distillator_cohort_memberships
+    Distillator::Cohorts::Matcher.memberships_for(self)
+  end
+
+  def distillator_primary_cohort
+    distillator_cohort_memberships.first
+  end
+
+  def distillator_primary_cohort_key
+    distillator_primary_cohort&.dig(:key)
+  end
+
+  def distillator_primary_cohort_label
+    distillator_primary_cohort&.dig(:label)
+  end
+
+  def lavitrine_pipeline?
+    Distillator::Cohorts::Matcher.match?(self, Distillator::Cohorts::LavitrinePipeline.key)
+  end
+
+  def latest_transition_evidence(check_kind = nil)
+    Distillator::TransitionEvidence.latest_for_website(self, check_kind)
+  end
+
+  def latest_transition_evidences_by_kind
+    @latest_transition_evidences_by_kind ||= transition_evidences.latest_first.group_by(&:check_kind).transform_values(&:first)
   end
 
   private
