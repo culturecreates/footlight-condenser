@@ -11,8 +11,8 @@ This document is the single terminology reference for the Wringer to Condenser r
 | Condenser | Condenser | Operator-facing new fetch and cache system. |
 | legacy | Legacy Wringer active | Wringer serves production results. |
 | shadow | Shadow comparison | Wringer serves production results; Condenser compares in the background. |
-| internal | Condenser active | Condenser serves production results. |
-| active | Condenser active | Website rollout alias for the internal execution mode. |
+| internal | Condenser active | Private compatibility alias for older runtime callers. |
+| active | Condenser active | Canonical public rollout and execution name. |
 | replay | Replay diagnostic | Replay-only diagnostic execution path. |
 
 ## Resolution rules
@@ -20,7 +20,7 @@ This document is the single terminology reference for the Wringer to Condenser r
 1. Website rollout state wins when a website or website id is present.
 2. Explicit diagnostic mode is allowed for operator and test workflows.
 3. Missing website context fails safe to legacy production behavior.
-4. `active` is an operator rollout term; runtime execution uses `internal`.
+4. `active` is the canonical public mode; `internal` remains a private compatibility alias where older code paths still need it.
 
 ## Operator copy
 
@@ -38,3 +38,7 @@ Use these phrases in operator-facing UI:
 - `Compare Condenser vs Wringer`
 
 Avoid mixing operator copy with internal implementation terms such as `internal`, `Distillator active`, or `new cache`.
+
+## Scope note
+
+Legacy Apify scripts are external automation and are not part of the Condenser production transition. They will be reassessed separately.
