@@ -33,7 +33,7 @@ module Distillator
     attr_reader :website, :cache
 
     def summary
-      @summary ||= Distillator::ShadowSiteSummary.call(website: website, cache: resolved_cache)
+      @summary ||= Distillator::ShadowSiteSummary.call(website: website, cache: resolved_cache, include_cache_links: true)
     end
 
     def transition_status

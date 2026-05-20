@@ -32,10 +32,12 @@ module Distillator
       new(...).call
     end
 
-    def initialize(website:, cache: nil, stale_after: Distillator::CacheHealth::STALE_AFTER)
+    def initialize(website:, cache: nil, stale_after: Distillator::CacheHealth::STALE_AFTER, evidence_by_kind: nil, include_cache_links: false)
       @website = website
       @cache = cache
       @stale_after = stale_after
+      @evidence_by_kind = evidence_by_kind
+      @include_cache_links = include_cache_links
     end
 
     def call
@@ -44,11 +46,11 @@ module Distillator
         cache: cache,
         cohort_key: cohort_key,
         cohort_label: cohort_label,
-        status: transition_check.status,
-        fetch_status: transition_check.fetch,
-        statements_status: transition_check.statements,
-        export_status: transition_check.export,
-        production_backend: transition_check.active_backend,
+        status: transition_status.status,
+        fetch_status: transition_status.fetch,
+        statements_status: transition_status.statements,
+        export_status: transition_status.export,
+        production_backend: production_backend,
         testing_backend: :condenser,
         health_summary: health_summary,
         health_status: health_status,
@@ -56,18 +58,18 @@ module Distillator
         latest_refresh: cache&.scrape_date,
         latest_successful_refresh: cache&.successful_refresh,
         issue_key: cache&.primary_issue_key,
-        blockers: transition_check.blocking_issues,
-        warnings: transition_check.warnings,
-        cache_link_payload: transition_check.cache_link_payload,
+        blockers: transition_status.blockers,
+        warnings: transition_status.warnings,
+        cache_link_payload: include_cache_links? ? cache_link_payload : nil,
         last_checked: transition_status.last_checked,
-        promotable: transition_check.promotable,
-        priority: transition_check.priority
+        promotable: transition_status.status == :ready,
+        priority: website.lavitrine_pipeline?
       )
     end
 
     private
 
-    attr_reader :website, :cache, :stale_after
+    attr_reader :website, :cache, :stale_after, :evidence_by_kind
 
     def health_summary
       return "Unknown" unless evidence_exists?
@@ -104,16 +106,28 @@ module Distillator
       @transition_status ||= Distillator::TransitionStatus.call(
         website: website,
         cache: cache,
-        evidence_by_kind: website.respond_to?(:latest_transition_evidences_by_kind) ? website.latest_transition_evidences_by_kind : {}
+        evidence_by_kind: resolved_evidence_by_kind
       )
     end
 
-    def transition_check
-      @transition_check ||= Distillator::TransitionCheck.call(
+    def cache_link_payload
+      @cache_link_payload ||= Distillator::TransitionCheck.call(
         website: website,
         cache: cache,
-        evidence_by_kind: website.respond_to?(:latest_transition_evidences_by_kind) ? website.latest_transition_evidences_by_kind : {}
-      )
+        evidence_by_kind: resolved_evidence_by_kind
+      ).cache_link_payload
+    end
+
+    def production_backend
+      @production_backend ||= Distillator::FetchMode.rollout_resolution_object(website: website).active_backend
+    end
+
+    def include_cache_links?
+      @include_cache_links == true
+    end
+
+    def resolved_evidence_by_kind
+      evidence_by_kind || (website.respond_to?(:latest_transition_evidences_by_kind) ? website.latest_transition_evidences_by_kind : {})
     end
   end
 end

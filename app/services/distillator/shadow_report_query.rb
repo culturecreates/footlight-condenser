@@ -6,8 +6,10 @@ module Distillator
     SORT_COLUMNS = %w[website status recommendation latest_attempt latest_successful_refresh issue_key].freeze
     DEFAULT_SORT = "website".freeze
     DEFAULT_DIRECTION = "asc".freeze
-    DEFAULT_PER_PAGE = 25
-    MAX_PER_PAGE = 100
+    DEFAULT_LIMIT = 25
+    MAX_LIMIT = 100
+    DEFAULT_PER_PAGE = DEFAULT_LIMIT
+    MAX_PER_PAGE = MAX_LIMIT
     RECOMMENDATION_ORDER = {
       "blocked" => 0,
       "review" => 1,
@@ -20,34 +22,18 @@ module Distillator
       id
       uri_key
       normalized_url
-      name
+      http_response_code
       scrape_date
       successful_refresh
-      http_response_code
-      headers
       signals
-      hints
       final_url
-      redirect_chain
-      created_at
-      updated_at
       health_status
       health_severity
-      health_reasons
-      html_bytes
-      body_bytes
       redirected
       network_status
-      content_type
-      hint_keys
       primary_issue_key
-      primary_issue_error_code
       primary_issue_label
       primary_issue_severity
-      primary_issue_category
-      issue_keys
-      issue_hints
-      delete_candidate
     ].freeze
 
     Result = Struct.new(:records, :all_records, :global_records, :page, :per_page, :total_count, :total_pages, keyword_init: true)
@@ -61,18 +47,20 @@ module Distillator
       @sort = SORT_COLUMNS.include?(sort.to_s) ? sort.to_s : DEFAULT_SORT
       @direction = %w[asc desc].include?(direction.to_s) ? direction.to_s : DEFAULT_DIRECTION
       @page = page.to_i.positive? ? page.to_i : 1
-      normalized_per_page = per_page.to_i.positive? ? per_page.to_i : DEFAULT_PER_PAGE
-      @per_page = [normalized_per_page, MAX_PER_PAGE].min
+      normalized_per_page = per_page.to_i.positive? ? per_page.to_i : DEFAULT_LIMIT
+      @per_page = [normalized_per_page, MAX_LIMIT].min
     end
 
     def call
+      return default_result if default_report?
+
       summaries = filtered_summaries
-      paginated = paginate_rows(summaries)
+      paginated = paginate_rows(summaries, total_count: summaries.length)
 
       Result.new(
         records: paginated.to_a,
         all_records: summaries,
-        global_records: all_summaries,
+        global_records: summaries,
         page: paginated.current_page,
         per_page: paginated.per_page,
         total_count: paginated.total_entries,
@@ -84,57 +72,81 @@ module Distillator
 
     attr_reader :filters, :sort, :direction, :page, :per_page
 
+    def default_result
+      scope = default_shadow_scope
+      rows = build_summaries(paginated_websites(scope))
+      total_count = scope.count
+      total_pages = (total_count.to_f / per_page).ceil
+      paginated = WillPaginate::Collection.create(page, per_page, total_count) do |pager|
+        pager.replace(rows)
+      end
+
+      Result.new(
+        records: paginated.to_a,
+        all_records: rows,
+        global_records: rows,
+        page: paginated.current_page,
+        per_page: paginated.per_page,
+        total_count: paginated.total_entries,
+        total_pages: total_pages
+      )
+    end
+
     def filtered_summaries
       @filtered_summaries ||= begin
-        rows = all_summaries.select { |summary| include_summary?(summary) }
+        rows = build_summaries(websites).select { |summary| include_summary?(summary) }
         rows = rows.sort_by { |summary| sortable_value(summary) }
         rows.reverse! if direction == "desc"
         rows
       end
     end
 
-    def all_summaries
-      @all_summaries ||= websites.map do |website|
+    def build_summaries(websites)
+      return [] if websites.empty?
+
+      evidence_by_website_id = Distillator::TransitionEvidence.latest_for_website_ids(websites.map(&:id))
+      latest_caches_by_website_id = latest_caches_by_website_id_for(websites)
+
+      websites.map do |website|
         Distillator::ShadowSiteSummary.call(
           website: website,
-          cache: latest_caches_by_website_id[website.id]
+          cache: latest_caches_by_website_id[website.id],
+          evidence_by_kind: evidence_by_website_id[website.id]
         )
       end
     end
 
     def websites
-      @websites ||= Website.where(distillator_mode: Website::DISTILLATOR_MODES).includes(:webpages).order(:name).to_a
+      @websites ||= website_scope.includes(:webpages).order(:name).to_a
     end
 
-    def latest_caches_by_website_id
-      @latest_caches_by_website_id ||= begin
-        lookup = {}
-        latest_caches.each do |cache|
-          website = matched_website_for_cache(cache)
-          next unless website
-          next if lookup.key?(website.id)
+    def latest_caches_by_website_id_for(websites)
+      lookup = {}
 
-          lookup[website.id] = cache
-        end
-        lookup
+      latest_caches_for(websites).each do |cache|
+        website = matched_website_for_cache(cache, websites)
+        next unless website
+        next if lookup.key?(website.id)
+
+        lookup[website.id] = cache
       end
+
+      lookup
     end
 
-    def latest_caches
-      @latest_caches ||= begin
-        urls = candidate_urls
-        keys = candidate_uri_keys
-        return [] if urls.empty? && keys.empty?
+    def latest_caches_for(websites)
+      urls = candidate_urls(websites)
+      keys = candidate_uri_keys(websites)
+      return [] if urls.empty? && keys.empty?
 
-        Distillator::FetchCache
-          .select(CACHE_COLUMNS.map { |column| "distillator_fetch_caches.#{column}" })
-          .where("normalized_url IN (:urls) OR final_url IN (:urls) OR uri_key IN (:keys)", urls: urls.presence || [""], keys: keys.presence || [""])
-          .order(Arel.sql("COALESCE(distillator_fetch_caches.scrape_date, distillator_fetch_caches.updated_at) DESC, distillator_fetch_caches.id DESC"))
-          .to_a
-      end
+      Distillator::FetchCache
+        .select(CACHE_COLUMNS.map { |column| "distillator_fetch_caches.#{column}" })
+        .where("normalized_url IN (:urls) OR final_url IN (:urls) OR uri_key IN (:keys)", urls: urls.presence || [""], keys: keys.presence || [""])
+        .order(Arel.sql("COALESCE(distillator_fetch_caches.scrape_date, distillator_fetch_caches.updated_at) DESC, distillator_fetch_caches.id DESC"))
+        .to_a
     end
 
-    def matched_website_for_cache(cache)
+    def matched_website_for_cache(cache, websites)
       result = Distillator::CacheWebsiteMatcher.call(cache: cache, websites: websites)
       result.website
     end
@@ -221,14 +233,14 @@ module Distillator
       end
     end
 
-    def paginate_rows(rows)
-      WillPaginate::Collection.create(page, per_page, rows.length) do |pager|
+    def paginate_rows(rows, total_count:)
+      WillPaginate::Collection.create(page, per_page, total_count) do |pager|
         pager.replace(rows[pager.offset, pager.per_page] || [])
       end
     end
 
-    def candidate_urls
-      @candidate_urls ||= websites.flat_map do |website|
+    def candidate_urls(websites)
+      websites.flat_map do |website|
         website.webpages.flat_map do |webpage|
           url = webpage.url.to_s
           next [] if url.blank?
@@ -244,8 +256,8 @@ module Distillator
       end.uniq
     end
 
-    def candidate_uri_keys
-      @candidate_uri_keys ||= websites.flat_map do |website|
+    def candidate_uri_keys(websites)
+      websites.flat_map do |website|
         website.webpages.filter_map do |webpage|
           Distillator::WringerUrlKey.call(webpage.url).uri_key
         rescue StandardError
@@ -254,11 +266,39 @@ module Distillator
       end.uniq
     end
 
+    def website_scope
+      Website.where(distillator_mode: filters[:mode].presence || "shadow")
+    end
+
+    def default_shadow_scope
+      @default_shadow_scope ||= Website.where(distillator_mode: "shadow").order(:name)
+    end
+
+    def paginated_websites(scope)
+      scope.offset((page - 1) * per_page).limit(per_page).includes(:webpages).to_a
+    end
+
+    def default_report?
+      return false unless filters.except(:mode).compact_blank.empty?
+      return false unless filters[:mode].blank? || filters[:mode].to_s == "shadow"
+      return false unless sort == DEFAULT_SORT
+      return false unless direction == DEFAULT_DIRECTION
+
+      true
+    end
+
     class << self
       def latest_cache_for_website(website)
         website_record = website.is_a?(Website) ? website : Website.find(website)
-        query = new(filters: {}, sort: DEFAULT_SORT, direction: DEFAULT_DIRECTION, page: 1, per_page: 1)
-        query.send(:latest_caches).find do |cache|
+        query = new(
+          filters: { mode: website_record.distillator_mode },
+          sort: DEFAULT_SORT,
+          direction: DEFAULT_DIRECTION,
+          page: 1,
+          per_page: 1
+        )
+
+        query.send(:latest_caches_for, [website_record]).find do |cache|
           Distillator::CacheWebsiteMatcher.call(cache: cache, websites: [website_record]).website.present?
         end
       end

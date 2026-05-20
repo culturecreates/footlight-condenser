@@ -8,20 +8,27 @@ module Distillator
         allowed_sorts: Distillator::ShadowReportQuery::SORT_COLUMNS,
         default_sort: Distillator::ShadowReportQuery::DEFAULT_SORT,
         default_direction: Distillator::ShadowReportQuery::DEFAULT_DIRECTION,
-        default_per_page: Distillator::ShadowReportQuery::DEFAULT_PER_PAGE,
-        max_per_page: Distillator::ShadowReportQuery::MAX_PER_PAGE
+        default_per_page: Distillator::ShadowReportQuery::DEFAULT_LIMIT,
+        max_per_page: Distillator::ShadowReportQuery::MAX_LIMIT
       )
+      index_params[:filters] = index_params[:filters].to_h.symbolize_keys
+      index_params[:filters][:mode] = index_params[:filters][:mode].presence || "shadow"
+      index_params[:per_page] = normalized_limit_param(params[:limit].presence || params[:per_page])
 
       canonical = harmonized_index_canonical_params(
         index_params,
         default_sort: Distillator::ShadowReportQuery::DEFAULT_SORT,
         default_direction: Distillator::ShadowReportQuery::DEFAULT_DIRECTION,
-        default_per_page: Distillator::ShadowReportQuery::DEFAULT_PER_PAGE
+        default_per_page: Distillator::ShadowReportQuery::DEFAULT_LIMIT
       )
+      canonical.delete("mode") if params[:mode].blank? && index_params[:filters][:mode] == "shadow"
+      canonical["limit"] = canonical.delete("per_page") if canonical.key?("per_page")
       raw = harmonized_index_raw_params(
         allowed_filters: Distillator::ShadowReportQuery::FILTER_KEYS,
-        preserve: %w[sort direction page per_page]
+        preserve: %w[sort direction page limit per_page]
       )
+      raw["limit"] = raw.delete("per_page") if raw["limit"].blank? && raw["per_page"].present?
+      raw.except!("per_page")
       return redirect_to(distillator_shadow_report_path(canonical)) if request.format.html? && canonical != raw
 
       @filters = index_params[:filters]
@@ -44,6 +51,14 @@ module Distillator
     def show
       @website = Website.find(params[:id])
       @detail = Distillator::ShadowSiteDetail.call(website: @website)
+    end
+
+    private
+
+    def normalized_limit_param(value)
+      requested = value.to_i
+      requested = Distillator::ShadowReportQuery::DEFAULT_LIMIT unless requested.positive?
+      [requested, Distillator::ShadowReportQuery::MAX_LIMIT].min
     end
   end
 end

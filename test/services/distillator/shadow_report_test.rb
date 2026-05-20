@@ -1,35 +1,35 @@
 require "test_helper"
 
 class Distillator::ShadowReportTest < ActiveSupport::TestCase
-  test "report returns tracked websites across rollout modes and summarizes status counts" do
+  test "report defaults to bounded shadow websites and summarizes the visible rows" do
     baseline = Distillator::ShadowReport.call(filters: {}, sort: "website", direction: "asc", page: 1, per_page: 100)
 
-    create_shadow_site(name: "Ready shadow", seedurl: "ready-shadow", status: :ready)
-    create_shadow_site(name: "Blocked shadow", seedurl: "blocked-shadow", status: :blocked, issue_key: "timeout")
-    create_shadow_site(name: "Hector Charland", seedurl: "hector-charland-com", status: :review, issue_key: "queue_it", lavitrine: true)
+    create_shadow_site(name: "A Ready shadow", seedurl: "ready-shadow", status: :ready)
+    create_shadow_site(name: "A Blocked shadow", seedurl: "blocked-shadow", status: :blocked, issue_key: "timeout")
+    create_shadow_site(name: "A Hector Charland", seedurl: "hector-charland-com", status: :review, issue_key: "queue_it", lavitrine: true)
     create_website(name: "Legacy site", seedurl: "legacy-site", mode: "legacy")
     create_website(name: "Active site", seedurl: "active-site", mode: "active")
 
     report = Distillator::ShadowReport.call(filters: {}, sort: "website", direction: "asc", page: 1, per_page: 25)
 
-    assert_includes report.rows.map { |row| row.website.name }, "Active site"
-    assert_includes report.rows.map { |row| row.website.name }, "Blocked shadow"
-    assert_includes report.rows.map { |row| row.website.name }, "Hector Charland"
-    assert_includes report.rows.map { |row| row.website.name }, "Legacy site"
-    assert_includes report.rows.map { |row| row.website.name }, "Ready shadow"
-    assert_equal baseline.summary_counts[:total] + 5, report.summary_counts[:total]
+    assert_includes report.rows.map { |row| row.website.name }, "A Blocked shadow"
+    assert_includes report.rows.map { |row| row.website.name }, "A Hector Charland"
+    assert_includes report.rows.map { |row| row.website.name }, "A Ready shadow"
+    refute_includes report.rows.map { |row| row.website.name }, "Legacy site"
+    refute_includes report.rows.map { |row| row.website.name }, "Active site"
+    assert_equal baseline.summary_counts[:total] + 3, report.summary_counts[:total]
     assert_equal baseline.summary_counts[:ready] + 1, report.summary_counts[:ready]
     assert_equal baseline.summary_counts[:review] + 1, report.summary_counts[:review]
     assert_equal baseline.summary_counts[:blocked] + 1, report.summary_counts[:blocked]
-    assert_equal baseline.summary_counts[:not_checked] + 2, report.summary_counts[:not_checked]
+    assert_equal baseline.summary_counts[:not_checked], report.summary_counts[:not_checked]
     assert_equal baseline.summary_counts[:lavitrine_total] + 1, report.summary_counts[:lavitrine_total]
     assert_equal baseline.summary_counts[:lavitrine_review] + 1, report.summary_counts[:lavitrine_review]
     assert_equal baseline.dashboard_counts[:legacy_sites] + 1, report.dashboard_counts[:legacy_sites]
     assert_equal baseline.dashboard_counts[:shadow_sites] + 3, report.dashboard_counts[:shadow_sites]
     assert_equal baseline.dashboard_counts[:active_sites] + 1, report.dashboard_counts[:active_sites]
     assert_equal baseline.blocker_counts[:failed_fetch] + 1, report.blocker_counts[:failed_fetch]
-    assert_equal baseline.blocker_counts[:missing_statement_evidence] + 3, report.blocker_counts[:missing_statement_evidence]
-    assert_equal baseline.blocker_counts[:missing_export_evidence] + 3, report.blocker_counts[:missing_export_evidence]
+    assert_equal baseline.blocker_counts[:missing_statement_evidence] + 1, report.blocker_counts[:missing_statement_evidence]
+    assert_equal baseline.blocker_counts[:missing_export_evidence] + 1, report.blocker_counts[:missing_export_evidence]
     assert_equal baseline.blocker_counts[:redirect_cache_health_review] + 1, report.blocker_counts[:redirect_cache_health_review]
     assert report.rows.all? { |row| row.testing_backend == :condenser }
   end
@@ -59,9 +59,7 @@ class Distillator::ShadowReportTest < ActiveSupport::TestCase
     refute_includes other.rows.map { |row| row.website.name }, "Hector Charland"
   end
 
-  test "global counts remain visible when filters narrow the row set" do
-    baseline = Distillator::ShadowReport.call(filters: {}, sort: "website", direction: "asc", page: 1, per_page: 100)
-
+  test "summary counts follow the filtered visible rows" do
     create_shadow_site(name: "Ready shadow", seedurl: "ready-shadow", status: :ready)
     create_shadow_site(name: "Blocked shadow", seedurl: "blocked-shadow", status: :blocked, issue_key: "timeout")
     create_website(name: "Legacy site", seedurl: "legacy-site", mode: "legacy")
@@ -75,8 +73,8 @@ class Distillator::ShadowReportTest < ActiveSupport::TestCase
     )
 
     assert_equal 1, report.summary_counts[:total]
-    assert_equal baseline.global_summary_counts[:total] + 3, report.global_summary_counts[:total]
-    assert_equal baseline.global_summary_counts[:blocked] + 1, report.global_summary_counts[:blocked]
+    assert_equal 1, report.global_summary_counts[:total]
+    assert_equal 0, report.global_summary_counts[:blocked]
   end
 
   test "report supports rollout mode slicing" do
@@ -123,6 +121,7 @@ class Distillator::ShadowReportTest < ActiveSupport::TestCase
 
   def create_website(name:, seedurl:, mode:)
     Website.create!(
+      id: next_id,
       name: name,
       seedurl: seedurl,
       graph_name: "https://#{seedurl}.example/graph",
@@ -136,6 +135,7 @@ class Distillator::ShadowReportTest < ActiveSupport::TestCase
     url_seed = seedurl
     url = "https://#{url_seed}.example/event"
     website.webpages.create!(
+      id: next_id,
       url: url,
       language: "en",
       rdf_uri: "adr:#{url_seed}",
@@ -182,9 +182,10 @@ class Distillator::ShadowReportTest < ActiveSupport::TestCase
       attrs[:signals] = attrs[:signals].merge("statement_count_delta_acceptable" => true, "export_diff_checked" => true)
     end
 
-    Distillator::FetchCache.create!(attrs)
+    Distillator::FetchCache.create!(attrs.merge(id: next_id))
     if lavitrine
       website.transition_evidences.create!(
+        id: next_id,
         url: url,
         check_kind: "statement_delta",
         status: "checked",
@@ -192,6 +193,7 @@ class Distillator::ShadowReportTest < ActiveSupport::TestCase
         checked_at: 1.hour.ago
       )
       website.transition_evidences.create!(
+        id: next_id,
         url: url,
         check_kind: "export_diff",
         status: "checked",
@@ -200,5 +202,10 @@ class Distillator::ShadowReportTest < ActiveSupport::TestCase
       )
     end
     website
+  end
+
+  def next_id
+    @next_id ||= 1_100_000_000 + ((Process.pid % 10_000) * 100_000)
+    @next_id += 1
   end
 end

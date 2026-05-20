@@ -29,7 +29,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match %r{/distillator/cache.*?/distillator/shadow_report.*?/options}m, @response.body
   end
 
-  test "shadow report lists shadow sites shows production backend and includes compare link when available" do
+  test "shadow report lists shadow sites with summary actions only on the index" do
     website = create_shadow_website(name: "Shadow beta", seedurl: "shadow-beta")
     create_cache_for(website, url: "https://shadow-beta.example/event")
 
@@ -41,12 +41,13 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Shadow beta", @response.body
     assert_match "Production backend", @response.body
     assert_match "Wringer", @response.body
-    assert_match "Compare Condenser vs Wringer", @response.body
-    assert_match "Open active cache", @response.body
+    assert_match "Detail", @response.body
+    assert_no_match "Compare Condenser vs Wringer", @response.body
+    assert_no_match "Open active cache", @response.body
     assert_no_cohort_source_requests
   end
 
-  test "shadow report shows cohort column filter and la vitrine summary cards" do
+  test "shadow report shows cohort column filter and lavitrine rows" do
     website = create_shadow_website(name: "Hector Charland", seedurl: "hector-charland-com")
     create_cache_for(
       website,
@@ -63,23 +64,27 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_match "Cohort", @response.body
-    assert_match "La Vitrine total", @response.body
+    assert_match "Current page", @response.body
     assert_match "La Vitrine pipeline", @response.body
     assert_includes @response.body, 'name="cohort"'
     assert_no_cohort_source_requests
   end
 
-  test "shadow report includes legacy shadow and active websites by default" do
-    create_shadow_website(name: "Shadow only", seedurl: "shadow-only")
+  test "shadow report defaults to bounded shadow-only results" do
+    30.times do |index|
+      create_shadow_website(name: format("Shadow %02d", index), seedurl: "shadow-only-#{index}")
+    end
     create_regular_website(name: "Legacy site", seedurl: "legacy-shadow-report", mode: "legacy")
     create_regular_website(name: "Active site", seedurl: "active-shadow-report", mode: "active")
 
     get distillator_shadow_report_path
 
     assert_response :success
-    assert_match "Shadow only", @response.body
-    assert_match "Legacy site", @response.body
-    assert_match "Active site", @response.body
+    assert_match "Shadow 00", @response.body
+    assert_no_match %r{<tbody>.*Legacy site.*</tbody>}m, @response.body
+    assert_no_match %r{<tbody>.*Active site.*</tbody>}m, @response.body
+    assert_match "30 sites matched.", @response.body
+    assert_includes @response.body, 'name="limit"'
   end
 
   test "shadow report supports filters sorting pagination and not checked visibility" do
@@ -111,7 +116,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       health_severity: "high"
     )
 
-    get distillator_shadow_report_path, params: { status: "review", term: "queue", sort: "website", direction: "asc", per_page: "1" }
+    get distillator_shadow_report_path, params: { status: "review", term: "queue", sort: "website", direction: "asc", limit: "1" }
     follow_redirect! if response.redirect?
 
     assert_response :success
@@ -120,13 +125,13 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Unknown queue", @response.body
     assert_match "Apply filters", @response.body
     assert_match "Reset filters", @response.body
-    assert_match "All sites Blocked", @response.body
+    assert_match %r{name="limit"[^>]*value="1"}, @response.body
 
     get distillator_shadow_report_path, params: { status: "not_checked" }
 
     assert_response :success
     assert_match "Unknown queue", @response.body
-    assert_match "Active queue", @response.body
+    assert_no_match "Active queue", @response.body
     assert_match "Not checked", @response.body
   end
 
@@ -145,6 +150,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       }
     )
     ready.transition_evidences.create!(
+      id: next_id,
       url: "https://promotable-queue.example/event",
       check_kind: "statement_delta",
       status: "checked",
@@ -152,6 +158,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       checked_at: 1.hour.ago
     )
     ready.transition_evidences.create!(
+      id: next_id,
       url: "https://promotable-queue.example/event",
       check_kind: "export_diff",
       status: "checked",
@@ -265,8 +272,22 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match "Priority sites", @response.body
     assert_match options_path, @response.body
-    assert_match "Compare Condenser vs Wringer", @response.body
-    assert_match "Open active cache", @response.body
+    assert_match "Detail", @response.body
+    assert_no_match "Compare Condenser vs Wringer", @response.body
+    assert_no_match "Open active cache", @response.body
+  end
+
+  test "shadow report clamps the requested limit and keeps empty state rendering" do
+    101.times do |index|
+      create_shadow_website(name: format("Clamp %03d", index), seedurl: "clamp-#{index}")
+    end
+
+    get distillator_shadow_report_path, params: { limit: "999", term: "not-a-real-site" }
+    follow_redirect! if response.redirect?
+
+    assert_response :success
+    assert_match %r{name="limit"[^>]*value="100"}, @response.body
+    assert_match "No sites found.", @response.body
   end
 
   test "transition report supports rollout mode filter" do
@@ -289,6 +310,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
 
   def create_regular_website(name:, seedurl:, mode:)
     Website.create!(
+      id: next_id,
       name: name,
       seedurl: seedurl,
       graph_name: "https://#{seedurl}.example/graph",
@@ -299,6 +321,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
 
   def create_cache_for(website, url:, signals: { "transport_success" => true, "content_success" => true }, primary_issue_key: nil, primary_issue_label: nil, primary_issue_severity: nil, health_status: "healthy", health_severity: "ok", redirected: false, final_url: nil, html: "<html>cached</html>", body: "<html>cached</html>")
     website.webpages.create!(
+      id: next_id,
       url: url,
       language: "en",
       rdf_uri: "adr:#{website.seedurl}",
@@ -306,6 +329,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     )
 
     Distillator::FetchCache.create!(
+      id: next_id,
       uri_key: CGI.escape(url),
       normalized_url: url,
       name: website.name,
@@ -330,6 +354,11 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       primary_issue_label: primary_issue_label,
       primary_issue_severity: primary_issue_severity
     )
+  end
+
+  def next_id
+    @next_id ||= 1_200_000_000 + ((Process.pid % 10_000) * 100_000)
+    @next_id += 1
   end
 
   def assert_read_only_page_does_not_fetch

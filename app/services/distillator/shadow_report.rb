@@ -25,10 +25,10 @@ module Distillator
 
       Result.new(
         rows: query.records,
-        summary_counts: summary_counts(query.all_records),
-        global_summary_counts: summary_counts(query.global_records),
-        dashboard_counts: dashboard_counts(query.global_records),
-        blocker_counts: blocker_counts(query.all_records),
+        summary_counts: summary_counts(query.records),
+        global_summary_counts: summary_counts(query.records),
+        dashboard_counts: dashboard_counts(query.records),
+        blocker_counts: blocker_counts(query.records),
         page: query.page,
         per_page: query.per_page,
         total_count: query.total_count,

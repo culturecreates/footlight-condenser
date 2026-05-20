@@ -1,8 +1,10 @@
 require "test_helper"
 
 class Distillator::ShadowReportQueryTest < ActiveSupport::TestCase
-  test "includes tracked rollout websites by default" do
-    create_shadow_site(name: "Shadow site", seedurl: "shadow-site", recommendation: :ready)
+  test "defaults to a bounded shadow-only report" do
+    30.times do |index|
+      create_shadow_site(name: format("Shadow %02d", index), seedurl: "shadow-#{index}", recommendation: :ready)
+    end
     create_website(name: "Legacy site", seedurl: "legacy-site", mode: "legacy")
     create_website(name: "Active site", seedurl: "active-site", mode: "active")
 
@@ -11,14 +13,59 @@ class Distillator::ShadowReportQueryTest < ActiveSupport::TestCase
       sort: Distillator::ShadowReportQuery::DEFAULT_SORT,
       direction: Distillator::ShadowReportQuery::DEFAULT_DIRECTION,
       page: 1,
-      per_page: 25
+      per_page: Distillator::ShadowReportQuery::DEFAULT_LIMIT
     )
 
     names = result.records.map { |row| row.website.name }
 
-    assert_includes names, "Shadow site"
-    assert_includes names, "Legacy site"
-    assert_includes names, "Active site"
+    assert_equal Distillator::ShadowReportQuery::DEFAULT_LIMIT, result.records.length
+    assert_equal 30, result.total_count
+    assert_includes names, "Shadow 00"
+    refute_includes names, "Legacy site"
+    refute_includes names, "Active site"
+  end
+
+  test "limit cannot exceed the maximum" do
+    101.times do |index|
+      create_shadow_site(name: format("Max %03d", index), seedurl: "max-#{index}", recommendation: :ready)
+    end
+
+    result = Distillator::ShadowReportQuery.call(
+      filters: {},
+      sort: Distillator::ShadowReportQuery::DEFAULT_SORT,
+      direction: Distillator::ShadowReportQuery::DEFAULT_DIRECTION,
+      page: 1,
+      per_page: 999
+    )
+
+    assert_equal Distillator::ShadowReportQuery::MAX_LIMIT, result.per_page
+    assert_equal Distillator::ShadowReportQuery::MAX_LIMIT, result.records.length
+    assert_equal 101, result.total_count
+  end
+
+  test "default report paginates many shadow sites without showing them all on page one" do
+    40.times do |index|
+      create_shadow_site(name: format("Paged %02d", index), seedurl: "visible-#{index}", recommendation: :ready)
+    end
+
+    page_one = Distillator::ShadowReportQuery.call(
+      filters: {},
+      sort: Distillator::ShadowReportQuery::DEFAULT_SORT,
+      direction: Distillator::ShadowReportQuery::DEFAULT_DIRECTION,
+      page: 1,
+      per_page: Distillator::ShadowReportQuery::DEFAULT_LIMIT
+    )
+    page_two = Distillator::ShadowReportQuery.call(
+      filters: {},
+      sort: Distillator::ShadowReportQuery::DEFAULT_SORT,
+      direction: Distillator::ShadowReportQuery::DEFAULT_DIRECTION,
+      page: 2,
+      per_page: Distillator::ShadowReportQuery::DEFAULT_LIMIT
+    )
+
+    assert_equal 25, page_one.records.length
+    assert_equal 15, page_two.records.length
+    refute_equal page_one.records.map { |row| row.website.name }, page_two.records.map { |row| row.website.name }
   end
 
   test "filters by recommendation, health severity, issue key, and search term" do
@@ -92,12 +139,14 @@ class Distillator::ShadowReportQueryTest < ActiveSupport::TestCase
   test "cache with trailing slash difference still maps to the website" do
     website = create_website(name: "Slash site", seedurl: "slash-site", mode: "shadow")
     website.webpages.create!(
+      id: next_id,
       url: "https://slash-site.example/event/",
       language: "en",
       rdf_uri: "adr:slash-site",
       rdfs_class: rdfs_classes(:one)
     )
     Distillator::FetchCache.create!(
+      id: next_id,
       uri_key: CGI.escape("https://slash-site.example/event"),
       normalized_url: "https://slash-site.example/event",
       html: "<html>cached</html>",
@@ -118,6 +167,7 @@ class Distillator::ShadowReportQueryTest < ActiveSupport::TestCase
 
   def create_website(name:, seedurl:, mode:)
     Website.create!(
+      id: next_id,
       name: name,
       seedurl: seedurl,
       graph_name: "https://#{seedurl}.example/graph",
@@ -130,6 +180,7 @@ class Distillator::ShadowReportQueryTest < ActiveSupport::TestCase
     website = create_website(name: name, seedurl: seedurl, mode: "shadow")
     url = "https://#{seedurl}.example/event"
     website.webpages.create!(
+      id: next_id,
       url: url,
       language: "en",
       rdf_uri: "adr:#{seedurl}",
@@ -174,7 +225,12 @@ class Distillator::ShadowReportQueryTest < ActiveSupport::TestCase
       attrs[:final_url] = "#{url}/redirected"
     end
 
-    Distillator::FetchCache.create!(attrs)
+    Distillator::FetchCache.create!(attrs.merge(id: next_id))
     website
+  end
+
+  def next_id
+    @next_id ||= 1_000_000_000 + ((Process.pid % 10_000) * 100_000)
+    @next_id += 1
   end
 end

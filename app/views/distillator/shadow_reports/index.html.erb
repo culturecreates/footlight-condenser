@@ -8,51 +8,27 @@
            variant: :summary,
            css_class: "cache-summary-cards shadow-report-summary-cards" %>
 
-<h2>Top blockers</h2>
+<h2>Top blockers on this page</h2>
 <%= render "shared/cards/card_grid",
            cards: transition_blocker_cards(@blocker_counts),
            variant: :summary,
            css_class: "cache-summary-cards shadow-report-summary-cards" %>
 
-<h2>All tracked sites</h2>
+<h2>Current page</h2>
 <%= render "shared/cards/card_grid",
-           cards: shadow_report_summary_cards(@global_summary_counts, title_prefix: "All sites"),
-           variant: :summary,
-           css_class: "cache-summary-cards shadow-report-summary-cards" %>
-
-<%= render "shared/cards/card_grid",
-           cards: [
-             {
-               title: "La Vitrine total",
-               count: @global_summary_counts[:lavitrine_total].to_i,
-               tone: "unknown",
-               description: "All La Vitrine pipeline sites in this report."
-             },
-             {
-               title: "La Vitrine blocked",
-               count: @global_summary_counts[:lavitrine_blocked].to_i,
-               tone: "failed",
-               description: "Blocked La Vitrine pipeline sites."
-             }
-           ],
-           variant: :summary,
-           css_class: "cache-summary-cards shadow-report-summary-cards" %>
-
-<h2>Matching current filters</h2>
-<%= render "shared/cards/card_grid",
-           cards: shadow_report_summary_cards(@summary_counts, title_prefix: "Filtered"),
+           cards: shadow_report_summary_cards(@summary_counts, title_prefix: "Visible"),
            variant: :summary,
            css_class: "cache-summary-cards shadow-report-summary-cards" %>
 
 <%= form_with url: distillator_shadow_report_path, method: :get, local: true, html: { autocomplete: "off", class: "harmonized-table-filters" } do %>
   <%= hidden_field_tag :sort, @sort if @sort.present? %>
   <%= hidden_field_tag :direction, @direction if @direction.present? %>
-  <%= hidden_field_tag :per_page, @pagination[:per_page] if @pagination[:per_page].present? %>
+  <%= hidden_field_tag :limit, @pagination[:per_page] if @pagination[:per_page].present? %>
 
   <table class="harmonized-table-shell">
     <thead>
       <tr>
-        <% sortable_filters = @filters.merge(per_page: @pagination[:per_page]) %>
+        <% sortable_filters = @filters.merge(limit: @pagination[:per_page]) %>
         <th><%= admin_sortable("website", "Website", filters: sortable_filters, current_sort: @sort, current_direction: @direction) %></th>
         <th>Cohort</th>
         <th>Mode</th>
