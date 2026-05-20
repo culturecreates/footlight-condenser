@@ -17,8 +17,14 @@
 <%= link_to "all websites", websites_path %> >
 
 
-<% if nav_website&.id.present? %>
+<% if nav_website&.id.present? && !suppress_header_website_identity? %>
   <b><%= link_to nav_website.seedurl, website_path(nav_website) %></b> |
+  <%= link_to "webpages", webpages_path %> |
+  <%= link_to "sources",  sources_path %> |
+  <%= link_to "events",   events_websites_path(seedurl: nav_website.seedurl) %> |
+  <%= link_to "places",   places_path(seedurl: nav_website.seedurl) %> |
+<% elsif nav_website&.id.present? %>
+  <span class="disabled-link">website</span> |
   <%= link_to "webpages", webpages_path %> |
   <%= link_to "sources",  sources_path %> |
   <%= link_to "events",   events_websites_path(seedurl: nav_website.seedurl) %> |

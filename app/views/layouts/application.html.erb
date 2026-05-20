@@ -45,7 +45,7 @@
   <body style="<%= 'background-color: #EE9;' if Rails.env.development? %>">
     <%= render "layouts/header" %>
     <%= render "shared/flash" %>
-    <% if (operator_context = operator_context_payload).present? %>
+    <% if !suppress_operator_context_card? && (operator_context = operator_context_payload).present? %>
       <%= render "shared/operator_context_card", context: operator_context %>
     <% end %>
     <%= yield %>
