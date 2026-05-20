@@ -135,6 +135,12 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_read_only_page_does_not_fetch
     get webpage_url(@webpage)
     assert_response :success
+    assert_select 'details[data-operator-context-card]', 0
+    assert_includes @response.body, "Production transition"
+    assert_includes @response.body, "Data actions"
+    assert_includes @response.body, "JSON-LD"
+    assert_includes @response.body, "Validation"
+    assert_includes @response.body, "Page actions"
   end
 
   test "website show uses cache link resolver labels for legacy mode" do
@@ -146,7 +152,7 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes @response.body, "Open active cache"
     assert_includes @response.body, "Open Condenser cache"
-    assert_includes @response.body, "Active backend:</strong> Wringer"
+    assert_includes @response.body, "Production backend:</strong> Wringer"
   end
 
   test "webpage show uses cache link resolver labels for shadow mode" do
@@ -158,7 +164,7 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes @response.body, "Open active cache"
     assert_includes @response.body, "Compare Condenser vs Wringer"
-    assert_includes @response.body, "Active backend:</strong> Wringer"
+    assert_includes @response.body, "Production backend:</strong> Wringer"
   end
 
   test "webpage show uses cache link resolver labels for active mode" do
@@ -170,17 +176,17 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes @response.body, "Open active cache"
     assert_includes @response.body, "Inspect legacy Wringer"
-    assert_includes @response.body, "Active backend:</strong> Condenser"
+    assert_includes @response.body, "Production backend:</strong> Condenser"
   end
 
-  test "webpage rollout panel uses centralized operator copy and avoids retired wording" do
+  test "webpage show uses one production transition section and avoids retired wording" do
     assert_read_only_page_does_not_fetch
     @webpage.website.update!(distillator_mode: "shadow")
 
     get webpage_url(@webpage)
 
     assert_response :success
-    assert_includes @response.body, Distillator::RolloutCopy.rollout_panel_title
+    assert_includes @response.body, "Production transition"
     assert_includes @response.body, Distillator::RolloutCopy.label(:shadow)
     assert_includes @response.body, Distillator::RolloutCopy.description(:shadow)
     assert_not_includes @response.body, "Distillator rollout"
@@ -218,13 +224,9 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
 
     get webpage_url(webpage)
     assert_response :success
-    assert_select 'details[data-operator-context-card]'
-    assert_select 'details[data-context-domain="status"]'
-    assert_select 'details[data-context-domain="actions"]'
-    assert_select 'details[data-context-domain="details"]'
+    assert_select 'details[data-operator-context-card]', 0
     assert_includes @response.body, "Condenser active"
-    assert_includes @response.body, "Condenser serves fetch/cache results; legacy Wringer remains available for inspection."
-    assert_includes @response.body, "Active: Condenser"
+    assert_includes @response.body, "Production backend:</strong> Condenser"
     assert_includes @response.body, "Inspect legacy Wringer"
     assert_includes @response.body, "Diagnose refresh"
   end
@@ -238,8 +240,45 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes @response.body, "Shadow comparison"
     assert_includes @response.body, "Wringer serves production results; Condenser compares in the background."
-    assert_includes @response.body, "Active: Wringer + Shadow comparison"
+    assert_includes @response.body, "Production backend:</strong> Wringer"
     assert_includes @response.body, "Compare Condenser vs Wringer"
+  end
+
+  test "webpage show keeps rollout copy compact and grouped links visible" do
+    assert_read_only_page_does_not_fetch
+    @webpage.website.update!(distillator_mode: "legacy")
+
+    get webpage_url(@webpage)
+
+    assert_response :success
+    assert_operator @response.body.scan("Legacy Wringer active").length, :<=, 2
+    assert_operator @response.body.scan("Wringer remains the production fetch path").length, :<=, 1
+    assert_includes @response.body, "Statements"
+    assert_includes @response.body, "Refresh"
+    assert_includes @response.body, "Google JSON-LD"
+    assert_includes @response.body, "Artsdata JSON-LD"
+    assert_includes @response.body, "Call Condenser"
+    assert_includes @response.body, "Code Snippet API"
+    assert_includes @response.body, "Edit"
+    assert_includes @response.body, "Back"
+  end
+
+  test "webpage show uses diagnostic next step for invalid cache urls" do
+    assert_read_only_page_does_not_fetch
+    website, webpage = create_test_website_with_webpage(
+      distillator_mode: "legacy",
+      seedurl: "footlight-invalid-cache",
+      url: "footlight:test-id"
+    )
+
+    get webpage_url(webpage)
+
+    assert_response :success
+    assert_includes @response.body, "Invalid cache URL"
+    assert_operator @response.body.scan("Invalid cache URL").length, :<=, 1
+    assert_includes @response.body, "Use Diagnose refresh to inspect why this URL is not cache-inspectable."
+    assert_not_includes @response.body, "Inspect Condenser cache before promotion"
+    assert_includes @response.body, "Diagnose refresh"
   end
 
   test "webpage index shows distillator cache column when wringer remains active" do

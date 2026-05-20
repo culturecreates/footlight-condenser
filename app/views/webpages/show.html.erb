@@ -1,89 +1,58 @@
+<section class="webpage-show-section">
+  <h1>
+    <%= @webpage.url %>
+    <span class="rollout-inline"><%= webpage_rollout_badge(@webpage) %></span>
+  </h1>
 
+  <dl class="webpage-identity-list">
+    <% webpage_identity_rows(@webpage).each do |label, value| %>
+      <dt><%= label %></dt>
+      <dd><%= value %></dd>
+    <% end %>
+  </dl>
 
-<h1> Webpage </h1>
-<p>
-  <strong>Url:</strong>
-  <%= @webpage.url %>
-</p>
+  <p class="webpage-debug-id"><%= webpage_debug_id_label(@webpage) %></p>
+</section>
 
-<p>
-  <strong>Rollout:</strong>
-  <%= webpage_rollout_badge(@webpage) %>
-</p>
-<p class="rollout-note"><%= webpage_rollout_explanation(@webpage) %></p>
+<% cache_links = webpage_cache_panel_links(@webpage) %>
+<section class="webpage-rollout-panel webpage-show-section">
+  <h2>Production transition</h2>
+  <p><strong>Current public mode:</strong> <%= webpage_rollout_label_for(@webpage) %></p>
+  <p><strong>Production backend:</strong> <%= webpage_rollout_backend_for(@webpage) %></p>
+  <p><strong>Next recommended action:</strong> <%= webpage_rollout_next_step_for(@webpage, cache_links: cache_links) %></p>
 
-<% cache_links = webpage_cache_links(@webpage) %>
-<section class="webpage-rollout-panel">
-  <h2><%= Distillator::RolloutCopy.rollout_panel_title %></h2>
-  <p><strong>Current mode:</strong> <%= webpage_rollout_label_for(@webpage) %></p>
-  <p><strong>Active backend:</strong> <%= webpage_rollout_backend_for(@webpage) %></p>
-  <p><strong>Next step:</strong> <%= webpage_rollout_next_step_for(@webpage) %></p>
-
-  <h3>Links</h3>
+  <h3>Cache links</h3>
   <%= render "shared/cache_link_panel", cache_links: cache_links, diagnose_url: distillator_refresh_preview_url_for(@webpage.url) %>
 </section>
 
-<p>
-  <strong>created:</strong>
-  <%= @webpage.created_at %>
-</p>
+<section class="webpage-show-section">
+  <h2>Data actions</h2>
+  <ul class="webpage-show-link-list">
+    <li><%= link_to "Statements", statements_path(rdf_uri: @webpage.rdf_uri) %></li>
+    <li><%= link_to "Refresh", refresh_webpage_statements_path(url: @webpage.url), method: :patch %></li>
+  </ul>
+</section>
 
-<p>
-  <strong>updated:</strong>
-  <%= @webpage.updated_at %>
-</p>
+<section class="webpage-show-section">
+  <h2>JSON-LD</h2>
+  <ul class="webpage-show-link-list">
+    <li><%= link_to "Google JSON-LD", graphs_webpage_event_path(url: @webpage.url, format: :jsonld) %></li>
+    <li><%= link_to "Artsdata JSON-LD", graphs_webpage_event_artsdasta_path(url: @webpage.url, format: :jsonld) %></li>
+  </ul>
+</section>
 
-<p>
-  <strong>Language:</strong>
-  <%= @webpage.language %>
-</p>
+<section class="webpage-show-section">
+  <h2>Validation</h2>
+  <ul class="webpage-show-link-list">
+    <li><%= link_to "Call Condenser", "https://search.google.com/structured-data/testing-tool/u/0/#url=https://footlight-condenser.herokuapp.com/graphs/webpage/event.jsonld?url=#{CGI.escape(@webpage.url)}" %></li>
+    <li><%= link_to "Code Snippet API", "https://search.google.com/structured-data/testing-tool/u/0/#url=https://graph.culturecreates.com/semantic/v2/webpage?url=#{CGI.escape(@webpage.url)}" %></li>
+  </ul>
+</section>
 
-<p>
-  <strong>JSON-LD Output:</strong>
-  <% if @webpage.jsonld_output  %>
-    <%= @webpage.jsonld_output.name %>
-  <% else %>
-    System default
-  <% end %>
-</p>
-
-<p>
-  <strong>Rdf uri:</strong>
-  <%= @webpage.rdf_uri %>
-</p>
-
-<p>
-  <strong>Archive Date:</strong>
-  <%= @webpage.archive_date %>
-</p>
-
-<p>
-  <strong>Rdfs class:</strong>
-  <%= @webpage.rdfs_class.name %>
-</p>
-
-<p>
-  <strong>Website:</strong>
-  <%= @webpage.website.seedurl %>
-</p>
-
-Live Google Rich Results SDTT:
-<%= link_to "Call Condenser", "https://search.google.com/structured-data/testing-tool/u/0/#url=https://footlight-condenser.herokuapp.com/graphs/webpage/event.jsonld?url=#{CGI.escape(@webpage.url)}" %> |
-<%= link_to "Code Snippet API", "https://search.google.com/structured-data/testing-tool/u/0/#url=https://graph.culturecreates.com/semantic/v2/webpage?url=#{CGI.escape(@webpage.url)}" %> 
-<hr>
-
-
-<%= link_to 'statements', statements_path(rdf_uri:@webpage.rdf_uri)  %> |
-<%= link_to 'refresh', refresh_webpage_statements_path(url: @webpage.url), method: :patch  %> |
-
-
-<%= link_to "Google JSON-LD", graphs_webpage_event_path(url: @webpage.url, format: :jsonld) %> |
-<%= link_to "Artsdata JSON-LD", graphs_webpage_event_artsdasta_path(url: @webpage.url, format: :jsonld) %> |
-<%= link_to 'Edit', edit_webpage_path(@webpage) %> |
-<%= link_to 'Back', webpages_path %>
-
- 
-
-
- <%# <%= link_to "JSON-LD", structured_data_event_markup_path(url: @webpage.url, format: :json) %>  
- <%# <%= link_to "JSON-LD V2", graphs_webpage_event_path(url: @webpage.url, format: :html) %>  
+<section class="webpage-show-section">
+  <h2>Page actions</h2>
+  <ul class="webpage-show-link-list">
+    <li><%= link_to "Edit", edit_webpage_path(@webpage) %></li>
+    <li><%= link_to "Back", webpages_path %></li>
+  </ul>
+</section>

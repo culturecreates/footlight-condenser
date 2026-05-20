@@ -21,6 +21,12 @@ module WebpagesHelper
     active_cache_links_for(webpage.url, website: webpage.website)
   end
 
+  def webpage_cache_panel_links(webpage)
+    links = webpage_cache_links(webpage).dup
+    warning = webpage_cache_warning_for(webpage, links)
+    warning.present? ? links.merge(warning: warning) : links
+  end
+
   def webpage_rollout_badge(webpage)
     operator_rollout_badge(webpage.website)
   end
@@ -37,7 +43,64 @@ module WebpagesHelper
     operator_active_backend_label(webpage.website)
   end
 
-  def webpage_rollout_next_step_for(webpage)
-    operator_rollout_next_step(webpage.website)
+  def webpage_rollout_next_step_for(webpage, cache_links: webpage_cache_links(webpage))
+    if webpage_cache_not_inspectable?(webpage, cache_links)
+      "Use Diagnose refresh to inspect why this URL is not cache-inspectable."
+    else
+      operator_rollout_next_step(webpage.website)
+    end
+  end
+
+  def webpage_identity_rows(webpage)
+    [
+      ["Website", webpage_website_label(webpage)],
+      ["RDF URI", webpage.rdf_uri],
+      ["RDFS class", webpage.rdfs_class&.name],
+      ["Language", webpage.language],
+      ["JSON-LD output", webpage_jsonld_output_label(webpage)],
+      ["Created", webpage.created_at],
+      ["Updated", webpage.updated_at],
+      ["Archive date", webpage.archive_date]
+    ]
+  end
+
+  def webpage_debug_id_label(webpage)
+    "Webpage ##{webpage.id}"
+  end
+
+  def webpage_cache_warning_for(webpage, cache_links)
+    return "Invalid cache URL. Use Diagnose refresh to inspect why this URL is not cache-inspectable." if webpage_cache_not_inspectable?(webpage, cache_links)
+
+    cache_links[:warning]
+  end
+
+  private
+
+  def webpage_cache_not_inspectable?(webpage, cache_links)
+    cache_links[:disabled] || !webpage_cache_inspectable_url?(webpage.url)
+  end
+
+  def webpage_cache_inspectable_url?(url)
+    key = Distillator::WringerUrlKey.call(url)
+    key.normalized_url.start_with?("http://", "https://")
+  rescue StandardError
+    false
+  end
+
+  def webpage_jsonld_output_label(webpage)
+    webpage.jsonld_output&.name || "System default"
+  end
+
+  def webpage_website_label(webpage)
+    website = webpage.website
+    return "Not assigned" if website.blank?
+
+    name = website.name.presence
+    seedurl = website.seedurl.presence
+
+    return [name, "(#{seedurl})"].join(" ") if name.present? && seedurl.present?
+    return name if name.present?
+
+    seedurl
   end
 end

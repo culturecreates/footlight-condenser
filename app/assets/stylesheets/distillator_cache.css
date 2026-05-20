@@ -260,6 +260,150 @@
   border-bottom: 1px solid #e5e7eb;
 }
 
+.website-show-section {
+  max-width: 72rem;
+  margin: 0 0 1.5rem;
+}
+
+.webpage-show-section {
+  max-width: 72rem;
+  margin: 0 0 1.5rem;
+}
+
+.website-identity-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.4rem 1rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.webpage-identity-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.4rem 1rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.website-identity-list dt {
+  font-weight: 700;
+  color: #334155;
+}
+
+.webpage-identity-list dt {
+  font-weight: 700;
+  color: #334155;
+}
+
+.website-identity-list dd {
+  margin: 0;
+}
+
+.webpage-identity-list dd {
+  margin: 0;
+}
+
+.website-debug-id {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.webpage-debug-id {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.website-show-link-list {
+  margin: 0.75rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.webpage-show-link-list {
+  margin: 0.75rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.website-show-link-list li {
+  margin-bottom: 0.4rem;
+}
+
+.website-transition-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.website-transition-button form,
+.website-transition-actions form {
+  margin: 0;
+}
+
+.website-transition-override {
+  width: 100%;
+  max-width: 40rem;
+  border: 1px solid #d9e2ec;
+  border-radius: 0.5rem;
+  background: #fcfcfd;
+}
+
+.website-transition-override summary {
+  cursor: pointer;
+  padding: 0.75rem 1rem;
+  font-weight: 700;
+  color: #1f2933;
+}
+
+.website-transition-override p,
+.website-transition-override-form {
+  margin: 0;
+  padding: 0 1rem 1rem;
+}
+
+.website-transition-override-form label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+}
+
+.website-transition-override-form input[type="text"] {
+  width: 100%;
+  max-width: 28rem;
+  margin-bottom: 0.6rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid #94a3b8;
+  border-radius: 0.35rem;
+  box-sizing: border-box;
+}
+
+.webpage-show-link-list li {
+  margin-bottom: 0.4rem;
+}
+
+.website-danger-zone {
+  max-width: 72rem;
+  border: 1px solid #f1c0c0;
+  border-radius: 0.5rem;
+  background: #fff7f7;
+}
+
+.website-danger-zone summary {
+  cursor: pointer;
+  padding: 0.85rem 1rem;
+  font-weight: 700;
+  color: #991b1b;
+}
+
+.website-danger-zone-body {
+  padding: 0 1rem 1rem;
+}
+
+.website-danger-zone-body form {
+  margin-bottom: 0.75rem;
+}
+
 .cache-table thead th {
   background-color: #eef3f8;
   color: #1f2933;

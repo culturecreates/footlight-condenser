@@ -67,6 +67,14 @@ module ApplicationHelper
     Distillator::RolloutCopy.state(key).merge(key: key)
   end
 
+  def suppress_operator_context_card?
+    %w[websites webpages].include?(controller_name) && action_name == "show"
+  end
+
+  def suppress_header_website_identity?
+    controller_name == "websites" && action_name == "show"
+  end
+
   private
 
   def normalize_rollout_state(website_or_mode)
