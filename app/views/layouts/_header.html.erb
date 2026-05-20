@@ -41,6 +41,7 @@
 <%= link_to "messages",       messages_path %> |
 <%= link_to "job queue",      sidekiq_web_path %> |
 <%= link_to "cache",          "/distillator/cache" %> |
+<%= link_to "Transition report",  distillator_shadow_report_path %> |
 <%= link_to "options",        options_path %> | 
 Current Wringer:
 <%= cookies[:wringer_url] || "default" %> |

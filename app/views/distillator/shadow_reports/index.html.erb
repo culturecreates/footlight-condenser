@@ -1,0 +1,128 @@
+<h1>Transition Report</h1>
+
+<p class="cache-page-note">This dashboard is read-only. Use it to review legacy, shadow, and active rollout state without triggering fetches.</p>
+<p class="cache-page-note">To update checks for a site, run: <code>bin/rails distillator:transition:check[website_id]</code></p>
+
+<%= render "shared/cards/card_grid",
+           cards: transition_dashboard_cards(@dashboard_counts),
+           variant: :summary,
+           css_class: "cache-summary-cards shadow-report-summary-cards" %>
+
+<h2>Top blockers</h2>
+<%= render "shared/cards/card_grid",
+           cards: transition_blocker_cards(@blocker_counts),
+           variant: :summary,
+           css_class: "cache-summary-cards shadow-report-summary-cards" %>
+
+<h2>All tracked sites</h2>
+<%= render "shared/cards/card_grid",
+           cards: shadow_report_summary_cards(@global_summary_counts, title_prefix: "All sites"),
+           variant: :summary,
+           css_class: "cache-summary-cards shadow-report-summary-cards" %>
+
+<%= render "shared/cards/card_grid",
+           cards: [
+             {
+               title: "La Vitrine total",
+               count: @global_summary_counts[:lavitrine_total].to_i,
+               tone: "unknown",
+               description: "All La Vitrine pipeline sites in this report."
+             },
+             {
+               title: "La Vitrine blocked",
+               count: @global_summary_counts[:lavitrine_blocked].to_i,
+               tone: "failed",
+               description: "Blocked La Vitrine pipeline sites."
+             }
+           ],
+           variant: :summary,
+           css_class: "cache-summary-cards shadow-report-summary-cards" %>
+
+<h2>Matching current filters</h2>
+<%= render "shared/cards/card_grid",
+           cards: shadow_report_summary_cards(@summary_counts, title_prefix: "Filtered"),
+           variant: :summary,
+           css_class: "cache-summary-cards shadow-report-summary-cards" %>
+
+<%= form_with url: distillator_shadow_report_path, method: :get, local: true, html: { autocomplete: "off", class: "harmonized-table-filters" } do %>
+  <%= hidden_field_tag :sort, @sort if @sort.present? %>
+  <%= hidden_field_tag :direction, @direction if @direction.present? %>
+  <%= hidden_field_tag :per_page, @pagination[:per_page] if @pagination[:per_page].present? %>
+
+  <table class="harmonized-table-shell">
+    <thead>
+      <tr>
+        <% sortable_filters = @filters.merge(per_page: @pagination[:per_page]) %>
+        <th><%= admin_sortable("website", "Website", filters: sortable_filters, current_sort: @sort, current_direction: @direction) %></th>
+        <th>Cohort</th>
+        <th>Mode</th>
+        <th>Production backend</th>
+        <th><%= admin_sortable("status", "Status", filters: sortable_filters, current_sort: @sort, current_direction: @direction) %></th>
+        <th><%= admin_sortable("latest_attempt", "Latest attempt", filters: sortable_filters, current_sort: @sort, current_direction: @direction) %></th>
+        <th><%= admin_sortable("latest_successful_refresh", "Latest successful refresh", filters: sortable_filters, current_sort: @sort, current_direction: @direction) %></th>
+        <th>Fetch</th>
+        <th>Statements</th>
+        <th>Export</th>
+        <th>Last checked</th>
+        <th>Actions</th>
+      </tr>
+      <tr>
+        <td><%= text_field_tag :term, @filters[:term], autocomplete: "off" %></td>
+        <td><%= select_tag :cohort, options_for_select(shadow_report_cohort_options, @filters[:cohort]) %></td>
+        <td><%= select_tag :mode, options_for_select(shadow_report_mode_options, @filters[:mode]) %></td>
+        <td></td>
+        <td><%= select_tag :status, options_for_select(shadow_report_status_options, @filters[:status] || @filters[:recommendation]) %></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td><%= select_tag :promotable, options_for_select(shadow_report_promotable_options, @filters[:promotable]) %></td>
+        <td colspan="2">
+          <%= submit_tag "Apply filters" %>
+          <%= link_to "Reset filters", distillator_shadow_report_path %>
+        </td>
+      </tr>
+    </thead>
+    <tbody>
+      <% if @rows.any? %>
+        <% @rows.each do |row| %>
+          <tr>
+            <td>
+              <%= row.website.name %>
+              <div class="rollout-note"><%= row.website.seedurl %></div>
+            </td>
+            <td><%= shadow_report_cohort_label(row) %></td>
+            <td><%= shadow_report_mode_label(row) %></td>
+            <td><%= shadow_report_production_backend_label(row) %></td>
+            <td><%= shadow_report_status_label(row) %></td>
+            <td><%= shadow_report_timestamp(row.latest_refresh) %></td>
+            <td><%= shadow_report_timestamp(row.latest_successful_refresh) %></td>
+            <td><%= shadow_report_check_label(row.fetch_status) %></td>
+            <td><%= shadow_report_check_label(row.statements_status) %></td>
+            <td><%= shadow_report_check_label(row.export_status) %></td>
+            <td><%= shadow_report_timestamp(row.last_checked) %></td>
+            <td><%= shadow_report_action_links(row) %></td>
+          </tr>
+        <% end %>
+      <% else %>
+        <tr>
+          <td colspan="12">No sites found.</td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>
+
+<p class="cache-pagination-summary">
+  Showing page <%= @pagination[:page] %> of <%= @pagination[:total_pages] %>.
+  <%= @pagination[:total_count] %> sites matched.
+</p>
+
+<p class="cache-pagination-links">
+  <% if @pagination[:page] > 1 %>
+    <%= link_to "Previous page", distillator_shadow_report_path(request.query_parameters.merge(page: @pagination[:page] - 1)) %>
+  <% end %>
+  <% if @pagination[:page] < @pagination[:total_pages] %>
+    <%= link_to "Next page", distillator_shadow_report_path(request.query_parameters.merge(page: @pagination[:page] + 1)) %>
+  <% end %>
+</p>

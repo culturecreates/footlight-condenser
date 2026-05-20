@@ -23,6 +23,9 @@ Rails.application.routes.draw do
   end
 
   namespace :distillator do
+    get :shadow_report, to: "shadow_reports#index", as: :shadow_report
+    get "shadow_report/:id", to: "shadow_reports#show", as: :shadow_report_site
+
     resources :cache, only: [:index, :show], controller: "cache" do
       collection do
         get :preview

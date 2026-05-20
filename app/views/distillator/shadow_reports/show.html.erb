@@ -1,0 +1,130 @@
+<h1>Transition Report Detail</h1>
+
+<p class="cache-page-note">This page is read-only. It reflects the current rollout state without triggering fetches.</p>
+
+<section class="website-rollout-panel">
+  <h2>Website</h2>
+  <p><strong>Name:</strong> <%= @website.name %></p>
+  <p><strong>Seedurl:</strong> <%= @website.seedurl %></p>
+  <p><strong>Cohort:</strong> <%= @detail.summary.cohort_label.presence || "Other" %></p>
+  <p><strong>Current rollout mode:</strong> <%= Distillator::RolloutCopy.label(@website.distillator_mode) %></p>
+  <p><strong>Production backend:</strong> <%= shadow_report_production_backend_label(@detail.summary) %></p>
+</section>
+
+<section class="website-rollout-panel">
+  <h2>Transition status</h2>
+  <p><strong>Status:</strong> <%= shadow_report_status_label(@detail.transition_status) %></p>
+  <p><strong>Why:</strong></p>
+  <% if @detail.transition_status.blocking_issues.any? %>
+    <ul>
+      <% @detail.transition_status.blocking_issues.each do |blocker| %>
+        <li><%= blocker %></li>
+      <% end %>
+    </ul>
+  <% elsif @detail.transition_status.warnings.any? %>
+    <ul>
+      <% @detail.transition_status.warnings.each do |warning| %>
+        <li><%= warning %></li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p>All required checks are currently passing.</p>
+  <% end %>
+
+  <p><strong>Required checks:</strong></p>
+  <ul>
+    <li>Fetch</li>
+    <li>Statements</li>
+    <li>Export</li>
+  </ul>
+</section>
+
+<section class="website-rollout-panel">
+  <h2>Checks</h2>
+  <p><strong>Fetch:</strong> <%= shadow_report_check_label(@detail.transition_status.fetch) %></p>
+  <p><strong>Statements:</strong> <%= shadow_report_check_label(@detail.transition_status.statements) %></p>
+  <p><strong>Export:</strong> <%= shadow_report_check_label(@detail.transition_status.export) %></p>
+</section>
+
+<details class="website-rollout-panel" open>
+  <summary>Diagnostics</summary>
+  <p><strong>Latest cache evidence:</strong></p>
+  <p><strong>Latest attempt:</strong> <%= shadow_report_timestamp(@detail.summary.latest_refresh) %></p>
+  <p><strong>Latest successful refresh:</strong> <%= shadow_report_timestamp(@detail.summary.latest_successful_refresh) %></p>
+  <p><strong>Health:</strong> <%= @detail.summary.health_summary %></p>
+  <p><strong>Issue:</strong> <%= @detail.summary.issue_key.presence || "None" %></p>
+
+  <p><strong>Why blocked:</strong></p>
+  <% if @detail.summary.blockers.any? %>
+    <ul>
+      <% @detail.summary.blockers.each do |blocker| %>
+        <li><%= blocker %></li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p>None.</p>
+  <% end %>
+
+  <p><strong>Needs review:</strong></p>
+  <% if @detail.summary.warnings.any? %>
+    <ul>
+      <% @detail.summary.warnings.each do |warning| %>
+        <li><%= warning %></li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p>None.</p>
+  <% end %>
+
+  <p><strong>Cache links:</strong> <%= shadow_report_action_links(@detail.summary) %></p>
+</details>
+
+<details class="website-rollout-panel">
+  <summary>Audit</summary>
+  <h3>Recent rollout events</h3>
+  <% if @detail.recent_rollout_events.any? %>
+    <ul>
+      <% @detail.recent_rollout_events.each do |event| %>
+        <li>
+          <%= [event.from_mode.presence || "unknown", "to", event.to_mode, event.created_at].join(" ") %>
+          <% if event.readiness_snapshot["blockers"].present? %>
+            | blockers: <%= Array(event.readiness_snapshot["blockers"]).join(", ") %>
+          <% end %>
+          <% if event.readiness_snapshot["warnings"].present? %>
+            | warnings: <%= Array(event.readiness_snapshot["warnings"]).join(", ") %>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p>No rollout events recorded yet.</p>
+  <% end %>
+
+  <h3>Raw transition evidence</h3>
+  <h4>Fetch</h4>
+  <%= shadow_report_transition_evidence_block(@detail.transition_evidence_by_kind["fetch_parity"]) %>
+  <h4>Statements</h4>
+  <%= shadow_report_transition_evidence_block(@detail.transition_evidence_by_kind["statement_delta"]) %>
+  <h4>Export</h4>
+  <%= shadow_report_transition_evidence_block(@detail.transition_evidence_by_kind["export_diff"]) %>
+</details>
+
+<section class="website-rollout-panel">
+  <h2>Activation check</h2>
+  <ul>
+    <% @detail.rollout_notes.each do |note| %>
+      <li><%= note %></li>
+    <% end %>
+  </ul>
+</section>
+
+<% if @website.distillator_mode == "active" %>
+  <section class="website-rollout-panel">
+    <h2>Rollback path</h2>
+    <p>Set rollout mode to Legacy in website options.</p>
+    <p>Wringer becomes production backend.</p>
+    <p>Condenser cache remains available for inspection.</p>
+  </section>
+<% end %>
+
+<p><%= link_to "Back to Transition Report", distillator_shadow_report_path %></p>
