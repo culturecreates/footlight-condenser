@@ -301,7 +301,7 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     )
 
     Distillator::FetchCacheStore.expects(:fetch).with do |kwargs|
-      assert_equal :internal, kwargs[:mode]
+      assert_equal :active, kwargs[:mode]
       assert_equal 44, kwargs[:website_id]
       true
     end.returns(fetch)

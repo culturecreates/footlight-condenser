@@ -49,10 +49,12 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
         legacy_cache: { html: "<html>legacy</html>" },
         legacy_source: "injected_lookup",
         legacy_lookup_error: nil,
-        distillator_cache: { html: "<html>internal</html>" },
+        condenser_cache: { html: "<html>condenser</html>" },
+        condenser_source: "local_fetch_cache",
+        distillator_cache: { html: "<html>condenser</html>" },
         distillator_source: "local_fetch_cache",
         diffs: {},
-        missing: { legacy: false, distillator: false }
+        missing: { legacy: false, condenser: false, distillator: false }
       }
     )
 
@@ -60,6 +62,8 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_match "Cache Comparison", @response.body
+    assert_match "Condenser source", @response.body
+    assert_no_match "Distillator", visible_text(@response.body)
   end
 
   test "cache inspection mode keeps refresh ui disabled without explicit flag" do
@@ -1086,7 +1090,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     }
 
     assert_response :success
-    assert_match "Internal Cache Refresh Diagnostic", @response.body
+    assert_match "Cache Refresh Diagnostic", @response.body
     assert_match "Diagnostic JSON", @response.body
     assert_no_match "Distillator", visible_text(@response.body)
     assert_no_match "/distillator/cache", visible_text(@response.body)
@@ -1238,7 +1242,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     text = visible_text(@response.body)
-    assert_match "Internal Cache Refresh Diagnostic", text
+    assert_match "Cache Refresh Diagnostic", text
     assert_match "No fetch is performed from this page", text
     assert_match "Would refresh?", text
     assert_match "force_scrape", text
@@ -1287,7 +1291,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     get "/distillator/cache/preview"
 
     assert_response :success
-    assert_match "Internal Cache Refresh Diagnostic", @response.body
+    assert_match "Cache Refresh Diagnostic", @response.body
     assert_match "Run diagnostic", @response.body
     assert_no_match "Diagnostic Result", @response.body
   end
@@ -1551,10 +1555,12 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
         legacy_cache: { html: "<html>legacy</html>" },
         legacy_source: "injected_lookup",
         legacy_lookup_error: nil,
-        distillator_cache: { html: "<html>internal</html>" },
+        condenser_cache: { html: "<html>condenser</html>" },
+        condenser_source: "local_fetch_cache",
+        distillator_cache: { html: "<html>condenser</html>" },
         distillator_source: "local_fetch_cache",
-        diffs: { html_sha256: { same: false, classification: :blocking_regression, legacy: "a", distillator: "b" } },
-        missing: { legacy: false, distillator: false },
+        diffs: { html_sha256: { same: false, classification: :blocking_regression, legacy: "a", condenser: "b", distillator: "b" } },
+        missing: { legacy: false, condenser: false, distillator: false },
         summary: {
           same: false,
           promotable: false,
@@ -1584,6 +1590,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_match "Condenser cache missing:", @response.body
     assert_match "<th>Condenser</th>", @response.body
     assert_match "No cache refresh was performed.", @response.body
+    assert_no_match "Distillator", visible_text(@response.body)
     assert_match "html_sha256", @response.body
     assert_match "blocking_regression", @response.body
     assert_match "Raw payloads", @response.body

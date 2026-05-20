@@ -23,6 +23,13 @@ module WebsitesHelper
     Distillator::RolloutCopy.website_index_filter_options
   end
 
+  def website_cohort_filter_options
+    [
+      ["All cohorts", ""],
+      [Distillator::Cohorts::LavitrinePipeline.label, Distillator::Cohorts::LavitrinePipeline.key]
+    ]
+  end
+
   def website_rollout_filter_link(label:, mode:, current_filters:, current_sort:, current_direction:)
     params = current_filters.merge(distillator_mode: mode)
     params[:sort] = current_sort if current_sort.present?
@@ -62,6 +69,22 @@ module WebsitesHelper
     website_rollout_filter_options
   end
 
+  def website_cohort_badge(website)
+    label = website.distillator_primary_cohort_label
+    return unless label.present?
+
+    content_tag(:span, label, class: "rollout-badge rollout-badge-cohort")
+  end
+
+  def website_matches_cohort_filter?(website, cohort_filter)
+    case cohort_filter.to_s
+    when Distillator::Cohorts::LavitrinePipeline.key
+      website.lavitrine_pipeline?
+    else
+      true
+    end
+  end
+
   def website_rollout_label_for(website)
     Distillator::RolloutCopy.label(website&.distillator_mode)
   end
@@ -87,7 +110,15 @@ module WebsitesHelper
     return nil if mode.blank?
     return "unknown" if mode == "unknown"
 
-    allowed = %w[legacy shadow active replay]
+    allowed = %w[legacy shadow active]
     allowed.include?(mode) ? mode : nil
+  end
+
+  def normalize_website_cohort_filter(raw_cohort)
+    cohort = raw_cohort.to_s.presence
+    return nil if cohort.blank?
+
+    allowed = [Distillator::Cohorts::LavitrinePipeline.key]
+    allowed.include?(cohort) ? cohort : nil
   end
 end

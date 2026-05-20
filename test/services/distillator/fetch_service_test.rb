@@ -55,7 +55,7 @@ class Distillator::FetchServiceTest < ActiveSupport::TestCase
     )
   end
 
-  test "explicit internal mode uses internal path when eligible" do
+  test "explicit active alias mode uses the native path when eligible" do
     ENV["DISTILLATOR_FETCH_MODE"] = "legacy"
     logger = CapturingLogger.new
     Distillator::FetchGuard.stubs(:check_url).returns(fetch_guard_allowed)
@@ -119,7 +119,7 @@ class Distillator::FetchServiceTest < ActiveSupport::TestCase
     )
     assert_equal "fetch.native", logger.infos.last[:event]
     assert_equal "https%3A%2F%2Fexample.com%2Fevents", logger.infos.last[:uri_key]
-    assert_equal "internal", logger.infos.last[:mode]
+    assert_equal "active", logger.infos.last[:mode]
     assert_equal "explicit", logger.infos.last[:mode_source]
     assert_equal "native", logger.infos.last[:fetch_path]
     assert_nil logger.infos.last[:website_id]
@@ -824,7 +824,7 @@ class Distillator::FetchServiceTest < ActiveSupport::TestCase
     )
   end
 
-  test "active website uses Distillator internal path even when global mode is legacy" do
+  test "active website uses the native condenser path even when global mode is legacy" do
     ENV["DISTILLATOR_FETCH_MODE"] = "legacy"
     logger = CapturingLogger.new
     website = websites(:one)
@@ -850,7 +850,7 @@ class Distillator::FetchServiceTest < ActiveSupport::TestCase
     )
 
     assert_equal "<html>internal</html>", result[:body]
-    assert_equal "internal", logger.infos.last[:mode]
+    assert_equal "active", logger.infos.last[:mode]
     assert_equal "website", logger.infos.last[:mode_source]
     assert_equal website.id, logger.infos.first[:website_id]
     assert_equal website.id, logger.infos.second[:website_id]

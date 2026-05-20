@@ -1,6 +1,6 @@
 module Distillator
   module RolloutCopy
-    STATE_UI = {
+    PRODUCTION_STATE_UI = {
       legacy: {
         label: "Legacy Wringer active",
         css_class: "rollout-badge-legacy",
@@ -15,7 +15,10 @@ module Distillator
         label: "Condenser active",
         css_class: "rollout-badge-active",
         description: "Condenser serves fetch/cache results; legacy Wringer remains available for inspection."
-      },
+      }
+    }.freeze
+
+    DIAGNOSTIC_STATE_UI = {
       replay: {
         label: "Replay diagnostic",
         css_class: "rollout-badge-replay",
@@ -65,7 +68,15 @@ module Distillator
     end
 
     def self.state(mode)
-      STATE_UI.fetch(normalize(mode), STATE_UI.fetch(:unknown))
+      all_states.fetch(normalize(mode), DIAGNOSTIC_STATE_UI.fetch(:unknown))
+    end
+
+    def self.production_states
+      PRODUCTION_STATE_UI
+    end
+
+    def self.diagnostic_states
+      DIAGNOSTIC_STATE_UI
     end
 
     def self.active_cache_label
@@ -98,7 +109,6 @@ module Distillator
         [INDEX_FILTER_OPTION_LABELS.fetch(:legacy), "legacy"],
         [INDEX_FILTER_OPTION_LABELS.fetch(:shadow), "shadow"],
         [INDEX_FILTER_OPTION_LABELS.fetch(:active), "active"],
-        [INDEX_FILTER_OPTION_LABELS.fetch(:replay), "replay"],
         [INDEX_FILTER_OPTION_LABELS.fetch(:unknown), "unknown"]
       ]
     end
@@ -146,6 +156,10 @@ module Distillator
       else
         :unknown
       end
+    end
+
+    def self.all_states
+      @all_states ||= PRODUCTION_STATE_UI.merge(DIAGNOSTIC_STATE_UI).freeze
     end
   end
 end

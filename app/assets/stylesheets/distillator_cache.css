@@ -660,6 +660,10 @@
   background: #475569;
 }
 
+.rollout-badge-cohort {
+  background: #0f766e;
+}
+
 .rollout-note {
   margin-top: 0.3rem;
   color: #475569;

@@ -73,6 +73,13 @@ Last 24 hrs:  <%= @statements_errors %> errors
                              @filters[:distillator_mode]
                            ) %>
           </div>
+          <div class="website-rollout-inline-filter">
+            <%= select_tag :cohort,
+                           options_for_select(
+                             website_cohort_filter_options,
+                             @filters[:cohort]
+                           ) %>
+          </div>
         </td>
         <td colspan="8">
           <%= submit_tag "Apply filters" %>
@@ -87,6 +94,9 @@ Last 24 hrs:  <%= @statements_errors %> errors
           <td>
             <%= link_to website.name, website %>
             <div class="rollout-note">
+              <% if website_cohort_badge(website).present? %>
+                <%= website_cohort_badge(website) %>
+              <% end %>
               <%= website_rollout_badge(website) %>
             </div>
           </td>

@@ -9,18 +9,18 @@ class Distillator::FetchModeTest < ActiveSupport::TestCase
     ENV["DISTILLATOR_FETCH_MODE"] = @old_mode
   end
 
-  test "current remains an env helper defaulting to internal" do
+  test "current remains an env helper defaulting to active" do
     ENV["DISTILLATOR_FETCH_MODE"] = nil
 
-    assert_equal :internal, Distillator::FetchMode.current
-    assert Distillator::FetchMode.internal?
+    assert_equal :active, Distillator::FetchMode.current
+    assert Distillator::FetchMode.active?
   end
 
-  test "current resolves internal mode from env for legacy helper callers" do
+  test "current resolves internal input alias to active" do
     ENV["DISTILLATOR_FETCH_MODE"] = "internal"
 
-    assert_equal :internal, Distillator::FetchMode.current
-    assert Distillator::FetchMode.internal?
+    assert_equal :active, Distillator::FetchMode.current
+    assert Distillator::FetchMode.active?
   end
 
   test "current resolves shadow mode from env for legacy helper callers" do
@@ -30,16 +30,16 @@ class Distillator::FetchModeTest < ActiveSupport::TestCase
     assert Distillator::FetchMode.shadow?
   end
 
-  test "unknown mode falls back to internal" do
+  test "unknown mode falls back to active" do
     ENV["DISTILLATOR_FETCH_MODE"] = "surprise"
 
-    assert_equal :internal, Distillator::FetchMode.current
+    assert_equal :active, Distillator::FetchMode.current
   end
 
-  test "blank mode falls back to internal" do
+  test "blank mode falls back to active" do
     ENV["DISTILLATOR_FETCH_MODE"] = "   "
 
-    assert_equal :internal, Distillator::FetchMode.current
+    assert_equal :active, Distillator::FetchMode.current
   end
 
   test "mixed case mode is normalized" do
@@ -48,21 +48,21 @@ class Distillator::FetchModeTest < ActiveSupport::TestCase
     assert_equal :shadow, Distillator::FetchMode.current
   end
 
-  test "active alias resolves to internal mode" do
-    assert_equal :internal, Distillator::FetchMode.parse("active")
+  test "internal input alias resolves to active mode" do
+    assert_equal :active, Distillator::FetchMode.parse("internal")
   end
 
-  test "execution modes do not list active as a runtime fetch path" do
-    assert_equal %w[legacy internal shadow], Distillator::FetchMode::EXECUTION_MODES
-    assert_equal({ "active" => "internal" }, Distillator::FetchMode::ALIASES)
+  test "execution modes expose active as the canonical public mode" do
+    assert_equal %w[legacy active shadow], Distillator::FetchMode::EXECUTION_MODES
+    assert_equal({ "internal" => "active" }, Distillator::FetchMode::ALIASES)
   end
 
-  test "rollout mode resolves active website to active rollout but internal execution mode" do
+  test "active website resolves to active mode" do
     website = websites(:one)
     website.update!(distillator_mode: "active")
 
     assert_equal :active, Distillator::FetchMode.rollout_mode(website: website)
-    assert_equal :internal, Distillator::FetchMode.resolve(website: website)
+    assert_equal :active, Distillator::FetchMode.resolve(website: website)
   end
 
   test "rollout resolution object uses safe legacy default without website context" do
@@ -106,7 +106,7 @@ class Distillator::FetchModeTest < ActiveSupport::TestCase
 
     resolution = Distillator::FetchMode.resolution(website: website)
 
-    assert_equal :internal, resolution.mode
+    assert_equal :active, resolution.mode
     assert_equal :website, resolution.source
   end
 
@@ -117,8 +117,9 @@ class Distillator::FetchModeTest < ActiveSupport::TestCase
 
     resolution = Distillator::FetchMode.rollout_resolution_object(website: website)
 
-    assert_equal :internal, resolution.execution_mode
+    assert_equal :active, resolution.execution_mode
     assert_equal :active, resolution.rollout_mode
+    assert_equal :internal, resolution.dispatch_mode
     assert_equal :condenser, resolution.active_backend
     assert_equal :website, resolution.source
     assert_equal website.id, resolution.website_id
@@ -133,29 +134,30 @@ class Distillator::FetchModeTest < ActiveSupport::TestCase
     assert_equal :env, resolution.source
   end
 
-  test "explicit mode remains available for internal diagnostics" do
+  test "explicit internal alias remains available for diagnostic compatibility" do
     ENV["DISTILLATOR_FETCH_MODE"] = "legacy"
 
     resolution = Distillator::FetchMode.resolution(explicit_mode: :internal)
     rollout = Distillator::FetchMode.rollout_resolution(explicit_mode: :internal)
     rollout_object = Distillator::FetchMode.rollout_resolution_object(explicit_mode: :internal)
 
-    assert_equal :internal, resolution.mode
+    assert_equal :active, resolution.mode
     assert_equal :explicit, resolution.source
     assert_equal :active, rollout.mode
     assert_equal :explicit, rollout.source
-    assert_equal :internal, rollout_object.execution_mode
+    assert_equal :active, rollout_object.execution_mode
     assert_equal :active, rollout_object.rollout_mode
+    assert_equal :internal, rollout_object.dispatch_mode
     assert_equal :condenser, rollout_object.active_backend
     assert_equal :explicit, rollout_object.source
     assert_equal :internal, rollout_object.requested_mode
   end
 
   test "parse fails safe for nil blank and invalid values" do
-    assert_equal :internal, Distillator::FetchMode.parse(nil)
-    assert_equal :internal, Distillator::FetchMode.parse("")
-    assert_equal :internal, Distillator::FetchMode.parse("not-a-mode")
-    assert_equal :internal, Distillator::FetchMode.parse("INTERNAL")
+    assert_equal :active, Distillator::FetchMode.parse(nil)
+    assert_equal :active, Distillator::FetchMode.parse("")
+    assert_equal :active, Distillator::FetchMode.parse("not-a-mode")
+    assert_equal :active, Distillator::FetchMode.parse("INTERNAL")
   end
 
   test "fetch mode resolves active website from website_id only" do
@@ -173,7 +175,7 @@ class Distillator::FetchModeTest < ActiveSupport::TestCase
       log_context: {}
     )
 
-    assert_equal :internal, mode
+    assert_equal :active, mode
     assert_equal :website_id, Distillator::FetchMode.resolution(website_id: website.id).source
   end
 
@@ -192,7 +194,7 @@ class Distillator::FetchModeTest < ActiveSupport::TestCase
       log_context: { website_id: website.id }
     )
 
-    assert_equal :internal, mode
+    assert_equal :active, mode
     assert_equal :website_id, Distillator::FetchMode.resolution(log_context: { website_id: website.id }).source
   end
 end

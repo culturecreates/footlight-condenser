@@ -25,8 +25,10 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Shadow comparison:"
     assert_includes @response.body, "Condenser active:"
     assert_includes @response.body, "Unknown rollout:"
+    assert_includes @response.body, "La Vitrine pipeline"
     assert_includes @response.body, "Website rollout filters"
     assert_select 'details[data-operator-context-card]', 0
+    assert_no_cohort_source_requests
   end
 
   test "should get new" do
@@ -63,13 +65,85 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_select 'details[data-context-domain="details"]'
     assert_includes @response.body, Distillator::RolloutCopy.rollout_panel_title
     assert_includes @response.body, "Current mode:"
-    assert_includes @response.body, "Active backend:"
+    assert_includes @response.body, "Production backend:"
     assert_includes @response.body, "Next step:"
     assert_includes @response.body, "Shadow comparison"
     assert_includes @response.body, "Wringer"
     assert_includes @response.body, "Compare Condenser output before promotion."
     assert_includes @response.body, "Compare Condenser vs Wringer"
     assert_not_includes @response.body, "/distillator/cache/preview?uri=#{CGI.escape(@website.seedurl)}"
+    assert_no_cohort_source_requests
+  end
+
+  test "websites index shows la vitrine badge for cohort sites and not for non cohort sites" do
+    cohort = Website.create!(
+      name: "Hector Charland",
+      seedurl: "hector-charland-com",
+      graph_name: "http://example.com/tout-culture",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+    non_cohort = Website.create!(
+      name: "Outside Feed",
+      seedurl: "outside-feed",
+      graph_name: "http://example.com/outside-feed",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+
+    get websites_url, params: { q: "Feed" }
+
+    assert_response :success
+    assert_includes @response.body, non_cohort.name
+    assert_not_includes @response.body, cohort.name
+
+    get websites_url, params: { q: "Hector" }
+
+    assert_response :success
+    assert_includes @response.body, cohort.name
+    assert_includes @response.body, "La Vitrine pipeline"
+    assert_no_cohort_source_requests
+  end
+
+  test "websites index filters by la vitrine cohort" do
+    cohort = Website.create!(
+      name: "Hector Charland",
+      seedurl: "hector-charland-com",
+      graph_name: "http://example.com/tout-culture",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+    non_cohort = Website.create!(
+      name: "Outside Feed",
+      seedurl: "outside-feed",
+      graph_name: "http://example.com/outside-feed",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+
+    get websites_url, params: { cohort: "lavitrine_pipeline" }
+
+    assert_response :success
+    assert_includes @response.body, cohort.name
+    assert_not_includes @response.body, non_cohort.name
+    assert_includes @response.body, 'name="cohort"'
+    assert_no_cohort_source_requests
+  end
+
+  test "website show shows la vitrine badge without external requests" do
+    website = Website.create!(
+      name: "Hector Charland",
+      seedurl: "hector-charland-com",
+      graph_name: "http://example.com/tout-culture",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+
+    get website_url(website)
+
+    assert_response :success
+    assert_includes @response.body, "La Vitrine pipeline"
+    assert_no_cohort_source_requests
   end
 
   test "website show renders active rollout badge without exposing internal wording" do
@@ -109,8 +183,100 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
   test "should update website" do
     patch website_url(@website), params: { website: { name: @website.name, seedurl: @website.seedurl, distillator_mode: "active" } }
-    assert_redirected_to website_url(@website)
-    assert_equal "active", @website.reload.distillator_mode
+    assert_response :success
+    assert_equal "legacy", @website.reload.distillator_mode
+  end
+
+  test "la vitrine shadow site cannot be promoted to active with missing export evidence" do
+    website = Website.create!(
+      name: "Hector Charland",
+      seedurl: "hector-charland-com",
+      graph_name: "https://example.org/hector-charland",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+
+    patch website_url(website), params: { website: { distillator_mode: "active" } }
+
+    assert_response :success
+    assert_equal "shadow", website.reload.distillator_mode
+    assert_includes @response.body, "Cannot activate yet: export check is missing."
+  end
+
+  test "la vitrine shadow site can be promoted when durable readiness blockers are empty" do
+    website = Website.create!(
+      name: "Hector Charland",
+      seedurl: "hector-charland-com",
+      graph_name: "https://example.org/hector-charland",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+    url = "https://hector-charland-com.example/event"
+    website.webpages.create!(url: url, language: "en", rdf_uri: "rdf:hector-ready", rdfs_class: rdfs_classes(:one))
+    Distillator::FetchCache.create!(
+      uri_key: CGI.escape(url),
+      normalized_url: url,
+      html: "<html>ok</html>",
+      body: "<html>ok</html>",
+      scrape_date: 1.hour.ago,
+      successful_refresh: 1.hour.ago,
+      headers: {},
+      signals: { "transport_success" => true, "content_success" => true },
+      final_url: url
+    )
+    website.transition_evidences.create!(url: url, check_kind: "fetch_parity", status: "checked", details: { representative_urls_checked: true }, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
+
+    patch website_url(website), params: { website: { distillator_mode: "active" } }
+
+    assert_redirected_to website_url(website)
+    assert_equal "active", website.reload.distillator_mode
+  end
+
+  test "ordinary shadow site cannot be promoted when checks need review" do
+    website = Website.create!(
+      name: "Review site",
+      seedurl: "review-site",
+      graph_name: "https://example.org/review-site",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+    url = "https://review-site.example/event"
+    website.webpages.create!(url: url, language: "en", rdf_uri: "rdf:review-site", rdfs_class: rdfs_classes(:one))
+    Distillator::FetchCache.create!(
+      uri_key: CGI.escape(url),
+      normalized_url: url,
+      html: "<html>ok</html>",
+      body: "<html>ok</html>",
+      scrape_date: 1.hour.ago,
+      successful_refresh: 1.hour.ago,
+      headers: {},
+      signals: { "transport_success" => true, "content_success" => true },
+      final_url: url
+    )
+
+    patch website_url(website), params: { website: { distillator_mode: "active" } }
+
+    assert_response :success
+    assert_equal "shadow", website.reload.distillator_mode
+    assert_includes @response.body, "Cannot activate yet: statements check is missing."
+  end
+
+  test "active to legacy rollback is allowed even when readiness would fail" do
+    website = Website.create!(
+      name: "Rollback site",
+      seedurl: "hector-charland-com",
+      graph_name: "https://example.org/rollback",
+      default_language: "en",
+      distillator_mode: "active"
+    )
+
+    patch website_url(website), params: { website: { distillator_mode: "legacy" } }
+
+    assert_redirected_to website_url(website)
+    assert_equal "legacy", website.reload.distillator_mode
+    assert_equal "rollout.rollback", website.rollout_events.order(:created_at).last.readiness_snapshot["event"]
   end
 
   test "invalid distillator_mode is rejected" do
@@ -622,7 +788,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes @response.body, Distillator::RolloutCopy.rollout_panel_title
     assert_includes @response.body, "Current mode:</strong> Legacy Wringer active"
-    assert_includes @response.body, "Active backend:</strong> Wringer"
+    assert_includes @response.body, "Production backend:</strong> Wringer"
     assert_includes @response.body, "Next step:</strong> Inspect Condenser cache before promotion."
     assert_includes @response.body, "Open Condenser cache"
   end
@@ -635,7 +801,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes @response.body, "Current mode:</strong> Shadow comparison"
-    assert_includes @response.body, "Active backend:</strong> Wringer"
+    assert_includes @response.body, "Production backend:</strong> Wringer"
     assert_includes @response.body, "Next step:</strong> Compare Condenser output before promotion."
     assert_includes @response.body, "Compare Condenser vs Wringer"
   end
@@ -648,7 +814,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes @response.body, "Current mode:</strong> Condenser active"
-    assert_includes @response.body, "Active backend:</strong> Condenser"
+    assert_includes @response.body, "Production backend:</strong> Condenser"
     assert_includes @response.body, "Next step:</strong> Inspect legacy Wringer when validating parity."
   end
 
@@ -801,5 +967,9 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     Distillator::FetchService.expects(:fetch).never
     Distillator::NativeFetch.expects(:call).never
     Distillator::FetchShadowComparator.expects(:call).never
+  end
+
+  def assert_no_cohort_source_requests
+    WebMock.assert_not_requested(:any, Distillator::Cohorts::LavitrinePipeline.query_url)
   end
 end

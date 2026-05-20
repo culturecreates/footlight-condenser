@@ -76,10 +76,11 @@ module Distillator
         log_context: log_context
       )
       resolved_mode = mode_resolution.mode
+      dispatch_mode = Distillator::RolloutResolution.dispatch_mode_for(resolved_mode)
       mode_source = mode_resolution.source
       started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       result = fetch_for_mode(
-        mode: resolved_mode,
+        mode: dispatch_mode,
         mode_source: mode_source,
         url: url,
         render_js: render_js,
@@ -101,7 +102,7 @@ module Distillator
 
     def self.fetch_for_mode(mode:, mode_source:, url:, render_js:, scrape_options:, client:, agent:, use_wringer:, safe_wringer_call:, logger:, log_context:)
       case mode
-      when :internal
+      when :active, :internal
         fetch_internal_or_legacy(
           mode_source: mode_source,
           url: url,

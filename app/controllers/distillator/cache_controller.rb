@@ -69,10 +69,12 @@ module Distillator
         legacy_cache: nil,
         legacy_source: "unavailable",
         legacy_lookup_error: "Unexpected comparison failure",
+        condenser_cache: nil,
+        condenser_source: "local_fetch_cache",
         distillator_cache: nil,
         distillator_source: "local_fetch_cache",
         diffs: {},
-        missing: { legacy: true, distillator: true }
+        missing: { legacy: true, condenser: true, distillator: true }
       }
       response.status = :unprocessable_entity
     end

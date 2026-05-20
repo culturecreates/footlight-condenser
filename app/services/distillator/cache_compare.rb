@@ -37,7 +37,7 @@ module Distillator
       key = Distillator::WringerUrlKey.call(uri, include_fragment: include_fragment)
       legacy_result = fetch_legacy_cache(key.uri_key)
       legacy_cache = normalize_legacy_cache(legacy_result[:payload])
-      distillator_cache = normalize_distillator_cache(Distillator::FetchCache.find_by(uri_key: key.uri_key))
+      condenser_cache = normalize_condenser_cache(Distillator::FetchCache.find_by(uri_key: key.uri_key))
 
       {
         uri: uri,
@@ -45,16 +45,22 @@ module Distillator
         legacy_cache: legacy_cache,
         legacy_source: legacy_result[:source],
         legacy_lookup_error: legacy_result[:error],
-        distillator_cache: distillator_cache,
-        distillator_source: "local_fetch_cache",
-        diffs: build_diffs(legacy_cache, distillator_cache),
+        condenser_cache: condenser_cache,
+        condenser_source: "local_fetch_cache",
+        diffs: build_diffs(legacy_cache, condenser_cache),
         missing: {
           legacy: legacy_cache.nil?,
-          distillator: distillator_cache.nil?
+          condenser: condenser_cache.nil?
         }
       }.then do |comparison|
         summary = build_summary(comparison)
-        comparison.merge(summary: summary)
+        comparison
+          .merge(summary: summary)
+          .merge(
+            distillator_cache: comparison[:condenser_cache],
+            distillator_source: comparison[:condenser_source],
+            missing: comparison[:missing].merge(distillator: comparison.dig(:missing, :condenser))
+          )
       end
     end
 
@@ -111,7 +117,7 @@ module Distillator
       }
     end
 
-    def normalize_distillator_cache(cache)
+    def normalize_condenser_cache(cache)
       return nil unless cache
 
       {
@@ -133,20 +139,21 @@ module Distillator
       }
     end
 
-    def build_diffs(legacy_cache, distillator_cache)
+    def build_diffs(legacy_cache, condenser_cache)
       FIELDS.index_with do |field|
         legacy_value = comparable_value(legacy_cache, field)
-        distillator_value = comparable_value(distillator_cache, field)
+        condenser_value = comparable_value(condenser_cache, field)
         {
-          same: legacy_value == distillator_value,
+          same: legacy_value == condenser_value,
           legacy: legacy_value,
-          distillator: distillator_value,
+          condenser: condenser_value,
+          distillator: condenser_value,
           classification: classify_field(
             field,
             legacy_value: legacy_value,
-            distillator_value: distillator_value,
+            distillator_value: condenser_value,
             legacy_cache: legacy_cache,
-            distillator_cache: distillator_cache
+            distillator_cache: condenser_cache
           )
         }
       end
@@ -163,7 +170,7 @@ module Distillator
       {
         same: changed.empty?,
         promotable: !comparison.dig(:missing, :legacy) &&
-          !comparison.dig(:missing, :distillator) &&
+          !comparison.dig(:missing, :condenser) &&
           blocking.empty?,
         blocking_regressions: blocking,
         improvements: improvements,

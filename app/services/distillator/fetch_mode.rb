@@ -5,9 +5,9 @@ module Distillator
     # See docs/rollout_modes.md for the operator-vs-internal glossary.
     # Fetch execution modes are Distillator runtime paths.
     # Website rollout state lives separately on Website::DISTILLATOR_MODES.
-    EXECUTION_MODES = %w[legacy internal shadow].freeze
-    ALIASES = { "active" => "internal" }.freeze
-    DEFAULT_MODE = "internal"
+    EXECUTION_MODES = %w[legacy active shadow].freeze
+    ALIASES = { "internal" => "active" }.freeze
+    DEFAULT_MODE = "active"
     SAFE_DEFAULT_MODE = "legacy"
 
     def self.current
@@ -18,7 +18,7 @@ module Distillator
       mode = value.to_s.strip.downcase
       return DEFAULT_MODE.to_sym if mode.blank?
 
-      # Website rollout uses "active"; runtime execution remains :internal.
+      # Accept the old internal runtime name, but normalize public resolution to active.
       mode = ALIASES.fetch(mode, mode)
 
       EXECUTION_MODES.include?(mode) ? mode.to_sym : DEFAULT_MODE.to_sym
@@ -91,8 +91,12 @@ module Distillator
       current == :legacy
     end
 
+    def self.active?
+      current == :active
+    end
+
     def self.internal?
-      current == :internal
+      active?
     end
 
     def self.shadow?

@@ -31,7 +31,7 @@ module Distillator
       compare_url = "/condenser/cache/compare?uri=#{CGI.escape(url.to_s)}#{include_fragment_query}"
 
       payload = {
-        mode: resolution.execution_mode,
+        mode: resolution.rollout_mode,
         rollout_mode: resolution.rollout_mode,
         active_backend: resolution.active_backend,
         source: resolution.source,
@@ -74,7 +74,7 @@ module Distillator
       payload
     rescue StandardError
       {
-        mode: mode || current_resolution.execution_mode,
+        mode: Distillator::RolloutCopy.normalize(mode || current_resolution.rollout_mode),
         rollout_mode: current_resolution.rollout_mode,
         active_backend: current_resolution.active_backend,
         source: current_resolution.source,

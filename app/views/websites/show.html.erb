@@ -1,6 +1,9 @@
 
 <h1>
   <%= @website.name %>
+  <% if website_cohort_badge(@website).present? %>
+    <span class="rollout-inline"><%= website_cohort_badge(@website) %></span>
+  <% end %>
   <span class="rollout-inline"><%= website_rollout_badge(@website) %></span>
 </h1>
 
@@ -15,7 +18,7 @@
 <section class="website-rollout-panel">
   <h2><%= Distillator::RolloutCopy.rollout_panel_title %></h2>
   <p><strong>Current mode:</strong> <%= website_rollout_label_for(@website) %></p>
-  <p><strong>Active backend:</strong> <%= website_rollout_backend_for(@website) %></p>
+  <p><strong>Production backend:</strong> <%= website_rollout_backend_for(@website) %></p>
   <p><strong>Next step:</strong> <%= website_rollout_next_step_for(@website) %></p>
 
   <h3>Links</h3>
@@ -32,6 +35,26 @@
   <%= @website.graph_name %>
 </p>
 
+<section class="website-rollout-panel">
+  <h2>Recent rollout events</h2>
+  <% if @website.rollout_events.order(created_at: :desc).limit(5).any? %>
+    <ul>
+      <% @website.rollout_events.order(created_at: :desc).limit(5).each do |event| %>
+        <li>
+          <%= [event.from_mode.presence || "unknown", "to", event.to_mode, event.created_at].join(" ") %>
+          <% if event.readiness_snapshot["blockers"].present? %>
+            | blockers: <%= Array(event.readiness_snapshot["blockers"]).join(", ") %>
+          <% end %>
+          <% if event.readiness_snapshot["warnings"].present? %>
+            | warnings: <%= Array(event.readiness_snapshot["warnings"]).join(", ") %>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p>No rollout events recorded yet.</p>
+  <% end %>
+</section>
 
 <%= link_to 'Edit', edit_website_path(@website) %> |
 <%= link_to 'Back', websites_path %>

@@ -41,10 +41,10 @@ class Distillator::CacheLinkResolverTest < ActiveSupport::TestCase
     assert_equal true, invalid[:disabled]
   end
 
-  test "explicit internal and shadow modes remain available for diagnostics" do
+  test "explicit active alias compatibility and shadow modes remain available for diagnostics" do
     internal = Distillator::CacheLinkResolver.call(url: "http://example.org/page", mode: :internal)
     assert_equal "Open active cache", internal[:label]
-    assert_equal :internal, internal[:mode]
+    assert_equal :active, internal[:mode]
     assert_equal :active, internal[:rollout_mode]
     assert_equal :condenser, internal[:active_backend]
     assert_equal :explicit, internal[:source]
@@ -65,7 +65,7 @@ class Distillator::CacheLinkResolverTest < ActiveSupport::TestCase
     assert_includes payload[:distillator_cache_url], "term=http%3A%2F%2Fexample.org%2Fpage%23frag"
   end
 
-  test "json_post keeps distillator as active cache path in internal mode" do
+  test "json_post keeps condenser as active cache path in active alias mode" do
     payload = Distillator::CacheLinkResolver.call(
       url: "http://example.org/api",
       mode: :internal,
@@ -84,7 +84,7 @@ class Distillator::CacheLinkResolverTest < ActiveSupport::TestCase
 
     payload = Distillator::CacheLinkResolver.call(url: "http://example.org/page", website: website)
 
-    assert_equal :internal, payload[:mode]
+    assert_equal :active, payload[:mode]
     assert_equal :active, payload[:rollout_mode]
     assert_equal :condenser, payload[:active_backend]
     assert_equal :website, payload[:source]
@@ -118,7 +118,7 @@ class Distillator::CacheLinkResolverTest < ActiveSupport::TestCase
     assert_equal "Wringer remains the production fetch path.", payload[:warning]
   end
 
-  test "active mode does not duplicate distillator cache as a secondary link" do
+  test "active mode does not duplicate condenser cache as a secondary link" do
     payload = Distillator::CacheLinkResolver.call(url: "http://example.org/page", mode: :internal)
 
     assert_equal payload[:distillator_cache_url], payload[:active_cache_url]

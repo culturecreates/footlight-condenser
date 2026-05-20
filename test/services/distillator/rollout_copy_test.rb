@@ -17,6 +17,11 @@ class Distillator::RolloutCopyTest < ActiveSupport::TestCase
     assert_equal "Compare Condenser vs Wringer", Distillator::RolloutCopy.compare_label
   end
 
+  test "separates production state copy from diagnostic state copy" do
+    assert_equal %i[legacy shadow active], Distillator::RolloutCopy.production_states.keys
+    assert_equal %i[replay unknown], Distillator::RolloutCopy.diagnostic_states.keys
+  end
+
   test "normalizes active and internal to the same operator-facing rollout state" do
     assert_equal :active, Distillator::RolloutCopy.normalize(:active)
     assert_equal :active, Distillator::RolloutCopy.normalize(:internal)
@@ -29,6 +34,15 @@ class Distillator::RolloutCopyTest < ActiveSupport::TestCase
       ["Shadow - Wringer production path + Condenser comparison", "shadow"],
       ["Active - Condenser active", "active"]
     ], Distillator::RolloutCopy.website_form_options
+  end
+
+  test "website index filter options exclude replay" do
+    values = Distillator::RolloutCopy.website_index_filter_options.map(&:last)
+
+    refute_includes values, "replay"
+    assert_includes values, "legacy"
+    assert_includes values, "shadow"
+    assert_includes values, "active"
   end
 
   test "operator rollout copy avoids internal and phased rollout wording" do

@@ -2,7 +2,7 @@ class WebsitesController < ApplicationController
   include FilterableIndex
   include SortableIndex
 
-  FILTER_KEYS = %i[q seed_filter default_language graph_name distillator_mode].freeze
+  FILTER_KEYS = %i[q seed_filter default_language graph_name distillator_mode cohort].freeze
 
   before_action :set_website, only: [:show, :edit, :update, :destroy, :delete_all_statements]
 
@@ -35,8 +35,10 @@ class WebsitesController < ApplicationController
     return render json: Distillator::FetchCacheStore.lookup_by_term(params[:term]) if wringer_lookup_request?
 
     requested_rollout_mode = params[:distillator_mode].presence
+    requested_cohort = params[:cohort].presence
     cleaned = extract_allowed_filters(params, FILTER_KEYS)
     cleaned[:distillator_mode] = helpers.normalize_website_rollout_filter(cleaned[:distillator_mode])
+    cleaned[:cohort] = helpers.normalize_website_cohort_filter(cleaned[:cohort])
 
     canonical = cleaned.merge(
       sort: params[:sort],
@@ -54,10 +56,12 @@ class WebsitesController < ApplicationController
       direction: raw["direction"]
     ).compact.stringify_keys
     normalized_raw["distillator_mode"] = helpers.normalize_website_rollout_filter(normalized_raw["distillator_mode"])
+    normalized_raw["cohort"] = helpers.normalize_website_cohort_filter(normalized_raw["cohort"])
     normalized_raw.compact!
 
     invalid_rollout_filter = requested_rollout_mode.present? && cleaned[:distillator_mode].nil?
-    return redirect_to(websites_path(canonical)) if invalid_rollout_filter || canonical != normalized_raw
+    invalid_cohort_filter = requested_cohort.present? && cleaned[:cohort].nil?
+    return redirect_to(websites_path(canonical)) if invalid_rollout_filter || invalid_cohort_filter || canonical != normalized_raw
 
     @filters = cleaned
 
@@ -85,6 +89,10 @@ class WebsitesController < ApplicationController
       @websites = @websites.where("LOWER(graph_name) LIKE ?", keyword)
     end
 
+    if @filters[:cohort].present?
+      @websites = @websites.to_a.select { |website| helpers.website_matches_cohort_filter?(website, @filters[:cohort]) }
+    end
+
     case @filters[:distillator_mode]
     when "unknown"
       @websites = @websites.where(distillator_mode: [nil, ""])
@@ -110,6 +118,9 @@ class WebsitesController < ApplicationController
 
     if computed_sort?
       @websites = sort_in_memory(@websites)
+    elsif @websites.is_a?(Array)
+      @websites = @websites.sort_by { |website| website.public_send(sort_column).to_s.downcase }
+      @websites.reverse! if sort_direction == "desc"
     else
       @websites = @websites.order(sort_column => sort_direction.to_sym)
     end
@@ -134,13 +145,22 @@ class WebsitesController < ApplicationController
   # POST /websites
   # POST /websites.json
   def create
-    @website = Website.new(website_params)
+    @website = Website.new
 
     respond_to do |format|
-      if @website.save
+      result = Distillator::RolloutTransition.call(
+        website: @website,
+        to_mode: website_params[:distillator_mode],
+        actor: rollout_actor,
+        reason: params[:reason],
+        attributes: website_params.to_h
+      )
+
+      if result.success?
         format.html { redirect_to @website, notice: 'Website was successfully created.' }
         format.json { render :show, status: :created, location: @website }
       else
+        flash.now[:alert] = result.errors.join(", ") if result.errors.any?
         format.html { render :new }
         format.json { render json: @website.errors, status: :unprocessable_entity }
       end
@@ -150,11 +170,23 @@ class WebsitesController < ApplicationController
   # PATCH/PUT /websites/1
   # PATCH/PUT /websites/1.json
   def update
+    result = nil
     respond_to do |format|
-      if @website.update(website_params)
-        format.html { redirect_to @website, notice: 'Website was successfully updated.' }
+      result = Distillator::RolloutTransition.call(
+        website: @website,
+        to_mode: website_params[:distillator_mode],
+        actor: rollout_actor,
+        reason: params[:reason],
+        attributes: website_params.to_h
+      )
+
+      if result.success?
+        flash_notice = ["Website was successfully updated."]
+        flash_notice << "Warnings: #{result.warnings.join(', ')}" if result.warnings.any?
+        format.html { redirect_to @website, notice: flash_notice.join(" ") }
         format.json { render :show, status: :ok, location: @website }
       else
+        flash.now[:alert] = result.errors.join(", ") if result.errors.any?
         format.html { render :edit }
         format.json { render json: @website.errors, status: :unprocessable_entity }
       end
@@ -261,5 +293,9 @@ class WebsitesController < ApplicationController
     else
       head :no_content
     end
+  end
+
+  def rollout_actor
+    request.remote_ip.presence || "unknown"
   end
 end
