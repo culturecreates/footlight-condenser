@@ -4,11 +4,17 @@ class Distillator::RolloutTransitionTest < ActiveSupport::TestCase
   setup do
     @old_override_flag = ENV["DISTILLATOR_ALLOW_ACTIVE_OVERRIDE"]
     @old_heroku_app_name = ENV["HEROKU_APP_NAME"]
+    @old_app_name = ENV["APP_NAME"]
+    @old_heroku_parent_app_name = ENV["HEROKU_PARENT_APP_NAME"]
+    @old_heroku_slug_commit = ENV["HEROKU_SLUG_COMMIT"]
   end
 
   teardown do
     ENV["DISTILLATOR_ALLOW_ACTIVE_OVERRIDE"] = @old_override_flag
     ENV["HEROKU_APP_NAME"] = @old_heroku_app_name
+    ENV["APP_NAME"] = @old_app_name
+    ENV["HEROKU_PARENT_APP_NAME"] = @old_heroku_parent_app_name
+    ENV["HEROKU_SLUG_COMMIT"] = @old_heroku_slug_commit
   end
 
   test "blocks direct legacy to active by default" do
@@ -108,7 +114,7 @@ class Distillator::RolloutTransitionTest < ActiveSupport::TestCase
   end
 
   test "activate anyway succeeds on known staging heroku app" do
-    ENV["HEROKU_APP_NAME"] = "footlight-condenser-staging"
+    ENV["HEROKU_APP_NAME"] = "footlight-condenser-test-c24c162bb7c8"
     Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("production"))
     website = build_website("shadow", seedurl: "override-staging")
 
@@ -126,9 +132,49 @@ class Distillator::RolloutTransitionTest < ActiveSupport::TestCase
     Rails.unstub(:env)
   end
 
+  test "activate anyway succeeds when allow listed app name is present in APP_NAME" do
+    ENV["APP_NAME"] = "footlight-condenser-test-c24c162bb7c8"
+    Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("production"))
+    website = build_website("shadow", seedurl: "override-app-name")
+
+    result = Distillator::RolloutTransition.call(
+      website: website,
+      to_mode: "active",
+      actor: "test",
+      reason: "Allow listed app name",
+      override: true
+    )
+
+    assert_equal true, result.success?
+    assert_equal "active", website.reload.distillator_mode
+  ensure
+    Rails.unstub(:env)
+  end
+
+  test "activate anyway succeeds when allow listed parent app name is present" do
+    ENV["HEROKU_PARENT_APP_NAME"] = "footlight-condenser-test-c24c162bb7c8"
+    Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("production"))
+    website = build_website("shadow", seedurl: "override-parent-app")
+
+    result = Distillator::RolloutTransition.call(
+      website: website,
+      to_mode: "active",
+      actor: "test",
+      reason: "Allow listed parent app",
+      override: true
+    )
+
+    assert_equal true, result.success?
+    assert_equal "active", website.reload.distillator_mode
+  ensure
+    Rails.unstub(:env)
+  end
+
   test "activate anyway fails outside allowed runtime when env flag is absent" do
     ENV["DISTILLATOR_ALLOW_ACTIVE_OVERRIDE"] = nil
     ENV["HEROKU_APP_NAME"] = nil
+    ENV["APP_NAME"] = nil
+    ENV["HEROKU_PARENT_APP_NAME"] = nil
     Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("production"))
     website = build_website("shadow", seedurl: "override-blocked")
 
@@ -137,6 +183,53 @@ class Distillator::RolloutTransitionTest < ActiveSupport::TestCase
       to_mode: "active",
       actor: "test",
       reason: "Not allowed here",
+      override: true
+    )
+
+    assert_equal false, result.success?
+    assert_equal "shadow", website.reload.distillator_mode
+    assert_includes result.errors, "Activate anyway is not allowed in this runtime"
+  ensure
+    Rails.unstub(:env)
+  end
+
+  test "HEROKU_SLUG_COMMIT containing test does not allow override" do
+    ENV["DISTILLATOR_ALLOW_ACTIVE_OVERRIDE"] = nil
+    ENV["HEROKU_APP_NAME"] = nil
+    ENV["APP_NAME"] = nil
+    ENV["HEROKU_PARENT_APP_NAME"] = nil
+    ENV["HEROKU_SLUG_COMMIT"] = "build-test-commit"
+    Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("production"))
+    website = build_website("shadow", seedurl: "override-slug-commit")
+
+    result = Distillator::RolloutTransition.call(
+      website: website,
+      to_mode: "active",
+      actor: "test",
+      reason: "Should stay blocked",
+      override: true
+    )
+
+    assert_equal false, result.success?
+    assert_equal "shadow", website.reload.distillator_mode
+    assert_includes result.errors, "Activate anyway is not allowed in this runtime"
+  ensure
+    Rails.unstub(:env)
+  end
+
+  test "random app name containing test does not allow override unless allow listed" do
+    ENV["DISTILLATOR_ALLOW_ACTIVE_OVERRIDE"] = nil
+    ENV["APP_NAME"] = "my-test-production-app"
+    ENV["HEROKU_APP_NAME"] = nil
+    ENV["HEROKU_PARENT_APP_NAME"] = nil
+    Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("production"))
+    website = build_website("shadow", seedurl: "override-random-app-name")
+
+    result = Distillator::RolloutTransition.call(
+      website: website,
+      to_mode: "active",
+      actor: "test",
+      reason: "Should stay blocked",
       override: true
     )
 
