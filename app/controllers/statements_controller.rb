@@ -525,11 +525,7 @@ class StatementsController < ApplicationController
   private
 
   def statement_refresh_helper_proxy
-    helper = Object.new
-    helper.extend(StatementsHelper)
-    helper.instance_variable_set(:@_statement_refresh_cookies, request_cookie_snapshot)
-    helper.define_singleton_method(:cookies) { @_statement_refresh_cookies }
-    helper
+    StatementsHelper.build_refresh_proxy(cookies: request_cookie_snapshot)
   end
 
   def request_cookie_snapshot

@@ -49,10 +49,12 @@ class Distillator::TransitionEvidenceRecorderTest < ActiveSupport::TestCase
         url: "outside-feed/events/1",
         check_kind: :statement_delta,
         status: :checked,
+        statement_delta: 4,
         statement_count_delta_acceptable: true
       )
       assert_equal first.id, second.id
       assert_equal "checked", second.status
+      assert_equal 4, second.statement_delta
     end
   end
 end

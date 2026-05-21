@@ -67,15 +67,41 @@ module ApplicationHelper
     Distillator::RolloutCopy.state(key).merge(key: key)
   end
 
+  def transition_context_website
+    @transition_context_website ||=
+      begin
+        direct = current_transition_website
+        if direct.present?
+          direct
+        else
+          seedurl = params[:seedurl].presence || cookies[:seedurl].presence
+          if seedurl.blank? || seedurl == "all"
+            nil
+          else
+            Website.find_by(seedurl: seedurl)
+          end
+        end
+      end
+  end
+
+  def show_transition_context?
+    transition_context_website.present? && !(%w[websites webpages].include?(controller_name) && action_name == "show")
+  end
+
   def suppress_operator_context_card?
     %w[websites webpages].include?(controller_name) && action_name == "show"
   end
 
-  def suppress_header_website_identity?
-    controller_name == "websites" && action_name == "show"
-  end
-
   private
+
+  def current_transition_website
+    return @website if instance_variable_defined?(:@website) && @website&.persisted?
+    return @webpage.website if instance_variable_defined?(:@webpage) && @webpage&.website&.persisted?
+    return @source.website if instance_variable_defined?(:@source) && @source&.website&.persisted?
+    return @statement.webpage.website if instance_variable_defined?(:@statement) && @statement&.webpage&.website&.persisted?
+
+    nil
+  end
 
   def normalize_rollout_state(website_or_mode)
     raw_mode =

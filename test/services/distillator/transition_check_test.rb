@@ -42,6 +42,22 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
     assert_equal true, result.compare_available
   end
 
+  test "la vitrine site does not become promotable from cache health alone" do
+    website = build_website("hector-charland-com")
+    cache = build_cache(
+      website: website,
+      url: "https://hector-charland-com.example/event",
+      signals: { "transport_success" => true, "content_success" => true },
+      health_status: "healthy"
+    )
+
+    result = Distillator::TransitionCheck.call(website: website, cache: cache)
+
+    assert_equal :blocked, result.status
+    assert_equal false, result.promotable
+    assert_includes result.blocking_issues, "Cannot activate yet: statements check is missing."
+  end
+
   private
 
   def build_website(seedurl)

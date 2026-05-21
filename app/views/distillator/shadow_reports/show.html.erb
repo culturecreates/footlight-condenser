@@ -3,93 +3,102 @@
 <p class="cache-page-note">This page is read-only. It reflects the current rollout state without triggering fetches.</p>
 
 <section class="website-rollout-panel">
-  <h2>Website</h2>
-  <p><strong>Name:</strong> <%= @website.name %></p>
-  <p><strong>Seedurl:</strong> <%= @website.seedurl %></p>
-  <p><strong>Cohort:</strong> <%= @detail.summary.cohort_label.presence || "Other" %></p>
-  <p><strong>Current rollout mode:</strong> <%= Distillator::RolloutCopy.label(@website.distillator_mode) %></p>
-  <p><strong>Production backend:</strong> <%= shadow_report_production_backend_label(@detail.summary) %></p>
+  <h2>Decision</h2>
+  <p><strong>Decision:</strong> <%= shadow_report_decision_label(@detail.decision) %></p>
+  <p><strong>Why:</strong> <%= @detail.decision[:why].first %></p>
+  <p><strong>Recommended action:</strong> <%= @detail.decision[:recommended_action] %></p>
 </section>
 
 <section class="website-rollout-panel">
-  <h2>Transition status</h2>
-  <p><strong>Status:</strong> <%= shadow_report_status_label(@detail.transition_status) %></p>
-  <p><strong>Why:</strong></p>
-  <% if @detail.transition_status.blocking_issues.any? %>
-    <ul>
-      <% @detail.transition_status.blocking_issues.each do |blocker| %>
-        <li><%= blocker %></li>
-      <% end %>
-    </ul>
-  <% elsif @detail.transition_status.warnings.any? %>
-    <ul>
-      <% @detail.transition_status.warnings.each do |warning| %>
-        <li><%= warning %></li>
-      <% end %>
-    </ul>
-  <% else %>
-    <p>All required checks are currently passing.</p>
-  <% end %>
-
-  <p><strong>Required checks:</strong></p>
+  <h2>Current checks</h2>
   <ul>
-    <li>Fetch</li>
-    <li>Statements</li>
-    <li>Export</li>
+    <% @detail.transition_status.checks.each do |check| %>
+      <li><%= shadow_report_check_icon(check[:state]) %> <strong><%= check[:label] %></strong> — <%= shadow_report_check_label(check[:state]) %></li>
+    <% end %>
   </ul>
 </section>
 
 <section class="website-rollout-panel">
-  <h2>Checks</h2>
-  <p><strong>Fetch:</strong> <%= shadow_report_check_label(@detail.transition_status.fetch) %></p>
-  <p><strong>Statements:</strong> <%= shadow_report_check_label(@detail.transition_status.statements) %></p>
-  <p><strong>Export:</strong> <%= shadow_report_check_label(@detail.transition_status.export) %></p>
+  <h2>Primary blocker</h2>
+  <% if @detail.primary_blocker.present? %>
+    <p><strong><%= shadow_report_primary_blocker_heading(@detail.primary_blocker) %>:</strong> <%= @detail.primary_blocker.headline %></p>
+    <% if @detail.primary_blocker.details.any? %>
+      <ul>
+        <% @detail.primary_blocker.details.each do |detail| %>
+          <li><%= detail %></li>
+        <% end %>
+      </ul>
+    <% end %>
+  <% else %>
+    <p>No primary blocker is currently recorded.</p>
+  <% end %>
 </section>
 
-<details class="website-rollout-panel" open>
+<section class="website-rollout-panel">
+  <h2>Next action</h2>
+  <p><%= @detail.primary_blocker&.next_action || @detail.decision[:recommended_action] %></p>
+
+  <% contract = website_transition_contract(@website) %>
+  <% primary_action = contract[:primary_action] %>
+  <% if primary_action[:enabled] && primary_action[:label].in?(["Promote to active", "Rollback to Legacy Wringer"]) %>
+    <%= button_to primary_action[:label], primary_action[:path], method: primary_action[:method], params: primary_action[:params], class: "website-transition-button" %>
+  <% end %>
+  <%= button_to "Run transition check", distillator_transition_checks_path, method: :post, params: { website_id: @website.id, return_to: request.fullpath }, class: "website-transition-button" %>
+</section>
+
+<section class="website-rollout-panel">
+  <h2>Checked scope</h2>
+  <ul>
+    <% shadow_report_scope_lines(@detail.checked_scope).each do |line| %>
+      <li><%= line %></li>
+    <% end %>
+  </ul>
+  <% if shadow_report_scope_warning(@detail.checked_scope).present? %>
+    <p><%= shadow_report_scope_warning(@detail.checked_scope) %></p>
+  <% end %>
+</section>
+
+<details class="website-rollout-panel">
   <summary>Diagnostics</summary>
-  <p><strong>Latest cache evidence:</strong></p>
+  <p><strong>Website:</strong> <%= @website.name %></p>
+  <p><strong>Seedurl:</strong> <%= @website.seedurl %></p>
+  <p><strong>Cohort:</strong> <%= @detail.summary.cohort_label.presence || "Other" %></p>
+  <p><strong>Current rollout mode:</strong> <%= Distillator::RolloutCopy.label(@website.distillator_mode) %></p>
+  <p><strong>Production backend:</strong> <%= shadow_report_production_backend_label(@detail.summary) %></p>
   <p><strong>Latest attempt:</strong> <%= shadow_report_timestamp(@detail.summary.latest_refresh) %></p>
   <p><strong>Latest successful refresh:</strong> <%= shadow_report_timestamp(@detail.summary.latest_successful_refresh) %></p>
   <p><strong>Health:</strong> <%= @detail.summary.health_summary %></p>
   <p><strong>Issue:</strong> <%= @detail.summary.issue_key.presence || "None" %></p>
-
-  <p><strong>Why blocked:</strong></p>
-  <% if @detail.summary.blockers.any? %>
-    <ul>
-      <% @detail.summary.blockers.each do |blocker| %>
-        <li><%= blocker %></li>
-      <% end %>
-    </ul>
-  <% else %>
-    <p>None.</p>
-  <% end %>
-
-  <p><strong>Needs review:</strong></p>
-  <% if @detail.summary.warnings.any? %>
-    <ul>
-      <% @detail.summary.warnings.each do |warning| %>
-        <li><%= warning %></li>
-      <% end %>
-    </ul>
-  <% else %>
-    <p>None.</p>
-  <% end %>
-
   <p><strong>Cache links:</strong> <%= shadow_report_action_links(@detail.summary) %></p>
 </details>
 
 <details class="website-rollout-panel">
   <summary>Audit</summary>
+  <h3>Check explanations</h3>
+  <% @detail.transition_evidence_explanations.each do |explanation| %>
+    <section class="website-rollout-panel">
+      <h3><%= explanation.check %></h3>
+      <p><strong>State:</strong> <%= explanation.state %></p>
+      <p><strong>Headline:</strong> <%= explanation.headline %></p>
+      <% if explanation.details.any? %>
+        <ul>
+          <% explanation.details.each do |line| %>
+            <li><%= line %></li>
+          <% end %>
+        </ul>
+      <% end %>
+      <p><strong>Next action:</strong> <%= explanation.next_action %></p>
+      <% if explanation.links.any? %>
+        <p><strong>Links:</strong> <%= safe_join(shadow_report_explanation_links(explanation, @website), " | ") %></p>
+      <% end %>
+    </section>
+  <% end %>
   <h3>Recent rollout events</h3>
   <% if @detail.recent_rollout_events.any? %>
     <ul>
       <% @detail.recent_rollout_events.each do |event| %>
         <li>
           <%= [event.from_mode.presence || "unknown", "to", event.to_mode, event.created_at].join(" ") %>
-          <% if event.readiness_snapshot["blockers"].present? %>
-            | blockers: <%= Array(event.readiness_snapshot["blockers"]).join(", ") %>
-          <% end %>
           <% if event.readiness_snapshot["warnings"].present? %>
             | warnings: <%= Array(event.readiness_snapshot["warnings"]).join(", ") %>
           <% end %>
@@ -100,23 +109,44 @@
     <p>No rollout events recorded yet.</p>
   <% end %>
 
-  <h3>Raw transition evidence</h3>
-  <h4>Fetch</h4>
-  <%= shadow_report_transition_evidence_block(@detail.transition_evidence_by_kind["fetch_parity"]) %>
-  <h4>Statements</h4>
-  <%= shadow_report_transition_evidence_block(@detail.transition_evidence_by_kind["statement_delta"]) %>
-  <h4>Export</h4>
-  <%= shadow_report_transition_evidence_block(@detail.transition_evidence_by_kind["export_diff"]) %>
+  <h3>Transition evidence</h3>
+  <table class="harmonized-table-shell">
+    <thead>
+      <tr>
+        <th>Check</th>
+        <th>Status</th>
+        <th>Checked at</th>
+        <th>URL used</th>
+        <th>Headline</th>
+        <th>Relevant fields</th>
+        <th>Next action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% shadow_report_transition_evidence_rows(@detail).each do |row| %>
+        <tr>
+          <td><%= row[:label] %></td>
+          <td><%= row[:status] %></td>
+          <td><%= row[:checked_at] %></td>
+          <td><%= row[:url] %></td>
+          <td><%= row[:headline] %></td>
+          <td>
+            <% if row[:details].any? %>
+              <ul>
+                <% row[:details].each do |detail| %>
+                  <li><%= detail %></li>
+                <% end %>
+              </ul>
+            <% else %>
+              Recorded
+            <% end %>
+          </td>
+          <td><%= row[:next_action] %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
 </details>
-
-<section class="website-rollout-panel">
-  <h2>Activation check</h2>
-  <ul>
-    <% @detail.rollout_notes.each do |note| %>
-      <li><%= note %></li>
-    <% end %>
-  </ul>
-</section>
 
 <% if @website.distillator_mode == "active" %>
   <section class="website-rollout-panel">

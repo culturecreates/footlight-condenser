@@ -18,7 +18,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Promotable sites", @response.body
     assert_match "Top blockers", @response.body
     assert_match "Failed fetch", @response.body
-    assert_includes @response.body, "bin/rails distillator:transition:check[website_id]"
+    assert_includes @response.body, "Use each site row to run a transition check"
     assert_no_cohort_source_requests
   end
 
@@ -200,8 +200,222 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_match "Transition Report Detail", @response.body
-    assert_match "Transition status", @response.body
-    assert_match "Diagnostics", @response.body
+    assert_match "Decision", @response.body
+    assert_match "Current checks", @response.body
+    assert_match "Primary blocker", @response.body
+    assert_match "Next action", @response.body
+    assert_match "Checked scope", @response.body
+    assert_match "Transition evidence", @response.body
+    assert_match "Fetch parity", @response.body
+    assert_match %r{Decision.*Current checks}m, @response.body
+  end
+
+  test "shadow report row shows run transition check for shadow sites with missing evidence" do
+    website = create_shadow_website(name: "Blocked evidence", seedurl: "blocked-evidence")
+    create_cache_for(website, url: "https://blocked-evidence.example/event")
+
+    get distillator_shadow_report_path
+
+    assert_response :success
+    assert_match "Run transition check", @response.body
+    assert_match "Statement check not yet recorded", @response.body
+  end
+
+  test "shadow report detail shows promote to active when evidence is fresh and passing" do
+    website = create_shadow_website(name: "Ready detail", seedurl: "ready-detail")
+    url = "https://ready-detail.example/event"
+    create_cache_for(
+      website,
+      url: url,
+      signals: {
+        "transport_success" => true,
+        "content_success" => true,
+        "statement_count_delta_acceptable" => true,
+        "export_diff_checked" => true
+      }
+    )
+    website.transition_evidences.create!(id: next_id, url: url, check_kind: "fetch_parity", status: "checked", checked_at: 1.hour.ago)
+    website.transition_evidences.create!(id: next_id, url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(id: next_id, url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Promote to active", @response.body
+    assert_match "Safe to promote", @response.body
+    assert_match %r{<strong>Export</strong> — Passed}m, @response.body
+  end
+
+  test "shadow report detail separates blocked activation from passing export and shows failed statement explanation" do
+    website = create_shadow_website(name: "Blocked detail", seedurl: "blocked-detail")
+    url = "https://blocked-detail.example/event"
+    create_cache_for(
+      website,
+      url: url,
+      signals: { "transport_success" => true, "content_success" => true }
+    )
+    webpage = website.webpages.find_by!(url: url)
+    source = Source.create!(
+      algorithm_value: "manual=Blocked detail dates",
+      selected: true,
+      selected_by: "test",
+      language: "fr",
+      render_js: false,
+      property: properties(:six),
+      website: website
+    )
+    statement = Statement.create!(
+      cache: "",
+      status: "problem",
+      status_origin: "shadow_reports_controller_test",
+      cache_refreshed: 1.hour.ago,
+      cache_changed: 1.hour.ago,
+      source: source,
+      webpage: webpage,
+      selected_individual: true
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "statement_delta",
+      status: "failed",
+      statement_delta: 1,
+      statement_count_delta_acceptable: false,
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "statement_refresh_failed",
+        representative_webpages: [url],
+        representative_webpage_count: 1,
+        candidate_webpage_count: 4,
+        selection_rule: "Event pages first, ordered by archive date",
+        statements_refreshed_count: 1,
+        statements_failed_count: 1,
+        failing_statement_ids: [statement.id],
+        failing_statements: [{ id: statement.id, webpage_url: url, source: "Dates / fr" }],
+        refresh_errors: ["DSL returned blank result"]
+      }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "export_diff",
+      status: "checked",
+      export_diff_checked: true,
+      checked_at: 1.hour.ago,
+      details: { export_compared: true, export_basis: "current export vs production-equivalent export" }
+    )
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Blocked", @response.body
+    assert_match %r{<strong>Export</strong> — Passed}m, @response.body
+    assert_match "Statement refresh failed for 1 statement.", @response.body
+    assert_match "Statement ID: #{statement.id}", @response.body
+    assert_match "Source: Dates / fr", @response.body
+    assert_match "Reason: DSL returned blank result", @response.body
+    assert_match "Open the statement trace and fix the source before activating.", @response.body
+    assert_match "Representative webpages checked: 1 of 4", @response.body
+    assert_match "This check used a limited sample of representative webpages.", @response.body
+    assert_match "Do not activate yet", @response.body
+  end
+
+  test "shadow report detail shows statements not evaluated when fetch failed before statement refresh" do
+    website = create_shadow_website(name: "Fetch blocked detail", seedurl: "fetch-blocked-detail")
+    url = "https://fetch-blocked-detail.example/event"
+    create_cache_for(
+      website,
+      url: url,
+      signals: { "transport_success" => false, "content_success" => false },
+      health_status: "empty_body",
+      health_severity: "high",
+      primary_issue_key: "empty_body",
+      primary_issue_label: "Empty body",
+      primary_issue_severity: "failed"
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "statement_delta",
+      status: "pending",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "fetch_failed_before_statement_refresh",
+        representative_webpages: [url],
+        representative_webpage_count: 1,
+        candidate_webpage_count: 1,
+        selection_rule: "Event pages first, ordered by archive date",
+        statements_refreshed_count: 0,
+        statements_failed_count: 0
+      }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "export_diff",
+      status: "checked",
+      export_diff_checked: true,
+      checked_at: 1.hour.ago,
+      details: { export_compared: true, export_basis: "current export vs production-equivalent export" }
+    )
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Statements</strong> — Not evaluated", @response.body
+    assert_match "Fetch failed before statements could be refreshed.", @response.body
+    assert_match "Fix the fetch/cache failure first, then rerun the transition check.", @response.body
+    assert_match %r{<strong>Export</strong> — Passed}m, @response.body
+    assert_no_match "failed on 0 representative webpages", @response.body
+    assert_operator @response.body.scan("Cannot promote yet").count, :<=, 1
+  end
+
+  test "shadow report detail keeps cache links in diagnostics and rollout events in audit" do
+    website = create_shadow_website(name: "IA detail", seedurl: "ia-detail")
+    url = "https://ia-detail.example/event"
+    create_cache_for(website, url: url)
+    website.rollout_events.create!(from_mode: "legacy", to_mode: "shadow", reason: "test", readiness_snapshot: { warnings: ["manual review"] })
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match %r{<summary>Diagnostics</summary>.*Cache links:}m, @response.body
+    assert_match %r{<summary>Audit</summary>.*Recent rollout events}m, @response.body
+  end
+
+  test "shadow report detail explains export generation failures and rdf diff counts" do
+    website = create_shadow_website(name: "Export detail", seedurl: "export-detail")
+    url = "https://export-detail.example/event"
+    create_cache_for(
+      website,
+      url: url,
+      signals: { "transport_success" => true, "content_success" => true }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "export_diff",
+      status: "failed",
+      export_diff_status: "failed",
+      rdf_added_count: 2,
+      rdf_removed_count: 1,
+      checked_at: 1.hour.ago,
+      details: { reason: "export_generation_failed" }
+    )
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Export could not be generated.", @response.body
+    assert_match "RDF added: 2", @response.body
+    assert_match "RDF removed: 1", @response.body
   end
 
   test "active transition report detail shows rollback guidance without fetching" do

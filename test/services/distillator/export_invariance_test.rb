@@ -16,6 +16,13 @@ class Distillator::ExportInvarianceTest < ActiveSupport::TestCase
     assert_equal normalize_nquads(File.read(EXPECTED_NQ)), normalize_nquads(actual_graph.dump(:nquads))
   end
 
+  test "fixture pack export matches the current production equivalent export path after normalization" do
+    actual = Distillator::ExportNormalizer.normalize(ExportArtsdataService.call(seedurl: FIXTURE_SEEDURL))
+    expected = Distillator::ExportNormalizer.normalize(ExportArtsdataService.production_equivalent(seedurl: FIXTURE_SEEDURL))
+
+    assert_equal expected, actual
+  end
+
   test "fixture pack export includes a complete event with linked place and offer semantics" do
     graph = jsonld_to_graph(ExportArtsdataService.call(seedurl: FIXTURE_SEEDURL))
     event = RDF::URI("http://kg.footlight.io/resource/distillator-full-event")

@@ -336,6 +336,53 @@
   margin-top: 1rem;
 }
 
+.transition-context-card {
+  max-width: 72rem;
+  margin: 0 0 1.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.6rem;
+  background: #fcfcfd;
+}
+
+.transition-context-card h2 {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.transition-context-card p {
+  margin: 0 0 0.5rem;
+}
+
+.transition-context-card-compact {
+  margin-top: 0.75rem;
+}
+
+.transition-context-seedurl {
+  color: #64748b;
+}
+
+.transition-context-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  padding-left: 1.25rem;
+  margin: 0.8rem 0 0;
+}
+
+.transition-context-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.transition-context-disabled-action {
+  margin: 0;
+  color: #92400e;
+}
+
 .website-transition-button form,
 .website-transition-actions form {
   margin: 0;

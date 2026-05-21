@@ -101,6 +101,40 @@ module WebsitesHelper
     operator_rollout_next_step(website)
   end
 
+  def website_transition_contract(website)
+    @website_transition_contracts ||= {}
+    return inert_website_transition_contract unless website&.persisted?
+
+    @website_transition_contracts[website.id] ||= begin
+      mode = website.distillator_mode.presence || "legacy"
+      readiness = website_transition_readiness(website)
+      blockers = Array(readiness.blockers)
+      warnings = Array(readiness.warnings)
+      primary_action = website_transition_primary_action(website, mode, blockers, warnings)
+
+      {
+        current_mode: mode,
+        current_mode_label: website_rollout_label_for(website),
+        backend_label: website_rollout_backend_for(website),
+        next_action_label: primary_action[:label],
+        next_mode: primary_action[:next_mode],
+        action_enabled: primary_action[:enabled],
+        blockers: blockers,
+        warnings: warnings,
+        override_allowed: website_transition_runtime_override_allowed?,
+        rollback_available: mode == "active",
+        next_recommended_action: website_transition_recommendation_for(mode, blockers: blockers, warnings: warnings),
+        readiness_summary: website_transition_readiness_summary(mode, blockers: blockers, warnings: warnings),
+        latest_rollout_event_summary: website_transition_latest_event_summary(website),
+        latest_rollout_event: website.rollout_events.order(created_at: :desc).first,
+        cache_links: website_cache_panel_links(website),
+        primary_action: primary_action,
+        secondary_actions: website_transition_secondary_actions(website, mode),
+        navigation_links: website_transition_navigation_links(website)
+      }
+    end
+  end
+
   def website_transition_runtime_override_allowed?
     Distillator::TransitionRuntime.allow_active_override?
   end
@@ -114,20 +148,6 @@ module WebsitesHelper
     )
   end
 
-  def website_transition_ready?(website)
-    readiness = website_transition_readiness(website)
-    readiness.blockers.blank? && readiness.warnings.blank?
-  end
-
-  def website_transition_summary_for(website)
-    readiness = website_transition_readiness(website)
-    return "Ready for active promotion." if readiness.blockers.blank? && readiness.warnings.blank?
-    return readiness.blockers.join(" ") if readiness.blockers.any?
-    return readiness.warnings.join(" ") if readiness.warnings.any?
-
-    "Transition checks have not been recorded yet."
-  end
-
   def website_transition_latest_event_summary(website)
     event = website.rollout_events.order(created_at: :desc).first
     return "No rollout events recorded yet." unless event.present?
@@ -137,10 +157,6 @@ module WebsitesHelper
     summary += " | warnings: #{Array(event.readiness_snapshot['warnings']).join(', ')}" if event.readiness_snapshot["warnings"].present?
     summary += " | reason: #{event.reason}" if event.reason.present?
     summary
-  end
-
-  def website_show_transition_check_label(website)
-    website.distillator_mode == "active" ? "Run transition check again" : "Run transition check"
   end
 
   def website_show_override_copy
@@ -181,6 +197,145 @@ module WebsitesHelper
   end
 
   private
+
+  def inert_website_transition_contract
+    {
+      current_mode: "legacy",
+      current_mode_label: Distillator::RolloutCopy.label(:legacy),
+      backend_label: website_rollout_backend_for("legacy"),
+      next_action_label: "Transition unavailable",
+      next_mode: nil,
+      action_enabled: false,
+      blockers: [],
+      warnings: [],
+      override_allowed: false,
+      rollback_available: false,
+      next_recommended_action: "Select a saved website to review transition state.",
+      readiness_summary: "Transition details are unavailable until the website is saved.",
+      latest_rollout_event_summary: "No rollout events recorded yet.",
+      latest_rollout_event: nil,
+      cache_links: {},
+      primary_action: {
+        label: "Transition unavailable",
+        next_mode: nil,
+        enabled: false,
+        path: nil,
+        method: nil,
+        params: {},
+        message: "Save the website before changing transition state."
+      },
+      secondary_actions: [],
+      navigation_links: []
+    }
+  end
+
+  def website_transition_primary_action(website, mode, blockers, warnings)
+    case mode
+    when "legacy"
+      {
+        label: "Move to shadow",
+        next_mode: "shadow",
+        enabled: true,
+        path: website_path(website),
+        method: :patch,
+        params: { website: { distillator_mode: "shadow" } }
+      }
+    when "shadow"
+      if blockers.blank?
+        {
+          label: "Promote to active",
+          next_mode: "active",
+          enabled: true,
+          path: website_path(website),
+          method: :patch,
+          params: { website: { distillator_mode: "active" } }
+        }
+      else
+        {
+          label: "Cannot promote yet",
+          next_mode: "active",
+          enabled: false,
+          path: nil,
+          method: nil,
+          params: {},
+          message: (blockers.presence || warnings.presence || ["Transition checks are not complete."]).join(" ")
+        }
+      end
+    else
+      {
+        label: "Rollback to Legacy Wringer",
+        next_mode: "legacy",
+        enabled: true,
+        path: website_path(website),
+        method: :patch,
+        params: { website: { distillator_mode: "legacy" } }
+      }
+    end
+  end
+
+  def website_transition_secondary_actions(website, mode)
+    actions = [
+      {
+        kind: :button,
+        label: mode == "active" ? "Run transition check again" : "Run transition check",
+        path: distillator_transition_checks_path(website_id: website.id),
+        method: :post,
+        params: {}
+      }
+    ]
+
+    if %w[legacy shadow].include?(mode) && website_transition_runtime_override_allowed?
+      actions << {
+        kind: :override,
+        label: "Activate anyway",
+        path: activate_anyway_website_path(website),
+        method: :post,
+        copy: website_show_override_copy
+      }
+    end
+
+    actions
+  end
+
+  def website_transition_navigation_links(website)
+    [
+      { label: "Website", path: website_path(website) },
+      { label: "Webpages", path: webpages_path(seedurl: website.seedurl) },
+      { label: "Sources", path: sources_path(seedurl: website.seedurl) },
+      { label: "Cache", path: distillator_cache_index_path },
+      { label: "Transition report", path: distillator_shadow_report_site_path(website) },
+      { label: "Options", path: options_path }
+    ]
+  end
+
+  def website_transition_recommendation_for(mode, blockers:, warnings:)
+    case mode
+    when "legacy"
+      "Move to shadow before promoting Condenser to production."
+    when "shadow"
+      return "Promote to active when the current checks are satisfactory." if blockers.blank?
+
+      "Run transition check and resolve blockers before promoting."
+    when "active"
+      "Use rollback only if production parity regresses."
+    else
+      "Confirm rollout configuration before promotion decisions."
+    end
+  end
+
+  def website_transition_readiness_summary(mode, blockers:, warnings:)
+    return blockers.join(" ") if blockers.any?
+    return warnings.join(" ") if warnings.any?
+
+    case mode
+    when "shadow"
+      "Ready for active promotion."
+    when "active"
+      "Latest recorded checks are clear."
+    else
+      "Transition checks become useful after the site moves to shadow."
+    end
+  end
 
   def website_transition_cache(website)
     @website_transition_caches ||= {}

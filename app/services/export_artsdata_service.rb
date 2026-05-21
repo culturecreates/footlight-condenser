@@ -5,6 +5,10 @@ class ExportArtsdataService
     new(seedurl).call
   end
 
+  def self.production_equivalent(seedurl:)
+    new(seedurl).production_equivalent
+  end
+
   def initialize(seedurl)
     @seedurl = seedurl
   end
@@ -16,9 +20,7 @@ class ExportArtsdataService
       puts "Grouping: #{(Time.current - grouped_started_at).round(3)}s"
     end
 
-    publishable_events = grouped_events.filter_map do |rdf_uri, event_data|
-      rdf_uri if event_publishable?(event_data)
-    end
+    publishable_events = publishable_events_for(grouped_events)
 
     dump_started_at = Time.current if timing_enabled?
     dump = JsonldGenerator.dump_events(publishable_events)
@@ -27,6 +29,10 @@ class ExportArtsdataService
     end
 
     dump
+  end
+
+  def production_equivalent
+    JsonldGenerator.dump_events_old(production_equivalent_publishable_events)
   end
 
   private
@@ -99,5 +105,15 @@ class ExportArtsdataService
 
   def timing_enabled?
     ENV["EXPORT_ARTSDATA_TIMING"].present?
+  end
+
+  def production_equivalent_publishable_events
+    publishable_events_for(website_statements_by_event)
+  end
+
+  def publishable_events_for(grouped_events)
+    grouped_events.filter_map do |rdf_uri, event_data|
+      rdf_uri if event_publishable?(event_data)
+    end
   end
 end

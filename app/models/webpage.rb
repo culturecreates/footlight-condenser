@@ -3,6 +3,8 @@ class Webpage < ApplicationRecord
   belongs_to :website
   belongs_to :jsonld_output, optional: true
   has_many :statements, dependent: :destroy
+  scope :transition_candidates, -> { order(:archive_date, :id) }
+  scope :event_pages, -> { joins(:rdfs_class).where(rdfs_classes: { name: "Event" }) }
   validates :url, uniqueness: { scope: :website_id }
   validates :rdf_uri, presence: true
 

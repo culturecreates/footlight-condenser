@@ -20,6 +20,13 @@ module Distillator
       new(value).normalize
     end
 
+    def self.blank_export?(value)
+      normalized = normalize(value)
+      normalized.blank? || %w[[] {}].include?(normalized)
+    rescue StandardError
+      value.blank?
+    end
+
     def initialize(value)
       @value = value
     end

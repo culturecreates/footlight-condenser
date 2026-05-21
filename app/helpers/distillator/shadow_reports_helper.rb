@@ -59,7 +59,13 @@ module Distillator::ShadowReportsHelper
 
   def shadow_report_action_links(row)
     safe_join(
-      shadow_report_actions(row).map { |action| link_to(action.fetch(:label), action.fetch(:url)) },
+      shadow_report_actions(row).map do |action|
+        if action[:kind] == :button
+          button_to(action.fetch(:label), action.fetch(:url), method: action.fetch(:method, :post), params: action.fetch(:params, {}), class: "website-transition-button")
+        else
+          link_to(action.fetch(:label), action.fetch(:url))
+        end
+      end,
       " | "
     )
   end
@@ -106,6 +112,12 @@ module Distillator::ShadowReportsHelper
       "Passed"
     when :failed
       "Failed"
+    when :not_evaluated
+      "Not evaluated"
+    when :blocked_by_fetch
+      "Blocked by fetch"
+    when :inconclusive
+      "Inconclusive"
     when :stale
       "Stale"
     else
@@ -131,11 +143,30 @@ module Distillator::ShadowReportsHelper
   def transition_blocker_cards(counts)
     [
       shadow_report_summary_card("Failed fetch", counts[:failed_fetch], "failed", "Sites blocked by failed fetch checks."),
-      shadow_report_summary_card("Missing statement evidence", counts[:missing_statement_evidence], "warning", "Sites still missing statement evidence."),
+      shadow_report_summary_card("Statement check not yet recorded", counts[:missing_statement_evidence], "warning", "Sites still missing a recorded statement check."),
       shadow_report_summary_card("Missing export evidence", counts[:missing_export_evidence], "warning", "Sites still missing export evidence."),
       shadow_report_summary_card("Stale evidence", counts[:stale_evidence], "warning", "Sites that need evidence refreshed."),
       shadow_report_summary_card("Redirect/cache health review", counts[:redirect_cache_health_review], "warning", "Sites that need redirect or cache-health review.")
     ]
+  end
+
+  def shadow_report_transition_evidence_rows(detail)
+    detail.transition_evidence_explanations.map do |explanation|
+      shadow_report_transition_evidence_row(explanation, detail)
+    end
+  end
+
+  def shadow_report_transition_evidence_status_label(status)
+    case status.to_sym
+    when :passed, :checked
+      "passed"
+    when :failed
+      "failed"
+    when :stale
+      "stale"
+    else
+      "missing"
+    end
   end
 
   def shadow_report_transition_evidence_block(evidence)
@@ -148,6 +179,64 @@ module Distillator::ShadowReportsHelper
     pieces << "Statement delta: #{evidence.statement_delta}" if evidence.statement_delta.present?
     pieces << "Export diff status: #{evidence.export_diff_status}" if evidence.export_diff_status.present?
     content_tag(:p, pieces.join(" | "))
+  end
+
+  def shadow_report_check_icon(state)
+    case state.to_sym
+    when :passed
+      "✓"
+    when :failed
+      "✗"
+    when :not_evaluated, :blocked_by_fetch, :inconclusive
+      "!"
+    when :stale
+      "!"
+    else
+      "?"
+    end
+  end
+
+  def shadow_report_decision_label(decision)
+    decision.fetch(:label)
+  end
+
+  def shadow_report_primary_blocker_heading(blocker)
+    blocker ? blocker.check : "None"
+  end
+
+  def shadow_report_scope_lines(scope)
+    lines = []
+    lines << "Representative webpages checked: #{scope[:representative_webpage_count]} of #{scope[:candidate_webpage_count]}"
+    lines << "Selection rule: #{scope[:selection_rule]}"
+    lines << "Statements refreshed: #{scope[:statements_refreshed_count]}"
+    lines << "Statements failed: #{scope[:statements_failed_count]}"
+    lines << "Export compared: #{scope[:export_compared] ? 'yes' : 'no'}"
+    lines << "Export basis: #{scope[:export_basis]}"
+    lines
+  end
+
+  def shadow_report_scope_warning(scope)
+    return unless scope[:sample_small]
+
+    "This check used a limited sample of representative webpages."
+  end
+
+  def shadow_report_explanation_links(explanation, website)
+    explanation.links.map do |link|
+      path =
+        case link[:target]
+        when :statements
+          statements_path(seedurl: website.seedurl)
+        when :transition_report
+          distillator_shadow_report_site_path(website)
+        when :cache
+          distillator_cache_index_path
+        else
+          website_path(website)
+        end
+
+      link_to(link[:label], path)
+    end
   end
 
   private
@@ -179,6 +268,34 @@ module Distillator::ShadowReportsHelper
       links << link if link[:label].present? && link[:url].present?
     end
 
+    if row.website.distillator_mode == "shadow"
+      links << {
+        kind: :button,
+        label: "Run transition check",
+        url: distillator_transition_checks_path,
+        method: :post,
+        params: {
+          website_id: row.website.id,
+          return_to: request.fullpath
+        }
+      }
+    end
+
     links.uniq { |link| [link[:label], link[:url]] }
+  end
+
+  def shadow_report_transition_evidence_row(explanation, detail)
+    evidence = detail.transition_evidence_by_kind[explanation.key]
+
+    {
+      label: explanation.check,
+      status: shadow_report_transition_evidence_status_label(explanation.state),
+      checked_at: shadow_report_timestamp(evidence&.checked_at),
+      url: evidence&.url.presence || "Not recorded",
+      headline: explanation.headline,
+      next_action: explanation.next_action,
+      details: explanation.details,
+      links: shadow_report_explanation_links(explanation, detail.summary.website)
+    }
   end
 end

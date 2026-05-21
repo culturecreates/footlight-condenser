@@ -1,31 +1,67 @@
 module Distillator
   class TransitionCheckRunner
-    Result = Struct.new(:website, :records, keyword_init: true)
+    Result = Struct.new(:website, :records, keyword_init: true) do
+      def flash_message
+        prefix = complete? ? "Transition check recorded:" : "Transition check incomplete:"
+        "#{prefix} #{summary_items.join(', ')}"
+      end
+
+      def complete?
+        summary_statuses.values.all? { |status| status == "checked" }
+      end
+
+      def summary_statuses
+        records.transform_values do |record|
+          case record.status.to_s
+          when "checked", "accepted"
+            "checked"
+          when "failed", "blocked", "rejected"
+            "failed"
+          else
+            "missing"
+          end
+        end
+      end
+
+      private
+
+      def summary_items
+        [
+          "fetch #{summary_statuses.fetch(:fetch_parity)}",
+          "statements #{summary_statuses.fetch(:statement_delta)}",
+          "export #{summary_statuses.fetch(:export_diff)}"
+        ]
+      end
+    end
 
     def self.call(...)
       new(...).call
     end
 
-    def initialize(website:)
+    def initialize(website:, refresh_helper: nil, refresh_runner: Distillator::RefreshRunner, export_service: ExportArtsdataService)
       @website = website.is_a?(Website) ? website : Website.find(website)
+      @refresh_helper = refresh_helper || StatementsHelper.build_refresh_proxy(cookies: {})
+      @refresh_runner = refresh_runner
+      @export_service = export_service
     end
 
     def call
       transition_check = Distillator::TransitionCheck.call(website: website)
+      representative_webpages = Array(transition_check.representative_webpages)
 
       Result.new(
         website: website,
         records: {
           fetch_parity: record_fetch_check(transition_check),
-          statement_delta: record_statement_check(transition_check),
-          export_diff: record_export_check(transition_check)
+          statement_delta: record_statement_check(transition_check, representative_webpages),
+          export_diff: record_export_check(transition_check, representative_webpages)
         }
       )
     end
 
     private
 
-    attr_reader :website
+    attr_reader :website, :refresh_helper, :refresh_runner, :export_service
 
     def record_fetch_check(transition_check)
       latest_cache = transition_check.cache
@@ -43,51 +79,171 @@ module Distillator
       )
     end
 
-    def record_statement_check(transition_check)
+    def record_statement_check(transition_check, representative_webpages)
       latest_cache = transition_check.cache
-      signal = cache_signal(latest_cache, "statement_count_delta_acceptable")
-      status =
-        if signal == true || signal.to_s == "true" || signal.to_s == "1"
-          :checked
-        elsif signal == false || signal.to_s == "false" || signal.to_s == "0"
-          :failed
-        else
-          :pending
-        end
+      return record_missing_representatives(latest_cache, :statement_delta, transition_check) if representative_webpages.blank?
+
+      statements_scope = representative_statement_scope(representative_webpages)
+      if transition_check.fetch == :failed
+        return Distillator::TransitionEvidenceRecorder.call(
+          website: website,
+          url: cache_or_seed_url(latest_cache),
+          check_kind: :statement_delta,
+          status: :pending,
+          statement_delta: 0,
+          statement_count_delta_acceptable: nil,
+          details: scope_details(transition_check, representative_webpages).merge(
+            source: "statement_refresh",
+            statements_refreshed_count: 0,
+            statements_failed_count: 0,
+            failing_statement_ids: [],
+            failing_statements: [],
+            reason: "fetch_failed_before_statement_refresh"
+          )
+        )
+      end
+
+      if statements_scope.none?
+        return Distillator::TransitionEvidenceRecorder.call(
+          website: website,
+          url: cache_or_seed_url(latest_cache),
+          check_kind: :statement_delta,
+          status: :pending,
+          statement_delta: 0,
+          statement_count_delta_acceptable: nil,
+          details: scope_details(transition_check, representative_webpages).merge(
+            source: "statement_refresh",
+            statements_refreshed_count: 0,
+            statements_failed_count: 0,
+            failing_statement_ids: [],
+            failing_statements: [],
+            reason: "no_selected_statements"
+          )
+        )
+      end
+
+      refresh_errors = representative_webpages.flat_map do |webpage|
+        refresh_runner.call(
+          webpage: webpage,
+          refresh_helper: refresh_helper,
+          scrape_options: { force_scrape_every_hrs: 0 }
+        )
+      end
+      failing_statements = representative_problem_statements(representative_webpages)
+      scope_statements = statements_scope.to_a
+      reported_failing_statements = refresh_errors.present? ? scope_statements : failing_statements
+      statement_delta = failing_statements.count
+      details = scope_details(transition_check, representative_webpages).merge(
+        source: "statement_refresh",
+        statements_refreshed_count: statements_scope.count,
+        statements_failed_count: [statement_delta, reported_failing_statements.count].max,
+        failing_statement_ids: reported_failing_statements.map(&:id),
+        failing_statements: failing_statement_details(reported_failing_statements)
+      )
+
+      if refresh_errors.present?
+        status = :failed
+        details[:reason] = "statement_refresh_failed"
+        details[:refresh_errors] = compact_refresh_errors(refresh_errors)
+      elsif statement_delta.zero?
+        status = :checked
+      else
+        status = :failed
+      end
 
       Distillator::TransitionEvidenceRecorder.call(
         website: website,
         url: cache_or_seed_url(latest_cache),
         check_kind: :statement_delta,
         status: status,
-        statement_count_delta_acceptable: status == :checked ? true : (status == :failed ? false : nil),
-        details: { source: "cache_signals" }
+        statement_delta: statement_delta,
+        statement_count_delta_acceptable: status == :checked ? true : false,
+        details: details
+      )
+    rescue StandardError => error
+      Distillator::TransitionEvidenceRecorder.call(
+        website: website,
+        url: cache_or_seed_url(latest_cache),
+        check_kind: :statement_delta,
+        status: :failed,
+        statement_count_delta_acceptable: false,
+        details: failure_details("statement_refresh_failed", error)
       )
     end
 
-    def record_export_check(transition_check)
+    def record_export_check(transition_check, representative_webpages)
       latest_cache = transition_check.cache
-      status_value = cache_signal(latest_cache, "export_diff_status").to_s
-      checked_value = cache_signal(latest_cache, "export_diff_checked")
-      accepted_value = cache_signal(latest_cache, "export_diff_accepted")
-      status =
-        if %w[checked accepted].include?(status_value) || truthy?(checked_value) || truthy?(accepted_value)
-          :checked
-        elsif %w[failed blocked rejected].include?(status_value)
-          :failed
-        else
-          :pending
-        end
+      return record_missing_representatives(latest_cache, :export_diff, transition_check) if representative_webpages.blank?
+
+      if transition_check.fetch == :failed
+        return Distillator::TransitionEvidenceRecorder.call(
+          website: website,
+          url: cache_or_seed_url(latest_cache),
+          check_kind: :export_diff,
+          status: :pending,
+          export_diff_status: "pending",
+          details: scope_details(transition_check, representative_webpages).merge(
+            source: "export_comparison",
+            export_compared: false,
+            export_basis: "current export vs production-equivalent export",
+            reason: "fetch_failed_before_export_comparison"
+          )
+        )
+      end
+
+      actual = export_service.call(seedurl: website.seedurl)
+      expected = export_service.production_equivalent(seedurl: website.seedurl)
+      if Distillator::ExportNormalizer.blank_export?(actual) || Distillator::ExportNormalizer.blank_export?(expected)
+        return Distillator::TransitionEvidenceRecorder.call(
+          website: website,
+          url: cache_or_seed_url(latest_cache),
+          check_kind: :export_diff,
+          status: :pending,
+          export_diff_status: "pending",
+          details: scope_details(transition_check, representative_webpages).merge(
+            source: "export_comparison",
+            export_compared: false,
+            export_basis: "current export vs production-equivalent export",
+            reason: "export_diff_not_available"
+          )
+        )
+      end
+
+      normalized_actual = Distillator::ExportNormalizer.normalize(actual)
+      normalized_expected = Distillator::ExportNormalizer.normalize(expected)
+      diff = Distillator::GraphDiff.call(expected_graph: normalized_expected, actual_graph: normalized_actual)
+      failed = diff.added_count.positive? || diff.removed_count.positive? || diff.changed_literal_values.any? || diff.changed_uri_objects.any?
+      status = failed ? :failed : :checked
 
       Distillator::TransitionEvidenceRecorder.call(
         website: website,
         url: cache_or_seed_url(latest_cache),
         check_kind: :export_diff,
         status: status,
-        export_diff_checked: status == :checked ? true : nil,
-        export_diff_status: status == :pending ? "pending" : status.to_s,
-        export_diff_accepted: truthy?(accepted_value),
-        details: { source: "cache_signals" }
+        export_diff_checked: status == :checked,
+        export_diff_status: status.to_s,
+        export_diff_accepted: false,
+        rdf_added_count: diff.added_count,
+        rdf_removed_count: diff.removed_count,
+        details: scope_details(transition_check, representative_webpages).merge(
+          source: "export_comparison",
+          export_compared: true,
+          export_basis: "current export vs production-equivalent export",
+          changed_literal_values: diff.changed_literal_values.first(10),
+          changed_uri_objects: diff.changed_uri_objects.first(10)
+        )
+      )
+    rescue StandardError => error
+      Distillator::TransitionEvidenceRecorder.call(
+        website: website,
+        url: cache_or_seed_url(latest_cache),
+        check_kind: :export_diff,
+        status: :failed,
+        export_diff_status: "failed",
+        details: scope_details(transition_check, representative_webpages).merge(
+          export_compared: false,
+          export_basis: "current export vs production-equivalent export"
+        ).merge(failure_details("export_generation_failed", error))
       )
     end
 
@@ -115,6 +271,78 @@ module Distillator
 
     def truthy?(value)
       value == true || value.to_s == "true" || value.to_s == "1"
+    end
+
+    def record_missing_representatives(latest_cache, check_kind, transition_check)
+      Distillator::TransitionEvidenceRecorder.call(
+        website: website,
+        url: cache_or_seed_url(latest_cache),
+        check_kind: check_kind,
+        status: :pending,
+        export_diff_status: check_kind == :export_diff ? "pending" : nil,
+        details: scope_details(transition_check, []).merge(
+          source: "transition_check",
+          export_compared: check_kind == :export_diff ? false : nil,
+          export_basis: check_kind == :export_diff ? "current export vs production-equivalent export" : nil,
+          statements_refreshed_count: check_kind == :statement_delta ? 0 : nil,
+          statements_failed_count: check_kind == :statement_delta ? 0 : nil,
+          reason: "no_representative_webpages"
+        ).compact
+      )
+    end
+
+    def representative_statement_scope(representative_webpages)
+      Statement
+        .selected_for_transition
+        .includes(:source, :webpage)
+        .where(webpage_id: representative_webpages.map(&:id))
+    end
+
+    def representative_problem_statements(representative_webpages)
+      representative_statement_scope(representative_webpages)
+        .select(&:transition_problem?)
+    end
+
+    def failing_statement_details(statements)
+      statements.map do |statement|
+        {
+          id: statement.id,
+          webpage_url: statement.webpage&.url,
+          source: [statement.source&.property&.label, statement.source&.language].compact.join(" / ")
+        }
+      end
+    end
+
+    def compact_refresh_errors(refresh_errors)
+      Array(refresh_errors).flat_map do |entry|
+        entry.to_h.flat_map do |label, messages|
+          next "#{label}: unknown error" if messages.blank?
+
+          Array(messages).map do |message|
+            detail = message.is_a?(Hash) ? message.to_h : message
+            "#{label}: #{detail.inspect}"
+          end
+        end
+      end.compact
+    end
+
+    def failure_details(reason, error)
+      {
+        source: "transition_check",
+        reason: reason,
+        error_class: error.class.name,
+        error_message: error.message
+      }
+    end
+
+    def scope_details(transition_check, representative_webpages)
+      {
+        representative_webpages: representative_webpages.map(&:url),
+        representative_webpage_count: representative_webpages.count,
+        candidate_webpage_count: transition_check.candidate_webpage_count,
+        selection_rule: transition_check.selection_rule,
+        sample_small: transition_check.candidate_webpage_count.to_i > representative_webpages.count
+      }
     end
   end
 end

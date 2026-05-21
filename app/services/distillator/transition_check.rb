@@ -1,5 +1,7 @@
 module Distillator
   class TransitionCheck
+    SELECTION_RULE = "Event pages first, ordered by archive date".freeze
+
     Result = Struct.new(
       :website_id,
       :website,
@@ -16,6 +18,10 @@ module Distillator
       :fetch,
       :statements,
       :export,
+      :representative_webpages,
+      :representative_webpage_count,
+      :candidate_webpage_count,
+      :selection_rule,
       :cache,
       :cache_link_payload,
       keyword_init: true
@@ -48,6 +54,10 @@ module Distillator
         fetch: transition_status.fetch,
         statements: transition_status.statements,
         export: transition_status.export,
+        representative_webpages: representative_webpages,
+        representative_webpage_count: representative_webpages.count,
+        candidate_webpage_count: candidate_webpage_count,
+        selection_rule: SELECTION_RULE,
         cache: cache,
         cache_link_payload: cache_link_payload
       )
@@ -84,6 +94,21 @@ module Distillator
       Array(cache_link_payload[:secondary_links]).any? do |link|
         link[:label] == Distillator::RolloutCopy.compare_label && link[:url].present?
       end
+    end
+
+    def representative_webpages
+      representative_scope.limit(3).to_a
+    end
+
+    def candidate_webpage_count
+      representative_scope.count
+    end
+
+    def representative_scope
+      event_scope = website.webpages.event_pages.transition_candidates
+      return event_scope if event_scope.exists?
+
+      website.webpages.transition_candidates
     end
   end
 end

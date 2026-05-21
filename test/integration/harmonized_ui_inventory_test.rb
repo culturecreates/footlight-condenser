@@ -194,6 +194,7 @@ class HarmonizedUiInventoryTest < ActionDispatch::IntegrationTest
 
   CURRENT_BRANCH_ONLY_FILES = [
     "app/controllers/distillator/cache_controller.rb",
+    "app/views/shared/_transition_context.html.erb",
     "app/views/distillator/cache/index.html.erb",
     "app/views/distillator/cache/show.html.erb",
     "test/controllers/distillator/cache_controller_test.rb"

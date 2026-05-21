@@ -6,6 +6,14 @@ module StatementsHelper
   include CcWringerHelper
   Page = Struct.new(:text) # Used to simulate Nokogiri object's text method
 
+  def self.build_refresh_proxy(cookies: {})
+    helper = Object.new
+    helper.extend(StatementsHelper)
+    helper.instance_variable_set(:@_statement_refresh_cookies, cookies.with_indifferent_access)
+    helper.define_singleton_method(:cookies) { @_statement_refresh_cookies }
+    helper
+  end
+
 # :nocov:
   def process_algorithm_with_trace(algorithm:, render_js: false, language: "en", url:, scrape_options: {})
     collector = Dsl::Tracing::TraceCollector.new

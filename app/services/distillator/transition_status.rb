@@ -1,6 +1,6 @@
 module Distillator
   class TransitionStatus
-    CHECK_RESULTS = %i[passed failed missing stale].freeze
+    CHECK_RESULTS = %i[passed failed missing stale not_evaluated blocked_by_fetch inconclusive].freeze
     STATUSES = %i[ready review blocked not_checked].freeze
 
     Result = Struct.new(
@@ -8,6 +8,9 @@ module Distillator
       :fetch,
       :statements,
       :export,
+      :checks,
+      :activation_recommendation,
+      :evidence_statuses,
       :blockers,
       :warnings,
       :last_checked,
@@ -31,6 +34,9 @@ module Distillator
         fetch: fetch_status,
         statements: statements_status,
         export: export_status,
+        checks: checks,
+        activation_recommendation: activation_recommendation,
+        evidence_statuses: evidence_statuses,
         blockers: blockers,
         warnings: warnings,
         last_checked: last_checked
@@ -54,9 +60,13 @@ module Distillator
       reasons << "Cannot activate yet: fetch check failed." if fetch_status == :failed
       reasons << "Cannot activate yet: fetch check is stale." if fetch_status == :stale && lavitrine_pipeline?
       reasons << "Cannot activate yet: statements check failed." if statements_status == :failed
+      reasons << "Cannot activate yet: statements could not be evaluated until fetch/cache is fixed." if statements_status == :not_evaluated && fetch_status != :failed
+      reasons << "Cannot activate yet: statements check is inconclusive." if statements_status == :inconclusive
       reasons << "Cannot activate yet: statements check is missing." if lavitrine_pipeline? && statements_status == :missing
       reasons << "Cannot activate yet: statements check is stale." if lavitrine_pipeline? && statements_status == :stale
       reasons << "Cannot activate yet: export check failed." if export_status == :failed
+      reasons << "Cannot activate yet: export comparison could not be evaluated until fetch/cache is fixed." if export_status == :blocked_by_fetch && fetch_status != :failed
+      reasons << "Cannot activate yet: export check is inconclusive." if export_status == :inconclusive
       reasons << "Cannot activate yet: export check is missing." if lavitrine_pipeline? && export_status == :missing
       reasons << "Cannot activate yet: export check is stale." if lavitrine_pipeline? && export_status == :stale
       reasons.uniq
@@ -67,8 +77,10 @@ module Distillator
       reasons << "Needs review: fetch check is stale." if fetch_status == :stale && !lavitrine_pipeline?
       reasons << "Needs review: statements check is missing." if !lavitrine_pipeline? && statements_status == :missing
       reasons << "Needs review: statements check is stale." if !lavitrine_pipeline? && statements_status == :stale
+      reasons << "Needs review: statements check is inconclusive." if !lavitrine_pipeline? && statements_status == :inconclusive
       reasons << "Needs review: export check is missing." if !lavitrine_pipeline? && export_status == :missing
       reasons << "Needs review: export check is stale." if !lavitrine_pipeline? && export_status == :stale
+      reasons << "Needs review: export check is inconclusive." if !lavitrine_pipeline? && export_status == :inconclusive
       reasons << "Needs review: export check is stale." if export_status == :stale && export_diff_evidence&.export_diff_accepted?
       reasons << "Needs review: fetch result redirected." if redirect_changed?
       reasons << "Needs review: latest successful refresh is stale." if stale_successful_refresh?
@@ -87,6 +99,8 @@ module Distillator
       evidence = statement_delta_evidence
       return :missing if lavitrine_pipeline? && !evidence.present?
       return signal_status("statement_count_delta_acceptable") unless evidence.present?
+      return :not_evaluated if fetch_prevented_statement_refresh?(evidence)
+      return :inconclusive if no_selected_statements?(evidence)
       return :missing if evidence.status.to_s == "pending"
       return :failed if evidence.status.to_s.in?(%w[failed blocked rejected]) || evidence.acceptable_statement_delta? == false
       return :stale if evidence.checked_at < now - evidence_stale_after
@@ -99,6 +113,8 @@ module Distillator
       evidence = export_diff_evidence
       return :missing if lavitrine_pipeline? && !evidence.present?
       return export_status_from_cache unless evidence.present?
+      return :blocked_by_fetch if fetch_prevented_export_comparison?(evidence)
+      return :inconclusive if export_diff_not_available?(evidence)
       return :missing if evidence.status.to_s == "pending"
       return :failed if evidence.status.to_s.in?(%w[failed blocked rejected]) || explicit_false?(evidence.export_diff_checked)
       return :stale if export_evidence_stale?(evidence)
@@ -187,8 +203,80 @@ module Distillator
       evidence_by_kind.values.any?(&:present?)
     end
 
+    def evidence_statuses
+      {
+        "fetch_parity" => transition_evidence_status(fetch_parity_evidence),
+        "statement_delta" => transition_evidence_status(statement_delta_evidence),
+        "export_diff" => transition_evidence_status(export_diff_evidence)
+      }
+    end
+
+    def checks
+      [
+        { key: "fetch_parity", label: "Fetch parity", state: fetch_status },
+        { key: "statement_delta", label: "Statements", state: statements_status },
+        { key: "export_diff", label: "Export", state: export_status }
+      ]
+    end
+
+    def activation_recommendation
+      {
+        label: activation_label,
+        reason: activation_reason,
+        next_action: activation_next_action
+      }
+    end
+
+    def activation_label
+      case overall_status
+      when :blocked
+        "Blocked"
+      when :review
+        "Needs review"
+      when :ready
+        "Ready"
+      else
+        "Not checked"
+      end
+    end
+
+    def activation_reason
+      return primary_blocker_reason if primary_blocker_reason.present?
+      return blockers.first if blockers.any?
+      return warnings.first if warnings.any?
+      return "All transition checks are currently passing." if overall_status == :ready
+
+      "Run the transition check to record current evidence."
+    end
+
+    def activation_next_action
+      return "Fix fetch/cache first, then rerun the transition check." if fetch_status == :failed
+      return "Verify selected sources/statements for the sampled webpages." if statements_status == :inconclusive
+      return "Fix the blocking check, then rerun the transition check." if blockers.any?
+      return "Review the warning and rerun the transition check if needed." if warnings.any?
+      return "Promote to active when you are satisfied with the evidence." if overall_status == :ready
+
+      "Run the transition check to record current evidence."
+    end
+
+    def transition_evidence_status(evidence)
+      return :missing unless evidence.present?
+      return :not_evaluated if fetch_prevented_statement_refresh?(evidence)
+      return :blocked_by_fetch if fetch_prevented_export_comparison?(evidence)
+      return :inconclusive if no_selected_statements?(evidence) || export_diff_not_available?(evidence)
+      return :missing if evidence.status.to_s == "pending"
+      return :failed if evidence.status.to_s.in?(%w[failed blocked rejected])
+      return :stale if evidence.checked_at < now - evidence_stale_after
+
+      :checked
+    end
+
     def evidence_by_kind
       @evidence_by_kind ||= website.respond_to?(:latest_transition_evidences_by_kind) ? website.latest_transition_evidences_by_kind : {}
+    end
+
+    def fetch_parity_evidence
+      evidence_by_kind["fetch_parity"]
     end
 
     def statement_delta_evidence
@@ -219,6 +307,37 @@ module Distillator
 
     def explicit_false?(value)
       value == false || value.to_s == "false" || value.to_s == "0"
+    end
+
+    def primary_blocker_reason
+      return "Cannot activate yet: fetch check failed." if fetch_status == :failed
+      return "Cannot activate yet: fetch check is stale." if fetch_status == :stale && lavitrine_pipeline?
+      return "Cannot activate yet: statements could not be evaluated until fetch/cache is fixed." if statements_status == :not_evaluated
+      return "Cannot activate yet: statements check is inconclusive." if statements_status == :inconclusive
+      return "Cannot activate yet: statements check failed." if statements_status == :failed
+      return "Cannot activate yet: export comparison could not be evaluated until fetch/cache is fixed." if export_status == :blocked_by_fetch
+      return "Cannot activate yet: export check is inconclusive." if export_status == :inconclusive
+      return "Cannot activate yet: export check failed." if export_status == :failed
+    end
+
+    def evidence_reason(evidence)
+      evidence&.details.to_h&.[]("reason") || evidence&.details.to_h&.[](:reason)
+    end
+
+    def fetch_prevented_statement_refresh?(evidence)
+      evidence_reason(evidence) == "fetch_failed_before_statement_refresh"
+    end
+
+    def no_selected_statements?(evidence)
+      evidence_reason(evidence) == "no_selected_statements"
+    end
+
+    def fetch_prevented_export_comparison?(evidence)
+      evidence_reason(evidence) == "fetch_failed_before_export_comparison"
+    end
+
+    def export_diff_not_available?(evidence)
+      evidence_reason(evidence) == "export_diff_not_available"
     end
   end
 end

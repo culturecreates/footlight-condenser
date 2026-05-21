@@ -37,8 +37,6 @@ module OperatorContextHelper
 
   def operator_context_status_rows(context)
     rows = []
-    rows << ["Rollout", operator_rollout_badge(context[:rollout])] if context[:rollout].present?
-    rows << ["Active backend", operator_active_backend_badge(context[:cache_links])] if context[:cache_links].present?
 
     if context[:cache_payload].present?
       rows << ["Cache health", cache_health_badge(context[:cache_payload])]
@@ -93,10 +91,6 @@ module OperatorContextHelper
     cache_links = context[:cache_links] || {}
 
     rows = []
-    rows << ["Website", website.name] if website.present?
-    rows << ["Website mode", website.distillator_mode] if website.respond_to?(:distillator_mode)
-    rows << ["Execution mode", cache_links[:mode]] if cache_links[:mode].present?
-    rows << ["Rollout source", cache_links[:source]] if cache_links[:source].present?
     rows << ["Selected URL", operator_context_url(webpage: webpage, statement: statement, cache_payload: context[:cache_payload], cache: cache)] if webpage.present? || statement.present? || cache.present? || context[:cache_payload].present?
     rows << ["Webpage", webpage.url] if webpage.present?
     rows << ["Source", source_property_language_text(source)] if source.present?

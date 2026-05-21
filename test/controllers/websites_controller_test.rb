@@ -64,10 +64,12 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
     assert_response :success
     assert_select 'details[data-operator-context-card]', 0
-    assert_includes @response.body, "Production transition"
-    assert_includes @response.body, "Current public mode:"
+    assert_includes @response.body, "Transition"
+    assert_includes @response.body, "Current mode:"
     assert_includes @response.body, "Production backend:"
+    assert_includes @response.body, "Next recommended action:"
     assert_includes @response.body, "Readiness:"
+    assert_includes @response.body, "Latest rollout event:"
     assert_includes @response.body, "Shadow comparison"
     assert_includes @response.body, "Wringer"
     assert_includes @response.body, "Run transition check"
@@ -76,7 +78,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Batch jobs"
     assert_includes @response.body, "Danger zone"
     assert_includes @response.body, "Edit"
-    assert_includes @response.body, "Back"
+    assert_not_includes @response.body, "Back"
     assert_not_includes @response.body, "/distillator/cache/preview?uri=#{CGI.escape(@website.seedurl)}"
     assert_no_cohort_source_requests
   end
@@ -172,7 +174,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
 
     assert_response :success
-    assert_includes @response.body, "Inspect Condenser cache before promotion."
+    assert_includes @response.body, "Move to shadow before promoting Condenser to production."
     refute_includes @response.body, "Legacy mode keeps Wringer as the active fetch path."
   end
 
@@ -200,9 +202,33 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Run transition check"
   end
 
+  test "website show for shadow ready site shows promote to active action" do
+    assert_read_only_page_does_not_fetch
+    website = ready_shadow_website(seedurl: "shadow-ready-show")
+
+    get website_url(website)
+
+    assert_response :success
+    assert_includes @response.body, "Promote to active"
+    assert_includes @response.body, "Ready for active promotion."
+    assert_not_includes @response.body, "Cannot promote yet"
+  end
+
+  test "website show for shadow blocked site shows blockers and transition check" do
+    assert_read_only_page_does_not_fetch
+    website = blocked_shadow_website(seedurl: "shadow-blocked-show")
+
+    get website_url(website)
+
+    assert_response :success
+    assert_includes @response.body, "Cannot promote yet"
+    assert_includes @response.body, "Cannot activate yet: statements check failed."
+    assert_includes @response.body, "Run transition check"
+  end
+
   test "website show hides activate anyway when override is not allowed" do
     assert_read_only_page_does_not_fetch
-    @website.update!(distillator_mode: "legacy")
+    @website.update!(distillator_mode: "shadow")
     Distillator::TransitionRuntime.stubs(:allow_active_override?).returns(false)
 
     get website_url(@website)
@@ -222,9 +248,11 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_operator @response.body.scan("Wringer remains the production fetch path").length, :<=, 1
     assert_includes @response.body, "Open Condenser cache"
     assert_includes @response.body, "Refresh upcoming events"
+    assert_includes @response.body, "Destroy website"
+    assert_not_includes @response.body, "Back"
     assert_select "details.website-danger-zone[open]", 0
     assert_select "details.website-danger-zone summary", text: "Danger zone"
-    assert_select "details.website-danger-zone form", 3
+    assert_select "details.website-danger-zone form", 4
   end
 
   test "should get edit" do
@@ -234,6 +262,9 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Legacy - Wringer active"
     assert_includes @response.body, "Shadow - Wringer production path + Condenser comparison"
     assert_includes @response.body, "Active - Condenser active"
+    assert_includes @response.body, "Use the website Transition card for normal promotion, override, and rollback."
+    assert_not_includes @response.body, "Show"
+    assert_not_includes @response.body, "Back"
     assert_not_includes @response.body, "new cache"
     assert_not_includes @response.body, ">internal<"
   end
@@ -887,23 +918,25 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
 
     assert_response :success
-    assert_includes @response.body, "Production transition"
-    assert_includes @response.body, "Current public mode:</strong> Legacy Wringer active"
+    assert_includes @response.body, "Transition"
+    assert_includes @response.body, "Current mode:</strong> Legacy Wringer active"
     assert_includes @response.body, "Production backend:</strong> Wringer"
-    assert_includes @response.body, "Next recommended action:</strong> Inspect Condenser cache before promotion."
+    assert_includes @response.body, "Next recommended action:</strong> Move to shadow before promoting Condenser to production."
+    assert_includes @response.body, "Move to shadow"
     assert_includes @response.body, "Open Condenser cache"
   end
 
   test "website detail shows rollout panel for shadow website" do
     assert_read_only_page_does_not_fetch
-    @website.update!(distillator_mode: "shadow")
+    website = ready_shadow_website(seedurl: "rollout-panel-shadow")
 
-    get website_url(@website)
+    get website_url(website)
 
     assert_response :success
-    assert_includes @response.body, "Current public mode:</strong> Shadow comparison"
+    assert_includes @response.body, "Current mode:</strong> Shadow comparison"
     assert_includes @response.body, "Production backend:</strong> Wringer"
     assert_includes @response.body, "Readiness:</strong>"
+    assert_includes @response.body, "Promote to active"
     assert_includes @response.body, "Run transition check"
     assert_includes @response.body, "Compare Condenser vs Wringer"
   end
@@ -915,7 +948,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
 
     assert_response :success
-    assert_includes @response.body, "Current public mode:</strong> Condenser active"
+    assert_includes @response.body, "Current mode:</strong> Condenser active"
     assert_includes @response.body, "Production backend:</strong> Condenser"
     assert_includes @response.body, "Latest rollout event:</strong>"
     assert_includes @response.body, "Rollback to Legacy Wringer"
@@ -957,7 +990,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
 
     assert_response :success
-    assert_includes @response.body, "Production transition"
+    assert_includes @response.body, "Transition"
     assert_includes @response.body, Distillator::RolloutCopy.label(:active)
     assert_not_includes @response.body, Distillator::RolloutCopy.rollout_panel_title
     assert_not_includes @response.body, "Distillator rollout"
@@ -965,6 +998,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes @response.body, "new cache"
     assert_not_includes @response.body, "phase I"
     assert_not_includes @response.body, "preview only"
+    assert_not_includes @response.body, "first UI batch"
   end
 
   test "websites index shows rollout summary counts" do
@@ -1064,6 +1098,64 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def ready_shadow_website(seedurl:)
+    website = Website.create!(
+      name: "Ready shadow #{seedurl}",
+      seedurl: seedurl,
+      graph_name: "https://example.org/#{seedurl}",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+    url = "https://example.org/#{seedurl}/event"
+    website.webpages.create!(url: url, language: "en", rdf_uri: "rdf:#{seedurl}", rdfs_class: rdfs_classes(:one))
+    Distillator::FetchCache.create!(
+      uri_key: CGI.escape(url),
+      normalized_url: url,
+      html: "<html>ok</html>",
+      body: "<html>ok</html>",
+      scrape_date: 1.hour.ago,
+      successful_refresh: 1.hour.ago,
+      headers: {},
+      signals: { "transport_success" => true, "content_success" => true },
+      final_url: url
+    )
+    website.transition_evidences.create!(url: url, check_kind: "fetch_parity", status: "checked", details: { representative_urls_checked: true }, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
+    website
+  end
+
+  def blocked_shadow_website(seedurl:)
+    website = Website.create!(
+      name: "Blocked shadow #{seedurl}",
+      seedurl: seedurl,
+      graph_name: "https://example.org/#{seedurl}",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+    url = "https://example.org/#{seedurl}/event"
+    website.webpages.create!(url: url, language: "en", rdf_uri: "rdf:#{seedurl}", rdfs_class: rdfs_classes(:one))
+    Distillator::FetchCache.create!(
+      uri_key: CGI.escape(url),
+      normalized_url: url,
+      html: "<html>ok</html>",
+      body: "<html>ok</html>",
+      scrape_date: 1.hour.ago,
+      successful_refresh: 1.hour.ago,
+      headers: {},
+      signals: { "transport_success" => true, "content_success" => true },
+      final_url: url
+    )
+    website.transition_evidences.create!(
+      url: url,
+      check_kind: "statement_delta",
+      status: "failed",
+      statement_count_delta_acceptable: false,
+      checked_at: 1.hour.ago
+    )
+    website
+  end
 
   def assert_read_only_page_does_not_fetch
     Distillator::FetchCacheStore.expects(:fetch).never

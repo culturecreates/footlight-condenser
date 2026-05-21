@@ -1,7 +1,7 @@
 <h1>Transition Report</h1>
 
 <p class="cache-page-note">This dashboard is read-only. Use it to review legacy, shadow, and active rollout state without triggering fetches.</p>
-<p class="cache-page-note">To update checks for a site, run: <code>bin/rails distillator:transition:check[website_id]</code></p>
+<p class="cache-page-note">Use each site row to run a transition check, then review blockers, warnings, and promotable state without leaving the report.</p>
 
 <%= render "shared/cards/card_grid",
            cards: transition_dashboard_cards(@dashboard_counts),
