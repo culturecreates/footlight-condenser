@@ -629,6 +629,9 @@ module Distillator
         signals[:primary_issue_severity] = issue.dig(:rule, "severity") || issue.dig(:rule, :severity)
         signals[:primary_issue_category] = issue.dig(:rule, "category") || issue.dig(:rule, :category)
         signals[:primary_issue_label] = issue.dig(:rule, "label") || issue.dig(:rule, :label)
+        if issue[:match_details].present?
+          signals[:primary_issue_match] = issue[:match_details].deep_stringify_keys
+        end
         signals[:primary_issue_delete] = issue[:delete] unless issue[:delete].nil?
         signals[:issue_keys] = issue_set.matches.map { |match| match[:key] }.uniq
         payload[:wringer][:matched_rule] = issue[:key]

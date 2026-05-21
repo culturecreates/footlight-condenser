@@ -11,19 +11,26 @@ module Distillator
       end
 
       def summary_statuses
-        records.transform_values do |record|
-          case record.status.to_s
-          when "checked", "accepted"
-            "checked"
-          when "failed", "blocked", "rejected"
-            "failed"
-          else
-            "missing"
-          end
-        end
+        records.transform_values { |record| summary_status_for(record) }
       end
 
       private
+
+      def summary_status_for(record)
+        reason = record.details.to_h["reason"] || record.details.to_h[:reason]
+        return "not evaluated" if reason == "fetch_failed_before_statement_refresh"
+        return "blocked by fetch" if reason == "fetch_failed_before_export_comparison"
+        return "inconclusive" if %w[no_selected_statements export_diff_not_available].include?(reason)
+
+        case record.status.to_s
+        when "checked", "accepted"
+          "checked"
+        when "failed", "blocked", "rejected"
+          "failed"
+        else
+          "missing"
+        end
+      end
 
       def summary_items
         [

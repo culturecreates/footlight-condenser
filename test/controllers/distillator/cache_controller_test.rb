@@ -345,6 +345,86 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_select "span.cache-health-failed", text: "Failed"
   end
 
+  test "show page links normalized url, keeps internal final url unlinked, and shows fetch rejection diagnostics" do
+    website = Website.create!(
+      name: "Cache & Safety <Site>",
+      seedurl: "cache-safety",
+      graph_name: "https://example.org/cache-safety",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+    cache = create_cache(
+      uri: "https://centredecreationdiffusiondegaspe.com/programmation/koros-experiences-vr/",
+      html: nil,
+      body: nil,
+      signals: {
+        "network_status" => "ok",
+        "content_type" => "html",
+        "transport_success" => true,
+        "content_success" => false,
+        "policy_action" => "abort_update",
+        "content_rejected" => true,
+        "fetched_body_state" => "non_empty",
+        "fetched_body_bytes" => 2048,
+        "stored_body_state" => "not_stored",
+        "stored_body_bytes" => 0,
+        "storage_decision" => "abort_update",
+        "cache_body_empty_after_abort" => true,
+        "primary_issue_key" => "generic_error_text",
+        "primary_issue_label" => "Generic error text observed",
+        "primary_issue_match" => {
+          "source" => "body_text",
+          "pattern" => "Une erreur est survenue",
+          "snippet" => "Une erreur est survenue. Veuillez reessayer."
+        }
+      },
+      hints: ["generic_error_text"],
+      final_url: "http://localhost:3000/websites/wring.json?uri=https://centredecreationdiffusiondegaspe.com/programmation/koros-experiences-vr/",
+      http_response_code: 200,
+      successful_refresh: nil
+    )
+    assert_read_only_page_does_not_fetch
+    get website_url(website)
+    assert_response :success
+
+    assert_read_only_page_does_not_fetch
+    get "/distillator/cache/#{cache.id}"
+
+    assert_response :success
+    assert_match %r{all websites</a>\s*\|\s*<a[^>]+href="/websites/#{website.id}">Cache &amp; Safety &lt;Site&gt;</a>\s*\|\s*<a[^>]+href="/webpages"}, @response.body
+    assert_select "a[href='https://centredecreationdiffusiondegaspe.com/programmation/koros-experiences-vr/']", text: "https://centredecreationdiffusiondegaspe.com/programmation/koros-experiences-vr/"
+    assert_no_match %r{<a[^>]+href="http://localhost:3000/websites/wring\.json\?uri=}m, @response.body
+    text = visible_text(@response.body)
+    assert_match "Content rejected by policy", text
+    assert_match "Fetched response: HTTP 200 HTML", text
+    assert_match "Fetched body: non-empty (2,048 bytes)", text
+    assert_match "Stored cache body: empty because the update was aborted", text
+    assert_match "Storage decision: abort_update", text
+    assert_match "Primary issue match: source: body_text | pattern: Une erreur est survenue | snippet: Une erreur est survenue. Veuillez reessayer.", text
+    assert_match "HTTP 200 returned HTML, but content was rejected before cache storage: Generic error text observed", text
+  end
+
+  test "pages without website context keep the default top nav" do
+    cache = create_cache(uri: "https://example.org/no-context")
+    assert_read_only_page_does_not_fetch
+
+    get "/distillator/cache/#{cache.id}"
+
+    assert_response :success
+    assert_match %r{all websites</a>\s*\|\s*<a[^>]+href="/webpages"}, @response.body
+  end
+
+  test "show page keeps non http normalized urls as escaped text instead of external links" do
+    cache = create_cache(uri: "footlight:event:123", final_url: "footlight:event:123")
+    assert_read_only_page_does_not_fetch
+
+    get "/distillator/cache/#{cache.id}"
+
+    assert_response :success
+    assert_match "footlight:event:123", @response.body
+    assert_no_match %r{<a[^>]+href="footlight:event:123"}m, @response.body
+  end
+
   test "compatibility view renders wringer style table headers and preserves post refresh actions" do
     create_cache
     Distillator::FetchCacheStore.expects(:fetch).never

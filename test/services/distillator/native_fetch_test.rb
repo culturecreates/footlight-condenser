@@ -229,6 +229,31 @@ class Distillator::NativeFetchTest < ActiveSupport::TestCase
     assert_equal "https://example.com/final", result.dig(:wringer, :signals, :final_url)
   end
 
+  test "call records generic error match metadata for policy rejected html" do
+    response = Struct.new(:code, :body, :uri, :response).new(
+      200,
+      "<html><body><h1>Une erreur est survenue</h1><p>Retry later.</p></body></html>",
+      URI("https://example.com/final"),
+      { "Content-Type" => "text/html" }
+    )
+    history_entry = Struct.new(:uri).new(URI("https://example.com/final"))
+    agent = mock("agent")
+    agent.expects(:get).with("https://example.com/failure").returns(response)
+    agent.stubs(:history).returns([history_entry])
+
+    result = Distillator::NativeFetch.call(
+      url: "https://example.com/failure",
+      render_js: false,
+      scrape_options: {},
+      agent: agent,
+      logger: Rails.logger
+    )
+
+    assert_equal "generic_error_text", result.dig(:wringer, :signals, :primary_issue_key)
+    assert_equal "body_text", result.dig(:wringer, :signals, :primary_issue_match, "source")
+    assert_equal "Une erreur est survenue", result.dig(:wringer, :signals, :primary_issue_match, "pattern")
+  end
+
   test "call marks json responses with json_detected metadata" do
     response = Struct.new(:code, :body, :uri, :response).new(
       200,

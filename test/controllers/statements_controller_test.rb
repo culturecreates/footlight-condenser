@@ -1959,7 +1959,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_not_equal "Recherche par titre", statement.reload.cache
     assert_match "Scrape aborted", response.body
     assert_match "redirect_to_listing", response.body
-    assert_equal "attempt_failed", cache.health_status
+    assert_equal "content_rejected", cache.health_status
     assert_equal "redirect_to_listing", cache.primary_issue_key
     assert_nil cache.html
   ensure

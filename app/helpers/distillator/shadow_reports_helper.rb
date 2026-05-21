@@ -162,6 +162,12 @@ module Distillator::ShadowReportsHelper
       "passed"
     when :failed
       "failed"
+    when :not_evaluated
+      "not evaluated"
+    when :blocked_by_fetch
+      "blocked by fetch"
+    when :inconclusive
+      "inconclusive"
     when :stale
       "stale"
     else
@@ -204,6 +210,32 @@ module Distillator::ShadowReportsHelper
     blocker ? blocker.check : "None"
   end
 
+  def shadow_report_primary_blocker_details(detail)
+    blocker = detail.primary_blocker
+    return [] unless blocker.present?
+    return blocker.details unless blocker.key == "fetch_parity"
+
+    cache_payload = shadow_report_cache_payload(detail)
+    details = []
+    details << "URL: #{detail.summary.cache&.normalized_url || detail.transition_evidence_by_kind['fetch_parity']&.url}" if detail.summary.cache.present? || detail.transition_evidence_by_kind["fetch_parity"]&.url.present?
+    details << "Issue: #{detail.summary.issue_key}" if detail.summary.issue_key.present?
+    details << "Health: #{detail.summary.health_summary}" if detail.summary.health_summary.present?
+    details << "Fetch result: #{cache_fetch_response_summary(cache_payload)}" if cache_payload.present?
+    details << "Storage decision: #{cache_storage_decision(cache_payload)}" if cache_payload.present? && cache_storage_decision(cache_payload).present?
+    details << "Stored cache body: #{cache_stored_body_summary(cache_payload)}" if cache_payload.present?
+    details << "Latest attempt: #{shadow_report_timestamp(detail.summary.latest_refresh)}"
+    details << "Latest successful refresh: #{shadow_report_timestamp(detail.summary.latest_successful_refresh)}"
+    details
+  end
+
+  def shadow_report_primary_blocker_links(detail)
+    blocker = detail.primary_blocker
+    return [] unless blocker.present?
+    return shadow_report_explanation_links(blocker, detail.summary.website, detail: detail) unless blocker.key == "fetch_parity"
+
+    shadow_report_fetch_blocker_links(detail)
+  end
+
   def shadow_report_scope_lines(scope)
     lines = []
     lines << "Representative webpages checked: #{scope[:representative_webpage_count]} of #{scope[:candidate_webpage_count]}"
@@ -221,7 +253,7 @@ module Distillator::ShadowReportsHelper
     "This check used a limited sample of representative webpages."
   end
 
-  def shadow_report_explanation_links(explanation, website)
+  def shadow_report_explanation_links(explanation, website, detail: nil)
     explanation.links.map do |link|
       path =
         case link[:target]
@@ -231,12 +263,38 @@ module Distillator::ShadowReportsHelper
           distillator_shadow_report_site_path(website)
         when :cache
           distillator_cache_index_path
+        when :failed_cache_result
+          shadow_report_failed_cache_result_path(detail)
+        when :compare_cache
+          shadow_report_compare_cache_path(detail)
+        when :active_wringer_cache
+          shadow_report_active_wringer_cache_path(detail)
         else
           website_path(website)
         end
 
+      next if path.blank?
+
       link_to(link[:label], path)
+    end.compact
+  end
+
+  def shadow_report_cache_diagnostic_links(row)
+    links = []
+    payload = row.cache_link_payload || {}
+    cache = row.respond_to?(:cache) ? row.cache : nil
+
+    if cache.present?
+      links << link_to("Open failed cache result", distillator_cache_path(cache))
+    elsif payload[:active_cache_url].present?
+      links << link_to("Open active Wringer cache", payload[:active_cache_url])
     end
+
+    Array(payload[:secondary_links]).each do |link|
+      links << link_to(link[:label], link[:url]) if link[:label].present? && link[:url].present?
+    end
+
+    safe_join(links.uniq, " | ")
   end
 
   private
@@ -295,7 +353,60 @@ module Distillator::ShadowReportsHelper
       headline: explanation.headline,
       next_action: explanation.next_action,
       details: explanation.details,
-      links: shadow_report_explanation_links(explanation, detail.summary.website)
+      links: shadow_report_explanation_links(explanation, detail.summary.website, detail: detail)
     }
+  end
+
+  def shadow_report_fetch_blocker_links(detail)
+    links = []
+    failed_cache_path = shadow_report_failed_cache_result_path(detail)
+    compare_path = shadow_report_compare_cache_path(detail)
+    active_wringer_path = shadow_report_active_wringer_cache_path(detail)
+    condenser_path = shadow_report_condenser_cache_path(detail)
+
+    links << link_to("Open failed cache result", failed_cache_path) if failed_cache_path.present?
+    links << link_to("Compare Condenser vs Wringer", compare_path) if compare_path.present?
+    links << link_to("Open active Wringer cache", active_wringer_path) if active_wringer_path.present?
+    links << link_to("Open Condenser cache", condenser_path) if condenser_path.present? && condenser_path != failed_cache_path
+    links
+  end
+
+  def shadow_report_failed_cache_result_path(detail)
+    cache = detail.summary.cache
+    return distillator_cache_path(cache) if cache.present?
+
+    url = detail.transition_evidence_by_kind["fetch_parity"]&.url
+    return if url.blank?
+
+    distillator_cache_index_path(term: url)
+  end
+
+  def shadow_report_compare_cache_path(detail)
+    payload = detail.summary.cache_link_payload || {}
+    compare_link = Array(payload[:secondary_links]).find { |link| link[:label] == "Compare Condenser vs Wringer" }
+    compare_link&.fetch(:url, nil) || payload[:compare_url]
+  end
+
+  def shadow_report_active_wringer_cache_path(detail)
+    payload = detail.summary.cache_link_payload || {}
+    payload[:active_cache_url]
+  end
+
+  def shadow_report_condenser_cache_path(detail)
+    payload = detail.summary.cache_link_payload || {}
+    condenser_link = Array(payload[:secondary_links]).find { |link| link[:label] == "Open Condenser cache" }
+    condenser_link&.fetch(:url, nil) || payload[:distillator_cache_url]
+  end
+
+  def shadow_report_cache_payload(detail)
+    return unless detail.summary.cache.present?
+
+    cache = detail.summary.cache
+    {
+      http_response_code: cache.respond_to?(:http_response_code) ? cache.http_response_code : nil,
+      content_type: cache.signals.to_h["content_type"],
+      signals: cache.signals.to_h,
+      body_bytes: cache.respond_to?(:body_bytes) ? cache.body_bytes : nil
+    }.with_indifferent_access
   end
 end

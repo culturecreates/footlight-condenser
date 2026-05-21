@@ -16,11 +16,17 @@
                status: { label: "Operator health", value: cache_health_badge(@cache_payload) },
                rows: [
                  { label: "HTTP status", value: cache_status_badge(@cache_payload), html: true },
+                 { label: "Fetch diagnosis", value: @cache_payload[:health_label] },
+                 { label: "Fetched response", value: cache_fetch_response_summary(@cache_payload) },
+                 { label: "Fetched body", value: cache_fetched_body_summary(@cache_payload) },
+                 { label: "Stored cache body", value: cache_stored_body_summary(@cache_payload) },
+                 { label: "Storage decision", value: cache_storage_decision(@cache_payload) },
                  { label: "Transport", value: cache_transport_status(@cache_payload) },
                  { label: "Content", value: cache_content_status(@cache_payload) },
                  { label: "Blocking issue", value: cache_blocking_issue_key(@cache_payload).presence || "none" },
                  { label: "Last good preserved", value: cache_last_good_content_preserved?(@cache_payload) ? "yes" : "no" },
-                 { label: "Health reasons", value: Array(@cache_payload[:health_reasons]).presence&.join(", ") || "None" }
+                 { label: "Health reasons", value: Array(@cache_payload[:health_reasons]).presence&.join(", ") || "None" },
+                 { label: "Primary issue match", value: cache_primary_issue_match_summary(@cache_payload).presence || "Not recorded" }
                ],
                body: (
                  if cache_content_failure_warning(@cache_payload).present?
@@ -32,11 +38,11 @@
              {
                title: "Identity card",
                rows: [
-                 { label: "Normalized URL", value: @cache_payload[:normalized_url], value_class: "cache-normalized-url" },
+                 { label: "Normalized URL", value: cache_linked_source_url(@cache_payload[:normalized_url]), value_class: "cache-normalized-url", html: true },
                  { label: "URI key", value: @cache_payload[:uri_key], value_class: "cache-uri-key" },
                  { label: "URI alias", value: @cache_payload[:uri], value_class: "cache-uri-key" },
                  { label: "Name", value: @cache_payload[:name] },
-                 { label: "Final URL", value: @cache_payload[:final_url].presence || "Not recorded", value_class: "cache-normalized-url" },
+                 { label: "Final URL", value: cache_linked_final_url(@cache_payload), value_class: "cache-normalized-url", html: true },
                  { label: "Redirect summary", value: cache_redirect_summary(@cache_payload) }
                ]
              },

@@ -377,6 +377,127 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_operator @response.body.scan("Cannot promote yet").count, :<=, 1
   end
 
+  test "fetch blocker shows direct cache links and audit uses causal labels" do
+    website = create_shadow_website(name: "Fetch links detail", seedurl: "fetch-links-detail")
+    url = "https://www.dansedanse.ca/fr/spectacles/message-in-a-bottle-sting-kate-prince"
+    cache = create_cache_for(
+      website,
+      url: url,
+      signals: {
+        "transport_success" => true,
+        "content_success" => false,
+        "policy_action" => "abort_update",
+        "content_rejected" => true,
+        "content_type" => "html",
+        "fetched_body_state" => "non_empty",
+        "fetched_body_bytes" => 2048,
+        "stored_body_state" => "not_stored",
+        "stored_body_bytes" => 0,
+        "storage_decision" => "abort_update",
+        "cache_body_empty_after_abort" => true,
+        "primary_issue_match" => {
+          "source" => "body_text",
+          "pattern" => "Une erreur est survenue",
+          "snippet" => "Une erreur est survenue. Veuillez reessayer."
+        }
+      },
+      health_status: "content_rejected",
+      health_severity: "high",
+      primary_issue_key: "generic_error_text",
+      primary_issue_label: "Generic error text observed",
+      primary_issue_severity: "failed"
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "fetch_parity",
+      status: "failed",
+      checked_at: 1.hour.ago,
+      primary_issue_key: "generic_error_text",
+      details: { reason: "cache_health_failed" }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "statement_delta",
+      status: "pending",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "fetch_failed_before_statement_refresh",
+        representative_webpages: [url],
+        representative_webpage_count: 1,
+        candidate_webpage_count: 1,
+        selection_rule: "Event pages first, ordered by archive date",
+        statements_refreshed_count: 0,
+        statements_failed_count: 0
+      }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "export_diff",
+      status: "pending",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "fetch_failed_before_export_comparison",
+        representative_webpages: [url],
+        representative_webpage_count: 1,
+        candidate_webpage_count: 1,
+        export_compared: false,
+        export_basis: "current export vs production-equivalent export"
+      }
+    )
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match %r{all websites</a>\s*\|\s*<a[^>]+href="/websites/#{website.id}">#{Regexp.escape(website.name)}</a>\s*\|\s*<a[^>]+href="/webpages"}, @response.body
+    assert_match "Fetch/cache failed for the representative URL.", @response.body
+    assert_match "generic_error_text", @response.body
+    assert_match "High: Generic error text observed", @response.body
+    assert_match "Fetch result: HTTP 200 HTML", @response.body
+    assert_match "Storage decision: abort_update", @response.body
+    assert_match "Stored cache body: empty because the update was aborted", @response.body
+    assert_match "Latest attempt", @response.body
+    assert_match "Latest successful refresh", @response.body
+    assert_match "Open failed cache result", @response.body
+    assert_match "Compare Condenser vs Wringer", @response.body
+    assert_match "Open active Wringer cache", @response.body
+    assert_match "Open Condenser cache", @response.body
+    assert_match CGI.escape(url), @response.body
+    assert_match distillator_cache_path(cache), @response.body
+    assert_match "not evaluated", @response.body
+    assert_match "blocked by fetch", @response.body
+    assert_no_match %r{Statements</td>\s*<td>missing</td>}m, @response.body
+    assert_no_match %r{Export</td>\s*<td>missing</td>}m, @response.body
+  end
+
+  test "diagnostics is read only and does not render transition check button or trailing separator" do
+    website = create_shadow_website(name: "Diagnostics detail", seedurl: "diagnostics-detail")
+    url = "https://diagnostics-detail.example/event"
+    create_cache_for(website, url: url)
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    diagnostics_html = @response.body[%r{<summary>Diagnostics</summary>.*?</details>}m]
+    assert_not_nil diagnostics_html
+    assert_no_match "Run transition check", diagnostics_html
+    assert_no_match %r{\|\s*</p>}m, diagnostics_html
+    assert_equal 1, @response.body.scan("Run transition check").size
+  end
+
+  test "transition detail suppresses empty operator context status and actions" do
+    website = create_shadow_website(name: "Context detail", seedurl: "context-detail")
+    create_cache_for(website, url: "https://context-detail.example/event")
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_no_match 'data-context-domain="status"', @response.body
+    assert_no_match 'data-context-domain="actions"', @response.body
+  end
+
   test "shadow report detail keeps cache links in diagnostics and rollout events in audit" do
     website = create_shadow_website(name: "IA detail", seedurl: "ia-detail")
     url = "https://ia-detail.example/event"

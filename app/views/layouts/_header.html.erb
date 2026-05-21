@@ -1,4 +1,7 @@
 <%= link_to "all websites", websites_path %> |
+<% if transition_context_website.present? %>
+<%= link_to transition_context_website.name, website_path(transition_context_website) %> |
+<% end %>
 <%= link_to "webpages", webpages_path %> |
 <%= link_to "sources", sources_path %> |
 <%= link_to "statements", statements_path %> |

@@ -76,7 +76,7 @@ module Distillator
       when :passed
         "Fetch parity passed."
       when :failed
-        "Fetch parity failed for the latest cache evidence."
+        "Fetch/cache failed for the representative URL."
       when :stale
         "Fetch parity is stale."
       else
@@ -196,7 +196,11 @@ module Distillator
       when "export_diff"
         [{ label: "Transition report", target: :transition_report }]
       else
-        [{ label: "Cache", target: :cache }]
+        [
+          { label: "Open failed cache result", target: :failed_cache_result },
+          { label: "Compare Condenser vs Wringer", target: :compare_cache },
+          { label: "Open active Wringer cache", target: :active_wringer_cache }
+        ]
       end
     end
 

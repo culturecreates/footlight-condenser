@@ -45,7 +45,8 @@ module Distillator
       rules.filter_map do |name, rule|
         match = value(rule, :match) || {}
         policy = value(rule, :policy) || {}
-        next unless matched?(match)
+        match_details = matched_details(match)
+        next unless match_details
 
         logger.warn "[Wringer] #{name} matched (code=#{http_code}, url=#{final_url})"
 
@@ -55,6 +56,7 @@ module Distillator
           error_type: value(policy, :error_code) || name.to_s,
           policy: policy,
           rule: rule,
+          match_details: match_details,
           action: value(policy, :action),
           retry: value(policy, :retry),
           cache: value(policy, :cache),
@@ -67,51 +69,120 @@ module Distillator
 
     attr_reader :body, :body_value, :http_code, :final_url, :hints, :signals, :rules, :logger
 
-    def matched?(match)
-      matched = true
-
+    def matched_details(match)
+      details = nil
       http_code_match = value(match, :http_code)
       if http_code_match
         codes = Array(http_code_match).map(&:to_i)
-        matched &&= codes.include?(http_code)
+        return nil unless codes.include?(http_code)
+
+        details ||= {
+          source: "http_code",
+          pattern: codes.join(", "),
+          snippet: "HTTP #{http_code}"
+        }
       end
 
       body_contains = value(match, :body_contains)
       if body_contains
-        matched &&= Array(body_contains).any? { |text| body.include?(text) }
+        matched_text = Array(body_contains).find { |text| body.include?(text) }
+        return nil unless matched_text
+
+        details ||= {
+          source: "html",
+          pattern: matched_text,
+          snippet: matched_snippet(body, matched_text)
+        }
+      end
+
+      body_text_contains = value(match, :body_text_contains)
+      if body_text_contains
+        matched_text = Array(body_text_contains).find { |text| body_text.include?(text) }
+        return nil unless matched_text
+
+        details ||= {
+          source: "body_text",
+          pattern: matched_text,
+          snippet: matched_snippet(body_text, matched_text)
+        }
       end
 
       body_blank = value(match, :body_blank)
-      matched &&= body_value.nil? || (body_value.respond_to?(:strip) && body_value.strip.empty?) if body_blank
+      if body_blank
+        return nil unless body_value.nil? || (body_value.respond_to?(:strip) && body_value.strip.empty?)
+
+        details ||= {
+          source: "body",
+          pattern: "body_blank",
+          snippet: "Body was blank"
+        }
+      end
 
       hint_match = value(match, :hints)
       if hint_match
-        matched &&= Array(hint_match).any? { |hint| hints.include?(hint.to_s) }
+        matched_hint = Array(hint_match).find { |hint| hints.include?(hint.to_s) }
+        return nil unless matched_hint
+
+        details ||= {
+          source: "hint",
+          pattern: matched_hint.to_s,
+          snippet: matched_hint.to_s
+        }
       end
 
       network_status_match = value(match, :network_status)
-      matched &&= signals["network_status"].to_s == network_status_match.to_s if network_status_match.present?
+      if network_status_match.present?
+        return nil unless signals["network_status"].to_s == network_status_match.to_s
+
+        details ||= {
+          source: "signal",
+          pattern: "network_status=#{network_status_match}",
+          snippet: "network_status=#{signals['network_status']}"
+        }
+      end
 
       content_type_match = value(match, :content_type)
-      matched &&= signals["content_type"].to_s == content_type_match.to_s if content_type_match.present?
+      if content_type_match.present?
+        return nil unless signals["content_type"].to_s == content_type_match.to_s
+
+        details ||= {
+          source: "signal",
+          pattern: "content_type=#{content_type_match}",
+          snippet: "content_type=#{signals['content_type']}"
+        }
+      end
 
       signal_match = value(match, :signals)
       if signal_match
-        matched &&= signal_match.to_h.all? do |key, expected|
+        matched_pair = signal_match.to_h.find do |key, expected|
           signals[key.to_s].to_s == expected.to_s
         end
+        return nil unless signal_match.to_h.all? { |key, expected| signals[key.to_s].to_s == expected.to_s }
+
+        details ||= {
+          source: "signal",
+          pattern: "#{matched_pair.first}=#{matched_pair.last}",
+          snippet: "#{matched_pair.first}=#{signals[matched_pair.first.to_s]}"
+        }
       end
 
       final_url_patterns = value(match, :final_url_patterns)
       if final_url_patterns
-        matched &&= Array(final_url_patterns).any? do |pattern|
+        matched_pattern = Array(final_url_patterns).find do |pattern|
           Regexp.new(pattern).match?(final_url)
         rescue RegexpError
           false
         end
+        return nil unless matched_pattern
+
+        details ||= {
+          source: "final_url",
+          pattern: matched_pattern,
+          snippet: matched_snippet(final_url, matched_pattern)
+        }
       end
 
-      matched
+      details || { source: "rule", pattern: "matched", snippet: "Rule matched" }
     end
 
     def value(hash, key)
@@ -121,6 +192,24 @@ module Distillator
       return hash[key.to_sym] if hash.respond_to?(:key?) && hash.key?(key.to_sym)
 
       hash[key.to_s] || hash[key.to_sym]
+    end
+
+    def body_text
+      @body_text ||= Nokogiri::HTML(body.to_s).text.to_s.squish
+    rescue StandardError
+      body.to_s
+    end
+
+    def matched_snippet(text, pattern, max_length: 140)
+      raw_text = text.to_s.squish
+      return raw_text.first(max_length) if pattern.blank?
+
+      index = raw_text.index(pattern.to_s)
+      return raw_text.first(max_length) unless index
+
+      start = [index - 40, 0].max
+      snippet = raw_text[start, max_length]
+      snippet.to_s
     end
   end
 end

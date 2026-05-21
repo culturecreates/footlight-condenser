@@ -227,6 +227,48 @@ class Distillator::CacheHealthMaterializerTest < ActiveSupport::TestCase
     assert_equal "redirect_to_listing", cache.primary_issue_key
   end
 
+  test "policy aborted non empty html materializes as content rejected instead of empty body" do
+    cache = build_cache(
+      uri: "https://example.org/rejected",
+      html: nil,
+      body: nil,
+      scrape_date: Time.zone.now,
+      successful_refresh: nil,
+      http_response_code: 200,
+      signals: {
+        "network_status" => "ok",
+        "content_type" => "html",
+        "transport_success" => true,
+        "content_success" => false,
+        "policy_action" => "abort_update",
+        "content_rejected" => true,
+        "fetched_body_state" => "non_empty",
+        "fetched_body_bytes" => 96,
+        "stored_body_state" => "not_stored",
+        "storage_decision" => "abort_update",
+        "cache_body_empty_after_abort" => true,
+        "primary_issue_key" => "generic_error_text",
+        "primary_issue_label" => "Generic error text observed",
+        "primary_issue_severity" => "failed",
+        "primary_issue_match" => {
+          "source" => "body_text",
+          "pattern" => "Une erreur est survenue",
+          "snippet" => "Une erreur est survenue Retry later."
+        }
+      },
+      hints: ["generic_error_text"],
+      final_url: "https://example.org/rejected"
+    )
+
+    Distillator::CacheHealthMaterializer.call(cache)
+
+    assert_equal "content_rejected", cache.health_status
+    assert_equal "high", cache.health_severity
+    assert_equal "generic_error_text", cache.primary_issue_key
+    assert_equal "Generic error text observed", cache.primary_issue_label
+    refute_includes cache.health_reasons, "empty_body"
+  end
+
   private
 
   # Build an unsaved FetchCache with realistic defaults.

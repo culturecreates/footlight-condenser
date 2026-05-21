@@ -1,3 +1,5 @@
+require "uri"
+
 module Distillator::CacheHelper
   HTML_PREVIEW_LIMIT = 160
   VIEW_MODES = %w[rich parity].freeze
@@ -112,7 +114,9 @@ module Distillator::CacheHelper
 
     if network_status.in?(%w[blocked failed]) ||
         explicitly_false?(cache_signal(payload, :transport_success)) ||
-        (http_code.present? && http_code.to_i >= 400)
+        (http_code.present? && http_code.to_i >= 400) ||
+        cache_policy_aborted_non_empty_response?(payload) ||
+        health_status.to_s == "content_rejected"
       return {
         state: :failed,
         label: "Failed",
@@ -244,7 +248,89 @@ module Distillator::CacheHelper
     return nil if Distillator::BooleanParam.parse(cache_signal(payload, :content_success))
 
     issue_label = cache_blocking_issue_label(payload).presence || "Content failure"
-    "HTTP #{payload.fetch("http_response_code", payload[:http_response_code])} but content failed: #{issue_label}"
+    if cache_policy_aborted_non_empty_response?(payload)
+      "HTTP #{payload.fetch("http_response_code", payload[:http_response_code])} returned HTML, but content was rejected before cache storage: #{issue_label}"
+    else
+      "HTTP #{payload.fetch("http_response_code", payload[:http_response_code])} but content failed: #{issue_label}"
+    end
+  end
+
+  def cache_linked_source_url(url)
+    return "Not recorded" if url.blank?
+    return ERB::Util.html_escape(url) unless external_http_url?(url)
+
+    link_to(url, url, target: "_blank", rel: "noopener")
+  end
+
+  def cache_linked_final_url(payload)
+    url = payload.fetch("final_url", payload[:final_url]).presence
+    return "Not recorded" if url.blank?
+    return ERB::Util.html_escape(url) unless external_http_url?(url) && !internal_cache_compatibility_url?(url)
+
+    link_to(url, url, target: "_blank", rel: "noopener")
+  end
+
+  def cache_fetch_response_summary(payload)
+    code = payload.fetch("http_response_code", payload[:http_response_code]).presence || "Unknown"
+    type = payload.fetch("content_type", payload[:content_type]).presence || "unknown"
+    "HTTP #{code} #{type.to_s.upcase}"
+  end
+
+  def cache_fetched_body_summary(payload)
+    state = cache_signal(payload, :fetched_body_state).to_s
+    bytes = cache_signal(payload, :fetched_body_bytes)
+
+    case state
+    when "non_empty"
+      "non-empty#{bytes.to_i.positive? ? " (#{number_with_delimiter(bytes.to_i)} bytes)" : ""}"
+    when "empty"
+      "empty"
+    else
+      "unknown"
+    end
+  end
+
+  def cache_stored_body_summary(payload)
+    bytes = cache_signal(payload, :stored_body_bytes)
+    state = cache_signal(payload, :stored_body_state).to_s
+
+    case state
+    when "preserved_last_good"
+      "#{number_with_delimiter(bytes.to_i)} bytes preserved from the last good refresh"
+    when "not_stored"
+      "empty because the update was aborted"
+    when "stored"
+      "#{number_with_delimiter(bytes.to_i)} bytes"
+    when "empty"
+      "0 bytes"
+    else
+      payload.fetch("body_bytes", payload[:body_bytes]).to_i.positive? ? "#{number_with_delimiter(payload.fetch("body_bytes", payload[:body_bytes]).to_i)} bytes" : "unknown"
+    end
+  end
+
+  def cache_storage_decision(payload)
+    cache_signal(payload, :storage_decision).presence || "stored"
+  end
+
+  def cache_primary_issue_match_summary(payload)
+    match = cache_signal(payload, :primary_issue_match)
+    return nil unless match.respond_to?(:to_h)
+
+    values = match.to_h
+    source = values["source"] || values[:source]
+    pattern = values["pattern"] || values[:pattern]
+    snippet = values["snippet"] || values[:snippet]
+    parts = []
+    parts << "source: #{source}" if source.present?
+    parts << "pattern: #{pattern}" if pattern.present?
+    parts << "snippet: #{snippet}" if snippet.present?
+    parts.join(" | ").presence
+  end
+
+  def cache_policy_aborted_non_empty_response?(payload)
+    cache_signal(payload, :policy_action).to_s == "abort_update" &&
+      cache_signal(payload, :content_type).to_s == "html" &&
+      cache_signal(payload, :fetched_body_state).to_s == "non_empty"
   end
 
   def cache_raw_url(cache)
@@ -279,6 +365,22 @@ module Distillator::CacheHelper
 
   private
 
+  def external_http_url?(url)
+    uri = URI.parse(url.to_s)
+    %w[http https].include?(uri.scheme) && uri.host.present?
+  rescue URI::InvalidURIError
+    false
+  end
+
+  def internal_cache_compatibility_url?(url)
+    uri = URI.parse(url.to_s)
+    return true if uri.host.to_s.in?(%w[localhost 127.0.0.1 0.0.0.0])
+
+    uri.path.to_s.start_with?("/websites/wring")
+  rescue URI::InvalidURIError
+    true
+  end
+
   def cache_summary_card_lookup(summary_cards)
     Array(summary_cards).index_by { |card| card[:key].to_sym }
   end
@@ -312,7 +414,7 @@ module Distillator::CacheHelper
       { state: :healthy, label: "Healthy", css_class: "cache-health-healthy", details: [health_label].compact }
     when "preserved_after_failure"
       { state: :preserved, label: "Preserved", css_class: "cache-health-preserved", details: [health_label.presence || "Last good content preserved after failed refresh"].compact }
-    when "network_failed", "blocked", "attempt_failed", "empty_body"
+    when "network_failed", "blocked", "attempt_failed", "empty_body", "content_rejected"
       { state: :failed, label: "Failed", css_class: "cache-health-failed", details: [health_label].compact }
     when "redirect_changed", "stale"
       { state: :warning, label: "Warning", css_class: "cache-health-warning", details: [health_label].compact }

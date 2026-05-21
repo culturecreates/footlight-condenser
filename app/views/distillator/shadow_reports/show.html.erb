@@ -22,12 +22,15 @@
   <h2>Primary blocker</h2>
   <% if @detail.primary_blocker.present? %>
     <p><strong><%= shadow_report_primary_blocker_heading(@detail.primary_blocker) %>:</strong> <%= @detail.primary_blocker.headline %></p>
-    <% if @detail.primary_blocker.details.any? %>
+    <% if shadow_report_primary_blocker_details(@detail).any? %>
       <ul>
-        <% @detail.primary_blocker.details.each do |detail| %>
+        <% shadow_report_primary_blocker_details(@detail).each do |detail| %>
           <li><%= detail %></li>
         <% end %>
       </ul>
+    <% end %>
+    <% if shadow_report_primary_blocker_links(@detail).any? %>
+      <p><%= safe_join(shadow_report_primary_blocker_links(@detail), " | ") %></p>
     <% end %>
   <% else %>
     <p>No primary blocker is currently recorded.</p>
@@ -69,7 +72,7 @@
   <p><strong>Latest successful refresh:</strong> <%= shadow_report_timestamp(@detail.summary.latest_successful_refresh) %></p>
   <p><strong>Health:</strong> <%= @detail.summary.health_summary %></p>
   <p><strong>Issue:</strong> <%= @detail.summary.issue_key.presence || "None" %></p>
-  <p><strong>Cache links:</strong> <%= shadow_report_action_links(@detail.summary) %></p>
+  <p><strong>Cache links:</strong> <%= shadow_report_cache_diagnostic_links(@detail.summary) %></p>
 </details>
 
 <details class="website-rollout-panel">
@@ -89,7 +92,7 @@
       <% end %>
       <p><strong>Next action:</strong> <%= explanation.next_action %></p>
       <% if explanation.links.any? %>
-        <p><strong>Links:</strong> <%= safe_join(shadow_report_explanation_links(explanation, @website), " | ") %></p>
+        <p><strong>Links:</strong> <%= safe_join(shadow_report_explanation_links(explanation, @website, detail: @detail), " | ") %></p>
       <% end %>
     </section>
   <% end %>

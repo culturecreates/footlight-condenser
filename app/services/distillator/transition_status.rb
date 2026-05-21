@@ -148,7 +148,7 @@ module Distillator
     end
 
     def latest_attempt_failed?
-      %w[blocked network_failed attempt_failed empty_body preserved_after_failure].include?(cache.health_status.to_s)
+      %w[blocked network_failed attempt_failed content_rejected empty_body preserved_after_failure].include?(cache.health_status.to_s)
     end
 
     def transport_failed?

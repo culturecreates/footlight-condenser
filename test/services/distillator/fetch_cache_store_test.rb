@@ -916,6 +916,61 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
     assert_includes result.hints, "empty_body"
   end
 
+  test "policy aborted 200 html records content rejection instead of empty body" do
+    cache = create_cache(
+      uri: "https://example.org/rejected",
+      html: nil,
+      body: nil,
+      scrape_date: nil,
+      successful_refresh: nil
+    )
+
+    Distillator::FetchService.expects(:fetch_result).returns(
+      {
+        status: :ok,
+        body: "<html><body><h1>Une erreur est survenue</h1><p>Retry later.</p></body></html>",
+        raw_body: "<html><body><h1>Une erreur est survenue</h1><p>Retry later.</p></body></html>",
+        headers: { content_type: "text/html" },
+        final_url: "https://example.org/rejected",
+        redirect_chain: [],
+        wringer: {
+          policy_action: "abort_update",
+          retry: true,
+          cache: false,
+          signals: {
+            network_status: "ok",
+            content_type: "html",
+            primary_issue_key: "generic_error_text",
+            primary_issue_label: "Generic error text observed",
+            primary_issue_severity: "failed",
+            primary_issue_match: {
+              source: "body_text",
+              pattern: "Une erreur est survenue",
+              snippet: "Une erreur est survenue Retry later."
+            }
+          },
+          hints: ["generic_error_text"]
+        },
+        http_code: 200,
+        duration_ms: 3.0,
+        fetch_path: "native"
+      }
+    )
+
+    result = Distillator::FetchCacheStore.fetch(uri: cache.normalized_url, force_scrape: true)
+
+    assert_nil result.html
+    refute_equal true, result.signals["empty_body"]
+    assert_equal true, result.signals["content_rejected"]
+    assert_equal "abort_update", result.signals["storage_decision"]
+    assert_equal "not_stored", result.signals["stored_body_state"]
+    assert_equal "non_empty", result.signals["fetched_body_state"]
+    assert_equal "generic_error_text", result.signals["primary_issue_key"]
+    assert_equal "Une erreur est survenue", result.signals.dig("primary_issue_match", "pattern")
+    assert_not_includes result.hints, "empty_body"
+    assert_includes result.hints, "generic_error_text"
+  end
+
   test "common failures preserve last good cache content" do
     old_successful_refresh = 2.hours.ago
 

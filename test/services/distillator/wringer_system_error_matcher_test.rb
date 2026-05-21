@@ -30,9 +30,24 @@ class Distillator::WringerSystemErrorMatcherTest < ActiveSupport::TestCase
     assert_equal "system_salle_attente", match_for(body: "Salle d'attente", http_code: 200)[:error_type]
     assert_equal "system_captcha", match_for(body: "captcha", http_code: 200)[:error_type]
     assert_equal "forbidden_text", match_for(body: "Forbidden", http_code: 200)[:error_type]
-    assert_equal "generic_error_text", match_for(body: "Erreur", http_code: 200)[:error_type]
+    assert_equal "generic_error_text", match_for(body: "<html><body><h1>Une erreur est survenue</h1></body></html>", http_code: 200)[:error_type]
     assert_equal "post_call_observed", match_for(body: "POST call", http_code: 200)[:error_type]
     assert_equal "http_403", match_for(body: "Nope", http_code: 403)[:error_type]
+  end
+
+  test "generic error text captures a matched snippet from body text" do
+    issue = match_for(body: "<html><body><main><h1>Une erreur est survenue</h1><p>Veuillez reessayer.</p></main></body></html>", http_code: 200)
+
+    assert_equal "generic_error_text", issue[:key]
+    assert_equal "body_text", issue.dig(:match_details, :source)
+    assert_equal "Une erreur est survenue", issue.dig(:match_details, :pattern)
+    assert_match "Une erreur est survenue", issue.dig(:match_details, :snippet)
+  end
+
+  test "generic error text does not match ordinary page text with error words in markup" do
+    issue = match_for(body: "<html><head><script>var lastError = null;</script></head><body><h1>Festival program</h1><p>Welcome.</p></body></html>", http_code: 200)
+
+    assert_nil issue
   end
 
   test "matches by hint and signal" do

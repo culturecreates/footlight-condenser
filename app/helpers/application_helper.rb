@@ -89,7 +89,8 @@ module ApplicationHelper
   end
 
   def suppress_operator_context_card?
-    %w[websites webpages].include?(controller_name) && action_name == "show"
+    (%w[websites webpages].include?(controller_name) && action_name == "show") ||
+      (controller_path == "distillator/shadow_reports" && action_name == "show")
   end
 
   private

@@ -76,6 +76,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal 0, result.records[:statement_delta].details["statements_refreshed_count"]
     assert_equal "pending", result.records[:export_diff].status
     assert_equal "fetch_failed_before_export_comparison", result.records[:export_diff].details["reason"]
+    assert_equal "Transition check incomplete: fetch failed, statements not evaluated, export blocked by fetch", result.flash_message
   end
 
   test "statement check records failed reason when refresh fails" do
@@ -151,6 +152,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal "no_selected_statements", result.records[:statement_delta].details["reason"]
     assert_equal 0, result.records[:statement_delta].details["statements_refreshed_count"]
     assert_equal 0, result.records[:statement_delta].details["statements_failed_count"]
+    assert_equal "Transition check incomplete: fetch checked, statements inconclusive, export checked", result.flash_message
   end
 
   private

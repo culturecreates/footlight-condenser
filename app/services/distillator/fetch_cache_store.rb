@@ -294,6 +294,8 @@ module Distillator
         cache.hints = (Array(cache.hints) + ["last_good_preserved_failure"]).uniq
       end
 
+      cache.signals = annotate_storage_signals(cache.signals, cache: cache, abort_update: abort_update_policy?(fetch_result))
+
       return cache.save! if abort_update_policy?(fetch_result)
       return cache.save! unless content_successful_fetch?(signals: cache.signals || {}, http_code: http_code, raw_body: raw_body)
 
@@ -347,12 +349,17 @@ module Distillator
       wringer_signals = fetch_result.dig(:wringer, :signals)
       base = DEFAULT_SIGNALS.merge(redirected_signals(original_url: key.normalized_url, final_url: final_url))
       content_type = detect_content_type(headers, body)
+      fetched_body_bytes = body.is_a?(String) ? body.bytesize : nil
       if wringer_signals.is_a?(Hash) && wringer_signals.present?
         signals = base.merge(wringer_signals.stringify_keys).merge("fetch_path" => fetch_result[:fetch_path].to_s)
         propagate_wringer_policy_signals!(signals, fetch_result)
         signals["content_type"] = content_type if signals["content_type"].blank?
         signals["json_detected"] = true if content_type == "json"
-        signals["empty_body"] = true if body.blank?
+        signals["fetched_body_bytes"] = fetched_body_bytes unless fetched_body_bytes.nil?
+        signals["fetched_body_state"] = fetched_body_state_for(body)
+        signals["empty_body"] = true if actual_empty_body_response?(signals: signals, body: body)
+        clear_empty_body_signal!(signals) if policy_aborted_non_empty_response?(signals: signals, http_code: http_code_for(fetch_result), body: body)
+        annotate_policy_rejection_signals!(signals, http_code: http_code_for(fetch_result), body: body)
         signals["fetch_backend"] ||= fetch_backend_for(fetch_result, key: key)
         signals["request_method"] ||= request_method_for
         signals["use_phantomjs"] = use_phantomjs_for(key) if signals["use_phantomjs"].nil?
@@ -372,7 +379,11 @@ module Distillator
       )
       propagate_wringer_policy_signals!(signals, fetch_result)
       signals["json_detected"] = true if content_type == "json"
-      signals["empty_body"] = true if body.blank?
+      signals["fetched_body_bytes"] = fetched_body_bytes unless fetched_body_bytes.nil?
+      signals["fetched_body_state"] = fetched_body_state_for(body)
+      signals["empty_body"] = true if actual_empty_body_response?(signals: signals, body: body)
+      clear_empty_body_signal!(signals) if policy_aborted_non_empty_response?(signals: signals, http_code: http_code_for(fetch_result), body: body)
+      annotate_policy_rejection_signals!(signals, http_code: http_code_for(fetch_result), body: body)
       signals["transport_success"] = transport_success_for(fetch_result)
       signals["content_success"] = infer_content_success(signals: signals, http_code: http_code_for(fetch_result), raw_body: body)
       signals
@@ -380,11 +391,15 @@ module Distillator
 
     def normalize_hints(fetch_result, signals:, body:)
       wringer_hints = fetch_result.dig(:wringer, :hints)
-      return Array(wringer_hints) if wringer_hints.present?
+      if wringer_hints.present?
+        hints = Array(wringer_hints).map(&:to_s)
+        hints.delete("empty_body") if policy_aborted_non_empty_response?(signals: signals, http_code: http_code_for(fetch_result), body: body)
+        return hints.uniq
+      end
 
       hints = []
       hints << "json_detected" if signals["json_detected"]
-      hints << "empty_body" if body.blank?
+      hints << "empty_body" if actual_empty_body_response?(signals: signals, body: body)
       hints.uniq
     end
 
@@ -479,6 +494,58 @@ module Distillator
 
     def policy_action_for(signals)
       signals.to_h["policy_action"] || signals.to_h[:policy_action]
+    end
+
+    def fetched_body_state_for(body)
+      return "unknown" unless body.is_a?(String)
+      return "empty" if body.strip.empty?
+
+      "non_empty"
+    end
+
+    def actual_empty_body_response?(signals:, body:)
+      return false if policy_aborted_non_empty_response?(signals: signals, http_code: nil, body: body)
+
+      body.is_a?(String) && body.strip.empty?
+    end
+
+    def policy_aborted_non_empty_response?(signals:, http_code:, body:)
+      policy_action_for(signals).to_s == "abort_update" &&
+        successful_http?(http_code || signals.to_h["http_response_code"]) &&
+        signals.to_h["content_type"].to_s == "html" &&
+        body.is_a?(String) &&
+        body.present?
+    end
+
+    def clear_empty_body_signal!(signals)
+      signals.delete("empty_body")
+      signals.delete(:empty_body)
+    end
+
+    def annotate_policy_rejection_signals!(signals, http_code:, body:)
+      return unless policy_aborted_non_empty_response?(signals: signals, http_code: http_code, body: body)
+
+      signals["content_rejected"] = true
+      signals["storage_decision"] ||= "abort_update"
+      signals["stored_body_state"] ||= "not_stored"
+      signals["cache_body_empty_after_abort"] = true
+    end
+
+    def annotate_storage_signals(signals, cache:, abort_update:)
+      values = (signals || {}).to_h.stringify_keys
+      values["stored_body_bytes"] = cache.body.to_s.bytesize
+      values["storage_decision"] ||= abort_update ? "abort_update" : "stored"
+      if abort_update
+        values["stored_body_state"] =
+          if cache.body.present?
+            values["last_good_preserved_failure"] == true || values["last_good_preserved_failure"].to_s == "true" ? "preserved_last_good" : "stored"
+          else
+            "not_stored"
+          end
+      else
+        values["stored_body_state"] ||= cache.body.present? ? "stored" : "empty"
+      end
+      values
     end
 
     def http_code_for(fetch_result)

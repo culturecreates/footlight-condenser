@@ -492,9 +492,12 @@ system_exceptions:
     hints:
       - generic_error_text
     match:
-      body_contains:
-        - "Error"
-        - "Erreur"
+      body_text_contains:
+        - "An error occurred"
+        - "A critical error has occurred"
+        - "Une erreur est survenue"
+        - "Erreur 500"
+        - "Error 500"
     policy:
       action: abort_update
       retry: true

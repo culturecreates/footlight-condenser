@@ -9,6 +9,7 @@ module Distillator
       network_failed: { label: "Network failed", severity: "high" },
       never_fetched: { label: "Never fetched", severity: "medium" },
       attempt_failed: { label: "Attempt failed", severity: "high" },
+      content_rejected: { label: "Content rejected by policy", severity: "high" },
       empty_body: { label: "Empty body", severity: "medium" },
       preserved_after_failure: { label: "Preserved after failure", severity: "medium" },
       redirect_changed: { label: "Redirect changed", severity: "low" },
@@ -41,6 +42,7 @@ module Distillator
       return build(:blocked, ["blocked"]) if blocked?
       return build(:network_failed, ["network_failed"]) if network_failed?
       return build(:never_fetched, ["never_fetched"]) if never_fetched?
+      return build(:content_rejected, content_rejected_reasons) if content_rejected?
       return build(:attempt_failed, [failure_reason]) if attempt_failed?
       return build(:empty_body, ["empty_body"]) if empty_body?
       return build(:preserved_after_failure, ["non_2xx_preserved_html"]) if preserved_after_failure?
@@ -81,6 +83,16 @@ module Distillator
 
     def empty_body?
       hints.include?("empty_body") || signal("empty_body") == true
+    end
+
+    def content_rejected?
+      truthy_signal?("content_rejected") ||
+        (
+          policy_action? &&
+          success_2xx?(cache.http_response_code) &&
+          signal("content_type").to_s == "html" &&
+          fetched_body_non_empty?
+        )
     end
 
     def attempt_failed?
@@ -134,8 +146,23 @@ module Distillator
       signal("primary_issue_key").presence || "attempt_failed"
     end
 
+    def content_rejected_reasons
+      reasons = ["content_rejected"]
+      reasons << signal("primary_issue_key").to_s if signal("primary_issue_key").present?
+      reasons << "cache_body_empty_after_abort" if truthy_signal?("cache_body_empty_after_abort")
+      reasons.uniq
+    end
+
     def has_html?
       cache.html.present?
+    end
+
+    def fetched_body_non_empty?
+      signal("fetched_body_state").to_s == "non_empty" || signal("fetched_body_bytes").to_i.positive?
+    end
+
+    def policy_action?
+      signal("policy_action").to_s == "abort_update"
     end
 
     def success_2xx?(code)
