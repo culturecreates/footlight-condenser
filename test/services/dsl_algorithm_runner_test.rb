@@ -118,6 +118,15 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     assert_no_wringer_requests
   end
 
+  test "ruby step preserves current array when mutating method returns nil" do
+    expect_no_fetch_seams
+    runner, = build_runner_with_html(html: "<html><body><p>a</p><p>b</p></body></html>")
+    result = runner.run("xpath=//p/text(); ruby=$array.uniq!")
+
+    assert_equal %w[a b], result
+    assert_no_wringer_requests
+  end
+
   test "ensure_page fetches through Distillator" do
     runner, = build_runner("http://example.local/start")
 

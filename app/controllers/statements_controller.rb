@@ -15,6 +15,8 @@ class StatementsController < ApplicationController
   def webpage
     @statements = []
     webpage = Webpage.where(url: params[:url]).first
+    return render_missing_webpage_listing if webpage.blank?
+
     webpage.statements.each do |statement|
       @statements << statement
     end
@@ -67,6 +69,7 @@ class StatementsController < ApplicationController
       end
 
       trace_for_session = Dsl::Tracing::TraceFormatter.for_session_v2(result[:trace] || [])
+      trace_for_session[:statement_id] = @statement.id if trace_for_session.is_a?(Hash)
 
       session[:dsl_trace] = trace_for_session
       Rails.logger.debug { "[DSL TRACE SESSION SIZE] #{JSON.generate(session[:dsl_trace]).bytesize}" }
@@ -168,9 +171,7 @@ class StatementsController < ApplicationController
   # GET /statements/1
   # GET /statements/1.json
   def show
-    trace = session[:dsl_trace]
-    trace = trace.to_h if trace.respond_to?(:to_h)
-    trace = nil if trace == {}
+    trace = scoped_session_trace_for(@statement)
     @trace = safe_trace_copy(trace)
     @trace ||= []
     @trace_presenter = TracePresenter.new(@trace)
@@ -597,6 +598,15 @@ class StatementsController < ApplicationController
     end
   end
 
+  def render_missing_webpage_listing
+    message = "Webpage not found for URL: #{params[:url]}"
+
+    respond_to do |format|
+      format.html { render plain: message, status: :not_found }
+      format.json { render json: { error: message, url: params[:url] }, status: :not_found }
+    end
+  end
+
   def normalized_scrape_options(scrape_options)
     return {} unless scrape_options.respond_to?(:to_h)
 
@@ -638,6 +648,22 @@ class StatementsController < ApplicationController
       message = helpers.compact_refresh_error(entry)
       [prefix.present? ? "#{prefix}: #{message}" : message]
     end
+  end
+
+  def scoped_session_trace_for(statement)
+    raw_trace = session[:dsl_trace]
+    raw_trace = raw_trace.to_h if raw_trace.respond_to?(:to_h)
+    return nil if raw_trace.blank? || !raw_trace.is_a?(Hash)
+
+    trace = raw_trace.with_indifferent_access
+    stored_statement_id = trace[:statement_id].presence
+
+    if stored_statement_id.blank? || stored_statement_id.to_i != statement.id
+      session.delete(:dsl_trace)
+      return nil
+    end
+
+    trace.except(:statement_id)
   end
 
   def resolve_trace_url(urls, index)
@@ -686,6 +712,9 @@ class StatementsController < ApplicationController
       received_404: w[:r404],
       system_error: w[:se],
       policy_action: w[:pa],
+      content_type: w[:ct],
+      final_url: w[:fu],
+      redirect_chain: w[:rc],
       signals: w[:s],
       hints: w[:h]
     }.compact

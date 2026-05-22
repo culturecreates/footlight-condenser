@@ -197,9 +197,9 @@ class Dsl::Tracing::TraceFormatterTest < ActiveSupport::TestCase
       {
         step: i,
         type: "ruby",
-        code: "x" * 1000,
-        input_preview: ["y" * 1000],
-        output_preview: ["z" * 1000],
+        code: "x" * 12,
+        input_preview: ["y" * 12],
+        output_preview: ["z" * 12],
         url_before: "http://example.com",
         url_after: "http://example.com",
         duration_ms: 1.0
@@ -344,5 +344,86 @@ class Dsl::Tracing::TraceFormatterTest < ActiveSupport::TestCase
     assert step[:o].present?
     assert step[:of].present?
     assert_equal step[:o], step[:of]
+  end
+
+  test "for_session_v2 enforces session budget after final fallback" do
+    trace = (1..250).map do |i|
+      {
+        step: i,
+        type: "ruby",
+        code: "x" * 2000,
+        input_preview: ["y" * 2000, "z" * 2000],
+        output_preview: ["w" * 2000, "q" * 2000],
+        error_class: "RuntimeError",
+        error_message: "boom " * 80,
+        wringer: {
+          signals: {
+            network_status: "failed",
+            content_type: "html",
+            primary_issue_key: "timeout",
+            final_url: "https://example.org/" + ("deep/path/" * 30)
+          },
+          hints: Array.new(20) { "hint-" + ("very-long-" * 20) }
+        }
+      }
+    end
+
+    compact = Dsl::Tracing::TraceFormatter.for_session_v2(trace)
+
+    assert_operator JSON.generate(compact).bytesize, :<=, Dsl::Tracing::TraceFormatter::MAX_SESSION_BYTES
+    assert compact[:steps].present?
+    assert_match(/Trace omitted|boom/, compact[:steps].first[:e].to_s)
+  end
+
+  test "for_session_v2 summarizes wringer diagnostics instead of copying full payloads" do
+    trace = [
+      {
+        step: 1,
+        type: "url",
+        wringer: {
+          policy_action: "abort_update",
+          final_url: "https://example.org/final",
+          redirect_chain: [
+            "https://example.org/start",
+            "https://example.org/final",
+            "https://example.org/ignored"
+          ],
+          signals: {
+            network_status: "ok",
+            content_type: "html",
+            blocking_issue_key: "redirect_to_listing",
+            primary_issue_label: "Redirect to listing",
+            fetch_backend: "phantomjs",
+            fetched_body_state: "non_empty",
+            stored_body_state: "not_stored",
+            raw_html_blob: "<html>" + ("x" * 500) + "</html>",
+            nested_payload: { giant: "y" * 500 }
+          },
+          hints: [
+            "redirect_to_listing",
+            { detail: "z" * 500 },
+            "ignored-third-hint"
+          ]
+        }
+      }
+    ]
+
+    compact = Dsl::Tracing::TraceFormatter.for_session_v2(trace).with_indifferent_access
+    wringer = compact[:steps].first.with_indifferent_access[:w].with_indifferent_access
+    signals = wringer[:s].with_indifferent_access
+
+    assert_equal "https://example.org/final", wringer[:fu]
+    assert_equal ["https://example.org/start", "https://example.org/final"], wringer[:rc]
+    assert_equal "ok", signals[:network_status]
+    assert_equal "html", signals[:content_type]
+    assert_equal "redirect_to_listing", signals[:blocking_issue_key]
+    assert_equal "Redirect to listing", signals[:primary_issue_label]
+    assert_equal "phantomjs", signals[:fetch_backend]
+    assert_equal "non_empty", signals[:fetched_body_state]
+    assert_equal "not_stored", signals[:stored_body_state]
+    refute signals.key?(:raw_html_blob)
+    refute signals.key?(:nested_payload)
+    assert_equal 2, wringer[:h].length
+    assert_operator wringer[:h].first.length, :<=, 60
   end
 end

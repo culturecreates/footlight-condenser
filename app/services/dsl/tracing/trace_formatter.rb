@@ -45,36 +45,44 @@ module Dsl
           normalize_event_for_session(event, index)
         end
 
-        compact = build_session_v2(
-          normalized,
-          code_limit: 40,
-          error_code_limit: 120,
-          output_limit: 80,
-          initial_limit: 80,
-          include_duration: true
-        )
-        return compact if serialized_size(compact) <= MAX_SESSION_BYTES
+        attempts = [
+          {
+            code_limit: 40,
+            error_code_limit: 120,
+            output_limit: 80,
+            initial_limit: 80,
+            include_duration: true
+          },
+          {
+            code_limit: 40,
+            error_code_limit: 120,
+            output_limit: 40,
+            initial_limit: 40,
+            include_duration: false
+          },
+          {
+            code_limit: 20,
+            error_code_limit: 80,
+            output_limit: 20,
+            initial_limit: 20,
+            include_duration: false
+          }
+        ]
 
-        Rails.logger.warn("[DSL TRACE] v2 trace exceeded session budget; trimming non-critical fields")
+        attempts.each_with_index do |options, index|
+          compact = build_session_v2(normalized, **options)
+          return compact if serialized_size(compact) <= MAX_SESSION_BYTES
 
-        compact = build_session_v2(
-          normalized,
-          code_limit: 40,
-          error_code_limit: 120,
-          output_limit: 40,
-          initial_limit: 40,
-          include_duration: false
-        )
-        return compact if serialized_size(compact) <= MAX_SESSION_BYTES
+          next unless index.zero?
 
-        build_session_v2(
-          normalized,
-          code_limit: 20,
-          error_code_limit: 80,
-          output_limit: 20,
-          initial_limit: 20,
-          include_duration: false
-        )
+          Rails.logger.warn("[DSL TRACE] v2 trace exceeded session budget; trimming non-critical fields")
+        end
+
+        minimal = minimal_session_v2(normalized)
+        return minimal if serialized_size(minimal) <= MAX_SESSION_BYTES
+
+        Rails.logger.warn("[DSL TRACE] v2 trace still exceeded session budget after minimal fallback; omitting trace details")
+        omitted_session_v2
       end
 
       def for_session(trace)
@@ -275,7 +283,8 @@ module Dsl
               s: event[:wringer][:signals],
               h: event[:wringer][:hints],
               fu: event[:wringer][:final_url],
-              rc: event[:wringer][:redirect_chain]
+              rc: event[:wringer][:redirect_chain],
+              ct: event[:wringer][:content_type]
             }.compact
           end
 
@@ -296,6 +305,39 @@ module Dsl
           initial: { state: initial_state, url: initial_url },
           urls: urls,
           steps: steps
+        }
+      end
+
+      def minimal_session_v2(normalized)
+        last_event = normalized.last || {}
+        message = last_event[:error].presence || "Trace omitted: exceeded session budget"
+
+        {
+          version: 2,
+          initial: { state: nil, url: nil },
+          urls: [],
+          steps: [
+            {
+              s: last_event[:step] || normalized.length,
+              t: "trace",
+              e: truncate_str(message, 160)
+            }.compact
+          ]
+        }
+      end
+
+      def omitted_session_v2
+        {
+          version: 2,
+          initial: { state: nil, url: nil },
+          urls: [],
+          steps: [
+            {
+              s: 1,
+              t: "trace",
+              e: "Trace omitted: exceeded session budget"
+            }
+          ]
         }
       end
 
@@ -421,17 +463,101 @@ module Dsl
         payload = raw.with_indifferent_access
         return { inherited: true } if payload[:inherited]
 
+        signals = compact_wringer_signals(payload)
+        hints = compact_wringer_hints(payload)
+        final_url = normalize_session_url(payload[:final_url] || signals[:final_url])
+        content_type = signals[:content_type].presence
+
         {
-          error_type: payload[:error_type],
+          error_type: truncate_str(payload[:error_type].to_s, 60).presence,
           retry: payload[:retry],
           cache: payload[:cache],
           unreachable: payload[:unreachable],
           received_404: payload[:received_404],
           system_error: payload[:system_error],
-          policy_action: payload[:policy_action],
-          signals: payload[:signals].is_a?(Hash) ? payload[:signals] : nil,
-          hints: payload[:hints].is_a?(Array) ? payload[:hints] : nil
+          policy_action: truncate_str(payload[:policy_action].to_s, 40).presence,
+          content_type: truncate_str(content_type.to_s, 40).presence,
+          final_url: final_url,
+          redirect_chain: compact_redirect_chain(payload[:redirect_chain]),
+          signals: signals.presence,
+          hints: hints.presence
         }.compact
+      end
+
+      def compact_wringer_signals(payload)
+        raw = payload[:signals]
+        return {} unless raw.respond_to?(:to_h)
+
+        signals = raw.to_h.with_indifferent_access
+
+        summary = {
+          network_status: truncate_str(signals[:network_status].to_s, 30).presence,
+          content_type: truncate_str(signals[:content_type].to_s, 40).presence,
+          blocking_issue_key: truncate_str(signals[:blocking_issue_key].to_s, 60).presence,
+          primary_issue_key: truncate_str(signals[:primary_issue_key].to_s, 60).presence,
+          primary_issue_label: truncate_str(signals[:primary_issue_label].to_s, 80).presence,
+          final_url: normalize_session_url(signals[:final_url]),
+          fetch_backend: truncate_str(signals[:fetch_backend].to_s, 40).presence,
+          fetched_body_state: truncate_str(signals[:fetched_body_state].to_s, 30).presence,
+          stored_body_state: truncate_str(signals[:stored_body_state].to_s, 30).presence
+        }
+
+        if summary[:fetched_body_state].blank? && summary[:stored_body_state].blank?
+          derived = compact_body_state(signals)
+          summary[:body_state] = derived if derived.present?
+        end
+
+        summary.compact
+      rescue StandardError
+        {}
+      end
+
+      def compact_body_state(signals)
+        fetched =
+          if signals.key?(:fetched_body_present)
+            signals[:fetched_body_present] ? "present" : "missing"
+          elsif signals.key?(:empty_body)
+            signals[:empty_body] ? "empty" : nil
+          end
+
+        stored =
+          if signals.key?(:stored_body_present)
+            signals[:stored_body_present] ? "present" : "missing"
+          end
+
+        [fetched, stored].compact.join("/")
+      end
+
+      def compact_wringer_hints(payload)
+        Array(payload[:hints]).first(2).map do |hint|
+          truncate_nested_session_value(hint, max: 60)
+        end.compact
+      rescue StandardError
+        []
+      end
+
+      def compact_redirect_chain(value)
+        chain = Array(value).compact.map { |entry| normalize_session_url(entry) }.compact
+        return nil if chain.empty?
+
+        chain.first(2).map { |entry| truncate_str(entry, 100) }
+      rescue StandardError
+        nil
+      end
+
+      def truncate_nested_session_value(value, max:)
+        case value
+        when Hash
+          value.to_h.each_with_object({}) do |(key, nested), compact|
+            compact[truncate_str(key.to_s, 30)] = truncate_nested_session_value(nested, max: max)
+          end
+        when Array
+          value.first(2).map { |entry| truncate_nested_session_value(entry, max: max) }
+        else
+          truncate_str(value.to_s, max)
+        end
+      rescue StandardError
+        truncate_str(value.to_s, max)
       end
 
       def session_error_text(payload)

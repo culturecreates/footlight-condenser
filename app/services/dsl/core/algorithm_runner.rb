@@ -327,8 +327,13 @@ module Dsl
         result = @dsl_binding.eval(sub(code, arr))
 
         # sync back DSL state
+        current_array = Thread.current[:dsl_array]
         @url  = Thread.current[:dsl_url]
         @json = Thread.current[:dsl_json]
+
+        if result.nil? && current_array.equal?(arr)
+          result = current_array
+        end
 
         result
 

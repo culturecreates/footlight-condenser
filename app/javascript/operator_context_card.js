@@ -1,16 +1,33 @@
 const CARD_KEY = "operatorContextCardOpen";
 const DOMAINS_KEY = "operatorContextDomains";
 
+function safeLocalStorageGet(key) {
+  try {
+    return window.localStorage.getItem(key);
+  } catch (_error) {
+    return null;
+  }
+}
+
+function safeLocalStorageSet(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
+
 function readDomainState() {
   try {
-    return JSON.parse(window.localStorage.getItem(DOMAINS_KEY) || "{}");
+    return JSON.parse(safeLocalStorageGet(DOMAINS_KEY) || "{}");
   } catch (_error) {
     return {};
   }
 }
 
 function writeDomainState(state) {
-  window.localStorage.setItem(DOMAINS_KEY, JSON.stringify(state));
+  safeLocalStorageSet(DOMAINS_KEY, JSON.stringify(state));
 }
 
 function restoreOperatorContextCard() {
@@ -20,7 +37,7 @@ function restoreOperatorContextCard() {
 
   card.dataset.operatorContextInitialized = "true";
 
-  const storedCardOpen = window.localStorage.getItem(CARD_KEY);
+  const storedCardOpen = safeLocalStorageGet(CARD_KEY);
   if (storedCardOpen === "true") card.open = true;
   if (storedCardOpen === "false") card.open = false;
 
@@ -35,7 +52,7 @@ function restoreOperatorContextCard() {
   });
 
   card.addEventListener("toggle", () => {
-    window.localStorage.setItem(CARD_KEY, card.open ? "true" : "false");
+    safeLocalStorageSet(CARD_KEY, card.open ? "true" : "false");
   });
 
   card.querySelectorAll("[data-context-domain]").forEach((section) => {

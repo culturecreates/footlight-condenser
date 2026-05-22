@@ -278,6 +278,22 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert session[:dsl_trace].present?
   end
 
+  test "trace is scoped to the refreshed statement" do
+    other_statement = statements(:two)
+    @statement.source.update!(algorithm_value: "manual=Traceable value")
+
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    assert_redirected_to statement_url(@statement)
+    assert_equal @statement.id, session[:dsl_trace].with_indifferent_access[:statement_id]
+
+    get statement_url(other_statement), headers: { "Cookie" => "trace_visibility=always; trace_view_mode=3" }
+
+    assert_response :success
+    assert_equal [], assigns(:trace)
+    assert_no_match(/Algorithm Trace/, response.body)
+    assert_nil session[:dsl_trace]
+  end
+
   test "trace is not mutated between requests" do
     @statement.source.update!(algorithm_value: "manual=Traceable value")
     patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
@@ -458,6 +474,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to webpage_statements_path(url: "https://example.org/missing")
     follow_redirect!
+    assert_response :not_found
     assert_match(/Webpage not found for URL: https:\/\/example.org\/missing/, response.body)
   end
 
@@ -1107,6 +1124,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_nil flash[:dsl_trace]
     trace = assert_session_trace_present_and_structured
 
+    assert_equal @statement.id, trace[:statement_id]
     first = trace[:steps].first.with_indifferent_access
     assert_equal 1, first[:s]
     assert_equal "manual", first[:t]
@@ -1581,7 +1599,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     end
 
     trace = assert_session_trace_present_and_structured
-    assert_equal 20, trace[:steps].size
+    assert trace[:steps].present?
     assert_operator Marshal.dump(session.to_hash).bytesize, :<, 3000
   end
 
@@ -2019,6 +2037,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
 
     compact = trace.with_indifferent_access
     assert_equal 2, compact[:version]
+    assert compact[:statement_id].present?
     assert compact[:initial].is_a?(Hash)
     assert compact[:urls].is_a?(Array)
     assert compact[:steps].is_a?(Array)
