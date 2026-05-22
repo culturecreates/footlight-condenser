@@ -68,6 +68,53 @@ module WebpagesHelper
     "Webpage ##{webpage.id}"
   end
 
+  def webpages_selected_rdfs_class_id(filters)
+    explicit_id = filters[:rdfs_class_id].presence
+    return explicit_id if explicit_id.present?
+
+    class_name = filters[:rdfs_class].to_s
+    return nil if class_name.blank? || class_name == "Other"
+
+    RdfsClass.find_by(name: class_name)&.id
+  end
+
+  def webpages_index_summary_heading(website:, visible_count:, filtered_count:, total_count:, filters:)
+    if website.present?
+      filter_label = webpages_filter_label(filters)
+
+      if filter_label.present?
+        "Showing #{visible_count} of #{filtered_count} #{filter_label} webpages for #{website.name}."
+      else
+        "Showing #{visible_count} of #{total_count} webpages for #{website.name}."
+      end
+    elsif webpages_filter_active?(filters)
+      "Showing #{visible_count} of #{filtered_count} matching webpages. Total webpages: #{total_count}."
+    else
+      "Showing #{visible_count} of #{total_count} webpages."
+    end
+  end
+
+  def webpages_index_summary_secondary_lines(website:, summary:, filters:, total_count:)
+    return [] unless website.present? && summary.present?
+
+    lines = []
+    if webpages_filter_active?(filters)
+      lines << "Total website webpages: #{total_count}."
+    end
+
+    lines << "#{summary[:public_urls]} public source URLs · #{summary[:internal_uris]} internal entity URIs"
+    lines << [
+      "Events #{summary[:by_class]['Event']}",
+      "People #{summary[:by_class]['Person']}",
+      "Places #{summary[:by_class]['Place']}",
+      "Resource lists #{summary[:by_class]['ResourceList']}",
+      "Web pages #{summary[:by_class]['WebPage']}",
+      "Other #{summary[:by_class]['Other']}"
+    ].join(" · ")
+    lines << "Publishable #{summary[:publishable]} · Not publishable #{summary[:not_publishable]}"
+    lines
+  end
+
   def webpage_cache_warning_for(webpage, cache_links)
     return "Invalid cache URL. Use Diagnose refresh to inspect why this URL is not cache-inspectable." if webpage_cache_not_inspectable?(webpage, cache_links)
 
@@ -102,5 +149,23 @@ module WebpagesHelper
     return name if name.present?
 
     seedurl
+  end
+
+  def webpages_filter_active?(filters)
+    filters.slice(:term, :language, :rdfs_class_id, :rdfs_class, :archive_state, :url_kind, :publishable).values.any?(&:present?)
+  end
+
+  def webpages_filter_label(filters)
+    return "publishable" if filters[:publishable].to_s == "true"
+    return "not publishable" if filters[:publishable].to_s == "false"
+    return "public source URL" if filters[:url_kind].to_s == "public"
+    return "internal entity URI" if filters[:url_kind].to_s == "internal"
+
+    if filters[:rdfs_class_id].present?
+      label = RdfsClass.find_by(id: filters[:rdfs_class_id])&.name
+      return label if label.present?
+    end
+
+    filters[:rdfs_class].presence || ("matching" if webpages_filter_active?(filters))
   end
 end

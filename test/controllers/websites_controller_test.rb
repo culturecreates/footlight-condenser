@@ -35,6 +35,46 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_no_cohort_source_requests
   end
 
+  test "websites index renders typed webpage summary cell with scoped links" do
+    website = Website.create!(
+      name: "Typed dashboard website",
+      seedurl: "typed-dashboard-website",
+      graph_name: "https://example.org/typed-dashboard-website",
+      default_language: "en"
+    )
+
+    resource_list_class = RdfsClass.create!(name: "ResourceList")
+    web_page_class = RdfsClass.create!(name: "WebPage")
+    other_class = RdfsClass.create!(name: "Thingish")
+
+    publishable_page = Webpage.create!(url: "https://example.org/events/dashboard", language: "en", rdf_uri: "rdf:dashboard:event", rdfs_class: rdfs_classes(:one), website: website)
+    create_publishable_statements_for(publishable_page)
+    Webpage.create!(url: "https://example.org/events/dashboard-blocked", language: "en", rdf_uri: "rdf:dashboard:event:blocked", rdfs_class: rdfs_classes(:one), website: website)
+    Webpage.create!(url: "footlight:dashboard:person", language: "en", rdf_uri: "rdf:dashboard:person", rdfs_class: rdfs_classes(:person), website: website)
+    Webpage.create!(url: "footlight:dashboard:place", language: "en", rdf_uri: "rdf:dashboard:place", rdfs_class: rdfs_classes(:place), website: website)
+    Webpage.create!(url: "https://example.org/resources/dashboard", language: "en", rdf_uri: "rdf:dashboard:resource-list", rdfs_class: resource_list_class, website: website)
+    Webpage.create!(url: "https://example.org/pages/dashboard", language: "en", rdf_uri: "rdf:dashboard:webpage", rdfs_class: web_page_class, website: website)
+    Webpage.create!(url: "footlight:dashboard:other", language: "en", rdf_uri: "rdf:dashboard:other", rdfs_class: other_class, website: website)
+
+    get websites_url, params: { q: "Typed dashboard website" }
+
+    assert_response :success
+    assert_includes @response.body, "7 total"
+    assert_includes @response.body, "4 public"
+    assert_includes @response.body, "3 internal"
+    assert_includes @response.body, "E2"
+    assert_includes @response.body, "Pe1"
+    assert_includes @response.body, "Pl1"
+    assert_includes @response.body, "R1"
+    assert_includes @response.body, "W1"
+    assert_includes @response.body, "O1"
+    assert_includes @response.body, "1 publishable"
+    assert_includes @response.body, "6 not publishable"
+    assert_match %r{/webpages\?(seedurl=#{website.seedurl}&amp;url_kind=public|url_kind=public&amp;seedurl=#{website.seedurl})}, @response.body
+    assert_match %r{/webpages\?(seedurl=#{website.seedurl}&amp;rdfs_class=Event|rdfs_class=Event&amp;seedurl=#{website.seedurl})}, @response.body
+    assert_match %r{/webpages\?(seedurl=#{website.seedurl}&amp;publishable=true|publishable=true&amp;seedurl=#{website.seedurl})}, @response.body
+  end
+
   test "should get new" do
     get new_website_url
     assert_response :success
@@ -1155,6 +1195,30 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
       checked_at: 1.hour.ago
     )
     website
+  end
+
+  def create_publishable_statements_for(webpage)
+    [
+      [properties(:four), "Publishable title"],
+      [properties(:location), '[["Salle","uri:place"]]'],
+      [properties(:six), '["2026-06-01T20:00:00-04:00"]']
+    ].each do |property, cache|
+      source = Source.create!(
+        website: webpage.website,
+        property: property,
+        language: "en",
+        selected: true,
+        algorithm_value: "controller-test"
+      )
+
+      Statement.create!(
+        webpage: webpage,
+        source: source,
+        cache: cache,
+        status: "ok"
+      )
+      Statement.where(webpage: webpage, source: source).update_all(status: "ok")
+    end
   end
 
   def assert_read_only_page_does_not_fetch

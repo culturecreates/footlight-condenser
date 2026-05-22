@@ -97,6 +97,42 @@ module WebsitesHelper
     operator_active_backend_label(website)
   end
 
+  def website_webpages_filter_path(website, extra_params = {})
+    webpages_path({ seedurl: website.seedurl }.merge(extra_params).compact)
+  end
+
+  def website_webpage_summary_cell(website, summary)
+    data = summary || Distillator::WebsiteWebpageSummary.empty_summary
+    lines = []
+
+    lines << content_tag(:div, link_to("#{data[:total]} total", website_webpages_filter_path(website)))
+    lines << content_tag(
+      :div,
+      safe_join(
+        [
+          website_webpage_summary_metric_link(website, count: data[:public_urls], text: "#{data[:public_urls]} public", params: { url_kind: "public" }),
+          website_webpage_summary_separator,
+          website_webpage_summary_metric_link(website, count: data[:internal_uris], text: "#{data[:internal_uris]} internal", params: { url_kind: "internal" })
+        ]
+      ),
+      class: "muted"
+    )
+    lines << content_tag(:div, website_webpage_class_summary_links(website, data[:by_class]), class: "muted")
+    lines << content_tag(
+      :div,
+      safe_join(
+        [
+          website_webpage_summary_metric_link(website, count: data[:publishable], text: "#{data[:publishable]} publishable", params: { publishable: true }),
+          website_webpage_summary_separator,
+          website_webpage_summary_metric_link(website, count: data[:not_publishable], text: "#{data[:not_publishable]} not publishable", params: { publishable: false })
+        ]
+      ),
+      class: "muted"
+    )
+
+    content_tag(:div, safe_join(lines), class: "webpage-summary-cell")
+  end
+
   def website_rollout_next_step_for(website)
     operator_rollout_next_step(website)
   end
@@ -197,6 +233,64 @@ module WebsitesHelper
   end
 
   private
+
+  def website_webpage_class_summary_links(website, by_class)
+    labels = [
+      ["Event", "E"],
+      ["Person", "Pe"],
+      ["Place", "Pl"],
+      ["ResourceList", "R"],
+      ["WebPage", "W"],
+      ["Other", "O"]
+    ]
+
+    safe_join(
+      labels.flat_map.with_index do |(bucket, abbreviation), index|
+        count = by_class.fetch(bucket, 0)
+        node = website_webpage_summary_metric_link(
+          website,
+          count: count,
+          text: "#{abbreviation}#{count}",
+          params: { rdfs_class: bucket },
+          title: webpage_class_bucket_title(bucket)
+        )
+
+        index.positive? ? [website_webpage_summary_separator, node] : [node]
+      end
+    )
+  end
+
+  def website_webpage_summary_metric_link(website, count:, text:, params:, title: nil)
+    css_class = ["webpage-summary-link"]
+    css_class << "muted" if count.to_i.zero?
+
+    if count.to_i.zero?
+      content_tag(:span, text, class: css_class.join(" "), title: title)
+    else
+      link_to text, website_webpages_filter_path(website, params), class: css_class.join(" "), title: title
+    end
+  end
+
+  def website_webpage_summary_separator
+    content_tag(:span, " · ", class: "webpage-summary-separator")
+  end
+
+  def webpage_class_bucket_title(bucket)
+    case bucket
+    when "Event"
+      "Event webpages"
+    when "Person"
+      "Person webpages"
+    when "Place"
+      "Place webpages"
+    when "ResourceList"
+      "Resource list webpages"
+    when "WebPage"
+      "WebPage webpages"
+    else
+      "Other webpages"
+    end
+  end
 
   def inert_website_transition_contract
     {

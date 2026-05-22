@@ -451,7 +451,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
-    assert_match %r{all websites</a>\s*\|\s*<a[^>]+href="/websites/#{website.id}">#{Regexp.escape(website.name)}</a>\s*\|\s*<a[^>]+href="/webpages"}, @response.body
+    assert_match %r{all websites</a>\s*\|\s*<a[^>]+href="/websites/#{website.id}">#{Regexp.escape(website.name)}</a>\s*\|\s*<a[^>]+href="/webpages\?seedurl=#{Regexp.escape(website.seedurl)}"}, @response.body
     assert_match "Fetch/cache failed for the representative URL.", @response.body
     assert_match "generic_error_text", @response.body
     assert_match "High: Generic error text observed", @response.body

@@ -391,7 +391,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     get "/distillator/cache/#{cache.id}"
 
     assert_response :success
-    assert_match %r{all websites</a>\s*\|\s*<a[^>]+href="/websites/#{website.id}">Cache &amp; Safety &lt;Site&gt;</a>\s*\|\s*<a[^>]+href="/webpages"}, @response.body
+    assert_match %r{all websites</a>\s*\|\s*<a[^>]+href="/websites/#{website.id}">Cache &amp; Safety &lt;Site&gt;</a>\s*\|\s*<a[^>]+href="/webpages\?seedurl=#{Regexp.escape(website.seedurl)}"}, @response.body
     assert_select "a[href='https://centredecreationdiffusiondegaspe.com/programmation/koros-experiences-vr/']", text: "https://centredecreationdiffusiondegaspe.com/programmation/koros-experiences-vr/"
     assert_no_match %r{<a[^>]+href="http://localhost:3000/websites/wring\.json\?uri=}m, @response.body
     text = visible_text(@response.body)

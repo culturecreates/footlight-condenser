@@ -6,6 +6,7 @@ class Webpages::IndexQueryTest < ActiveSupport::TestCase
     @website_two = websites(:two)
     @event_class = rdfs_classes(:one)
     @place_class = rdfs_classes(:place)
+    @other_class = rdfs_classes(:two)
 
     @archived = Webpage.create!(
       url: "http://example.org/query-archived",
@@ -36,6 +37,34 @@ class Webpages::IndexQueryTest < ActiveSupport::TestCase
       archive_date: 10.days.from_now,
       updated_at: Time.zone.now
     )
+
+    @internal_event = Webpage.create!(
+      url: "footlight:internal-event-query",
+      language: "en",
+      rdf_uri: "footlight:internal-event-query",
+      rdfs_class: @event_class,
+      website: @website_one,
+      archive_date: 8.days.from_now
+    )
+
+    @other_page = Webpage.create!(
+      url: "footlight:other-query",
+      language: "en",
+      rdf_uri: "footlight:other-query",
+      rdfs_class: @other_class,
+      website: @website_one,
+      archive_date: 8.days.from_now
+    )
+
+    @publishable_event = Webpage.create!(
+      url: "https://example.org/publishable-query",
+      language: "en",
+      rdf_uri: "footlight:publishable-query",
+      rdfs_class: @event_class,
+      website: @website_one,
+      archive_date: 8.days.from_now
+    )
+    create_publishable_statements_for(@publishable_event)
   end
 
   test "filters by url term" do
@@ -70,6 +99,61 @@ class Webpages::IndexQueryTest < ActiveSupport::TestCase
     assert_includes active_records.map(&:id), @active.id
     assert_includes active_records.map(&:id), @latest.id
     assert_not_includes active_records.map(&:id), @archived.id
+  end
+
+  test "filters by public source urls" do
+    records = Webpages::IndexQuery.call(filters: { url_kind: "public", website_id: @website_one.id }, sort: "url", direction: "asc", page: 1, per_page: 50)
+
+    assert_includes records.map(&:id), @publishable_event.id
+    assert_not_includes records.map(&:id), @internal_event.id
+  end
+
+  test "filters by internal uris" do
+    records = Webpages::IndexQuery.call(filters: { url_kind: "internal", website_id: @website_one.id }, sort: "url", direction: "asc", page: 1, per_page: 50)
+
+    assert_includes records.map(&:id), @internal_event.id
+    assert_not_includes records.map(&:id), @publishable_event.id
+  end
+
+  test "filters by rdfs class name" do
+    records = Webpages::IndexQuery.call(filters: { rdfs_class: "Event", website_id: @website_one.id }, sort: "url", direction: "asc", page: 1, per_page: 50)
+
+    assert_includes records.map(&:id), @publishable_event.id
+    assert_includes records.map(&:id), @internal_event.id
+    assert_not_includes records.map(&:id), @other_page.id
+  end
+
+  test "filters other class bucket as nil or unbucketed classes" do
+    nil_class_page = Webpage.create!(
+      url: "footlight:nil-class-query",
+      language: "en",
+      rdf_uri: "footlight:nil-class-query",
+      rdfs_class: @event_class,
+      website: @website_one,
+      archive_date: 8.days.from_now
+    )
+    nil_class_page.update_column(:rdfs_class_id, nil)
+
+    records = Webpages::IndexQuery.call(filters: { rdfs_class: "Other", website_id: @website_one.id }, sort: "url", direction: "asc", page: 1, per_page: 50)
+
+    assert_includes records.map(&:id), @other_page.id
+    assert_includes records.map(&:id), nil_class_page.id
+    assert_not_includes records.map(&:id), @publishable_event.id
+  end
+
+  test "filters by publishable true and false" do
+    publishable_records = Webpages::IndexQuery.call(filters: { publishable: "true", website_id: @website_one.id }, sort: "url", direction: "asc", page: 1, per_page: 50)
+    not_publishable_records = Webpages::IndexQuery.call(filters: { publishable: "false", website_id: @website_one.id }, sort: "url", direction: "asc", page: 1, per_page: 50)
+
+    assert_equal [@publishable_event.id], publishable_records.map(&:id)
+    assert_includes not_publishable_records.map(&:id), @internal_event.id
+    assert_not_includes not_publishable_records.map(&:id), @publishable_event.id
+  end
+
+  test "combines website class and publishable filters" do
+    records = Webpages::IndexQuery.call(filters: { website_id: @website_one.id, rdfs_class: "Event", publishable: "true" }, sort: "url", direction: "asc", page: 1, per_page: 50)
+
+    assert_equal [@publishable_event.id], records.map(&:id)
   end
 
   test "sorts by url" do
@@ -116,5 +200,31 @@ class Webpages::IndexQueryTest < ActiveSupport::TestCase
     assert_equal 1, page_one.length
     assert_equal 1, page_two.length
     assert_not_equal page_one.first.id, page_two.first.id
+  end
+
+  private
+
+  def create_publishable_statements_for(webpage)
+    [
+      [properties(:four), "Publishable title"],
+      [properties(:location), '[["Salle","uri:place"]]'],
+      [properties(:six), '["2026-06-01T20:00:00-04:00"]']
+    ].each do |property, cache|
+      source = Source.create!(
+        website: webpage.website,
+        property: property,
+        language: "en",
+        selected: true,
+        algorithm_value: "query-test"
+      )
+
+      Statement.create!(
+        webpage: webpage,
+        source: source,
+        cache: cache,
+        status: "ok"
+      )
+      Statement.where(webpage: webpage, source: source).update_all(status: "ok")
+    end
   end
 end

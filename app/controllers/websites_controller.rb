@@ -112,7 +112,7 @@ class WebsitesController < ApplicationController
     @statements_grouped = Statement.joins(webpage: :website).group(:seedurl).count
     @statements_refreshed_24hr = Statement.joins(webpage: :website).where(cache_refreshed: [(Time.zone.now - 24.hours)..(Time.zone.now)]).group(:seedurl).count
     @statements_updated_24hr = Statement.joins(webpage: :website).where(cache_changed: [(Time.zone.now - 24.hours)..(Time.zone.now)]).group(:seedurl).count
-    @webpages = Webpage.group(:website_id).count
+    @webpage_summaries = Distillator::WebsiteWebpageSummary.for_websites(Array(@websites).map(&:id))
     @flags = Statement.joins(webpage: :website).where(status: ["problem"], selected_individual: true, webpages: { rdfs_class_id: 1}).group(:seedurl).count
     @updated = Statement.joins(webpage: :website).where(status: "updated", selected_individual: true, webpages: { rdfs_class_id: 1}).group(:seedurl).count
 
@@ -283,7 +283,7 @@ class WebsitesController < ApplicationController
       value =
         case sort_column
         when "webpages_count"
-          @webpages[website.id] || 0
+          @webpage_summaries.fetch(website.id, Distillator::WebsiteWebpageSummary.empty_summary)[:total]
         when "statements_count"
           @statements_grouped[website.seedurl] || 0
         when "refreshed_24h"

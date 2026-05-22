@@ -63,16 +63,29 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "webpages index preserves active filters in sort links" do
-    get webpages_url, params: { term: "example", language: "en", archive_state: "active", per_page: "10" }
+    get webpages_url, params: {
+      seedurl: websites(:one).seedurl,
+      term: "example",
+      language: "en",
+      archive_state: "active",
+      url_kind: "public",
+      rdfs_class: "Event",
+      publishable: "true",
+      per_page: "10"
+    }
 
     assert_response :success
     assert_sort_link_preserves_params(
       label: "Url",
       sort_key: "url",
       params: {
+        seedurl: websites(:one).seedurl,
         term: "example",
         language: "en",
         archive_state: "active",
+        url_kind: "public",
+        rdfs_class: "Event",
+        publishable: "true",
         per_page: "10"
       }
     )
@@ -116,6 +129,69 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     follow_redirect! if response.redirect?
     assert_response :success
     assert_select ".harmonized-table-empty-state", 1
+  end
+
+  test "webpages index shows website scoped typed summary and preserves reset seedurl" do
+    website = Website.create!(
+      name: "Typed summary website",
+      seedurl: "typed-summary-website",
+      graph_name: "https://example.org/typed-summary-website",
+      default_language: "en"
+    )
+
+    resource_list_class = RdfsClass.create!(name: "ResourceList")
+    web_page_class = RdfsClass.create!(name: "WebPage")
+    other_class = RdfsClass.create!(name: "Thingish")
+
+    publishable_page = Webpage.create!(url: "https://example.org/events/typed", language: "en", rdf_uri: "rdf:typed:event", rdfs_class: rdfs_classes(:one), website: website)
+    create_publishable_statements_for(publishable_page)
+    Webpage.create!(url: "https://example.org/events/blocked", language: "en", rdf_uri: "rdf:typed:event:blocked", rdfs_class: rdfs_classes(:one), website: website)
+    Webpage.create!(url: "footlight:typed:person", language: "en", rdf_uri: "rdf:typed:person", rdfs_class: rdfs_classes(:person), website: website)
+    Webpage.create!(url: "footlight:typed:place", language: "en", rdf_uri: "rdf:typed:place", rdfs_class: rdfs_classes(:place), website: website)
+    Webpage.create!(url: "https://example.org/resources/typed", language: "en", rdf_uri: "rdf:typed:resource-list", rdfs_class: resource_list_class, website: website)
+    Webpage.create!(url: "https://example.org/pages/typed", language: "en", rdf_uri: "rdf:typed:webpage", rdfs_class: web_page_class, website: website)
+    Webpage.create!(url: "footlight:typed:other", language: "en", rdf_uri: "rdf:typed:other", rdfs_class: other_class, website: website)
+
+    get webpages_url, params: { seedurl: website.seedurl }
+
+    assert_response :success
+    assert_includes @response.body, "Showing 7 of 7 webpages for Typed summary website."
+    assert_includes @response.body, "4 public source URLs · 3 internal entity URIs"
+    assert_includes @response.body, "Events 2 · People 1 · Places 1 · Resource lists 1 · Web pages 1 · Other 1"
+    assert_includes @response.body, "Publishable 1 · Not publishable 6"
+    assert_select "a[href='/webpages?seedurl=#{website.seedurl}']", text: "Reset filters"
+    assert_select "a[href='#{website_path(website)}']", text: website.name
+    assert_select "a[href='/webpages?seedurl=#{website.seedurl}']", text: "webpages"
+    assert_select "a[href='/sources?seedurl=#{website.seedurl}']", text: "sources"
+    assert_select "a[href='/statements?seedurl=#{website.seedurl}']", text: "statements"
+  end
+
+  test "webpages index filtered summary keeps website total semantics" do
+    website = Website.create!(
+      name: "Filtered summary website",
+      seedurl: "filtered-summary-website",
+      graph_name: "https://example.org/filtered-summary-website",
+      default_language: "en"
+    )
+
+    publishable_page = Webpage.create!(url: "https://example.org/events/filtered", language: "en", rdf_uri: "rdf:filtered:event", rdfs_class: rdfs_classes(:one), website: website)
+    create_publishable_statements_for(publishable_page)
+    Webpage.create!(url: "footlight:filtered:other", language: "en", rdf_uri: "rdf:filtered:other", rdfs_class: rdfs_classes(:person), website: website)
+
+    get webpages_url, params: { seedurl: website.seedurl, publishable: "true" }
+
+    assert_response :success
+    assert_includes @response.body, "Showing 1 of 1 publishable webpages for Filtered summary website."
+    assert_includes @response.body, "Total website webpages: 2."
+  end
+
+  test "global webpages index keeps global navigation without seedurl context" do
+    get webpages_url
+
+    assert_response :success
+    assert_select "a[href='#{webpages_path}']", text: "webpages"
+    assert_select "a[href='#{sources_path}']", text: "sources"
+    assert_select "a[href='#{statements_path}']", text: "statements"
   end
 
   test "should get new" do
@@ -358,6 +434,30 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def create_publishable_statements_for(webpage)
+    [
+      [properties(:four), "Publishable title"],
+      [properties(:location), '[["Salle","uri:place"]]'],
+      [properties(:six), '["2026-06-01T20:00:00-04:00"]']
+    ].each do |property, cache|
+      source = Source.create!(
+        website: webpage.website,
+        property: property,
+        language: "en",
+        selected: true,
+        algorithm_value: "controller-test"
+      )
+
+      Statement.create!(
+        webpage: webpage,
+        source: source,
+        cache: cache,
+        status: "ok"
+      )
+      Statement.where(webpage: webpage, source: source).update_all(status: "ok")
+    end
+  end
 
   def assert_read_only_page_does_not_fetch
     Distillator::FetchCacheStore.expects(:fetch).never

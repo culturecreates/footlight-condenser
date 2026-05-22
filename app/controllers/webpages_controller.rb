@@ -8,6 +8,7 @@ class WebpagesController < ApplicationController
   # GET /webpages.json
   def index
     @seedurl, website = normalized_seedurl_website
+    @current_website = website
     cookies[:seedurl] = @seedurl if @seedurl.present?
 
     index_params = harmonized_index_params(
@@ -41,6 +42,7 @@ class WebpagesController < ApplicationController
       page: index_params[:page],
       per_page: index_params[:per_page]
     }
+    filtered_scope = Webpages::IndexQuery.scope(filters: query_filters)
     @webpages = Webpages::IndexQuery.call(
       filters: query_filters,
       sort: @sort,
@@ -50,6 +52,16 @@ class WebpagesController < ApplicationController
     )
 
     @sortable_filters = @filters.merge(per_page: @pagination[:per_page])
+    @sortable_filters[:seedurl] = @seedurl if @seedurl.present?
+    @total_webpages_count = Webpage.count
+    @website_webpages_total_count = website.present? ? website.webpages.count : nil
+    @filtered_webpages_count = filtered_scope.count
+    @visible_webpages_count = @webpages.length
+    @webpage_summary = nil
+    if website.present?
+      @webpage_summary = Distillator::WebsiteWebpageSummary.for_websites([website.id])[website.id]
+    end
+
     @webpage_cache_link_rows = @webpages.each_with_object({}) do |webpage, rows|
       rows[webpage.id] = helpers.webpage_cache_links(webpage)
     end
@@ -60,34 +72,10 @@ class WebpagesController < ApplicationController
       show_distillator_cache_column: @show_distillator_cache_column
     )
 
-    website_id = website&.id
-    @locations = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Location", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri,  :cache, :status)
-    @locations_hash = @locations.map{ |l| l = l[0],[l[1],l[2]] }.to_h
-    ####### locaton data structures
-    # example 1: ["scraped name", "Place", ["name","uri"]]
-    # example 2 with multiple places: [["scraped name", "Place", ["name","uri"]],["scraped name 2", "Place", ["name","uri"]]]
-
-    @startDates = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Dates", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri, :cache, :status)
-    @startDates_hash = @startDates.map{ |l| l = l[0],[(l[1]),l[2]] }.to_h
-
-    @titles = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Title", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri, :cache, :status, "webpages.language")
-    @titles_hash = @titles.map{ |l| l = l[0],[l[1],l[2],l[3]] }.to_h
-
-    @publishable = {}
-    @webpages.each do |wp|
-      if wp.rdfs_class_id == 1
-        begin
-          @publishable[wp.id] =
-                (@locations_hash[wp.rdf_uri][1] == "ok" || @locations_hash[wp.rdf_uri][1] == "updated") &&
-                (@startDates_hash[wp.rdf_uri][1] == "ok" || @startDates_hash[wp.rdf_uri][1] == "updated") &&
-                @startDates_hash[wp.rdf_uri][0].chars.count > 3 &&
-                (@titles_hash[wp.rdf_uri][1] == "ok" || @titles_hash[wp.rdf_uri][1] == "updated")  ? "Yes" : "No"
-        rescue
-            @publishable[wp.id] = "No"
-        end
-      end
+    publishable_ids = Webpage.publishable.where(id: @webpages.map(&:id)).pluck(:id).to_set
+    @publishable = @webpages.each_with_object({}) do |webpage, values|
+      values[webpage.id] = publishable_ids.include?(webpage.id) ? "Yes" : "No"
     end
-
   end
 
   # GET /webpages/1

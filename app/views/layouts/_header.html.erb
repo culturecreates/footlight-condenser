@@ -2,9 +2,9 @@
 <% if transition_context_website.present? %>
 <%= link_to transition_context_website.name, website_path(transition_context_website) %> |
 <% end %>
-<%= link_to "webpages", webpages_path %> |
-<%= link_to "sources", sources_path %> |
-<%= link_to "statements", statements_path %> |
+<%= link_to "webpages", contextual_webpages_path %> |
+<%= link_to "sources", contextual_sources_path %> |
+<%= link_to "statements", contextual_statements_path %> |
 <%= link_to "console",        "#{get_console_url_per_environment}/events?seedurl=#{cookies[:seedurl]}" %> ||
 <%= link_to "properties",     properties_path %> |
 <%= link_to "classes",        rdfs_classes_path %> |

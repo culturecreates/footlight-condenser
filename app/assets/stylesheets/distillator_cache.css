@@ -260,6 +260,24 @@
   border-bottom: 1px solid #e5e7eb;
 }
 
+.webpage-summary-cell {
+  line-height: 1.35;
+}
+
+.webpage-summary-cell .muted,
+.webpage-index-summary .muted {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.webpage-summary-cell a {
+  white-space: nowrap;
+}
+
+.webpage-index-summary {
+  margin: 0 0 1rem;
+}
+
 .website-show-section {
   max-width: 72rem;
   margin: 0 0 1.5rem;

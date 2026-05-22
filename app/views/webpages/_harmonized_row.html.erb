@@ -1,7 +1,7 @@
 <% cache_links = @webpage_cache_link_rows.fetch(webpage.id) %>
 <tr>
   <td><%= webpage.id %></td>
-  <td><%= webpage.rdfs_class.name %></td>
+  <td><%= webpage.rdfs_class&.name %></td>
   <td><%= webpage.language %></td>
   <td><%= webpage.url %></td>
   <td><%= @publishable[webpage.id] %></td>

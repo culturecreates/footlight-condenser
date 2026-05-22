@@ -25,6 +25,25 @@ module ApplicationHelper
     admin_sortable(column, label)
   end
 
+  def contextual_seedurl_params
+    website = transition_context_website
+    return {} unless website.present?
+
+    { seedurl: website.seedurl }
+  end
+
+  def contextual_webpages_path
+    webpages_path(contextual_seedurl_params)
+  end
+
+  def contextual_sources_path
+    sources_path(contextual_seedurl_params)
+  end
+
+  def contextual_statements_path
+    statements_path(contextual_seedurl_params)
+  end
+
   def operator_rollout_badge(website_or_mode)
     state = operator_rollout_state(website_or_mode)
     content_tag(:span, state[:label], class: "rollout-badge #{state[:css_class]}")

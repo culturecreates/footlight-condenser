@@ -14,6 +14,7 @@ source_id = local_assigns[:source_id]
     <summary>Advanced filters</summary>
     <%= form_with url: webpages_path, method: :get, local: true, html: { autocomplete: "off", class: "webpage-advanced-filters-form" } do %>
       <%= hidden_field_tag :seedurl, seedurl if local_assigns[:seedurl].present? %>
+      <%= hidden_field_tag :rdfs_class, filters[:rdfs_class] if filters[:rdfs_class].present? && webpages_selected_rdfs_class_id(filters).blank? %>
       <%= hidden_field_tag :sort, sort if sort.present? %>
       <%= hidden_field_tag :direction, direction if direction.present? %>
       <%= hidden_field_tag :per_page, pagination[:per_page] if pagination[:per_page].to_i != ::Webpages::IndexQuery::DEFAULT_PER_PAGE %>
@@ -27,8 +28,16 @@ source_id = local_assigns[:source_id]
           <%= select_tag :language, options_for_select([["Any", ""], ["en", "en"], ["fr", "fr"]], filters[:language]) %>
         </div>
         <div>
+          <%= label_tag :url_kind, "URL kind" %>
+          <%= select_tag :url_kind, options_for_select([["Any", ""], ["Public source URLs", "public"], ["Internal URIs", "internal"]], filters[:url_kind]) %>
+        </div>
+        <div>
           <%= label_tag :rdfs_class_id, "Class" %>
-          <%= select_tag :rdfs_class_id, options_from_collection_for_select(RdfsClass.order(:name), :id, :name, filters[:rdfs_class_id]), include_blank: "Any" %>
+          <%= select_tag :rdfs_class_id, options_from_collection_for_select(RdfsClass.order(:name), :id, :name, webpages_selected_rdfs_class_id(filters)), include_blank: "Any" %>
+        </div>
+        <div>
+          <%= label_tag :publishable, "Publishable" %>
+          <%= select_tag :publishable, options_for_select([["Any", ""], ["Yes", "true"], ["No", "false"]], filters[:publishable]) %>
         </div>
         <div>
           <%= label_tag :archive_state, "Archive state" %>

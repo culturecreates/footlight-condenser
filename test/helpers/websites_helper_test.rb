@@ -51,6 +51,34 @@ class WebsitesHelperTest < ActionView::TestCase
     assert_equal true, contract[:rollback_available]
   end
 
+  test "website webpage summary cell links to scoped webpages filters" do
+    website = build_website("legacy", seedurl: "summary-cell")
+    summary = {
+      total: 7,
+      public_urls: 4,
+      internal_uris: 3,
+      by_class: {
+        "Event" => 2,
+        "Person" => 1,
+        "Place" => 1,
+        "ResourceList" => 1,
+        "WebPage" => 1,
+        "Other" => 1
+      },
+      publishable: 1,
+      not_publishable: 6
+    }
+
+    html = website_webpage_summary_cell(website, summary)
+
+    assert_includes html, "/webpages?seedurl=summary-cell"
+    assert_includes html, "/webpages?seedurl=summary-cell&amp;url_kind=public"
+    assert_includes html, "/webpages?rdfs_class=Event&amp;seedurl=summary-cell"
+    assert_match %r{/webpages\?(publishable=true&amp;seedurl=summary-cell|seedurl=summary-cell&amp;publishable=true)}, html
+    assert_includes html, "E2"
+    assert_includes html, "6 not publishable"
+  end
+
   private
 
   def build_website(mode, seedurl:)

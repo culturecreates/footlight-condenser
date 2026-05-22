@@ -1,6 +1,26 @@
 
 <h1>Webpages</h1>
 
+<div class="webpage-index-summary">
+  <p>
+    <%= webpages_index_summary_heading(
+      website: @current_website,
+      visible_count: @visible_webpages_count,
+      filtered_count: @filtered_webpages_count,
+      total_count: @website_webpages_total_count || @total_webpages_count,
+      filters: @filters
+    ) %>
+  </p>
+  <% webpages_index_summary_secondary_lines(
+       website: @current_website,
+       summary: @webpage_summary,
+       filters: @filters,
+       total_count: @website_webpages_total_count
+     ).each do |line| %>
+    <p class="muted"><%= line %></p>
+  <% end %>
+</div>
+
 <%= render "shared/tables/table_shell",
            table_key: :webpages,
            records: @webpages,
