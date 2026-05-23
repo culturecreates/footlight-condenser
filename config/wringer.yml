@@ -398,6 +398,7 @@ system_exceptions:
         redirect_type: normal
       final_url_patterns:
         - '/events$'
+        - '/evenements$'
         - '/programmation$'
         - '/$'
     policy:
@@ -417,11 +418,16 @@ system_exceptions:
       - redirect_to_listing
     match:
       body_contains:
-        - "listing"
+        - "jet-listing-dynamic-field"
+        - "listing-grid"
+      body_not_contains:
+        - "single-evenements"
+        - "elementor-location-single"
+        - "postid-"
       final_url_patterns:
-        - '/events$'
-        - '/programmation$'
-        - '/$'
+        - '/events/?$'
+        - '/evenements/?$'
+        - '/programmation/?$'
     policy:
       action: abort_update
       retry: false

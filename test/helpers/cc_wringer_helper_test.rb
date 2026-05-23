@@ -421,7 +421,7 @@ class CcWringerHelperTest < ActionView::TestCase
   test "safe_wringer_call preserves redirect delete policy" do
     response = Struct.new(:code, :body, :uri).new(
       200,
-      "<html>listing</html>",
+      '<html><div class="jet-listing-dynamic-field">listing</div></html>',
       URI("https://example.org/events")
     )
 

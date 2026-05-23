@@ -95,6 +95,12 @@ module Distillator
         }
       end
 
+      body_not_contains = value(match, :body_not_contains)
+      if body_not_contains
+        blocked_text = Array(body_not_contains).find { |text| body.include?(text) }
+        return nil if blocked_text
+      end
+
       body_text_contains = value(match, :body_text_contains)
       if body_text_contains
         matched_text = Array(body_text_contains).find { |text| body_text.include?(text) }
@@ -105,6 +111,12 @@ module Distillator
           pattern: matched_text,
           snippet: matched_snippet(body_text, matched_text)
         }
+      end
+
+      body_text_not_contains = value(match, :body_text_not_contains)
+      if body_text_not_contains
+        blocked_text = Array(body_text_not_contains).find { |text| body_text.include?(text) }
+        return nil if blocked_text
       end
 
       body_blank = value(match, :body_blank)

@@ -150,6 +150,35 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
     assert_nil result.comparison
   end
 
+  test "tourisme des chenaux style detail cache proceeds past fetch parity" do
+    website = build_website("tourisme-des-chenaux")
+    cache = build_cache(
+      website: website,
+      url: "https://tourismedeschenaux.ca/evenements",
+      signals: {
+        "transport_success" => true,
+        "content_success" => true,
+        "content_type" => "html"
+      },
+      health_status: "healthy"
+    )
+    website.transition_evidences.create!(
+      url: cache.normalized_url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: Time.current,
+      details: {
+        attempted_condenser_fetch: true,
+        representative_urls_checked: true
+      }
+    )
+
+    result = Distillator::TransitionCheck.call(website: website, cache: cache)
+
+    assert_equal :passed, result.fetch
+    assert_not_includes result.blocking_issues, "Cannot activate yet: fetch check failed."
+  end
+
   private
 
   def build_website(seedurl)

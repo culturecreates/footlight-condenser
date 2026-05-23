@@ -99,6 +99,43 @@ class Distillator::WringerSystemErrorMatcherTest < ActiveSupport::TestCase
     assert_equal true, issue[:delete]
   end
 
+  test "detail page markers block redirect_to_listing legacy body classification" do
+    body = <<~HTML
+      <html>
+        <body class="single single-evenements postid-7167">
+          <div class="elementor-location-single">
+            <div class="jet-listing-dynamic-field">Listing styles are present</div>
+            <h1>Match d'improvisation | LPIA | Sainte-Anne-de-la-Pérade</h1>
+            <p>29 janvier 2026</p>
+            <p>19:00</p>
+          </div>
+        </body>
+      </html>
+    HTML
+
+    issue = match_for(body: body, http_code: 200, final_url: "https://tourismedeschenaux.ca/evenements")
+
+    assert_nil issue
+  end
+
+  test "genuine legacy listing fallback still matches redirect_to_listing with snippet" do
+    body = <<~HTML
+      <html>
+        <body>
+          <div class="jet-listing-dynamic-field">Listing fallback card</div>
+          <div class="listing-grid">All events</div>
+        </body>
+      </html>
+    HTML
+
+    issue = match_for(body: body, http_code: 200, final_url: "https://tourismedeschenaux.ca/evenements")
+
+    assert_equal "redirect_to_listing", issue[:error_type]
+    assert_equal "html", issue.dig(:match_details, :source)
+    assert_equal "jet-listing-dynamic-field", issue.dig(:match_details, :pattern)
+    assert_match "jet-listing-dynamic-field", issue.dig(:match_details, :snippet)
+  end
+
   test "invalid regex remains non fatal" do
     result = Distillator::WringerSystemErrorMatcher.call(
       body: "ok",

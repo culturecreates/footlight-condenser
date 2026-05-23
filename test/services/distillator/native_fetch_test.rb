@@ -302,6 +302,44 @@ class Distillator::NativeFetchTest < ActiveSupport::TestCase
     assert_includes result.dig(:wringer, :hints), "empty_body"
   end
 
+  test "call keeps tourisme des chenaux detail body as content success despite listing css" do
+    response = Struct.new(:code, :body, :uri, :response).new(
+      200,
+      <<~HTML,
+        <html>
+          <body class="single single-evenements postid-7167">
+            <div class="elementor-location-single">
+              <div class="jet-listing-dynamic-field">Listing styles are present</div>
+              <h1>Match d'improvisation | LPIA | Sainte-Anne-de-la-Pérade</h1>
+              <p>29 janvier 2026</p>
+              <p>19:00</p>
+              <div class="event-description">Description et details du lieu.</div>
+            </div>
+          </body>
+        </html>
+      HTML
+      URI("https://tourismedeschenaux.ca/evenements"),
+      { "Content-Type" => "text/html" }
+    )
+    history_entry = Struct.new(:uri).new(URI("https://tourismedeschenaux.ca/evenements"))
+    agent = mock("agent")
+    agent.expects(:get).with("https://tourismedeschenaux.ca/evenements").returns(response)
+    agent.stubs(:history).returns([history_entry])
+
+    result = Distillator::NativeFetch.call(
+      url: "https://tourismedeschenaux.ca/evenements",
+      render_js: false,
+      scrape_options: {},
+      agent: agent,
+      logger: Rails.logger
+    )
+
+    assert_equal true, result.dig(:wringer, :signals, :transport_success)
+    assert_equal true, result.dig(:wringer, :signals, :content_success)
+    assert_nil result.dig(:wringer, :signals, :primary_issue_key)
+    assert_nil result.dig(:wringer, :policy_action)
+  end
+
   test "call returns abort contract for 404 response" do
     missing_page = Struct.new(:code, :body, :uri, :response).new(
       404,
