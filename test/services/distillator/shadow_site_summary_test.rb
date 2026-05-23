@@ -10,6 +10,11 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
     assert_equal :wringer, summary.production_backend
     assert_equal :condenser, summary.testing_backend
     assert_equal :missing, summary.fetch_status
+    assert_equal "Shadow", summary.mode_label
+    assert_equal "Wringer", summary.production_backend_label
+    assert_equal "Not checked", summary.readiness_label
+    assert_equal "unknown", summary.severity
+    assert_equal "Run transition check.", summary.primary_action
   end
 
   test "blocked when latest attempt failed and last good content was preserved" do
@@ -36,6 +41,9 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
     assert_equal :blocked, summary.status
     assert_equal :failed, summary.fetch_status
     assert_includes summary.blockers, "Cannot activate yet: fetch check failed."
+    assert_equal "Blocked", summary.readiness_label
+    assert_equal "high", summary.severity
+    assert_equal "Cannot activate yet: fetch check failed.", summary.primary_blocker
   end
 
   test "review when evidence is incomplete and redirect changed" do
@@ -62,6 +70,9 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
     assert_equal :review, summary.status
     assert_equal :stale, summary.fetch_status
     assert_includes summary.warnings, "Needs review: fetch result redirected."
+    assert_equal "Needs review", summary.readiness_label
+    assert_equal "medium", summary.severity
+    assert_equal "Needs review: fetch check is stale.", summary.primary_blocker
   end
 
   test "ready when evidence exists and no blockers or warnings remain" do
@@ -87,6 +98,9 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
     assert_includes summary.warnings, "Needs review: statements check is missing."
     assert_equal :wringer, summary.production_backend
     assert_equal :condenser, summary.testing_backend
+    assert_equal "Needs review", summary.readiness_label
+    assert_equal "medium", summary.severity
+    assert_equal "Needs review: statements check is missing.", summary.primary_blocker
   end
 
   test "la vitrine site with missing export evidence is blocked instead of ready" do
@@ -107,6 +121,7 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
     assert_equal "lavitrine_pipeline", summary.cohort_key
     assert_equal :blocked, summary.status
     assert_includes summary.blockers, "Cannot activate yet: export check is missing."
+    assert_equal "Cannot activate yet: statements check is missing.", summary.primary_blocker
   end
 
   test "non cohort site with missing export evidence is review" do
@@ -125,6 +140,7 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
     assert_nil summary.cohort_key
     assert_equal :review, summary.status
     assert_includes summary.warnings, "Needs review: export check is missing."
+    assert_equal "Needs review: statements check is missing.", summary.primary_blocker
   end
 
   test "la vitrine site with all stricter checks passes as ready" do
@@ -146,6 +162,10 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
     assert_equal :ready, summary.status
     assert_equal [], summary.blockers
     assert_equal [], summary.warnings
+    assert_equal "Ready", summary.readiness_label
+    assert_equal "ok", summary.severity
+    assert_nil summary.primary_blocker
+    assert_equal "Promote to Active.", summary.primary_action
   end
 
   test "non cohort site with stale durable evidence is review" do

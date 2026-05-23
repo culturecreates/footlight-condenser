@@ -6,6 +6,8 @@
 
 <section class="transition-context-card <%= compact ? 'transition-context-card-compact' : 'transition-context-card-full' %>" data-transition-context>
   <h2><%= compact ? "Transition context" : "Transition" %></h2>
+  <% cache_links = contract[:cache_links] || {} %>
+  <% has_diagnostics = cache_links[:active_cache_url].present? || Array(cache_links[:secondary_links]).any? || cache_links[:warning].present? %>
 
   <p><strong>Website:</strong> <%= website.name %> <span class="transition-context-seedurl">(<%= website.seedurl %>)</span></p>
   <p><strong>Current mode:</strong> <%= contract[:current_mode_label] %></p>
@@ -23,8 +25,15 @@
       <% end %>
     </ul>
   <% else %>
-    <h3>Cache links</h3>
-    <%= render "shared/cache_link_panel", cache_links: contract[:cache_links], diagnose_url: nil %>
+    <% if cache_links[:active_cache_url].present? %>
+      <p><strong>Primary cache link:</strong> <%= link_to cache_links[:label], cache_links[:active_cache_url] %></p>
+    <% end %>
+    <% if has_diagnostics %>
+      <details class="website-rollout-panel">
+        <summary>Diagnostics</summary>
+        <%= render "shared/cache_link_panel", cache_links: cache_links, diagnose_url: nil %>
+      </details>
+    <% end %>
   <% end %>
 
   <% unless compact %>

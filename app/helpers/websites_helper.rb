@@ -20,7 +20,10 @@ module WebsitesHelper
   end
 
   def website_rollout_filter_options
-    Distillator::RolloutCopy.website_index_filter_options
+    options = Distillator::RolloutCopy.website_index_filter_options.dup
+    return options unless Distillator::TransitionRuntime.staging?
+
+    options + [["Invalid on staging", "invalid_on_staging"]]
   end
 
   def website_cohort_filter_options
@@ -38,6 +41,8 @@ module WebsitesHelper
   end
 
   def website_rollout_count(mode, rollout_counts)
+    return website_invalid_on_staging_count if mode.to_s == "invalid_on_staging"
+
     counts = rollout_counts.to_h
 
     case mode.to_s
@@ -49,12 +54,15 @@ module WebsitesHelper
   end
 
   def website_rollout_summary_items
-    [
+    items = [
       { mode: "legacy", label: Distillator::RolloutCopy.label(:legacy) },
       { mode: "shadow", label: Distillator::RolloutCopy.label(:shadow) },
       { mode: "active", label: Distillator::RolloutCopy.label(:active) },
       { mode: "unknown", label: Distillator::RolloutCopy.label(:unknown) }
     ]
+    return items unless Distillator::TransitionRuntime.staging?
+
+    items + [{ mode: "invalid_on_staging", label: "Invalid on staging" }]
   end
 
   def website_rollout_summary_link(mode:, label:, rollout_counts:, current_sort:, current_direction:)
@@ -134,7 +142,7 @@ module WebsitesHelper
   end
 
   def website_rollout_next_step_for(website)
-    operator_rollout_next_step(website)
+    website_transition_summary(website).primary_action
   end
 
   def website_transition_contract(website)
@@ -143,6 +151,7 @@ module WebsitesHelper
 
     @website_transition_contracts[website.id] ||= begin
       mode = website.distillator_mode.presence || "legacy"
+      summary = website_transition_summary(website)
       readiness = website_transition_readiness(website)
       blockers = Array(readiness.blockers)
       warnings = Array(readiness.warnings)
@@ -159,7 +168,7 @@ module WebsitesHelper
         warnings: warnings,
         override_allowed: website_transition_runtime_override_allowed?,
         rollback_available: mode == "active",
-        next_recommended_action: website_transition_recommendation_for(mode, blockers: blockers, warnings: warnings),
+        next_recommended_action: summary.primary_action,
         readiness_summary: website_transition_readiness_summary(mode, blockers: blockers, warnings: warnings),
         latest_rollout_event_summary: website_transition_latest_event_summary(website),
         latest_rollout_event: website.rollout_events.order(created_at: :desc).first,
@@ -203,6 +212,14 @@ module WebsitesHelper
     website_cache_links(website)
   end
 
+  def website_transition_summary(website)
+    @website_transition_summaries ||= {}
+    @website_transition_summaries[website.id] ||= Distillator::ShadowSiteSummary.call(
+      website: website,
+      cache: website_transition_cache(website)
+    )
+  end
+
   def website_identity_rows(website)
     [
       ["Seedurl", website.seedurl],
@@ -219,9 +236,25 @@ module WebsitesHelper
     mode = raw_mode.to_s.presence
     return nil if mode.blank?
     return "unknown" if mode == "unknown"
+    return "invalid_on_staging" if Distillator::TransitionRuntime.staging? && mode == "invalid_on_staging"
 
     allowed = %w[legacy shadow active]
     allowed.include?(mode) ? mode : nil
+  end
+
+  def website_invalid_on_staging_count
+    return 0 unless Distillator::TransitionRuntime.staging?
+
+    Distillator::TransitionRuntime.staging_invalid_rollout_mode_scope.count
+  end
+
+  def website_staging_rollout_warning
+    return unless Distillator::TransitionRuntime.staging?
+
+    count = website_invalid_on_staging_count
+    return if count.zero?
+
+    "Staging requires every website to be Shadow or Active. #{count} websites are invalid on staging."
   end
 
   def normalize_website_cohort_filter(raw_cohort)

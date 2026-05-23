@@ -94,6 +94,16 @@ class Distillator::RolloutTransitionTest < ActiveSupport::TestCase
     assert_equal "legacy", website.reload.distillator_mode
   end
 
+  test "allows invalid internal mode to move to shadow for staging repair" do
+    website = build_website("legacy", seedurl: "repair-internal-transition")
+    website.update_column(:distillator_mode, "internal")
+
+    result = Distillator::RolloutTransition.call(website: website, to_mode: "shadow", actor: "test")
+
+    assert_equal true, result.success?
+    assert_equal "shadow", website.reload.distillator_mode
+  end
+
   test "activate anyway succeeds when explicit override flag is enabled" do
     ENV["DISTILLATOR_ALLOW_ACTIVE_OVERRIDE"] = "true"
     Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("production"))

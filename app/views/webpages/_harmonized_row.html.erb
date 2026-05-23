@@ -18,14 +18,6 @@
       <div class="rollout-note"><%= webpage_rollout_badge(webpage) %></div>
     <% end %>
   </td>
-  <% if @show_distillator_cache_column %>
-    <td>
-      <% distillator_link = cache_links[:secondary_links].find { |link| link[:label] == Distillator::RolloutCopy.condenser_cache_label } %>
-      <% if distillator_link.present? %>
-        <%= link_to distillator_link[:label], distillator_link[:url] %>
-      <% end %>
-    </td>
-  <% end %>
   <td>
     <%= link_to "statements", statements_path(rdf_uri: webpage.rdf_uri) %>
     <%= link_to "Show", webpage %>

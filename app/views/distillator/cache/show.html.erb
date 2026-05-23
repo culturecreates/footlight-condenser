@@ -80,7 +80,7 @@
                  { label: "Raw cached HTML", value: link_to("Open raw cached HTML", cache_raw_view_url(@cache), data: { copy_url: cache_raw_url(@cache) }), html: true }
                ],
                body: content_tag(:div, class: "cache-content-preview") do
-                 content_tag(:strong, "Content preview:") + content_tag(:p, cache_html_preview_text(@cache_payload), class: "harmonized-card-value")
+                 content_tag(:strong, "Content sample:") + content_tag(:p, cache_html_preview_text(@cache_payload), class: "harmonized-card-value")
                end
              }
            ] %>
@@ -159,7 +159,7 @@
 
 <% if @preview.present? %>
   <div class="cache-detail-card">
-    <h2>Refresh Preview</h2>
+    <h2>Refresh Diagnostic</h2>
     <p><strong>Chosen fetch mode:</strong> <%= @preview[:fetch_kind] %></p>
     <p><strong>Would refresh?</strong> <%= @preview[:would_refresh] %></p>
     <p><strong>Reason:</strong> <%= @preview[:reason] %></p>

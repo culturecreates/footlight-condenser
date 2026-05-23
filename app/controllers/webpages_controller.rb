@@ -65,9 +65,7 @@ class WebpagesController < ApplicationController
     @webpage_cache_link_rows = @webpages.each_with_object({}) do |webpage, rows|
       rows[webpage.id] = helpers.webpage_cache_links(webpage)
     end
-    @show_distillator_cache_column = @webpage_cache_link_rows.values.any? do |cache_links|
-      cache_links[:secondary_links].any? { |link| link[:label] == Distillator::RolloutCopy.condenser_cache_label }
-    end
+    @show_distillator_cache_column = false
     @webpage_table_headers = HarmonizedTableHeaders.webpages(
       show_distillator_cache_column: @show_distillator_cache_column
     )

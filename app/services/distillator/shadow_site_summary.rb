@@ -25,6 +25,12 @@ module Distillator
       :last_checked,
       :promotable,
       :priority,
+      :mode_label,
+      :production_backend_label,
+      :readiness_label,
+      :severity,
+      :primary_blocker,
+      :primary_action,
       keyword_init: true
     )
 
@@ -63,7 +69,13 @@ module Distillator
         cache_link_payload: include_cache_links? ? cache_link_payload : nil,
         last_checked: transition_status.last_checked,
         promotable: transition_status.status == :ready,
-        priority: website.lavitrine_pipeline?
+        priority: website.lavitrine_pipeline?,
+        mode_label: Distillator::RolloutCopy.label(website.distillator_mode),
+        production_backend_label: Distillator::RolloutCopy.active_backend_label(website.distillator_mode),
+        readiness_label: transition_status.readiness_label,
+        severity: transition_status.severity,
+        primary_blocker: transition_status.primary_blocker,
+        primary_action: operator_next_action
       )
     end
 
@@ -116,6 +128,14 @@ module Distillator
         cache: cache,
         evidence_by_kind: resolved_evidence_by_kind
       ).cache_link_payload
+    end
+
+    def operator_next_action
+      Distillator::OperatorNextAction.call(
+        website: website,
+        transition_status: transition_status,
+        cache_link_payload: include_cache_links? ? cache_link_payload : nil
+      )
     end
 
     def production_backend

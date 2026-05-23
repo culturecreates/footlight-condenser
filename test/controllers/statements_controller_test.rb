@@ -189,19 +189,19 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_select 'details[data-context-domain="status"]'
     assert_select 'details[data-context-domain="actions"]'
     assert_select 'details[data-context-domain="details"]'
-    assert_includes @response.body, "Condenser active"
-    assert_includes @response.body, "Condenser serves fetch/cache results; legacy Wringer remains available for inspection."
+    assert_includes @response.body, "Active"
+    assert_includes @response.body, "Condenser serves production while Wringer stays available for diagnostics."
     assert_includes @response.body, "Open active cache"
-    assert_includes @response.body, "Active: Condenser"
+    assert_includes @response.body, "Production: Condenser"
     assert_includes @response.body, "Inspect legacy Wringer"
     assert_operator @response.body.scan("Inspect legacy Wringer").size, :>=, 2
     assert_includes @response.body, "Diagnose refresh"
 
     get webpage_statements_url(url: webpage.url)
     assert_response :success
-    assert_includes @response.body, "Condenser active"
+    assert_includes @response.body, "Active"
     assert_includes @response.body, "Open active cache"
-    assert_includes @response.body, "Active: Condenser"
+    assert_includes @response.body, "Production: Condenser"
   end
 
   test "trace-step active cache link follows shadow mode" do
@@ -235,7 +235,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes @response.body, "/condenser/cache/compare?uri="
     assert_includes @response.body, "Compare Condenser vs Wringer"
-    assert_includes @response.body, "Active: Wringer + Shadow comparison"
+    assert_includes @response.body, "Production: Wringer"
   ensure
     ENV["DISTILLATOR_FETCH_MODE"] = previous_mode
   end
@@ -247,9 +247,9 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     get statement_url(@statement)
 
     assert_response :success
-    assert_includes @response.body, "Legacy Wringer active"
-    assert_includes @response.body, "Wringer remains the production fetch path."
-    assert_includes @response.body, "Active: Wringer"
+    assert_includes @response.body, "Legacy"
+    assert_includes @response.body, "Wringer serves production."
+    assert_includes @response.body, "Production: Wringer"
   end
 
   test "show does not execute trace rendering even when dsl_trace cookie is set" do

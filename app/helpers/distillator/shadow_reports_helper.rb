@@ -29,12 +29,15 @@ module Distillator::ShadowReportsHelper
   end
 
   def shadow_report_mode_options
-    [
+    options = [
       ["All rollout modes", ""],
       ["Legacy", "legacy"],
       ["Shadow", "shadow"],
       ["Active", "active"]
     ]
+    return options unless Distillator::TransitionRuntime.staging?
+
+    options + [["Invalid on staging", Distillator::ShadowReportQuery::STAGING_INVALID_FILTER]]
   end
 
   def shadow_report_promotable_options
@@ -71,7 +74,7 @@ module Distillator::ShadowReportsHelper
   end
 
   def shadow_report_mode_label(row)
-    Distillator::RolloutCopy.label(row.website.distillator_mode)
+    row.mode_label
   end
 
   def shadow_report_cohort_label(row)
@@ -79,19 +82,12 @@ module Distillator::ShadowReportsHelper
   end
 
   def shadow_report_production_backend_label(row)
-    mode =
-      if row.respond_to?(:website)
-        row.website.distillator_mode
-      elsif row.respond_to?(:distillator_mode)
-        row.distillator_mode
-      else
-        :unknown
-      end
-
-    Distillator::RolloutCopy.active_backend_label(mode)
+    row.production_backend_label
   end
 
   def shadow_report_status_label(row_or_status)
+    return row_or_status.readiness_label if row_or_status.respond_to?(:readiness_label)
+
     status = row_or_status.respond_to?(:status) ? row_or_status.status : row_or_status
 
     case status.to_sym
@@ -125,12 +121,16 @@ module Distillator::ShadowReportsHelper
     end
   end
 
+  def shadow_report_severity_label(row)
+    row.severity.to_s.humanize
+  end
+
   def shadow_report_timestamp(value)
     value.present? ? value.to_s : "Not recorded"
   end
 
   def transition_dashboard_cards(counts)
-    [
+    cards = [
       shadow_report_summary_card("Legacy sites", counts[:legacy_sites], "unknown", "Wringer remains the production path."),
       shadow_report_summary_card("Shadow sites", counts[:shadow_sites], "warning", "Wringer production with Condenser comparison."),
       shadow_report_summary_card("Active sites", counts[:active_sites], "healthy", "Condenser is the production path."),
@@ -138,6 +138,26 @@ module Distillator::ShadowReportsHelper
       shadow_report_summary_card("Blocked sites", counts[:blocked_sites], "failed", "Sites currently blocked from activation."),
       shadow_report_summary_card("Promotable sites", counts[:promotable_sites], "healthy", "Sites ready to activate.")
     ]
+    return cards unless Distillator::TransitionRuntime.staging?
+
+    cards + [
+      shadow_report_summary_card("Invalid on staging", shadow_report_invalid_on_staging_count, "failed", "Sites using rollout modes that staging should not serve.")
+    ]
+  end
+
+  def shadow_report_invalid_on_staging_count
+    return 0 unless Distillator::TransitionRuntime.staging?
+
+    Distillator::TransitionRuntime.staging_invalid_rollout_mode_scope.count
+  end
+
+  def shadow_report_staging_rollout_warning
+    return unless Distillator::TransitionRuntime.staging?
+
+    count = shadow_report_invalid_on_staging_count
+    return if count.zero?
+
+    "Staging requires every website to be Shadow or Active. #{count} websites are invalid on staging."
   end
 
   def transition_blocker_cards(counts)
@@ -316,28 +336,6 @@ module Distillator::ShadowReportsHelper
     ]
     links << { label: "Webpages", url: webpages_path(seedurl: row.website.seedurl) }
     links << { label: "Statements", url: statements_path(seedurl: row.website.seedurl) }
-
-    payload = row.cache_link_payload || {}
-    if payload[:active_cache_url].present?
-      links << { label: payload[:label], url: payload[:active_cache_url] }
-    end
-
-    Array(payload[:secondary_links]).each do |link|
-      links << link if link[:label].present? && link[:url].present?
-    end
-
-    if row.website.distillator_mode == "shadow"
-      links << {
-        kind: :button,
-        label: "Run transition check",
-        url: distillator_transition_checks_path,
-        method: :post,
-        params: {
-          website_id: row.website.id,
-          return_to: request.fullpath
-        }
-      }
-    end
 
     links.uniq { |link| [link[:label], link[:url]] }
   end

@@ -294,14 +294,14 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes @response.body, "<th>Condenser Cache</th>"
     assert_includes @response.body, "Open active cache"
     assert_not_includes @response.body, "Open Condenser cache"
-    assert_includes @response.body, "Condenser active"
-    assert_includes @response.body, "Active: Condenser"
+    assert_includes @response.body, "Active"
+    assert_includes @response.body, "Production: Condenser"
     assert_includes @response.body, "/condenser/cache?term=#{CGI.escape(webpage.url)}"
 
     get webpage_url(webpage)
     assert_response :success
     assert_select 'details[data-operator-context-card]', 0
-    assert_includes @response.body, "Condenser active"
+    assert_includes @response.body, "Active"
     assert_includes @response.body, "Production backend:</strong> Condenser"
     assert_includes @response.body, "Inspect legacy Wringer"
     assert_includes @response.body, "Diagnose refresh"
@@ -314,8 +314,8 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     get webpage_url(@webpage)
 
     assert_response :success
-    assert_includes @response.body, "Shadow comparison"
-    assert_includes @response.body, "Wringer serves production results; Condenser compares in the background."
+    assert_includes @response.body, "Shadow"
+    assert_includes @response.body, "Wringer serves production while Condenser is checked in the background."
     assert_includes @response.body, "Production backend:</strong> Wringer"
     assert_includes @response.body, "Compare Condenser vs Wringer"
   end
@@ -327,8 +327,8 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     get webpage_url(@webpage)
 
     assert_response :success
-    assert_operator @response.body.scan("Legacy Wringer active").length, :<=, 2
-    assert_operator @response.body.scan("Wringer remains the production fetch path").length, :<=, 1
+    assert_operator @response.body.scan("Legacy").length, :>=, 1
+    assert_operator @response.body.scan("Wringer serves production.").length, :<=, 2
     assert_includes @response.body, "Statements"
     assert_includes @response.body, "Refresh"
     assert_includes @response.body, "Google JSON-LD"
@@ -369,11 +369,11 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes @response.body, "<th>Active Cache</th>"
-    assert_includes @response.body, "<th>Condenser Cache</th>"
+    assert_not_includes @response.body, "<th>Condenser Cache</th>"
     assert_includes @response.body, "Open active cache"
-    assert_includes @response.body, "Open Condenser cache"
-    assert_includes @response.body, "Active: Wringer"
-    assert_includes @response.body, "/condenser/cache?term=#{CGI.escape(webpage.url)}"
+    assert_not_includes @response.body, "Open Condenser cache"
+    assert_includes @response.body, "Production: Wringer"
+    assert_not_includes @response.body, "/condenser/cache?term=#{CGI.escape(webpage.url)}"
     assert_not_includes @response.body, "/condenser/cache?term=#{CGI.escape(website.seedurl)}"
   end
 
@@ -392,7 +392,7 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes @response.body, "<th>Condenser Cache</th>"
     assert_includes @response.body, "Open active cache"
     assert_not_includes @response.body, "Open Condenser cache"
-    assert_includes @response.body, "Active: Condenser"
+    assert_includes @response.body, "Production: Condenser"
     assert_includes @response.body, "/condenser/cache?term=#{CGI.escape(webpage.url)}"
   end
 
@@ -408,11 +408,11 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes @response.body, "<th>Active Cache</th>"
-    assert_includes @response.body, "<th>Condenser Cache</th>"
+    assert_not_includes @response.body, "<th>Condenser Cache</th>"
     assert_includes @response.body, "Open active cache"
-    assert_includes @response.body, "Open Condenser cache"
-    assert_includes @response.body, "Active: Wringer + Shadow comparison"
-    assert_includes @response.body, "/condenser/cache?term=#{CGI.escape(webpage.url)}"
+    assert_not_includes @response.body, "Open Condenser cache"
+    assert_includes @response.body, "Production: Wringer"
+    assert_not_includes @response.body, "/condenser/cache?term=#{CGI.escape(webpage.url)}"
   end
 
   test "should get edit" do

@@ -3,6 +3,7 @@ require "will_paginate/collection"
 module Distillator
   class ShadowReportQuery
     FILTER_KEYS = %i[status recommendation health_severity primary_issue_key term cohort mode promotable].freeze
+    STAGING_INVALID_FILTER = "invalid_on_staging".freeze
     SORT_COLUMNS = %w[website status recommendation latest_attempt latest_successful_refresh issue_key].freeze
     DEFAULT_SORT = "website".freeze
     DEFAULT_DIRECTION = "asc".freeze
@@ -163,6 +164,7 @@ module Distillator
 
     def mode_match?(summary)
       return true if filters[:mode].blank?
+      return Distillator::TransitionRuntime.staging_rollout_mode_invalid?(summary.website.distillator_mode) if filters[:mode].to_s == STAGING_INVALID_FILTER
 
       summary.website.distillator_mode.to_s == filters[:mode].to_s
     end
@@ -267,7 +269,10 @@ module Distillator
     end
 
     def website_scope
-      Website.where(distillator_mode: filters[:mode].presence || "shadow")
+      requested_mode = filters[:mode].presence || "shadow"
+      return Distillator::TransitionRuntime.staging_invalid_rollout_mode_scope if requested_mode == STAGING_INVALID_FILTER
+
+      Website.where(distillator_mode: requested_mode)
     end
 
     def default_shadow_scope

@@ -20,9 +20,14 @@
   <p><strong>Current public mode:</strong> <%= webpage_rollout_label_for(@webpage) %></p>
   <p><strong>Production backend:</strong> <%= webpage_rollout_backend_for(@webpage) %></p>
   <p><strong>Next recommended action:</strong> <%= webpage_rollout_next_step_for(@webpage, cache_links: cache_links) %></p>
+  <% if cache_links[:active_cache_url].present? %>
+    <p><strong>Primary cache link:</strong> <%= link_to cache_links[:label], cache_links[:active_cache_url] %></p>
+  <% end %>
 
-  <h3>Cache links</h3>
-  <%= render "shared/cache_link_panel", cache_links: cache_links, diagnose_url: distillator_refresh_preview_url_for(@webpage.url) %>
+  <details class="webpage-rollout-panel">
+    <summary>Diagnostics</summary>
+    <%= render "shared/cache_link_panel", cache_links: cache_links, diagnose_url: distillator_refresh_preview_url_for(@webpage.url) %>
+  </details>
 </section>
 
 <section class="webpage-show-section">

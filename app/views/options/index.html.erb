@@ -28,6 +28,52 @@
   </style>
 
   <hr>
+  <h3>Preflight</h3>
+  <% if @production_preflight.present? %>
+    <p>
+      <strong>Status:</strong>
+      <%= @production_preflight.ok? ? "PASS" : "FAIL" %>
+    </p>
+    <ul>
+      <% @production_preflight.entries.each do |entry| %>
+        <li><strong><%= entry.label %>:</strong> <%= entry.value %></li>
+      <% end %>
+    </ul>
+  <% end %>
+  <% if @staging_rollout_repair_preview.present? %>
+    <p>
+      <strong>Invalid staging websites:</strong>
+      <%= @staging_rollout_repair_preview.invalid_count %>
+    </p>
+    <details>
+      <summary>Dry run</summary>
+      <% if @staging_rollout_repair_preview.websites.any? %>
+        <ul>
+          <% @staging_rollout_repair_preview.websites.each do |website| %>
+            <li>#<%= website.id %> <%= website.name %> (<%= website.seedurl %>) - <%= website.mode %></li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p>No invalid staging websites.</p>
+      <% end %>
+    </details>
+    <% if Distillator::TransitionRuntime.staging? && @staging_rollout_repair_preview.invalid_count.positive? %>
+      <p>This action only runs on staging.</p>
+      <p>It records rollout events.</p>
+      <p>It changes only invalid modes to Shadow; Active and Shadow are unchanged.</p>
+      <div class="option-row">
+        <%= button_to "Move invalid staging websites to Shadow",
+                      repair_staging_rollout_options_path,
+                      method: :post,
+                      data: {
+                        turbo: false,
+                        confirm: "Move all invalid staging websites to Shadow?"
+                      } %>
+      </div>
+    <% end %>
+  <% end %>
+
+  <hr>
   <h3>Mode</h3>
   <div class="option-row">
     <%= link_to "Clean", set_trace_preset_path("clean"), method: :post %>
@@ -131,5 +177,8 @@
 
   <% if flash[:notice] %>
     <p class="flash notice"><%= flash[:notice] %></p>
+  <% end %>
+  <% if flash[:alert] %>
+    <p class="flash alert"><%= flash[:alert] %></p>
   <% end %>
 </div>

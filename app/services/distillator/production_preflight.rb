@@ -15,6 +15,7 @@ module Distillator
     end
 
     REQUIRED_ROLLOUT_MODES = %w[legacy shadow active].freeze
+    STAGING_ROLLOUT_POLICY_MESSAGE = "Staging requires every website to be Shadow or Active.".freeze
 
     def self.call
       new.call
@@ -27,11 +28,12 @@ module Distillator
           queue_adapter_entry,
           rollout_modes_entry,
           default_mode_entry,
+          staging_rollout_modes_entry,
           cache_table_entry,
           transition_report_route_entry,
           compare_route_entry,
           wringer_inspection_entry
-        ]
+        ].compact
       )
     end
 
@@ -68,6 +70,27 @@ module Distillator
       suffix = safe ? "" : " (unsafe)"
 
       Entry.new(label: "Default mode", value: "#{mode}#{suffix}", ok: safe)
+    end
+
+    def staging_rollout_modes_entry
+      return unless Distillator::TransitionRuntime.staging?
+
+      invalid_scope = Distillator::TransitionRuntime.staging_invalid_rollout_mode_scope
+      invalid_count = invalid_scope.count
+
+      if invalid_count.zero?
+        Entry.new(
+          label: "Staging rollout modes",
+          value: "#{STAGING_ROLLOUT_POLICY_MESSAGE} OK",
+          ok: true
+        )
+      else
+        Entry.new(
+          label: "Staging rollout modes",
+          value: "#{STAGING_ROLLOUT_POLICY_MESSAGE} FAILED (#{invalid_count} invalid websites)",
+          ok: false
+        )
+      end
     end
 
     def cache_table_entry

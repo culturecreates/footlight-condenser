@@ -71,13 +71,13 @@ module ApplicationHelper
 
     case rollout_key
     when :active
-      { key: :active, label: "Active: Condenser", css_class: "active-backend-badge-active" }
+      { key: :active, label: "Production: Condenser", css_class: "active-backend-badge-active" }
     when :shadow
-      { key: :shadow, label: "Active: Wringer + Shadow comparison", css_class: "active-backend-badge-shadow" }
+      { key: :shadow, label: "Production: Wringer", css_class: "active-backend-badge-shadow" }
     when :replay
-      { key: :replay, label: "Active: Replay diagnostic", css_class: "active-backend-badge-replay" }
+      { key: :replay, label: "Production: Condenser", css_class: "active-backend-badge-replay" }
     else
-      { key: :legacy, label: "Active: Wringer", css_class: "active-backend-badge-legacy" }
+      { key: :legacy, label: "Production: Wringer", css_class: "active-backend-badge-legacy" }
     end
   end
 

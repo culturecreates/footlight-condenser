@@ -2,14 +2,14 @@ require "test_helper"
 
 class Distillator::RolloutCopyTest < ActiveSupport::TestCase
   test "provides centralized canonical rollout labels descriptions and cache action labels" do
-    assert_equal "Legacy Wringer active", Distillator::RolloutCopy.label(:legacy)
-    assert_equal "Shadow comparison", Distillator::RolloutCopy.label(:shadow)
-    assert_equal "Condenser active", Distillator::RolloutCopy.label(:active)
-    assert_equal "Fetch rollout", Distillator::RolloutCopy.rollout_panel_title
+    assert_equal "Legacy", Distillator::RolloutCopy.label(:legacy)
+    assert_equal "Shadow", Distillator::RolloutCopy.label(:shadow)
+    assert_equal "Active", Distillator::RolloutCopy.label(:active)
+    assert_equal "Production mode", Distillator::RolloutCopy.rollout_panel_title
 
-    assert_equal "Wringer remains the production fetch path.", Distillator::RolloutCopy.description(:legacy)
-    assert_equal "Wringer serves production results; Condenser compares in the background.", Distillator::RolloutCopy.description(:shadow)
-    assert_equal "Condenser serves fetch/cache results; legacy Wringer remains available for inspection.", Distillator::RolloutCopy.description(:active)
+    assert_equal "Wringer serves production.", Distillator::RolloutCopy.description(:legacy)
+    assert_equal "Wringer serves production while Condenser is checked in the background.", Distillator::RolloutCopy.description(:shadow)
+    assert_equal "Condenser serves production while Wringer stays available for diagnostics.", Distillator::RolloutCopy.description(:active)
 
     assert_equal "Open active cache", Distillator::RolloutCopy.active_cache_label
     assert_equal "Open Condenser cache", Distillator::RolloutCopy.condenser_cache_label
@@ -30,9 +30,9 @@ class Distillator::RolloutCopyTest < ActiveSupport::TestCase
 
   test "provides canonical website form option copy" do
     assert_equal [
-      ["Legacy - Wringer active", "legacy"],
-      ["Shadow - Wringer production path + Condenser comparison", "shadow"],
-      ["Active - Condenser active", "active"]
+      ["Legacy", "legacy"],
+      ["Shadow", "shadow"],
+      ["Active", "active"]
     ], Distillator::RolloutCopy.website_form_options
   end
 
@@ -60,8 +60,10 @@ class Distillator::RolloutCopyTest < ActiveSupport::TestCase
     ].join(" ").downcase
 
     refute_includes operator_copy, "internal"
+    refute_includes operator_copy, "replay"
     refute_includes operator_copy, "new cache"
-    refute_includes operator_copy, "phase i"
-    refute_includes operator_copy, "preview only"
+    refute_includes operator_copy, "phase"
+    refute_includes operator_copy, "preview"
+    refute_includes operator_copy, "distillator rollout"
   end
 end

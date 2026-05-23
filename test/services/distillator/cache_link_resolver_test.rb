@@ -35,7 +35,7 @@ class Distillator::CacheLinkResolverTest < ActiveSupport::TestCase
     ENV["REPLAY_FETCH"] = "fixture"
     replay = Distillator::CacheLinkResolver.call(url: "http://example.org/page")
     assert_equal :replay, replay[:mode]
-    assert_equal "Replay mode is diagnostic only and may not represent live production fetches.", replay[:warning]
+    assert_equal "Diagnostic mode only. Do not treat this as a production state.", replay[:warning]
 
     invalid = Distillator::CacheLinkResolver.call(url: "http://[invalid")
     assert_equal true, invalid[:disabled]
@@ -106,7 +106,7 @@ class Distillator::CacheLinkResolverTest < ActiveSupport::TestCase
     assert_equal payload[:legacy_cache_url], payload[:active_cache_url]
     assert_equal "Compare Condenser vs Wringer", payload[:secondary_links].first[:label]
     assert_match "/condenser/cache/compare?uri=", payload[:secondary_links].first[:url]
-    assert_equal "Wringer serves production results; Condenser compares in the background.", payload[:warning]
+    assert_equal "Wringer serves production while Condenser is checked in the background.", payload[:warning]
   end
 
   test "legacy mode keeps wringer active and exposes distillator cache as secondary link" do
@@ -115,7 +115,7 @@ class Distillator::CacheLinkResolverTest < ActiveSupport::TestCase
     assert_equal payload[:legacy_cache_url], payload[:active_cache_url]
     assert_equal "Open Condenser cache", payload[:secondary_links].first[:label]
     assert_equal payload[:distillator_cache_url], payload[:secondary_links].first[:url]
-    assert_equal "Wringer remains the production fetch path.", payload[:warning]
+    assert_equal "Wringer serves production.", payload[:warning]
   end
 
   test "active mode does not duplicate condenser cache as a secondary link" do

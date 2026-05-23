@@ -58,7 +58,7 @@ class DistillatorRolloutStatementRefreshTest < ActionDispatch::IntegrationTest
     assert_equal "Active Title", statement.reload.cache
     assert_includes response.body, "Open active cache"
     assert_includes response.body, "Inspect legacy Wringer"
-    refute_includes response.body, "Shadow comparison: Wringer serves production results; Condenser compares in the background."
+    refute_includes response.body, "Shadow: Wringer serves production while Condenser is checked in the background."
     assert_logged_context!("fetch.native", statement)
     assert_logged_context!("cache.miss", statement)
   end
@@ -86,7 +86,7 @@ class DistillatorRolloutStatementRefreshTest < ActionDispatch::IntegrationTest
     assert_equal original_selected, statement.source.reload.selected
     assert_equal original_selected_by, statement.source.selected_by
     assert_includes response.body, "Compare Condenser vs Wringer"
-    assert_includes response.body, "Wringer serves production results; Condenser compares in the background."
+    assert_includes response.body, "Wringer serves production while Condenser is checked in the background."
     assert_logged_context!("fetch.shadow_compare", statement)
   end
 
@@ -102,7 +102,7 @@ class DistillatorRolloutStatementRefreshTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal "Legacy Title", statement.reload.cache
-    assert_includes response.body, "Wringer remains the production fetch path."
+    assert_includes response.body, "Wringer serves production."
     assert_logged_context!("cache.miss", statement)
     assert_logged_context!("fetch.legacy", statement)
   end

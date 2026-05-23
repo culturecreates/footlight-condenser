@@ -1,7 +1,29 @@
 # app/controllers/options_controller.rb
 class OptionsController < ApplicationController
   def index 
-    # render the options form 
+    @production_preflight = Distillator::ProductionPreflight.call
+    @staging_rollout_repair_preview = Distillator::StagingRolloutRepair.call if Distillator::TransitionRuntime.staging?
+  end
+
+  def repair_staging_rollout
+    unless Distillator::TransitionRuntime.staging?
+      redirect_to options_path, alert: "Staging rollout repair can only run on staging."
+      return
+    end
+
+    result = Distillator::StagingRolloutRepair.call(apply: true, actor: "options", reason: "Options staging rollout repair")
+
+    if result.success?
+      notice =
+        if result.invalid_count.zero?
+          "Staging rollout repair found no invalid websites."
+        else
+          "Staging rollout repair moved #{result.repaired_count} websites to Shadow. #{result.unchanged_websites.count} unrepaired."
+        end
+      redirect_to options_path, notice: notice
+    else
+      redirect_to options_path, alert: "Staging rollout repair moved #{result.repaired_count} websites to Shadow. #{result.unchanged_websites.count} unrepaired. #{result.errors.join(', ')}"
+    end
   end
   
   def wringer

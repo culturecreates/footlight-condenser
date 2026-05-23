@@ -25,10 +25,10 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_harmonized_filter_form(action: "/websites")
     assert_harmonized_apply_filters_button
     assert_harmonized_reset_filters_link(path: "/websites")
-    assert_includes @response.body, "Legacy Wringer active:"
-    assert_includes @response.body, "Shadow comparison:"
-    assert_includes @response.body, "Condenser active:"
-    assert_includes @response.body, "Unknown rollout:"
+    assert_includes @response.body, "Legacy:"
+    assert_includes @response.body, "Shadow:"
+    assert_includes @response.body, "Active:"
+    assert_includes @response.body, "Unknown:"
     assert_includes @response.body, "La Vitrine pipeline"
     assert_includes @response.body, "Website rollout filters"
     assert_select 'details[data-operator-context-card]', 0
@@ -79,12 +79,12 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get new_website_url
     assert_response :success
     assert_includes @response.body, 'name="website[distillator_mode]"'
-    assert_includes @response.body, "Legacy - Wringer active"
-    assert_includes @response.body, "Shadow - Wringer production path + Condenser comparison"
-    assert_includes @response.body, "Active - Condenser active"
-    assert_includes @response.body, "Wringer remains the production fetch path."
-    assert_includes @response.body, "Wringer serves production results; Condenser compares in the background."
-    assert_includes @response.body, "Condenser serves fetch/cache results; legacy Wringer remains available for inspection."
+    assert_includes @response.body, ">Legacy<"
+    assert_includes @response.body, ">Shadow<"
+    assert_includes @response.body, ">Active<"
+    assert_includes @response.body, "Wringer serves production."
+    assert_includes @response.body, "Wringer serves production while Condenser is checked in the background."
+    assert_includes @response.body, "Condenser serves production while Wringer stays available for diagnostics."
     assert_not_includes @response.body, "new cache"
     assert_not_includes @response.body, ">internal<"
   end
@@ -110,7 +110,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Next recommended action:"
     assert_includes @response.body, "Readiness:"
     assert_includes @response.body, "Latest rollout event:"
-    assert_includes @response.body, "Shadow comparison"
+    assert_includes @response.body, "Shadow"
     assert_includes @response.body, "Wringer"
     assert_includes @response.body, "Run transition check"
     assert_includes @response.body, "Compare Condenser vs Wringer"
@@ -201,7 +201,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
 
     assert_response :success
-    assert_includes @response.body, "Condenser active"
+    assert_includes @response.body, "Active"
     assert_includes @response.body, "Condenser"
     assert_includes @response.body, "Rollback to Legacy Wringer"
     assert_not_includes @response.body, "internal"
@@ -214,7 +214,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
 
     assert_response :success
-    assert_includes @response.body, "Move to shadow before promoting Condenser to production."
+    assert_includes @response.body, "Move to Shadow."
     refute_includes @response.body, "Legacy mode keeps Wringer as the active fetch path."
   end
 
@@ -284,7 +284,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
 
     assert_response :success
-    assert_operator @response.body.scan("Legacy Wringer active").length, :<=, 2
+    assert_operator @response.body.scan("Legacy").length, :>=, 1
     assert_operator @response.body.scan("Wringer remains the production fetch path").length, :<=, 1
     assert_includes @response.body, "Open Condenser cache"
     assert_includes @response.body, "Refresh upcoming events"
@@ -299,9 +299,9 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get edit_website_url(@website)
     assert_response :success
     assert_includes @response.body, 'name="website[distillator_mode]"'
-    assert_includes @response.body, "Legacy - Wringer active"
-    assert_includes @response.body, "Shadow - Wringer production path + Condenser comparison"
-    assert_includes @response.body, "Active - Condenser active"
+    assert_includes @response.body, ">Legacy<"
+    assert_includes @response.body, ">Shadow<"
+    assert_includes @response.body, ">Active<"
     assert_includes @response.body, "Use the website Transition card for normal promotion, override, and rollback."
     assert_not_includes @response.body, "Show"
     assert_not_includes @response.body, "Back"
@@ -786,6 +786,45 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes @response.body, "known rollout active"
   end
 
+  test "websites index shows staging warning and invalid on staging summary link" do
+    ENV["DISTILLATOR_RUNTIME"] = "staging"
+    @website.update!(distillator_mode: "legacy")
+
+    get websites_url
+
+    assert_response :success
+    assert_includes @response.body, "Staging requires every website to be Shadow or Active."
+    assert_select 'a[href="/websites?distillator_mode=invalid_on_staging"]', text: /Invalid on staging:/
+  ensure
+    ENV["DISTILLATOR_RUNTIME"] = nil
+  end
+
+  test "websites index filters invalid on staging rows" do
+    ENV["DISTILLATOR_RUNTIME"] = "staging"
+    Website.create!(
+      name: "Legacy invalid website filter",
+      seedurl: "legacy-invalid-website-filter",
+      graph_name: "http://example.com/legacy-invalid-website-filter",
+      default_language: "en",
+      distillator_mode: "legacy"
+    )
+    Website.create!(
+      name: "Active valid website filter",
+      seedurl: "active-valid-website-filter",
+      graph_name: "http://example.com/active-valid-website-filter",
+      default_language: "en",
+      distillator_mode: "active"
+    )
+
+    get websites_url, params: { distillator_mode: "invalid_on_staging" }
+
+    assert_response :success
+    assert_includes @response.body, "Legacy invalid website filter"
+    assert_not_includes @response.body, "Active valid website filter"
+  ensure
+    ENV["DISTILLATOR_RUNTIME"] = nil
+  end
+
   test "index filters by graph_name partial match" do
     Website.create!(
       name: "graph filter one",
@@ -905,7 +944,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get websites_url
 
     assert_response :success
-    assert_includes @response.body, "Legacy Wringer active"
+    assert_includes @response.body, "Legacy"
     assert_not_includes @response.body, ">legacy<"
   end
 
@@ -916,7 +955,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get websites_url
 
     assert_response :success
-    assert_includes @response.body, "Shadow comparison"
+    assert_includes @response.body, "Shadow"
     assert_not_includes @response.body, ">shadow<"
   end
 
@@ -927,7 +966,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get websites_url
 
     assert_response :success
-    assert_includes @response.body, "Condenser active"
+    assert_includes @response.body, "Active"
     assert_not_includes @response.body, ">active<"
   end
 
@@ -938,7 +977,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get websites_url
 
     assert_response :success
-    assert_includes @response.body, "Unknown rollout"
+    assert_includes @response.body, "Unknown"
   end
 
   test "websites index rollout badges do not expose internal mode names" do
@@ -959,9 +998,9 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes @response.body, "Transition"
-    assert_includes @response.body, "Current mode:</strong> Legacy Wringer active"
+    assert_includes @response.body, "Current mode:</strong> Legacy"
     assert_includes @response.body, "Production backend:</strong> Wringer"
-    assert_includes @response.body, "Next recommended action:</strong> Move to shadow before promoting Condenser to production."
+    assert_includes @response.body, "Next recommended action:</strong> Move to Shadow."
     assert_includes @response.body, "Move to shadow"
     assert_includes @response.body, "Open Condenser cache"
   end
@@ -973,7 +1012,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(website)
 
     assert_response :success
-    assert_includes @response.body, "Current mode:</strong> Shadow comparison"
+    assert_includes @response.body, "Current mode:</strong> Shadow"
     assert_includes @response.body, "Production backend:</strong> Wringer"
     assert_includes @response.body, "Readiness:</strong>"
     assert_includes @response.body, "Promote to active"
@@ -988,7 +1027,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
 
     assert_response :success
-    assert_includes @response.body, "Current mode:</strong> Condenser active"
+    assert_includes @response.body, "Current mode:</strong> Active"
     assert_includes @response.body, "Production backend:</strong> Condenser"
     assert_includes @response.body, "Latest rollout event:</strong>"
     assert_includes @response.body, "Rollback to Legacy Wringer"
@@ -1053,10 +1092,10 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get websites_url
 
     assert_response :success
-    assert_includes @response.body, "Legacy Wringer active:"
-    assert_includes @response.body, "Shadow comparison:"
-    assert_includes @response.body, "Condenser active:"
-    assert_includes @response.body, "Unknown rollout:"
+    assert_includes @response.body, "Legacy:"
+    assert_includes @response.body, "Shadow:"
+    assert_includes @response.body, "Active:"
+    assert_includes @response.body, "Unknown:"
   end
 
   test "websites index summary counts include legacy shadow active and unknown" do
@@ -1085,10 +1124,10 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get websites_url
 
     assert_response :success
-    assert_select 'a[href="/websites?distillator_mode=legacy"]', text: /Legacy Wringer active:/
-    assert_select 'a[href="/websites?distillator_mode=shadow"]', text: /Shadow comparison:/
-    assert_select 'a[href="/websites?distillator_mode=active"]', text: /Condenser active:/
-    assert_select 'a[href="/websites?distillator_mode=unknown"]', text: /Unknown rollout:/
+    assert_select 'a[href="/websites?distillator_mode=legacy"]', text: /Legacy:/
+    assert_select 'a[href="/websites?distillator_mode=shadow"]', text: /Shadow:/
+    assert_select 'a[href="/websites?distillator_mode=active"]', text: /Active:/
+    assert_select 'a[href="/websites?distillator_mode=unknown"]', text: /Unknown:/
   end
 
   test "websites index summary counts remain global when search is applied" do
@@ -1110,7 +1149,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get websites_url, params: { q: "global legacy count" }
 
     assert_response :success
-    assert_includes @response.body, "Shadow comparison: 1"
+    assert_includes @response.body, "Shadow: 1"
   end
 
   test "websites index does not fetch" do

@@ -2,32 +2,32 @@ module Distillator
   module RolloutCopy
     PRODUCTION_STATE_UI = {
       legacy: {
-        label: "Legacy Wringer active",
+        label: "Legacy",
         css_class: "rollout-badge-legacy",
-        description: "Wringer remains the production fetch path."
+        description: "Wringer serves production."
       },
       shadow: {
-        label: "Shadow comparison",
+        label: "Shadow",
         css_class: "rollout-badge-shadow",
-        description: "Wringer serves production results; Condenser compares in the background."
+        description: "Wringer serves production while Condenser is checked in the background."
       },
       active: {
-        label: "Condenser active",
+        label: "Active",
         css_class: "rollout-badge-active",
-        description: "Condenser serves fetch/cache results; legacy Wringer remains available for inspection."
+        description: "Condenser serves production while Wringer stays available for diagnostics."
       }
     }.freeze
 
     DIAGNOSTIC_STATE_UI = {
       replay: {
-        label: "Replay diagnostic",
+        label: "Unknown",
         css_class: "rollout-badge-replay",
-        description: "Replay mode is diagnostic only and may not represent live production fetches."
+        description: "Diagnostic mode only. Do not treat this as a production state."
       },
       unknown: {
-        label: "Unknown rollout",
+        label: "Unknown",
         css_class: "rollout-badge-unknown",
-        description: "Rollout state could not be determined from the current context."
+        description: "Production mode could not be determined from the current context."
       }
     }.freeze
 
@@ -39,21 +39,21 @@ module Distillator
     }.freeze
 
     FORM_OPTION_LABELS = {
-      legacy: "Legacy - Wringer active",
-      shadow: "Shadow - Wringer production path + Condenser comparison",
-      active: "Active - Condenser active"
+      legacy: "Legacy",
+      shadow: "Shadow",
+      active: "Active"
     }.freeze
 
     INDEX_FILTER_OPTION_LABELS = {
-      all: "All rollout modes",
-      legacy: "Legacy - Wringer active",
-      shadow: "Shadow - comparison",
-      active: "Active - Condenser active",
-      replay: "Replay - diagnostic",
-      unknown: "Unknown / unset"
+      all: "All production modes",
+      legacy: "Legacy",
+      shadow: "Shadow",
+      active: "Active",
+      replay: "Unknown",
+      unknown: "Unknown"
     }.freeze
 
-    ROLLOUT_PANEL_TITLE = "Fetch rollout".freeze
+    ROLLOUT_PANEL_TITLE = "Production mode".freeze
 
     def self.label(mode)
       state(mode)[:label]
@@ -131,15 +131,15 @@ module Distillator
     def self.next_step(mode)
       case normalize(mode)
       when :active
-        "Inspect legacy Wringer when validating parity."
+        "Monitor production and use Legacy if rollback is needed."
       when :shadow
-        "Compare Condenser output before promotion."
+        "Review diagnostics, then promote to Active when ready."
       when :legacy
-        "Inspect Condenser cache before promotion."
+        "Move to Shadow before promotion."
       when :replay
-        "Use replay output only for diagnostics."
+        "Use diagnostics only. Keep production on Legacy, Shadow, or Active."
       else
-        "Confirm rollout configuration before promotion decisions."
+        "Confirm the production mode before making rollout decisions."
       end
     end
 

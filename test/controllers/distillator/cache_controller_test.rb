@@ -1044,7 +1044,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_match "Operator health:", @response.body
     assert_match "Fetch path:", @response.body
     assert_match "Native ineligible reason:", @response.body
-    assert_match "Content preview:", @response.body
+    assert_match "Content sample:", @response.body
     assert_match "/distillator/cache/#{cache.id}/raw_view", @response.body
     assert_match "/distillator/cache/#{cache.id}/wring_json_view", @response.body
     assert_match "/distillator/cache/compare?uri=", @response.body
@@ -1072,7 +1072,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     get "/distillator/cache/#{cache.id}", params: { preview: "true", force_scrape_every_hrs: "0" }
 
     assert_response :success
-    assert_match "Refresh Preview", @response.body
+    assert_match "Refresh Diagnostic", @response.body
     assert_match "Would refresh?</strong> true", @response.body
     assert_match "Reason:</strong> stale_by_force_scrape_every_hrs", @response.body
   end

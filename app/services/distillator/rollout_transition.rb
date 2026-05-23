@@ -54,6 +54,10 @@ module Distillator
       website.distillator_mode.presence || "legacy"
     end
 
+    def invalid_current_mode?
+      !Website::DISTILLATOR_MODES.include?(current_mode)
+    end
+
     def valid_target_mode?
       Website::DISTILLATOR_MODES.include?(to_mode)
     end
@@ -63,6 +67,7 @@ module Distillator
         override_errors = explicit_override_errors
         return override_errors if override_errors.any?
         return [] if current_mode == to_mode
+        return [] if invalid_current_mode? && to_mode == "shadow"
         return [] if current_mode == "legacy" && to_mode == "shadow"
         return [] if current_mode == "shadow" && to_mode == "legacy"
         return [] if current_mode == "active" && to_mode.in?(%w[legacy shadow])

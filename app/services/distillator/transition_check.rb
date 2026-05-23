@@ -24,6 +24,7 @@ module Distillator
       :selection_rule,
       :cache,
       :cache_link_payload,
+      :primary_action,
       keyword_init: true
     )
 
@@ -59,7 +60,8 @@ module Distillator
         candidate_webpage_count: candidate_webpage_count,
         selection_rule: SELECTION_RULE,
         cache: cache,
-        cache_link_payload: cache_link_payload
+        cache_link_payload: cache_link_payload,
+        primary_action: primary_action
       )
     end
 
@@ -94,6 +96,14 @@ module Distillator
       Array(cache_link_payload[:secondary_links]).any? do |link|
         link[:label] == Distillator::RolloutCopy.compare_label && link[:url].present?
       end
+    end
+
+    def primary_action
+      Distillator::OperatorNextAction.call(
+        website: website,
+        transition_status: transition_status,
+        cache_link_payload: cache_link_payload
+      )
     end
 
     def representative_webpages

@@ -96,6 +96,8 @@ class WebsitesController < ApplicationController
     case @filters[:distillator_mode]
     when "unknown"
       @websites = @websites.where(distillator_mode: [nil, ""])
+    when "invalid_on_staging"
+      @websites = Distillator::TransitionRuntime.staging_invalid_rollout_mode_scope(@websites)
     when nil
       nil
     else

@@ -147,6 +147,9 @@ Rails.application.routes.draw do
   post "options/trace_preset/:preset",
        to: "options#set_trace_preset",
        as: :set_trace_preset
+  post "options/staging_rollout_repair",
+       to: "options#repair_staging_rollout",
+       as: :repair_staging_rollout_options
 
   post   'options', to: 'options#update'
   patch  'options', to: 'options#update'

@@ -14,8 +14,26 @@ module Distillator
       :blockers,
       :warnings,
       :last_checked,
+      :readiness_label,
+      :severity,
+      :primary_blocker,
+      :primary_action,
       keyword_init: true
     )
+
+    READINESS_LABELS = {
+      blocked: "Blocked",
+      review: "Needs review",
+      ready: "Ready",
+      not_checked: "Not checked"
+    }.freeze
+
+    STATUS_SEVERITIES = {
+      blocked: "high",
+      review: "medium",
+      ready: "ok",
+      not_checked: "unknown"
+    }.freeze
 
     def self.call(...)
       new(...).call
@@ -39,8 +57,28 @@ module Distillator
         evidence_statuses: evidence_statuses,
         blockers: blockers,
         warnings: warnings,
-        last_checked: last_checked
+        last_checked: last_checked,
+        readiness_label: readiness_label,
+        severity: severity,
+        primary_blocker: primary_blocker,
+        primary_action: primary_action
       )
+    end
+
+    def readiness_label
+      READINESS_LABELS.fetch(overall_status, READINESS_LABELS.fetch(:not_checked))
+    end
+
+    def severity
+      STATUS_SEVERITIES.fetch(overall_status, STATUS_SEVERITIES.fetch(:not_checked))
+    end
+
+    def primary_blocker
+      primary_blocker_reason.presence || blockers.first || warnings.first
+    end
+
+    def primary_action
+      activation_next_action
     end
 
     private
@@ -228,22 +266,11 @@ module Distillator
     end
 
     def activation_label
-      case overall_status
-      when :blocked
-        "Blocked"
-      when :review
-        "Needs review"
-      when :ready
-        "Ready"
-      else
-        "Not checked"
-      end
+      readiness_label
     end
 
     def activation_reason
-      return primary_blocker_reason if primary_blocker_reason.present?
-      return blockers.first if blockers.any?
-      return warnings.first if warnings.any?
+      return primary_blocker if primary_blocker.present?
       return "All transition checks are currently passing." if overall_status == :ready
 
       "Run the transition check to record current evidence."

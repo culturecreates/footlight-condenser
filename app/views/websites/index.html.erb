@@ -4,6 +4,9 @@ Total Statements: <%= number_to_human(@total_statements) %>
 <br>
 Last 24 hrs:  <%= @statements_errors %> errors
 <br>
+<% if website_staging_rollout_warning.present? %>
+  <p class="cache-page-note"><strong><%= website_staging_rollout_warning %></strong></p>
+<% end %>
 
 <div class="harmonized-table-shell">
   <div class="website-rollout-summary">
@@ -52,6 +55,7 @@ Last 24 hrs:  <%= @statements_errors %> errors
         <th><%= sortable("statements_count", "Statements") %></th>
         <th><%= sortable("refreshed_24h", "24 hr refreshed") %></th>
         <th><%= sortable("updated_24h", "24 hr updated") %></th>
+        <th>Next action</th>
         <th colspan="5"></th>
       </tr>
       <tr>
@@ -61,6 +65,7 @@ Last 24 hrs:  <%= @statements_errors %> errors
           <%= select_tag :default_language,
                          options_for_select([["", ""], ["en", "en"], ["fr", "fr"]], @filters[:default_language]) %>
         </td>
+        <td></td>
         <td></td>
         <td></td>
         <td></td>
@@ -110,6 +115,7 @@ Last 24 hrs:  <%= @statements_errors %> errors
           <td><%= @statements_grouped[website.seedurl] || 0 %></td>
           <td><%= @statements_refreshed_24hr[website.seedurl] || 0 %></td>
           <td><%= @statements_updated_24hr[website.seedurl] || 0 %></td>
+          <td><%= website_transition_summary(website).primary_action %></td>
 
           <% cache_links = website_cache_links(website) %>
           <td>

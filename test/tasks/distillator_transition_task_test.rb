@@ -70,6 +70,31 @@ class DistillatorTransitionTaskTest < ActiveSupport::TestCase
     assert_includes stdout, "Wringer inspection base: configured"
   end
 
+  test "preflight task prints staging rollout mode failure when staging has invalid websites" do
+    ENV["DISTILLATOR_RUNTIME"] = "staging"
+    ApplicationController.helpers.stubs(:get_wringer_url_per_environment).returns("http://wringer.example")
+    Website.create!(
+      name: "Task preflight legacy",
+      seedurl: "task-preflight-legacy",
+      graph_name: "https://example.org/task-preflight-legacy",
+      default_language: "en",
+      distillator_mode: "legacy"
+    )
+
+    error = nil
+    stdout, = capture_io do
+      error = assert_raises(Distillator::ProductionPreflight::Failure) do
+        @preflight_task.invoke
+      end
+    end
+
+    assert_includes stdout, "Staging rollout modes: Staging requires every website to be Shadow or Active."
+    assert_includes stdout, "Preflight: FAILED"
+    assert_equal "Second-production preflight failed", error.message
+  ensure
+    ENV["DISTILLATOR_RUNTIME"] = nil
+  end
+
   test "preflight task raises with clear failure output" do
     failing_result = Distillator::ProductionPreflight::Result.new(
       entries: [

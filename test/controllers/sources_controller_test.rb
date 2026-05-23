@@ -12,7 +12,7 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     get sources_url
 
     assert_response :success
-    assert_includes @response.body, "Legacy Wringer active"
+    assert_includes @response.body, "Legacy"
     assert_match "Quick filters", @response.body
     assert_match "Advanced filters", @response.body
     assert_match "name=\"term\"", @response.body
@@ -156,9 +156,9 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     assert_select 'details[data-context-domain="status"]'
     assert_select 'details[data-context-domain="actions"]'
     assert_select 'details[data-context-domain="details"]'
-    assert_includes @response.body, "Condenser active"
-    assert_includes @response.body, "Condenser serves fetch/cache results; legacy Wringer remains available for inspection."
-    assert_includes @response.body, "Active: Condenser"
+    assert_includes @response.body, "Active"
+    assert_includes @response.body, "Condenser serves production while Wringer stays available for diagnostics."
+    assert_includes @response.body, "Production: Condenser"
     assert_match "Status / rollout", @response.body
     assert_match "Extraction rule", @response.body
     assert_match "Pipeline", @response.body
@@ -189,9 +189,9 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     get website_sources_url(id: @source.website_id)
 
     assert_response :success
-    assert_includes @response.body, "Shadow comparison"
-    assert_includes @response.body, "Wringer serves production results; Condenser compares in the background."
-    assert_includes @response.body, "Active: Wringer + Shadow comparison"
+    assert_includes @response.body, "Shadow"
+    assert_includes @response.body, "Wringer serves production while Condenser is checked in the background."
+    assert_includes @response.body, "Production: Wringer"
     assert_match "Quick filters", @response.body
     assert_match "Advanced filters", @response.body
     assert_match "More", @response.body

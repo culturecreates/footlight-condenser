@@ -41,9 +41,15 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Shadow beta", @response.body
     assert_match "Production backend", @response.body
     assert_match "Wringer", @response.body
+    assert_match "Readiness", @response.body
+    assert_match "Severity", @response.body
+    assert_match "Primary blocker", @response.body
+    assert_match "Next action", @response.body
     assert_match "Detail", @response.body
     assert_no_match "Compare Condenser vs Wringer", @response.body
     assert_no_match "Open active cache", @response.body
+    assert_no_match "Latest attempt", @response.body
+    assert_no_match "Latest successful refresh", @response.body
     assert_no_cohort_source_requests
   end
 
@@ -610,6 +616,34 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Detail", @response.body
     assert_no_match "Compare Condenser vs Wringer", @response.body
     assert_no_match "Open active cache", @response.body
+  end
+
+  test "shadow report shows staging warning and invalid on staging filter" do
+    ENV["DISTILLATOR_RUNTIME"] = "staging"
+    create_regular_website(name: "Legacy staging report", seedurl: "legacy-staging-report", mode: "legacy")
+    create_regular_website(name: "Shadow staging report", seedurl: "shadow-staging-report", mode: "shadow")
+
+    get distillator_shadow_report_path
+
+    assert_response :success
+    assert_includes @response.body, "Staging requires every website to be Shadow or Active."
+    assert_includes @response.body, "Invalid on staging"
+  ensure
+    ENV["DISTILLATOR_RUNTIME"] = nil
+  end
+
+  test "shadow report filters invalid on staging rows" do
+    ENV["DISTILLATOR_RUNTIME"] = "staging"
+    create_regular_website(name: "Legacy invalid report", seedurl: "legacy-invalid-report", mode: "legacy")
+    create_regular_website(name: "Active valid report", seedurl: "active-valid-report", mode: "active")
+
+    get distillator_shadow_report_path, params: { mode: "invalid_on_staging" }
+
+    assert_response :success
+    assert_includes @response.body, "Legacy invalid report"
+    assert_not_includes @response.body, "Active valid report"
+  ensure
+    ENV["DISTILLATOR_RUNTIME"] = nil
   end
 
   test "shadow report clamps the requested limit and keeps empty state rendering" do
