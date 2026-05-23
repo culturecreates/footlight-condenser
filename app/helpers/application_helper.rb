@@ -112,6 +112,10 @@ module ApplicationHelper
       (controller_path == "distillator/shadow_reports" && action_name == "show")
   end
 
+  def current_wringer_status_text
+    [current_wringer_status.status_label, current_wringer_status.status_detail].compact.join(" - ")
+  end
+
   private
 
   def current_transition_website
@@ -146,6 +150,13 @@ module ApplicationHelper
       end
 
     Distillator::RolloutCopy.normalize(raw_mode)
+  end
+
+  def current_wringer_status
+    @current_wringer_status ||= begin
+      last_error = Distillator::TransitionEvidence.latest_legacy_lookup_error&.details.to_h&.[]("legacy_lookup_error")
+      Distillator::WringerEndpoint.current(last_error: last_error)
+    end
   end
 
 end

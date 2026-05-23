@@ -58,7 +58,7 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
     assert_includes result.blocking_issues, "Cannot activate yet: statements check is missing."
   end
 
-  test "run fetch forces a shadow condenser attempt before compare and uses the fresh cache" do
+  test "run fetch forces internal condenser evidence before compare and uses the fresh cache" do
     website = build_website("forced-fetch-transition-check")
     stale_cache = build_cache(
       website: website,
@@ -99,7 +99,15 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
       successful_refresh: Time.current,
       cache: fresh_cache
     )
-    fetch_cache_store = stub(fetch: fetch_result)
+    fetch_cache_store = mock
+    fetch_cache_store.expects(:fetch).with do |kwargs|
+      assert_equal stale_cache.normalized_url, kwargs[:uri]
+      assert_equal true, kwargs[:force_scrape]
+      assert_equal "internal", kwargs[:mode]
+      assert_equal website, kwargs[:website]
+      assert_equal "transition_check", kwargs.dig(:log_context, :source)
+      true
+    end.returns(fetch_result)
     comparison = {
       summary: { promotable: true, blocking_regressions: [] },
       missing: { legacy: false, condenser: false },
@@ -123,6 +131,66 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
     assert_equal fresh_cache, result.cache
     assert_equal :passed, result.fetch
     assert_equal comparison, result.comparison
+  end
+
+  test "latest successful condenser fetch stays passed when legacy lookup is incomplete" do
+    website = build_website("legacy-lookup-incomplete")
+    cache = build_cache(
+      website: website,
+      url: "https://legacy-lookup-incomplete.example/event",
+      signals: { "transport_success" => true, "content_success" => true },
+      health_status: "healthy"
+    )
+    website.transition_evidences.create!(
+      url: cache.normalized_url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: Time.current,
+      details: {
+        attempted_condenser_fetch: true,
+        condenser_fetch_success: true,
+        comparison_performed: false,
+        legacy_lookup_status: "missing_config",
+        legacy_lookup_error: "missing_config",
+        reason: "legacy_lookup_missing_config"
+      }
+    )
+
+    result = Distillator::TransitionCheck.call(website: website, cache: cache)
+
+    assert_equal :passed, result.fetch
+    assert_equal :review, result.status
+    assert_includes result.warnings, "Needs review: legacy Wringer endpoint is not configured for this environment."
+  end
+
+  test "latest successful condenser fetch stays passed when legacy lookup is unreachable" do
+    website = build_website("legacy-lookup-unreachable")
+    cache = build_cache(
+      website: website,
+      url: "https://legacy-lookup-unreachable.example/event",
+      signals: { "transport_success" => true, "content_success" => true },
+      health_status: "healthy"
+    )
+    website.transition_evidences.create!(
+      url: cache.normalized_url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: Time.current,
+      details: {
+        attempted_condenser_fetch: true,
+        condenser_fetch_success: true,
+        comparison_performed: false,
+        legacy_lookup_status: "unreachable",
+        legacy_lookup_error: "connection refused",
+        reason: "legacy_lookup_unreachable"
+      }
+    )
+
+    result = Distillator::TransitionCheck.call(website: website, cache: cache)
+
+    assert_equal :passed, result.fetch
+    assert_equal :review, result.status
+    assert_includes result.warnings, "Needs review: legacy Wringer lookup failed during the latest transition check."
   end
 
   test "run fetch skips compare when no representative webpage exists" do

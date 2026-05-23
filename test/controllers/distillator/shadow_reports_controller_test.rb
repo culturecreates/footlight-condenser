@@ -510,6 +510,77 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Attempted Condenser fetch: yes", @response.body
   end
 
+  test "shadow report detail distinguishes legacy lookup failure from condenser failure" do
+    website = create_shadow_website(name: "Legacy lookup failed", seedurl: "legacy-lookup-failed")
+    url = "https://legacy-lookup-failed.example/event"
+    create_cache_for(
+      website,
+      url: url,
+      signals: { "transport_success" => true, "content_success" => true },
+      health_status: "healthy",
+      health_severity: "ok"
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: Time.current,
+      details: {
+        attempted_condenser_fetch: true,
+        condenser_fetch_success: true,
+        comparison_performed: false,
+        legacy_lookup_status: "missing_config",
+        legacy_lookup_error: "missing_config",
+        representative_urls_checked: true,
+        reason: "legacy_lookup_missing_config"
+      }
+    )
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Condenser fetch passed, but legacy Wringer lookup is missing staging configuration.", @response.body
+    assert_match "Condenser fetch: passed", @response.body
+    assert_match "Legacy lookup status: missing_config", @response.body
+  end
+
+  test "shadow report detail distinguishes unreachable legacy lookup from condenser failure" do
+    website = create_shadow_website(name: "Legacy lookup unreachable", seedurl: "legacy-lookup-unreachable")
+    url = "https://legacy-lookup-unreachable.example/event"
+    create_cache_for(
+      website,
+      url: url,
+      signals: { "transport_success" => true, "content_success" => true },
+      health_status: "healthy",
+      health_severity: "ok"
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: Time.current,
+      details: {
+        attempted_condenser_fetch: true,
+        condenser_fetch_success: true,
+        comparison_performed: false,
+        legacy_lookup_status: "unreachable",
+        legacy_lookup_error: "connection refused",
+        representative_urls_checked: true,
+        reason: "legacy_lookup_unreachable"
+      }
+    )
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Condenser fetch passed, but legacy Wringer lookup failed.", @response.body
+    assert_match "Condenser fetch: passed", @response.body
+    assert_match "Legacy lookup status: unreachable", @response.body
+    assert_match "Legacy lookup error: connection refused", @response.body
+  end
+
   test "diagnostics is read only and does not render transition check button or trailing separator" do
     website = create_shadow_website(name: "Diagnostics detail", seedurl: "diagnostics-detail")
     url = "https://diagnostics-detail.example/event"

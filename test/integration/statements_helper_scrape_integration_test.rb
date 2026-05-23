@@ -7,6 +7,23 @@ require "ostruct"
 class StatementsHelperScrapeIntegrationTest < ActionView::TestCase
   include StatementsHelper
 
+  setup do
+    @distillator_config = Rails.application.config.x.distillator
+    @old_compatibility_base_url = @distillator_config.compatibility_base_url
+    @old_legacy_wringer_base_url = @distillator_config.legacy_wringer_base_url
+    @old_allow_localhost = @distillator_config.allow_localhost_compatibility
+
+    @distillator_config.compatibility_base_url = "http://localhost:3000"
+    @distillator_config.legacy_wringer_base_url = "http://localhost:3009"
+    @distillator_config.allow_localhost_compatibility = false
+  end
+
+  teardown do
+    @distillator_config.compatibility_base_url = @old_compatibility_base_url
+    @distillator_config.legacy_wringer_base_url = @old_legacy_wringer_base_url
+    @distillator_config.allow_localhost_compatibility = @old_allow_localhost
+  end
+
   test "process_algorithm sparql" do
     expected = ["DOMINIC PAQUET • LAISSE-MOI PARTIR"]
 

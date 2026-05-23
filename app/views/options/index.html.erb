@@ -82,7 +82,7 @@
 
   <hr>
   <h3>Environment</h3>
-  <p>Current Wringer: <strong><%= cookies[:wringer_url] || "default" %></strong></p>
+  <p><strong><%= current_wringer_status_text %></strong></p>
   <div class="option-row">
     <%= link_to "LOCAL", set_wringer_path("local"), class: (wringer_target == "local" ? "active" : "") %>
     <%= link_to "LIVE", set_wringer_path("live"), class: (wringer_target == "live" ? "active" : "") %>

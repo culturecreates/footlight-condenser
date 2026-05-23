@@ -34,6 +34,13 @@ module Distillator
       end
     end
 
+    def self.latest_legacy_lookup_error
+      for_kind("fetch_parity").latest_first.limit(25).detect do |record|
+        details = record.details.to_h
+        details["legacy_lookup_error"].present? || details[:legacy_lookup_error].present?
+      end
+    end
+
     def export_diff_satisfied?
       export_diff_checked? || export_diff_accepted? || export_diff_status.to_s.in?(%w[checked accepted])
     end

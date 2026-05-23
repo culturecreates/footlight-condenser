@@ -267,8 +267,10 @@ module Distillator
       details = scope_details(transition_check, representative_webpages).merge(
         source: "transition_check",
         attempted_condenser_fetch: transition_check.attempted_condenser_fetch == true,
+        condenser_fetch_success: condenser_fetch_success?(transition_check),
         comparison_performed: transition_check.comparison.present?,
         legacy_source: transition_check.comparison&.dig(:legacy_source),
+        legacy_lookup_status: transition_check.comparison&.dig(:legacy_lookup_status),
         legacy_lookup_error: transition_check.comparison&.dig(:legacy_lookup_error),
         condenser_source: transition_check.comparison&.dig(:condenser_source),
         compare_missing: transition_check.comparison&.dig(:missing),
@@ -289,6 +291,14 @@ module Distillator
       end
 
       comparison = transition_check.comparison
+      if comparison.present? && comparison[:legacy_lookup_status] == "missing_config"
+        return [:checked, details.merge(reason: "legacy_lookup_missing_config", comparison_performed: false)]
+      end
+
+      if comparison.present? && comparison[:legacy_lookup_status] == "unreachable"
+        return [:checked, details.merge(reason: "legacy_lookup_unreachable", comparison_performed: false)]
+      end
+
       if comparison.present? && (comparison.dig(:missing, :legacy) || comparison.dig(:missing, :condenser))
         return [:failed, details.merge(reason: "cache_compare_missing")]
       end
@@ -327,6 +337,13 @@ module Distillator
 
     def truthy?(value)
       value == true || value.to_s == "true" || value.to_s == "1"
+    end
+
+    def condenser_fetch_success?(transition_check)
+      result = transition_check.condenser_fetch_result
+      return false unless result.present?
+
+      result.transport_success? && result.content_success?
     end
 
     def record_missing_representatives(latest_cache, check_kind, transition_check)

@@ -157,10 +157,12 @@ module Distillator
       return { attempted: false, result: nil, comparison: nil } unless run_fetch?
       return { attempted: false, result: nil, comparison: nil } unless representative_webpage.present?
 
+      # Transition checks force fresh Condenser evidence through the internal-only path.
+      # CacheCompare performs the separate legacy/Wringer lookup afterward.
       fetch_result = fetch_cache_store.fetch(
         uri: representative_webpage.url,
         force_scrape: true,
-        mode: "shadow",
+        mode: "internal",
         website: website,
         log_context: {
           source: "transition_check",

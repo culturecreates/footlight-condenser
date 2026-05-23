@@ -112,6 +112,7 @@ module Distillator
 
     def warnings
       reasons = []
+      reasons << legacy_lookup_warning if legacy_lookup_warning.present?
       reasons << "Needs review: fetch check is stale." if fetch_status == :stale && !lavitrine_pipeline?
       reasons << "Needs review: statements check is missing." if !lavitrine_pipeline? && statements_status == :missing
       reasons << "Needs review: statements check is stale." if !lavitrine_pipeline? && statements_status == :stale
@@ -289,6 +290,8 @@ module Distillator
 
     def activation_next_action
       return "Fix fetch/cache first, then rerun the transition check." if fetch_status == :failed
+      return "Configure the Wringer endpoint for staging, then rerun the transition check." if legacy_lookup_missing_config?
+      return "Fix the legacy Wringer endpoint, then rerun the transition check." if legacy_lookup_unreachable?
       return "Verify selected sources/statements for the sampled webpages." if statements_status == :inconclusive
       return "Fix the blocking check, then rerun the transition check." if blockers.any?
       return "Review the warning and rerun the transition check if needed." if warnings.any?
@@ -345,6 +348,21 @@ module Distillator
 
     def explicit_false?(value)
       value == false || value.to_s == "false" || value.to_s == "0"
+    end
+
+    def legacy_lookup_warning
+      return "Needs review: legacy Wringer endpoint is not configured for this environment." if legacy_lookup_missing_config?
+      return "Needs review: legacy Wringer lookup failed during the latest transition check." if legacy_lookup_unreachable?
+
+      nil
+    end
+
+    def legacy_lookup_missing_config?
+      fetch_parity_evidence&.detail_reason == "legacy_lookup_missing_config"
+    end
+
+    def legacy_lookup_unreachable?
+      fetch_parity_evidence&.detail_reason == "legacy_lookup_unreachable"
     end
 
     def primary_blocker_reason

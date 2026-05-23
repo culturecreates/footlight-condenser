@@ -23,15 +23,22 @@ module Distillator
       successful_refresh
     ].freeze
 
-    def self.call(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil)
-      new(uri: uri, include_fragment: include_fragment, legacy_lookup: legacy_lookup, condenser_result: condenser_result).call
+    def self.call(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil, wringer_endpoint: nil)
+      new(
+        uri: uri,
+        include_fragment: include_fragment,
+        legacy_lookup: legacy_lookup,
+        condenser_result: condenser_result,
+        wringer_endpoint: wringer_endpoint
+      ).call
     end
 
-    def initialize(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil)
+    def initialize(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil, wringer_endpoint: nil)
       @uri = uri
       @include_fragment = include_fragment
       @legacy_lookup = legacy_lookup
       @condenser_result = condenser_result
+      @wringer_endpoint = wringer_endpoint
     end
 
     def call
@@ -45,6 +52,7 @@ module Distillator
         uri_key: key.uri_key,
         legacy_cache: legacy_cache,
         legacy_source: legacy_result[:source],
+        legacy_lookup_status: legacy_result[:status],
         legacy_lookup_error: legacy_result[:error],
         condenser_cache: condenser_cache,
         condenser_source: "local_fetch_cache",
@@ -67,21 +75,34 @@ module Distillator
 
     private
 
-    attr_reader :uri, :include_fragment, :legacy_lookup, :condenser_result
+    attr_reader :uri, :include_fragment, :legacy_lookup, :condenser_result, :wringer_endpoint
 
     def condenser_cache_record(key)
       condenser_result&.cache || Distillator::FetchCache.find_by(uri_key: key.uri_key)
     end
 
     def fetch_legacy_cache(uri_key)
-      return { payload: legacy_lookup.call(uri_key), source: "injected_lookup", error: nil } if legacy_lookup
+      if legacy_lookup
+        payload = legacy_lookup.call(uri_key)
+        return { payload: payload, source: "injected_lookup", status: payload.present? ? "ok" : "missing", error: nil }
+      end
 
       default_legacy_lookup(uri_key)
     end
 
     def default_legacy_lookup(uri_key)
+      endpoint = wringer_endpoint || Distillator::WringerEndpoint.current
+      unless endpoint.legacy_lookup_base_url.present?
+        return {
+          payload: nil,
+          source: "missing_config",
+          status: "missing_config",
+          error: "missing_config"
+        }
+      end
+
       response = HTTParty.get(
-        "#{ApplicationController.helpers.get_wringer_url_per_environment}/websites.json",
+        "#{endpoint.legacy_lookup_base_url}/websites.json",
         query: { term: uri_key }
       )
       body = response.respond_to?(:body) ? response.body : response.to_s
@@ -89,12 +110,14 @@ module Distillator
       {
         payload: payload.is_a?(Array) ? payload.first : payload,
         source: "remote_wringer",
+        status: "ok",
         error: nil
       }
     rescue StandardError => e
       {
         payload: nil,
-        source: "unavailable",
+        source: "remote_wringer",
+        status: "unreachable",
         error: e.message
       }
     end

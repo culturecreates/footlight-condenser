@@ -3,45 +3,81 @@ require 'test_helper'
 class CcWringerHelperTest < ActionView::TestCase
   setup do
     Distillator::WringerRules.reset!
+    @distillator_config = Rails.application.config.x.distillator
+    @old_compatibility_base_url = @distillator_config.compatibility_base_url
+    @old_legacy_wringer_base_url = @distillator_config.legacy_wringer_base_url
+    @old_allow_localhost = @distillator_config.allow_localhost_compatibility
   end
 
   teardown do
     Distillator::WringerRules.reset!
+    @distillator_config.compatibility_base_url = @old_compatibility_base_url
+    @distillator_config.legacy_wringer_base_url = @old_legacy_wringer_base_url
+    @distillator_config.allow_localhost_compatibility = @old_allow_localhost
   end
 
 
-  test "should get wringer url for DEV" do
+  test "development can default wringer urls to localhost" do
+    Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("development"))
+    @distillator_config.compatibility_base_url = nil
+    @distillator_config.legacy_wringer_base_url = nil
+    @distillator_config.allow_localhost_compatibility = true
+
     expected_output = "http://localhost:3009"
     assert_equal expected_output, get_wringer_url_per_environment()
-  end
 
-  test "should get distillator compatibility url for DEV" do
     assert_equal "http://localhost:3000", distillator_compatibility_base_url
-  end
-
-  test "should convert url for wringer" do
-    expected_output = "http://localhost:3000/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true"
-    assert_equal expected_output, use_wringer("http://culturecreates.com", false)
-  end
-
-  test "should convert url for wringer using phantomjs" do
-    expected_output = "http://localhost:3000/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true&use_phantomjs=true"
-    assert_equal expected_output, use_wringer("http://culturecreates.com", true)
-  end
-
-  test "should convert url for wringer using json_post" do
-    expected_output = "http://localhost:3000/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true&json_post=true"
-    assert_equal expected_output, use_wringer("http://culturecreates.com", false, { json_post: true })
-  end
-
-  test "use_wringer preserves fragment so include_fragment can reach wringer uri key logic" do
-    expected_output = "http://localhost:3000/websites/wring?uri=https%3A%2F%2Fculturecreates.com%2Fpeople%23gregory&format=raw&include_fragment=true"
-    assert_equal expected_output, use_wringer("https://culturecreates.com/people#gregory", false)
+    assert_equal "http://localhost:3000/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true", use_wringer("http://culturecreates.com", false)
+    assert_equal "http://localhost:3000/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true&use_phantomjs=true", use_wringer("http://culturecreates.com", true)
+    assert_equal "http://localhost:3000/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true&json_post=true", use_wringer("http://culturecreates.com", false, { json_post: true })
+    assert_equal "http://localhost:3000/websites/wring?uri=https%3A%2F%2Fculturecreates.com%2Fpeople%23gregory&format=raw&include_fragment=true", use_wringer("https://culturecreates.com/people#gregory", false)
   end
 
   test "use_wringer can explicitly target legacy live wringer fallback" do
+    Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("development"))
+    @distillator_config.compatibility_base_url = nil
+    @distillator_config.legacy_wringer_base_url = nil
+    @distillator_config.allow_localhost_compatibility = true
+
     expected_output = "http://localhost:3009/websites/wring?uri=http%3A%2F%2Fculturecreates.com&format=raw&include_fragment=true"
     assert_equal expected_output, use_wringer("http://culturecreates.com", false, { force_legacy: true })
+  end
+
+  test "staging without compatibility config does not silently use localhost" do
+    Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("staging"))
+    @distillator_config.compatibility_base_url = nil
+    @distillator_config.legacy_wringer_base_url = nil
+    @distillator_config.allow_localhost_compatibility = false
+
+    assert_nil distillator_compatibility_base_url
+    assert_nil get_wringer_url_per_environment
+    assert_equal "Current Wringer: Missing staging config", current_wringer_endpoint.status_label
+    assert_raises(ArgumentError) { use_wringer("http://culturecreates.com", false) }
+  end
+
+  test "staging with configured remote endpoint uses remote wringer urls" do
+    Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("staging"))
+    @distillator_config.compatibility_base_url = "https://compat.example"
+    @distillator_config.legacy_wringer_base_url = "https://legacy.example"
+    @distillator_config.allow_localhost_compatibility = false
+
+    assert_equal "https://compat.example", distillator_compatibility_base_url
+    assert_equal "https://legacy.example", get_wringer_url_per_environment
+    assert_equal "Current Wringer: Remote configured", current_wringer_endpoint.status_label
+  end
+
+  test "staging configured remote endpoint can be marked unreachable without exposing credentials" do
+    Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("staging"))
+    @distillator_config.compatibility_base_url = "https://user:secret@compat.example/token"
+    @distillator_config.legacy_wringer_base_url = "https://legacy.example"
+    @distillator_config.allow_localhost_compatibility = false
+
+    endpoint = current_wringer_endpoint(last_error: "connection refused")
+
+    assert_equal :unreachable, endpoint.state
+    assert_equal "Current Wringer: Unreachable", endpoint.status_label
+    assert_equal "last lookup failed", endpoint.status_detail
+    assert_equal "https://user:secret@compat.example/token", endpoint.compatibility_base_url
   end
 
   test "normalized_fetch_url strips fragment without affecting wringer uri target" do

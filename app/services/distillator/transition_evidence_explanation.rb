@@ -48,6 +48,8 @@ module Distillator
     attr_reader :check_kind, :evidence, :website, :state
 
     def severity
+      return "warning" if check_kind == "fetch_parity" && %w[legacy_lookup_missing_config legacy_lookup_unreachable].include?(reason)
+
       case state
       when :failed, :blocked_by_fetch, :not_evaluated
         "blocker"
@@ -74,6 +76,8 @@ module Distillator
     def fetch_headline
       return "No representative event webpages were available." if reason == "no_representative_webpages"
       return "Latest Condenser attempt failed: empty body." if state == :failed && reason == "empty_body"
+      return "Condenser fetch passed, but legacy Wringer lookup is missing staging configuration." if reason == "legacy_lookup_missing_config"
+      return "Condenser fetch passed, but legacy Wringer lookup failed." if reason == "legacy_lookup_unreachable"
       return "Fresh Condenser evidence is missing for this comparison." if reason == "cache_compare_missing"
       return "Fresh Condenser evidence differs from Wringer in blocking fields." if reason == "cache_compare_blocking_regression"
       case state
@@ -127,8 +131,13 @@ module Distillator
       details = []
       details << "URL: #{evidence.url}" if evidence&.url.present?
       details << "Attempted Condenser fetch: #{evidence&.attempted_condenser_fetch? ? 'yes' : 'no'}" if evidence.present?
+      if details_hash.key?("condenser_fetch_success")
+        details << "Condenser fetch: #{details_hash['condenser_fetch_success'] ? 'passed' : 'failed'}"
+      end
       details << "Issue: #{evidence.primary_issue_key}" if evidence&.primary_issue_key.present?
       details << "Legacy source: #{details_hash['legacy_source']}" if details_hash["legacy_source"].present?
+      details << "Legacy lookup status: #{details_hash['legacy_lookup_status']}" if details_hash["legacy_lookup_status"].present?
+      details << "Legacy lookup error: #{details_hash['legacy_lookup_error']}" if details_hash["legacy_lookup_error"].present?
       details << "Condenser source: #{details_hash['condenser_source']}" if details_hash["condenser_source"].present?
       details << "Compare performed: #{details_hash["comparison_performed"] ? 'yes' : 'no'}" if details_hash.key?("comparison_performed")
       details << "Reason: #{reason.humanize}" if reason.present?
@@ -169,6 +178,9 @@ module Distillator
     def next_action
       case check_kind
       when "fetch_parity"
+        return "Configure the Wringer endpoint for staging, then rerun the transition check." if reason == "legacy_lookup_missing_config"
+        return "Fix the legacy Wringer endpoint, then rerun the transition check." if reason == "legacy_lookup_unreachable"
+
         state == :passed ? "No fetch action is needed right now." : "Fix the fetch/cache failure first, then rerun the transition check."
       when "statement_delta"
         if state == :passed

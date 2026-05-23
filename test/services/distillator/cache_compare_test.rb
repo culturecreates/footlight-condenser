@@ -40,6 +40,7 @@ class Distillator::CacheCompareTest < ActiveSupport::TestCase
     assert_equal false, both.dig(:missing, :legacy)
     assert_equal false, both.dig(:missing, :condenser)
     assert_equal "injected_lookup", both[:legacy_source]
+    assert_equal "ok", both[:legacy_lookup_status]
     assert_nil both[:legacy_lookup_error]
     assert_equal "local_fetch_cache", both[:condenser_source]
     assert_equal true, both.dig(:summary, :html_hash_difference)
@@ -57,23 +58,56 @@ class Distillator::CacheCompareTest < ActiveSupport::TestCase
   end
 
   test "labels successful remote wringer lookup" do
-    ApplicationController.helpers.stubs(:get_wringer_url_per_environment).returns("http://wringer.example")
+    endpoint = Distillator::WringerEndpoint::Result.new(
+      compatibility_base_url: "http://compat.example",
+      legacy_lookup_base_url: "http://wringer.example",
+      state: :remote_configured,
+      status_label: "Current Wringer: Remote configured",
+      status_detail: "http://wringer.example"
+    )
     HTTParty.stubs(:get).returns(Struct.new(:body).new([{ html: "<html>legacy</html>" }].to_json))
 
-    result = Distillator::CacheCompare.call(uri: "http://example.org/page")
+    result = Distillator::CacheCompare.call(uri: "http://example.org/page", wringer_endpoint: endpoint)
 
     assert_equal "remote_wringer", result[:legacy_source]
+    assert_equal "ok", result[:legacy_lookup_status]
     assert_nil result[:legacy_lookup_error]
   end
 
   test "labels failed remote wringer lookup without raising" do
-    ApplicationController.helpers.stubs(:get_wringer_url_per_environment).returns("http://wringer.example")
+    endpoint = Distillator::WringerEndpoint::Result.new(
+      compatibility_base_url: "http://compat.example",
+      legacy_lookup_base_url: "http://wringer.example",
+      state: :remote_configured,
+      status_label: "Current Wringer: Remote configured",
+      status_detail: "http://wringer.example"
+    )
     HTTParty.stubs(:get).raises(SocketError, "wringer unavailable")
 
-    result = Distillator::CacheCompare.call(uri: "http://example.org/page")
+    result = Distillator::CacheCompare.call(uri: "http://example.org/page", wringer_endpoint: endpoint)
 
-    assert_equal "unavailable", result[:legacy_source]
+    assert_equal "remote_wringer", result[:legacy_source]
+    assert_equal "unreachable", result[:legacy_lookup_status]
     assert_match "wringer unavailable", result[:legacy_lookup_error]
+    assert_equal true, result.dig(:missing, :legacy)
+  end
+
+  test "records missing config without attempting localhost" do
+    endpoint = Distillator::WringerEndpoint::Result.new(
+      compatibility_base_url: nil,
+      legacy_lookup_base_url: nil,
+      state: :missing_config,
+      status_label: "Current Wringer: Missing staging config",
+      status_detail: "comparisons disabled"
+    )
+
+    HTTParty.expects(:get).never
+
+    result = Distillator::CacheCompare.call(uri: "http://example.org/page", wringer_endpoint: endpoint)
+
+    assert_equal "missing_config", result[:legacy_source]
+    assert_equal "missing_config", result[:legacy_lookup_status]
+    assert_equal "missing_config", result[:legacy_lookup_error]
     assert_equal true, result.dig(:missing, :legacy)
   end
 

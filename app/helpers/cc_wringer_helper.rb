@@ -24,10 +24,6 @@ require "uri"
 #    DSL / Sidekiq reacts
 #    
 module CcWringerHelper
-  DISTILLATOR_COMPATIBILITY_BASE_URL = "http://localhost:3000".freeze
-  LEGACY_WRINGER_TEST_BASE_URL = "http://localhost:3009".freeze
-  LEGACY_WRINGER_PRODUCTION_BASE_URL = "http://footlight-wringer.herokuapp.com".freeze
-
   # Build a Wringer "wring" URL for a given target URL.
   #
   # Purpose:
@@ -70,6 +66,7 @@ module CcWringerHelper
 
     path = "/websites/wring?#{URI.encode_www_form(query)}"
     base_url = legacy_wringer_fallback_requested?(options) ? legacy_wringer_base_url : distillator_compatibility_base_url
+    raise ArgumentError, "Wringer compatibility endpoint is not configured" if base_url.blank?
 
     if legacy_wringer_fallback_requested?(options)
       logger.warn("[Wringer] deprecated legacy fallback url=#{base_url}#{path}")
@@ -281,20 +278,15 @@ module CcWringerHelper
   end
 
   def get_wringer_url_per_environment
-    legacy_wringer_base_url
+    current_wringer_endpoint.legacy_lookup_base_url
   end
 
   def distillator_compatibility_base_url
-    ENV["DISTILLATOR_COMPAT_BASE_URL"].presence || DISTILLATOR_COMPATIBILITY_BASE_URL
+    current_wringer_endpoint.compatibility_base_url
   end
 
   def legacy_wringer_base_url
-    ENV["LEGACY_WRINGER_BASE_URL"].presence ||
-      if Rails.env.development? || Rails.env.test?
-        LEGACY_WRINGER_TEST_BASE_URL
-      else
-        LEGACY_WRINGER_PRODUCTION_BASE_URL
-      end
+    current_wringer_endpoint.legacy_lookup_base_url
   end
 
   def legacy_wringer_fallback_requested?(options = {})
@@ -306,10 +298,10 @@ module CcWringerHelper
   end
 
   def get_legacy_wringer_url_per_environment
-    if Rails.env.development? || Rails.env.test?
-      LEGACY_WRINGER_TEST_BASE_URL
-    else
-      LEGACY_WRINGER_PRODUCTION_BASE_URL
-    end
+    current_wringer_endpoint.legacy_lookup_base_url
+  end
+
+  def current_wringer_endpoint(last_error: nil)
+    Distillator::WringerEndpoint.current(last_error: last_error)
   end
 end

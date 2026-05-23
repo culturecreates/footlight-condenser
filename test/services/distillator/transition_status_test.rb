@@ -200,6 +200,72 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     assert_equal "Verify selected sources/statements for the sampled webpages.", status.activation_recommendation[:next_action]
   end
 
+  test "legacy lookup missing config keeps condenser fetch passed but marks review" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(
+      signals: {
+        "transport_success" => true,
+        "content_success" => true,
+        "statement_count_delta_acceptable" => true,
+        "export_diff_checked" => true
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: {
+        attempted_condenser_fetch: true,
+        condenser_fetch_success: true,
+        comparison_performed: false,
+        legacy_lookup_status: "missing_config",
+        legacy_lookup_error: "missing_config",
+        reason: "legacy_lookup_missing_config"
+      }
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :review, status.status
+    assert_equal :passed, status.fetch
+    assert_includes status.warnings, "Needs review: legacy Wringer endpoint is not configured for this environment."
+    assert_equal "Configure the Wringer endpoint for staging, then rerun the transition check.", status.activation_recommendation[:next_action]
+  end
+
+  test "legacy lookup unreachable keeps condenser fetch passed but marks review" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(
+      signals: {
+        "transport_success" => true,
+        "content_success" => true,
+        "statement_count_delta_acceptable" => true,
+        "export_diff_checked" => true
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: {
+        attempted_condenser_fetch: true,
+        condenser_fetch_success: true,
+        comparison_performed: false,
+        legacy_lookup_status: "unreachable",
+        legacy_lookup_error: "connection refused",
+        reason: "legacy_lookup_unreachable"
+      }
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :review, status.status
+    assert_equal :passed, status.fetch
+    assert_includes status.warnings, "Needs review: legacy Wringer lookup failed during the latest transition check."
+    assert_equal "Fix the legacy Wringer endpoint, then rerun the transition check.", status.activation_recommendation[:next_action]
+  end
+
   private
 
   def build_website(name, seedurl)
