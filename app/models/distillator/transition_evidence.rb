@@ -56,6 +56,14 @@ module Distillator
       truthy_detail?("statement_count_delta_acceptable")
     end
 
+    def attempted_condenser_fetch?
+      truthy_detail?("attempted_condenser_fetch")
+    end
+
+    def detail_reason
+      details.to_h["reason"] || details.to_h[:reason]
+    end
+
     private
 
     def truthy_detail?(key)

@@ -23,21 +23,22 @@ module Distillator
       successful_refresh
     ].freeze
 
-    def self.call(uri:, include_fragment: false, legacy_lookup: nil)
-      new(uri: uri, include_fragment: include_fragment, legacy_lookup: legacy_lookup).call
+    def self.call(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil)
+      new(uri: uri, include_fragment: include_fragment, legacy_lookup: legacy_lookup, condenser_result: condenser_result).call
     end
 
-    def initialize(uri:, include_fragment: false, legacy_lookup: nil)
+    def initialize(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil)
       @uri = uri
       @include_fragment = include_fragment
       @legacy_lookup = legacy_lookup
+      @condenser_result = condenser_result
     end
 
     def call
       key = Distillator::WringerUrlKey.call(uri, include_fragment: include_fragment)
       legacy_result = fetch_legacy_cache(key.uri_key)
       legacy_cache = normalize_legacy_cache(legacy_result[:payload])
-      condenser_cache = normalize_condenser_cache(Distillator::FetchCache.find_by(uri_key: key.uri_key))
+      condenser_cache = normalize_condenser_cache(condenser_cache_record(key))
 
       {
         uri: uri,
@@ -66,7 +67,11 @@ module Distillator
 
     private
 
-    attr_reader :uri, :include_fragment, :legacy_lookup
+    attr_reader :uri, :include_fragment, :legacy_lookup, :condenser_result
+
+    def condenser_cache_record(key)
+      condenser_result&.cache || Distillator::FetchCache.find_by(uri_key: key.uri_key)
+    end
 
     def fetch_legacy_cache(uri_key)
       return { payload: legacy_lookup.call(uri_key), source: "injected_lookup", error: nil } if legacy_lookup

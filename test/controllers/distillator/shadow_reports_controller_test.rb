@@ -478,6 +478,38 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match %r{Export</td>\s*<td>missing</td>}m, @response.body
   end
 
+  test "shadow report detail distinguishes a latest condenser empty body failure" do
+    website = create_shadow_website(name: "Latest attempt failed", seedurl: "latest-attempt-failed")
+    url = "https://latest-attempt-failed.example/event"
+    create_cache_for(
+      website,
+      url: url,
+      signals: { "transport_success" => true, "content_success" => true },
+      health_status: "healthy",
+      health_severity: "ok"
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "fetch_parity",
+      status: "failed",
+      checked_at: Time.current,
+      primary_issue_key: "empty_body",
+      details: {
+        attempted_condenser_fetch: true,
+        comparison_performed: false,
+        representative_urls_checked: true,
+        reason: "empty_body"
+      }
+    )
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Latest Condenser attempt failed: empty body.", @response.body
+    assert_match "Attempted Condenser fetch: yes", @response.body
+  end
+
   test "diagnostics is read only and does not render transition check button or trailing separator" do
     website = create_shadow_website(name: "Diagnostics detail", seedurl: "diagnostics-detail")
     url = "https://diagnostics-detail.example/event"

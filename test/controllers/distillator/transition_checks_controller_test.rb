@@ -161,6 +161,50 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
       final_url: url,
       health_status: "healthy"
     )
+    fresh_fetch_result = Distillator::FetchCacheStore::Result.new(
+      status: :ok,
+      body: "<html>ok</html>",
+      html: "<html>ok</html>",
+      headers: {},
+      final_url: url,
+      redirect_chain: [],
+      http_response_code: 200,
+      signals: {
+        "transport_success" => true,
+        "content_success" => true,
+        "statement_count_delta_acceptable" => true,
+        "export_diff_checked" => true
+      },
+      hints: [],
+      duration_ms: 5,
+      cache_hit: false,
+      cache_write: true,
+      cache_reason: "force_scrape",
+      uri_key: CGI.escape(url),
+      normalized_url: url,
+      fetch_path: "native",
+      name: "Transition target live",
+      scrape_date: Time.current,
+      successful_refresh: Time.current,
+      cache: Distillator::FetchCache.find_by!(uri_key: CGI.escape(url))
+    )
+    Distillator::FetchCacheStore.expects(:fetch).with do |kwargs|
+      assert_equal url, kwargs[:uri]
+      assert_equal true, kwargs[:force_scrape]
+      assert_equal "shadow", kwargs[:mode]
+      assert_equal target, kwargs[:website]
+      assert_equal "transition_check", kwargs.dig(:log_context, :source)
+      true
+    end.returns(fresh_fetch_result)
+    Distillator::CacheCompare.expects(:call).with(uri: url, condenser_result: fresh_fetch_result).returns(
+      {
+        summary: { promotable: true, blocking_regressions: [] },
+        missing: { legacy: false, condenser: false },
+        legacy_source: "remote_wringer",
+        legacy_lookup_error: nil,
+        condenser_source: "local_fetch_cache"
+      }
+    )
     Distillator::RefreshRunner.expects(:call).once.returns([])
     export_json = '[{"@id":"event:1","name":"Transition target live"}]'
     ExportArtsdataService.expects(:call).with(seedurl: target.seedurl).once.returns(export_json)
@@ -173,6 +217,8 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
     assert_equal %w[export_diff fetch_parity statement_delta], target.transition_evidences.order(:check_kind).pluck(:check_kind)
     assert_equal "checked", target.latest_transition_evidence("statement_delta").status
     assert_equal 0, target.latest_transition_evidence("statement_delta").statement_delta
+    assert_equal "checked", target.latest_transition_evidence("fetch_parity").status
+    assert_equal true, target.latest_transition_evidence("fetch_parity").details["attempted_condenser_fetch"]
     assert_equal "checked", target.latest_transition_evidence("export_diff").status
 
     follow_redirect!
@@ -217,5 +263,25 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
     assert_includes @response.body, "Export could not be generated."
     assert_includes @response.body, "RDF added: 1"
     assert_includes @response.body, "RDF removed: 3"
+  end
+
+  test "transition check without representative webpages records incomplete fetch evidence instead of comparing stale cache" do
+    target = Website.create!(
+      name: "Transition no representative",
+      seedurl: "transition-no-representative",
+      graph_name: "https://example.org/transition-no-representative",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+    Distillator::FetchCacheStore.expects(:fetch).never
+    Distillator::CacheCompare.expects(:call).never
+    ExportArtsdataService.expects(:call).never
+    ExportArtsdataService.expects(:production_equivalent).never
+
+    post distillator_transition_checks_path, params: { website_id: target.id }
+
+    assert_redirected_to distillator_shadow_report_site_path(target)
+    assert_equal "pending", target.latest_transition_evidence("fetch_parity").status
+    assert_equal "no_representative_webpages", target.latest_transition_evidence("fetch_parity").details["reason"]
   end
 end

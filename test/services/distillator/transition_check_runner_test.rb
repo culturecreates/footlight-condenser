@@ -35,7 +35,8 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     result = Distillator::TransitionCheckRunner.new(
       website: website,
       refresh_runner: FakeRefreshRunner.new,
-      export_service: FakeExportService.new(actual: export_json, expected: export_json)
+      export_service: FakeExportService.new(actual: export_json, expected: export_json),
+      transition_check_service: fake_transition_check_service(website: website, cache: cache)
     ).call
 
     assert_equal "shadow", website.reload.distillator_mode
@@ -59,16 +60,20 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
       Distillator::TransitionCheckRunner.new(
         website: website,
         refresh_runner: FakeRefreshRunner.new,
-        export_service: FakeExportService.new(actual: export_json, expected: export_json)
+        export_service: FakeExportService.new(actual: export_json, expected: export_json),
+        transition_check_service: fake_transition_check_service(website: website, cache: cache)
       ).call
     end
   end
 
   test "failed fetch records failed fetch check" do
     website = build_website(with_webpage: false)
-    create_cache(website, signals: { "transport_success" => false, "content_success" => false }, health_status: "attempt_failed")
+    cache = create_cache(website, signals: { "transport_success" => false, "content_success" => false }, health_status: "attempt_failed")
 
-    result = Distillator::TransitionCheckRunner.call(website: website)
+    result = Distillator::TransitionCheckRunner.new(
+      website: website,
+      transition_check_service: fake_transition_check_service(website: website, cache: cache, fetch: :failed)
+    ).call
 
     assert_equal "failed", result.records[:fetch_parity].status
     assert_equal "pending", result.records[:statement_delta].status
@@ -81,14 +86,15 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
 
   test "statement check records failed reason when refresh fails" do
     website = build_website(with_webpage: false)
-    create_cache(website, signals: { "transport_success" => true, "content_success" => true })
+    cache = create_cache(website, signals: { "transport_success" => true, "content_success" => true })
     create_selected_statement(website.webpages.first, status: "ok")
     export_json = '[{"@id":"event:1","name":"Title"}]'
 
     result = Distillator::TransitionCheckRunner.new(
       website: website,
       refresh_runner: FakeRefreshRunner.new([{ "Property id 1" => { cache: ["abort_update"] } }]),
-      export_service: FakeExportService.new(actual: export_json, expected: export_json)
+      export_service: FakeExportService.new(actual: export_json, expected: export_json),
+      transition_check_service: fake_transition_check_service(website: website, cache: cache)
     ).call
 
     assert_equal "failed", result.records[:statement_delta].status
@@ -99,7 +105,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
 
   test "export diff records failed counts when comparison differs" do
     website = build_website(with_webpage: false)
-    create_cache(website, signals: { "transport_success" => true, "content_success" => true })
+    cache = create_cache(website, signals: { "transport_success" => true, "content_success" => true })
     create_selected_statement(website.webpages.first, status: "ok")
 
     result = Distillator::TransitionCheckRunner.new(
@@ -111,7 +117,8 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
           <http://example.org/events/1> <http://schema.org/name> "Expected" .
           <http://example.org/events/2> <http://schema.org/name> "Added" .
         NQUADS
-      )
+      ),
+      transition_check_service: fake_transition_check_service(website: website, cache: cache)
     ).call
 
     assert_equal "failed", result.records[:export_diff].status
@@ -126,9 +133,12 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     result = Distillator::TransitionCheckRunner.new(
       website: website,
       refresh_runner: FakeRefreshRunner.new,
-      export_service: FakeExportService.new(actual: "[]", expected: "[]")
+      export_service: FakeExportService.new(actual: "[]", expected: "[]"),
+      transition_check_service: fake_transition_check_service(website: website, cache: nil, representative_webpages: [], representative_webpage_count: 0, candidate_webpage_count: 0)
     ).call
 
+    assert_equal "pending", result.records[:fetch_parity].status
+    assert_equal "no_representative_webpages", result.records[:fetch_parity].details["reason"]
     assert_equal "pending", result.records[:statement_delta].status
     assert_equal "no_representative_webpages", result.records[:statement_delta].details["reason"]
     assert_equal 0, result.records[:statement_delta].details["representative_webpage_count"]
@@ -139,13 +149,14 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
 
   test "statement check records inconclusive when representative webpages have no selected statements" do
     website = build_website(with_webpage: false)
-    create_cache(website, signals: { "transport_success" => true, "content_success" => true })
+    cache = create_cache(website, signals: { "transport_success" => true, "content_success" => true })
     export_json = '[{"@id":"event:1","name":"Title"}]'
 
     result = Distillator::TransitionCheckRunner.new(
       website: website,
       refresh_runner: FakeRefreshRunner.new,
-      export_service: FakeExportService.new(actual: export_json, expected: export_json)
+      export_service: FakeExportService.new(actual: export_json, expected: export_json),
+      transition_check_service: fake_transition_check_service(website: website, cache: cache)
     ).call
 
     assert_equal "pending", result.records[:statement_delta].status
@@ -205,6 +216,43 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
       source: source,
       webpage: webpage,
       selected_individual: true
+    )
+  end
+
+  def fake_transition_check_service(website:, cache:, fetch: :passed, representative_webpages: nil, representative_webpage_count: nil, candidate_webpage_count: nil)
+    representative_webpages = representative_webpages.nil? ? Array(website.webpages.first).compact : representative_webpages
+    representative_webpage = representative_webpages.first
+
+    stub(
+      call: Distillator::TransitionCheck::Result.new(
+        website_id: website.id,
+        website: website,
+        mode: website.distillator_mode.to_sym,
+        priority: false,
+        active_backend: :wringer,
+        latest_cache_status: cache&.health_status.to_s.presence || "unknown",
+        cache_present: cache.present?,
+        compare_available: true,
+        blocking_issues: [],
+        warnings: [],
+        promotable: false,
+        status: :review,
+        fetch: fetch,
+        statements: :missing,
+        export: :missing,
+        representative_webpage: representative_webpage,
+        representative_webpages: representative_webpages,
+        representative_url: representative_webpage&.url,
+        representative_webpage_count: representative_webpage_count || representative_webpages.count,
+        candidate_webpage_count: candidate_webpage_count || representative_webpages.count,
+        selection_rule: Distillator::TransitionCheck::SELECTION_RULE,
+        attempted_condenser_fetch: false,
+        condenser_fetch_result: nil,
+        comparison: nil,
+        cache: cache,
+        cache_link_payload: {},
+        primary_action: "Run transition check."
+      )
     )
   end
 end

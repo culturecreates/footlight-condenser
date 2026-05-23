@@ -76,4 +76,67 @@ class Distillator::CacheCompareTest < ActiveSupport::TestCase
     assert_match "wringer unavailable", result[:legacy_lookup_error]
     assert_equal true, result.dig(:missing, :legacy)
   end
+
+  test "uses the provided fresh condenser fetch result instead of reloading stale local cache" do
+    key = CGI.escape("http://example.org/page")
+    stale_cache = Distillator::FetchCache.create!(
+      uri_key: key,
+      normalized_url: "http://example.org/page",
+      html: "<html>stale</html>",
+      body: "<html>stale</html>",
+      scrape_date: 2.days.ago,
+      successful_refresh: 2.days.ago,
+      http_response_code: 200,
+      headers: {},
+      signals: { "network_status" => "ok" },
+      hints: [],
+      final_url: "http://example.org/page",
+      redirect_chain: []
+    )
+    fresh_cache = Distillator::FetchCache.new(
+      uri_key: key,
+      normalized_url: "http://example.org/page",
+      html: "<html>fresh</html>",
+      body: "<html>fresh</html>",
+      scrape_date: Time.zone.now,
+      successful_refresh: Time.zone.now,
+      http_response_code: 200,
+      headers: {},
+      signals: { "network_status" => "ok" },
+      hints: [],
+      final_url: "http://example.org/page",
+      redirect_chain: []
+    )
+    condenser_result = Distillator::FetchCacheStore::Result.new(
+      status: :ok,
+      body: "<html>fresh</html>",
+      html: "<html>fresh</html>",
+      headers: {},
+      final_url: "http://example.org/page",
+      redirect_chain: [],
+      http_response_code: 200,
+      signals: { "network_status" => "ok" },
+      hints: [],
+      duration_ms: 10,
+      cache_hit: false,
+      cache_write: true,
+      cache_reason: "force_scrape",
+      uri_key: key,
+      normalized_url: "http://example.org/page",
+      fetch_path: "native",
+      name: "fresh",
+      scrape_date: Time.zone.now,
+      successful_refresh: Time.zone.now,
+      cache: fresh_cache
+    )
+
+    result = Distillator::CacheCompare.call(
+      uri: "http://example.org/page",
+      condenser_result: condenser_result,
+      legacy_lookup: ->(_uri_key) { { html: "<html>legacy</html>" } }
+    )
+
+    assert_equal "<html>fresh</html>", result.dig(:condenser_cache, :html)
+    assert_equal "<html>stale</html>", stale_cache.reload.html
+  end
 end

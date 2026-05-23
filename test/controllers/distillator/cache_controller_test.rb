@@ -38,6 +38,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "friendly condenser cache compare alias works like distillator cache compare" do
+    Distillator::FetchCacheStore.expects(:fetch).never
     Distillator::CacheCompare.expects(:call).with do |kwargs|
       assert_equal "http://example.org/page", kwargs[:uri]
       assert_nil kwargs[:include_fragment]

@@ -58,6 +58,98 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
     assert_includes result.blocking_issues, "Cannot activate yet: statements check is missing."
   end
 
+  test "run fetch forces a shadow condenser attempt before compare and uses the fresh cache" do
+    website = build_website("forced-fetch-transition-check")
+    stale_cache = build_cache(
+      website: website,
+      url: "https://forced-fetch-transition-check.example/event",
+      signals: { "transport_success" => false, "content_success" => false, "empty_body" => true },
+      health_status: "empty_body"
+    )
+    fresh_cache = stale_cache.dup
+    fresh_cache.assign_attributes(
+      html: "<html>fresh</html>",
+      body: "<html>fresh</html>",
+      scrape_date: Time.current,
+      successful_refresh: Time.current,
+      headers: {},
+      signals: { "transport_success" => true, "content_success" => true },
+      final_url: stale_cache.normalized_url,
+      health_status: "healthy"
+    )
+    fetch_result = Distillator::FetchCacheStore::Result.new(
+      status: :ok,
+      body: "<html>fresh</html>",
+      html: "<html>fresh</html>",
+      headers: {},
+      final_url: stale_cache.normalized_url,
+      redirect_chain: [],
+      http_response_code: 200,
+      signals: { "transport_success" => true, "content_success" => true },
+      hints: [],
+      duration_ms: 10,
+      cache_hit: false,
+      cache_write: true,
+      cache_reason: "force_scrape",
+      uri_key: stale_cache.uri_key,
+      normalized_url: stale_cache.normalized_url,
+      fetch_path: "native",
+      name: "fresh",
+      scrape_date: Time.current,
+      successful_refresh: Time.current,
+      cache: fresh_cache
+    )
+    fetch_cache_store = stub(fetch: fetch_result)
+    comparison = {
+      summary: { promotable: true, blocking_regressions: [] },
+      missing: { legacy: false, condenser: false },
+      legacy_source: "remote_wringer",
+      legacy_lookup_error: nil,
+      condenser_source: "local_fetch_cache"
+    }
+    cache_compare = mock
+    cache_compare.expects(:call).with(uri: stale_cache.normalized_url, condenser_result: fetch_result).returns(comparison)
+
+    result = Distillator::TransitionCheck.call(
+      website: website,
+      cache: stale_cache,
+      run_fetch: true,
+      fetch_cache_store: fetch_cache_store,
+      cache_compare: cache_compare
+    )
+
+    assert_equal true, result.attempted_condenser_fetch
+    assert_equal stale_cache.normalized_url, result.representative_url
+    assert_equal fresh_cache, result.cache
+    assert_equal :passed, result.fetch
+    assert_equal comparison, result.comparison
+  end
+
+  test "run fetch skips compare when no representative webpage exists" do
+    website = Website.create!(
+      name: "No representative",
+      seedurl: "no-representative",
+      graph_name: "https://example.org/no-representative",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+    fetch_cache_store = mock
+    fetch_cache_store.expects(:fetch).never
+    cache_compare = mock
+    cache_compare.expects(:call).never
+
+    result = Distillator::TransitionCheck.call(
+      website: website,
+      run_fetch: true,
+      fetch_cache_store: fetch_cache_store,
+      cache_compare: cache_compare
+    )
+
+    assert_equal false, result.attempted_condenser_fetch
+    assert_nil result.representative_url
+    assert_nil result.comparison
+  end
+
   private
 
   def build_website(seedurl)

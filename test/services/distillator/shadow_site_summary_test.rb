@@ -168,6 +168,35 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
     assert_equal "Promote to Active.", summary.primary_action
   end
 
+  test "latest fetch evidence failure overrides older healthy cache in the summary" do
+    website, cache = create_shadow_website_with_cache(
+      name: "Latest failed attempt",
+      seedurl: "latest-failed-attempt",
+      url: "https://latest-failed-attempt.example/event",
+      signals: {
+        "transport_success" => true,
+        "content_success" => true
+      }
+    )
+    create_transition_evidence(
+      website,
+      "fetch_parity",
+      status: "failed",
+      details: {
+        attempted_condenser_fetch: true,
+        comparison_performed: false,
+        representative_urls_checked: true,
+        reason: "empty_body"
+      }
+    )
+
+    summary = Distillator::ShadowSiteSummary.call(website: website, cache: cache)
+
+    assert_equal :blocked, summary.status
+    assert_equal :failed, summary.fetch_status
+    assert_includes summary.blockers, "Cannot activate yet: fetch check failed."
+  end
+
   test "non cohort site with stale durable evidence is review" do
     website, cache = create_shadow_website_with_cache(
       name: "Outside Feed",
@@ -237,12 +266,12 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
     [website, cache]
   end
 
-  def create_transition_evidence(website, check_kind, checked_at: 1.hour.ago, **attrs)
+  def create_transition_evidence(website, check_kind, checked_at: 1.hour.ago, status: "checked", **attrs)
     website.transition_evidences.create!(
       {
         url: "https://evidence.example/#{website.seedurl}/#{check_kind}",
         check_kind: check_kind,
-        status: "checked",
+        status: status,
         checked_at: checked_at
       }.merge(attrs)
     )

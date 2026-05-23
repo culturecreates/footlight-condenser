@@ -72,6 +72,10 @@ module Distillator
     end
 
     def fetch_headline
+      return "No representative event webpages were available." if reason == "no_representative_webpages"
+      return "Latest Condenser attempt failed: empty body." if state == :failed && reason == "empty_body"
+      return "Fresh Condenser evidence is missing for this comparison." if reason == "cache_compare_missing"
+      return "Fresh Condenser evidence differs from Wringer in blocking fields." if reason == "cache_compare_blocking_regression"
       case state
       when :passed
         "Fetch parity passed."
@@ -122,7 +126,11 @@ module Distillator
     def fetch_details
       details = []
       details << "URL: #{evidence.url}" if evidence&.url.present?
+      details << "Attempted Condenser fetch: #{evidence&.attempted_condenser_fetch? ? 'yes' : 'no'}" if evidence.present?
       details << "Issue: #{evidence.primary_issue_key}" if evidence&.primary_issue_key.present?
+      details << "Legacy source: #{details_hash['legacy_source']}" if details_hash["legacy_source"].present?
+      details << "Condenser source: #{details_hash['condenser_source']}" if details_hash["condenser_source"].present?
+      details << "Compare performed: #{details_hash["comparison_performed"] ? 'yes' : 'no'}" if details_hash.key?("comparison_performed")
       details << "Reason: #{reason.humanize}" if reason.present?
       details
     end

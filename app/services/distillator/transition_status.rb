@@ -126,6 +126,8 @@ module Distillator
     end
 
     def fetch_status
+      evidence = fetch_parity_evidence
+      return fetch_status_from_evidence(evidence) if evidence.present?
       return :missing unless cache.present?
       return :failed if fetch_failed?
       return :stale if fetch_evidence_stale?
@@ -167,6 +169,15 @@ module Distillator
       return :failed if explicit_false?(value)
 
       :passed
+    end
+
+    def fetch_status_from_evidence(evidence)
+      return :missing if evidence.status.to_s == "pending"
+      return :failed if evidence.status.to_s.in?(%w[failed blocked rejected])
+      return :stale if evidence.checked_at < now - evidence_stale_after
+      return :passed if evidence.status.to_s.in?(%w[checked accepted warning])
+
+      :missing
     end
 
     def export_status_from_cache

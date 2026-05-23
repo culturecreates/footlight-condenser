@@ -45,15 +45,22 @@ module Distillator
       new(...).call
     end
 
-    def initialize(website:, refresh_helper: nil, refresh_runner: Distillator::RefreshRunner, export_service: ExportArtsdataService)
+    def initialize(
+      website:,
+      refresh_helper: nil,
+      refresh_runner: Distillator::RefreshRunner,
+      export_service: ExportArtsdataService,
+      transition_check_service: Distillator::TransitionCheck
+    )
       @website = website.is_a?(Website) ? website : Website.find(website)
       @refresh_helper = refresh_helper || StatementsHelper.build_refresh_proxy(cookies: {})
       @refresh_runner = refresh_runner
       @export_service = export_service
+      @transition_check_service = transition_check_service
     end
 
     def call
-      transition_check = Distillator::TransitionCheck.call(website: website)
+      transition_check = transition_check_service.call(website: website, run_fetch: true)
       representative_webpages = Array(transition_check.representative_webpages)
 
       Result.new(
@@ -68,7 +75,7 @@ module Distillator
 
     private
 
-    attr_reader :website, :refresh_helper, :refresh_runner, :export_service
+    attr_reader :website, :refresh_helper, :refresh_runner, :export_service, :transition_check_service
 
     def record_fetch_check(transition_check)
       latest_cache = transition_check.cache
@@ -76,7 +83,7 @@ module Distillator
 
       Distillator::TransitionEvidenceRecorder.call(
         website: website,
-        url: cache_or_seed_url(latest_cache),
+        url: transition_check.representative_url.presence || cache_or_seed_url(latest_cache),
         check_kind: :fetch_parity,
         status: status,
         primary_issue_key: latest_cache&.primary_issue_key,
@@ -256,14 +263,56 @@ module Distillator
 
     def fetch_check_payload(transition_check)
       cache = transition_check.cache
-      return [:failed, { reason: "missing_cache" }] unless cache.present?
-      return [:failed, { reason: "cache_health_failed" }] if transition_check.fetch == :failed
+      representative_webpages = Array(transition_check.representative_webpages)
+      details = scope_details(transition_check, representative_webpages).merge(
+        source: "transition_check",
+        attempted_condenser_fetch: transition_check.attempted_condenser_fetch == true,
+        comparison_performed: transition_check.comparison.present?,
+        legacy_source: transition_check.comparison&.dig(:legacy_source),
+        legacy_lookup_error: transition_check.comparison&.dig(:legacy_lookup_error),
+        condenser_source: transition_check.comparison&.dig(:condenser_source),
+        compare_missing: transition_check.comparison&.dig(:missing),
+        compare_summary: transition_check.comparison&.dig(:summary),
+        representative_urls_checked: transition_check.attempted_condenser_fetch == true
+      ).compact
 
-      [:checked, { representative_urls_checked: true, source: "cache_health" }]
+      unless representative_webpages.present?
+        return [:pending, details.merge(reason: "no_representative_webpages", representative_urls_checked: false)]
+      end
+
+      unless cache.present?
+        return [:failed, details.merge(reason: "missing_cache")]
+      end
+
+      if transition_check.fetch == :failed
+        return [:failed, details.merge(reason: fetch_failure_reason(transition_check))]
+      end
+
+      comparison = transition_check.comparison
+      if comparison.present? && (comparison.dig(:missing, :legacy) || comparison.dig(:missing, :condenser))
+        return [:failed, details.merge(reason: "cache_compare_missing")]
+      end
+
+      if comparison.present? && comparison.dig(:summary, :blocking_regressions).present?
+        return [:failed, details.merge(reason: "cache_compare_blocking_regression")]
+      end
+
+      [:checked, details]
     end
 
     def cache_or_seed_url(cache)
       cache&.normalized_url.presence || website.webpages.first&.url.presence || website.seedurl
+    end
+
+    def fetch_failure_reason(transition_check)
+      result = transition_check.condenser_fetch_result
+      return "missing_condenser_attempt" unless result.present?
+      return "empty_body" if truthy?(cache_signal(result.cache, :empty_body))
+
+      result.blocking_issue_key.presence ||
+        cache_signal(result.cache, :primary_issue_key).presence ||
+        cache_signal(result.cache, :network_status).presence ||
+        "cache_health_failed"
     end
 
     def cache_signal(cache, key)

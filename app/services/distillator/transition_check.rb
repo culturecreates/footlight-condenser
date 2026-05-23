@@ -18,10 +18,15 @@ module Distillator
       :fetch,
       :statements,
       :export,
+      :representative_webpage,
       :representative_webpages,
+      :representative_url,
       :representative_webpage_count,
       :candidate_webpage_count,
       :selection_rule,
+      :attempted_condenser_fetch,
+      :condenser_fetch_result,
+      :comparison,
       :cache,
       :cache_link_payload,
       :primary_action,
@@ -32,21 +37,35 @@ module Distillator
       new(...).call
     end
 
-    def initialize(website:, cache: nil, evidence_by_kind: nil)
+    def initialize(
+      website:,
+      cache: nil,
+      evidence_by_kind: nil,
+      run_fetch: false,
+      fetch_cache_store: Distillator::FetchCacheStore,
+      cache_compare: Distillator::CacheCompare
+    )
       @website = website.is_a?(Website) ? website : Website.find(website)
       @cache = cache
       @evidence_by_kind = evidence_by_kind
+      @run_fetch = run_fetch == true
+      @fetch_cache_store = fetch_cache_store
+      @cache_compare = cache_compare
     end
 
     def call
+      representative_webpages = representative_webpages()
+      representative_webpage = representative_webpages.first
+      fetch_attempt = fetch_attempt_for(representative_webpage)
+
       Result.new(
         website_id: website.id,
         website: website,
         mode: website.distillator_mode.to_sym,
         priority: website.lavitrine_pipeline?,
         active_backend: rollout_resolution.active_backend,
-        latest_cache_status: cache&.health_status.to_s.presence || "unknown",
-        cache_present: cache.present?,
+        latest_cache_status: resolved_cache&.health_status.to_s.presence || "unknown",
+        cache_present: resolved_cache.present?,
         compare_available: compare_available?,
         blocking_issues: transition_status.blockers,
         warnings: transition_status.warnings,
@@ -55,11 +74,16 @@ module Distillator
         fetch: transition_status.fetch,
         statements: transition_status.statements,
         export: transition_status.export,
+        representative_webpage: representative_webpage,
         representative_webpages: representative_webpages,
+        representative_url: representative_webpage&.url,
         representative_webpage_count: representative_webpages.count,
         candidate_webpage_count: candidate_webpage_count,
         selection_rule: SELECTION_RULE,
-        cache: cache,
+        attempted_condenser_fetch: fetch_attempt[:attempted],
+        condenser_fetch_result: fetch_attempt[:result],
+        comparison: fetch_attempt[:comparison],
+        cache: resolved_cache,
         cache_link_payload: cache_link_payload,
         primary_action: primary_action
       )
@@ -67,16 +91,20 @@ module Distillator
 
     private
 
-    attr_reader :website, :evidence_by_kind
+    attr_reader :website, :evidence_by_kind, :fetch_cache_store, :cache_compare
 
     def cache
       @cache ||= Distillator::ShadowReportQuery.latest_cache_for_website(website)
     end
 
+    def resolved_cache
+      @resolved_cache ||= cache
+    end
+
     def transition_status
       @transition_status ||= Distillator::TransitionStatus.call(
         website: website,
-        cache: cache,
+        cache: resolved_cache,
         evidence_by_kind: evidence_by_kind || website.latest_transition_evidences_by_kind
       )
     end
@@ -87,7 +115,7 @@ module Distillator
 
     def cache_link_payload
       @cache_link_payload ||= begin
-        url = cache&.normalized_url.presence || website.webpages.first&.url.presence || website.seedurl
+        url = resolved_cache&.normalized_url.presence || website.webpages.first&.url.presence || website.seedurl
         Distillator::CacheLinkResolver.call(url: url, website: website)
       end
     end
@@ -119,6 +147,35 @@ module Distillator
       return event_scope if event_scope.exists?
 
       website.webpages.transition_candidates
+    end
+
+    def run_fetch?
+      @run_fetch == true
+    end
+
+    def fetch_attempt_for(representative_webpage)
+      return { attempted: false, result: nil, comparison: nil } unless run_fetch?
+      return { attempted: false, result: nil, comparison: nil } unless representative_webpage.present?
+
+      fetch_result = fetch_cache_store.fetch(
+        uri: representative_webpage.url,
+        force_scrape: true,
+        mode: "shadow",
+        website: website,
+        log_context: {
+          source: "transition_check",
+          website_id: website.id,
+          seedurl: website.seedurl
+        }
+      )
+
+      @resolved_cache = fetch_result.cache || cache
+
+      {
+        attempted: true,
+        result: fetch_result,
+        comparison: cache_compare.call(uri: representative_webpage.url, condenser_result: fetch_result)
+      }
     end
   end
 end

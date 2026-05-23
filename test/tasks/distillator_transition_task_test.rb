@@ -36,6 +36,12 @@ class DistillatorTransitionTaskTest < ActiveSupport::TestCase
       final_url: url,
       health_status: "healthy"
     )
+    Distillator::TransitionCheckRunner.expects(:call).with(website: website.id).returns(
+      OpenStruct.new(website: website)
+    )
+    Distillator::TransitionCheck.expects(:call).with(website: website).returns(
+      OpenStruct.new(fetch: :passed, statements: :missing, export: :missing, status: :review)
+    )
 
     stdout, = capture_io do
       @check_task.invoke(website.id)
