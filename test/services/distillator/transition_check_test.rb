@@ -22,6 +22,16 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
   end
 
   test "healthy shadow cache with representative checks makes promotable true" do
+    Distillator::WringerEndpoint.stubs(:current).returns(
+      Distillator::WringerEndpoint::Result.new(
+        compatibility_base_url: "http://compat.example",
+        legacy_lookup_base_url: "http://wringer.example",
+        compatibility_source: "DISTILLATOR_COMPAT_BASE_URL",
+        state: :remote_configured,
+        status_label: "Current Wringer: Remote configured",
+        status_detail: "http://compat.example via DISTILLATOR_COMPAT_BASE_URL"
+      )
+    )
     website = build_website("ready-transition-check")
     url = "https://ready-transition-check.example/event"
     cache = build_cache(
@@ -131,6 +141,198 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
     assert_equal fresh_cache, result.cache
     assert_equal :passed, result.fetch
     assert_equal comparison, result.comparison
+  end
+
+  test "representative webpages prefer nearest future event and keep sample limit at three" do
+    website = build_website("future-event-order")
+    past_event = create_event_webpage(
+      website,
+      suffix: "past-event",
+      url: "https://future-event-order.example/past-event",
+      archive_date: Time.zone.parse("2026-01-29 19:00:00"),
+      updated_at: Time.zone.parse("2026-05-10 09:00:00")
+    )
+    nearest_future = create_event_webpage(
+      website,
+      suffix: "nearest-future",
+      url: "https://future-event-order.example/nearest-future",
+      archive_date: Time.zone.parse("2026-06-01 12:00:00"),
+      updated_at: Time.zone.parse("2026-05-24 10:00:00")
+    )
+    later_future = create_event_webpage(
+      website,
+      suffix: "later-future",
+      url: "https://future-event-order.example/later-future",
+      archive_date: Time.zone.parse("2026-06-12 12:00:00"),
+      updated_at: Time.zone.parse("2026-05-24 11:00:00")
+    )
+    nil_archive_event = create_event_webpage(
+      website,
+      suffix: "nil-archive-event",
+      url: "https://future-event-order.example/nil-archive-event",
+      archive_date: nil,
+      updated_at: Time.zone.parse("2026-05-24 12:00:00")
+    )
+    create_non_event_webpage(
+      website,
+      suffix: "about-page",
+      url: "https://future-event-order.example/about-page",
+      updated_at: Time.zone.parse("2026-05-24 13:00:00")
+    )
+
+    result = Distillator::TransitionCheck.call(website: website)
+
+    assert_equal nearest_future, result.representative_webpage
+    assert_equal [nearest_future, later_future], result.representative_webpages
+    assert_equal "https://future-event-order.example/nearest-future", result.representative_url
+    assert_equal 5, result.candidate_webpage_count
+    assert_equal 2, result.selected_candidate_tier_count
+    assert_equal Distillator::TransitionCheck::SELECTION_RULE, result.selection_rule
+  end
+
+  test "representative webpages fall back to most recent past events when no future events exist" do
+    website = build_website("past-event-fallback")
+    oldest_past = create_event_webpage(
+      website,
+      suffix: "oldest-past",
+      url: "https://past-event-fallback.example/oldest-past",
+      archive_date: Time.zone.parse("2026-01-29 19:00:00"),
+      updated_at: Time.zone.parse("2026-05-10 09:00:00")
+    )
+    recent_past = create_event_webpage(
+      website,
+      suffix: "recent-past",
+      url: "https://past-event-fallback.example/recent-past",
+      archive_date: Time.zone.parse("2026-03-15 19:00:00"),
+      updated_at: Time.zone.parse("2026-05-12 09:00:00")
+    )
+    nil_archive_event = create_event_webpage(
+      website,
+      suffix: "nil-archive",
+      url: "https://past-event-fallback.example/nil-archive",
+      archive_date: nil,
+      updated_at: Time.zone.parse("2026-05-20 09:00:00")
+    )
+
+    result = Distillator::TransitionCheck.call(website: website)
+
+    assert_equal recent_past, result.representative_webpage
+    assert_equal [recent_past, oldest_past], result.representative_webpages
+    assert_equal 3, result.candidate_webpage_count
+    assert_equal 2, result.selected_candidate_tier_count
+  end
+
+  test "representative webpages fall back to generic webpages in deterministic recency order" do
+    website = build_website("generic-page-fallback")
+    newest_page = create_non_event_webpage(
+      website,
+      suffix: "newest-page",
+      url: "https://generic-page-fallback.example/newest-page",
+      updated_at: Time.zone.parse("2026-05-24 12:00:00")
+    )
+    create_non_event_webpage(
+      website,
+      suffix: "middle-page",
+      url: "https://generic-page-fallback.example/middle-page",
+      updated_at: Time.zone.parse("2026-05-24 11:00:00")
+    )
+    create_non_event_webpage(
+      website,
+      suffix: "oldest-page",
+      url: "https://generic-page-fallback.example/oldest-page",
+      updated_at: Time.zone.parse("2026-05-24 10:00:00")
+    )
+    create_non_event_webpage(
+      website,
+      suffix: "fourth-page",
+      url: "https://generic-page-fallback.example/fourth-page",
+      updated_at: Time.zone.parse("2026-05-24 09:00:00")
+    )
+
+    result = Distillator::TransitionCheck.call(website: website)
+
+    assert_equal newest_page, result.representative_webpage
+    assert_equal 3, result.representative_webpages.count
+    assert_equal 4, result.candidate_webpage_count
+    assert_equal 4, result.selected_candidate_tier_count
+  end
+
+  test "nil archive date event pages are chosen deterministically before generic pages once dated event tiers are exhausted" do
+    website = build_website("nil-date-vs-generic")
+    newest_nil_date_event = create_event_webpage(
+      website,
+      suffix: "newest-nil-archive-event",
+      url: "https://nil-date-vs-generic.example/newest-nil-archive-event",
+      archive_date: nil,
+      updated_at: Time.zone.parse("2026-05-24 16:00:00")
+    )
+    older_nil_date_event = create_event_webpage(
+      website,
+      suffix: "older-nil-archive-event",
+      url: "https://nil-date-vs-generic.example/older-nil-archive-event",
+      archive_date: nil,
+      updated_at: Time.zone.parse("2026-05-24 13:00:00")
+    )
+    create_non_event_webpage(
+      website,
+      suffix: "newest-generic",
+      url: "https://nil-date-vs-generic.example/newest-generic",
+      updated_at: Time.zone.parse("2026-05-24 15:00:00")
+    )
+    create_non_event_webpage(
+      website,
+      suffix: "older-generic",
+      url: "https://nil-date-vs-generic.example/older-generic",
+      updated_at: Time.zone.parse("2026-05-24 14:00:00")
+    )
+
+    result = Distillator::TransitionCheck.call(website: website)
+
+    assert_equal newest_nil_date_event, result.representative_webpage
+    assert_equal [newest_nil_date_event, older_nil_date_event], result.representative_webpages
+    assert_equal 4, result.candidate_webpage_count
+    assert_equal 2, result.selected_candidate_tier_count
+  end
+
+  test "candidate webpage count reflects all transition candidates, not only the selected tier" do
+    website = build_website("candidate-count-honest")
+    create_event_webpage(
+      website,
+      suffix: "future-one",
+      url: "https://candidate-count-honest.example/future-one",
+      archive_date: Time.zone.parse("2026-06-01 12:00:00"),
+      updated_at: Time.zone.parse("2026-05-24 10:00:00")
+    )
+    create_event_webpage(
+      website,
+      suffix: "future-two",
+      url: "https://candidate-count-honest.example/future-two",
+      archive_date: Time.zone.parse("2026-06-03 12:00:00"),
+      updated_at: Time.zone.parse("2026-05-24 09:00:00")
+    )
+    4.times do |index|
+      create_event_webpage(
+        website,
+        suffix: "past-#{index}",
+        url: "https://candidate-count-honest.example/past-#{index}",
+        archive_date: Time.zone.parse("2026-02-#{index + 10} 12:00:00"),
+        updated_at: Time.zone.parse("2026-05-2#{index} 08:00:00")
+      )
+    end
+    3.times do |index|
+      create_non_event_webpage(
+        website,
+        suffix: "generic-#{index}",
+        url: "https://candidate-count-honest.example/generic-#{index}",
+        updated_at: Time.zone.parse("2026-05-2#{index} 07:00:00")
+      )
+    end
+
+    result = Distillator::TransitionCheck.call(website: website)
+
+    assert_operator result.representative_webpage_count, :<=, 3
+    assert_equal 9, result.candidate_webpage_count
+    assert_equal 2, result.selected_candidate_tier_count
   end
 
   test "latest successful condenser fetch stays passed when legacy lookup is incomplete" do
@@ -273,5 +475,52 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
       final_url: url,
       health_status: health_status
     )
+  end
+
+  def create_event_webpage(website, suffix:, url:, archive_date:, updated_at: nil)
+    webpage = website.webpages.create!(
+      url: url,
+      language: "en",
+      rdf_uri: "rdf:#{website.seedurl}:#{suffix}",
+      rdfs_class: rdfs_classes(:one),
+      archive_date: archive_date
+    )
+    webpage.update_columns(archive_date: nil) if archive_date.nil?
+    webpage.update_columns(updated_at: updated_at, created_at: updated_at) if updated_at.present?
+    webpage.reload
+  end
+
+  def create_non_event_webpage(website, suffix:, url:, updated_at:)
+    webpage = website.webpages.create!(
+      url: url,
+      language: "en",
+      rdf_uri: "rdf:#{website.seedurl}:#{suffix}",
+      rdfs_class: rdfs_classes(:person)
+    )
+    webpage.update_columns(updated_at: updated_at, created_at: updated_at)
+    webpage.reload
+  end
+
+  def create_publishable_statements_for(webpage, start_at:)
+    [
+      [properties(:four), "Representative title"],
+      [properties(:location), '[["Salle","uri:place"]]'],
+      [properties(:six), "[\"#{start_at}\"]"]
+    ].each do |property, cache|
+      source = Source.create!(
+        website: webpage.website,
+        property: property,
+        language: "en",
+        selected: true,
+        algorithm_value: "transition-check-test"
+      )
+
+      Statement.create!(
+        webpage: webpage,
+        source: source,
+        cache: cache,
+        status: "ok"
+      )
+    end
   end
 end

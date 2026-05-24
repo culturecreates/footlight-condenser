@@ -292,6 +292,7 @@ module Distillator
       return "Fix fetch/cache first, then rerun the transition check." if fetch_status == :failed
       return "Configure the Wringer endpoint for staging, then rerun the transition check." if legacy_lookup_missing_config?
       return "Fix the legacy Wringer endpoint, then rerun the transition check." if legacy_lookup_unreachable?
+      return "Verify the legacy Wringer body endpoint or compare using the legacy inspection link." if legacy_lookup_body_omitted?
       return "Verify selected sources/statements for the sampled webpages." if statements_status == :inconclusive
       return "Fix the blocking check, then rerun the transition check." if blockers.any?
       return "Review the warning and rerun the transition check if needed." if warnings.any?
@@ -353,6 +354,7 @@ module Distillator
     def legacy_lookup_warning
       return "Needs review: legacy Wringer endpoint is not configured for this environment." if legacy_lookup_missing_config?
       return "Needs review: legacy Wringer lookup failed during the latest transition check." if legacy_lookup_unreachable?
+      return "Needs review: legacy Wringer body was omitted from the comparison endpoint." if legacy_lookup_body_omitted?
 
       nil
     end
@@ -363,6 +365,10 @@ module Distillator
 
     def legacy_lookup_unreachable?
       fetch_parity_evidence&.detail_reason == "legacy_lookup_unreachable"
+    end
+
+    def legacy_lookup_body_omitted?
+      fetch_parity_evidence&.detail_reason == "legacy_lookup_body_omitted"
     end
 
     def primary_blocker_reason

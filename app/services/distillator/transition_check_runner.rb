@@ -299,6 +299,10 @@ module Distillator
         return [:checked, details.merge(reason: "legacy_lookup_unreachable", comparison_performed: false)]
       end
 
+      if comparison.present? && comparison[:legacy_lookup_status] == "body_omitted"
+        return [:checked, details.merge(reason: "legacy_lookup_body_omitted", comparison_performed: false)]
+      end
+
       if comparison.present? && (comparison.dig(:missing, :legacy) || comparison.dig(:missing, :condenser))
         return [:failed, details.merge(reason: "cache_compare_missing")]
       end
@@ -413,6 +417,7 @@ module Distillator
         representative_webpages: representative_webpages.map(&:url),
         representative_webpage_count: representative_webpages.count,
         candidate_webpage_count: transition_check.candidate_webpage_count,
+        selected_candidate_tier_count: transition_check.selected_candidate_tier_count,
         selection_rule: transition_check.selection_rule,
         sample_small: transition_check.candidate_webpage_count.to_i > representative_webpages.count
       }

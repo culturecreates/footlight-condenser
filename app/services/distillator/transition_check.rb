@@ -1,6 +1,6 @@
 module Distillator
   class TransitionCheck
-    SELECTION_RULE = "Event pages first, ordered by archive date".freeze
+    SELECTION_RULE = "Future/current event pages first, then event pages by archive date, then recent webpages.".freeze
 
     Result = Struct.new(
       :website_id,
@@ -23,6 +23,7 @@ module Distillator
       :representative_url,
       :representative_webpage_count,
       :candidate_webpage_count,
+      :selected_candidate_tier_count,
       :selection_rule,
       :attempted_condenser_fetch,
       :condenser_fetch_result,
@@ -79,6 +80,7 @@ module Distillator
         representative_url: representative_webpage&.url,
         representative_webpage_count: representative_webpages.count,
         candidate_webpage_count: candidate_webpage_count,
+        selected_candidate_tier_count: selected_candidate_tier_count,
         selection_rule: SELECTION_RULE,
         attempted_condenser_fetch: fetch_attempt[:attempted],
         condenser_fetch_result: fetch_attempt[:result],
@@ -139,14 +141,31 @@ module Distillator
     end
 
     def candidate_webpage_count
+      website.webpages.transition_candidates.count
+    end
+
+    def selected_candidate_tier_count
       representative_scope.count
     end
 
     def representative_scope
-      event_scope = website.webpages.event_pages.transition_candidates
-      return event_scope if event_scope.exists?
+      current_event_scope = website.webpages.event_pages
+        .where("archive_date >= ?", Time.current.beginning_of_day)
+        .reorder(archive_date: :asc, updated_at: :desc, id: :asc)
+      return current_event_scope if current_event_scope.exists?
 
-      website.webpages.transition_candidates
+      past_event_scope = website.webpages.event_pages
+        .where.not(archive_date: nil)
+        .where("archive_date < ?", Time.current.beginning_of_day)
+        .reorder(archive_date: :desc, updated_at: :desc, id: :asc)
+      return past_event_scope if past_event_scope.exists?
+
+      nil_date_event_scope = website.webpages.event_pages
+        .where(archive_date: nil)
+        .reorder(updated_at: :desc, created_at: :desc, id: :asc)
+      return nil_date_event_scope if nil_date_event_scope.exists?
+
+      website.webpages.reorder(updated_at: :desc, created_at: :desc, id: :asc)
     end
 
     def run_fetch?

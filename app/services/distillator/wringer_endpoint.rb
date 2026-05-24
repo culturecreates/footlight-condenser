@@ -2,12 +2,16 @@ require "uri"
 
 module Distillator
   class WringerEndpoint
+    CANONICAL_COMPATIBILITY_ENV = "DISTILLATOR_COMPAT_BASE_URL".freeze
+    COMPATIBILITY_ALIAS_ENV = "DISTILLATOR_COMPATIBILITY_BASE_URL".freeze
+    LEGACY_WRINGER_FALLBACK_ENV = "DISTILLATOR_LEGACY_WRINGER_FALLBACK".freeze
     LOCAL_COMPATIBILITY_BASE_URL = "http://localhost:3000".freeze
     LOCAL_LEGACY_BASE_URL = "http://localhost:3009".freeze
 
     Result = Struct.new(
       :compatibility_base_url,
       :legacy_lookup_base_url,
+      :compatibility_source,
       :state,
       :status_label,
       :status_detail,
@@ -42,11 +46,11 @@ module Distillator
     end
 
     def call
-      compatibility = configured_compatibility_base_url
+      compatibility, compatibility_source = configured_compatibility_base_url
       legacy_lookup = configured_legacy_lookup_base_url(compatibility)
 
       if compatibility.present?
-        return build_remote_result(compatibility, legacy_lookup)
+        return build_remote_result(compatibility, legacy_lookup, compatibility_source)
       end
 
       return build_local_result if allow_localhost_default?
@@ -66,11 +70,11 @@ module Distillator
     end
 
     def configured_compatibility_base_url
-      normalize_base_url(
-        config_value(:compatibility_base_url) ||
-        env_vars["DISTILLATOR_COMPAT_BASE_URL"] ||
-        env_vars["DISTILLATOR_COMPATIBILITY_BASE_URL"]
-      )
+      return [normalize_base_url(config_value(:compatibility_base_url)), "config.x.distillator.compatibility_base_url"] if config_value(:compatibility_base_url).present?
+      return [normalize_base_url(env_vars[CANONICAL_COMPATIBILITY_ENV]), CANONICAL_COMPATIBILITY_ENV] if env_vars[CANONICAL_COMPATIBILITY_ENV].present?
+      return [normalize_base_url(env_vars[COMPATIBILITY_ALIAS_ENV]), COMPATIBILITY_ALIAS_ENV] if env_vars[COMPATIBILITY_ALIAS_ENV].present?
+
+      [nil, nil]
     end
 
     def configured_legacy_lookup_base_url(compatibility)
@@ -80,7 +84,7 @@ module Distillator
       ) || compatibility
     end
 
-    def build_remote_result(compatibility, legacy_lookup)
+    def build_remote_result(compatibility, legacy_lookup, compatibility_source)
       state = last_error.present? ? :unreachable : :remote_configured
       label =
         if state == :unreachable
@@ -93,12 +97,13 @@ module Distillator
         if state == :unreachable
           "last lookup failed"
         else
-          sanitize_display_url(compatibility)
+          [sanitize_display_url(compatibility), compatibility_source_detail(compatibility_source)].compact.join(" via ")
         end
 
       Result.new(
         compatibility_base_url: compatibility,
         legacy_lookup_base_url: legacy_lookup,
+        compatibility_source: compatibility_source,
         state: state,
         status_label: label,
         status_detail: detail
@@ -109,6 +114,7 @@ module Distillator
       Result.new(
         compatibility_base_url: LOCAL_COMPATIBILITY_BASE_URL,
         legacy_lookup_base_url: normalize_base_url(config_value(:legacy_wringer_base_url) || env_vars["LEGACY_WRINGER_BASE_URL"]) || LOCAL_LEGACY_BASE_URL,
+        compatibility_source: "development_default",
         state: :local_development,
         status_label: "Current Wringer: Local development",
         status_detail: sanitize_display_url(LOCAL_COMPATIBILITY_BASE_URL)
@@ -133,6 +139,7 @@ module Distillator
       Result.new(
         compatibility_base_url: nil,
         legacy_lookup_base_url: nil,
+        compatibility_source: nil,
         state: :missing_config,
         status_label: label,
         status_detail: detail
@@ -166,6 +173,13 @@ module Distillator
       return "" if (uri.scheme == "http" && uri.port == 80) || (uri.scheme == "https" && uri.port == 443)
 
       ":#{uri.port}"
+    end
+
+    def compatibility_source_detail(source)
+      return nil if source.blank?
+      return source if [CANONICAL_COMPATIBILITY_ENV, COMPATIBILITY_ALIAS_ENV].include?(source)
+
+      source
     end
   end
 end

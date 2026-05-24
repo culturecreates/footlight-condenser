@@ -10,7 +10,16 @@ class CacheLinkRenderingTest < ActionView::TestCase
 
   setup do
     @old_fetch_mode = ENV["DISTILLATOR_FETCH_MODE"]
-    ApplicationController.helpers.stubs(:get_wringer_url_per_environment).returns("http://wringer.example")
+    Distillator::WringerEndpoint.stubs(:current).returns(
+      Distillator::WringerEndpoint::Result.new(
+        compatibility_base_url: "https://wringer.example",
+        legacy_lookup_base_url: "https://wringer.example",
+        compatibility_source: Distillator::WringerEndpoint::CANONICAL_COMPATIBILITY_ENV,
+        state: :remote_configured,
+        status_label: "Current Wringer: Remote configured",
+        status_detail: "https://wringer.example"
+      )
+    )
   end
 
   teardown do

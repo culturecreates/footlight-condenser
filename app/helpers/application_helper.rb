@@ -154,7 +154,14 @@ module ApplicationHelper
 
   def current_wringer_status
     @current_wringer_status ||= begin
-      last_error = Distillator::TransitionEvidence.latest_legacy_lookup_error&.details.to_h&.[]("legacy_lookup_error")
+      latest_lookup_error = Distillator::TransitionEvidence.latest_legacy_lookup_error
+      details = latest_lookup_error&.details.to_h || {}
+      reason = details["reason"] || details[:reason]
+      lookup_status = details["legacy_lookup_status"] || details[:legacy_lookup_status]
+      last_error =
+        if reason == "legacy_lookup_unreachable" || lookup_status == "unreachable"
+          details["legacy_lookup_error"] || details[:legacy_lookup_error]
+        end
       Distillator::WringerEndpoint.current(last_error: last_error)
     end
   end

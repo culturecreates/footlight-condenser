@@ -6,6 +6,16 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     @old_fetch_mode = ENV["DISTILLATOR_FETCH_MODE"]
     @old_override_flag = ENV["DISTILLATOR_ALLOW_ACTIVE_OVERRIDE"]
     @old_heroku_app_name = ENV["HEROKU_APP_NAME"]
+    Distillator::WringerEndpoint.stubs(:current).returns(
+      Distillator::WringerEndpoint::Result.new(
+        compatibility_base_url: "http://compat.example",
+        legacy_lookup_base_url: "http://wringer.example",
+        compatibility_source: "DISTILLATOR_COMPAT_BASE_URL",
+        state: :remote_configured,
+        status_label: "Current Wringer: Remote configured",
+        status_detail: "http://compat.example via DISTILLATOR_COMPAT_BASE_URL"
+      )
+    )
   end
 
   teardown do
@@ -100,6 +110,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
   test "should show website" do
     assert_read_only_page_does_not_fetch
+    stub_remote_wringer_endpoint
     @website.update!(distillator_mode: "shadow")
     get website_url(@website)
     assert_response :success
@@ -1007,6 +1018,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
   test "website detail shows rollout panel for shadow website" do
     assert_read_only_page_does_not_fetch
+    stub_remote_wringer_endpoint
     website = ready_shadow_website(seedurl: "rollout-panel-shadow")
 
     get website_url(website)
@@ -1035,6 +1047,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
   test "website detail shows comparison link only for shadow website" do
     assert_read_only_page_does_not_fetch
+    stub_remote_wringer_endpoint
     @website.update!(distillator_mode: "shadow")
 
     get website_url(@website)
@@ -1045,6 +1058,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
   test "website detail shows legacy inspection link for active website" do
     assert_read_only_page_does_not_fetch
+    stub_remote_wringer_endpoint
     @website.update!(distillator_mode: "active")
 
     get website_url(@website)
@@ -1269,5 +1283,18 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
   def assert_no_cohort_source_requests
     WebMock.assert_not_requested(:any, Distillator::Cohorts::LavitrinePipeline.query_url)
+  end
+
+  def stub_remote_wringer_endpoint
+    Distillator::WringerEndpoint.stubs(:current).returns(
+      Distillator::WringerEndpoint::Result.new(
+        compatibility_base_url: "http://compat.example",
+        legacy_lookup_base_url: "http://wringer.example",
+        compatibility_source: "DISTILLATOR_COMPAT_BASE_URL",
+        state: :remote_configured,
+        status_label: "Current Wringer: Remote configured",
+        status_detail: "http://compat.example via DISTILLATOR_COMPAT_BASE_URL"
+      )
+    )
   end
 end

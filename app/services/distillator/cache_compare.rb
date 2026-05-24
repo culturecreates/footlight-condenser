@@ -1,9 +1,9 @@
-require "cgi"
 require "digest"
 require "json"
 
 module Distillator
   class CacheCompare
+    BODY_DEPENDENT_FIELDS = %i[title html_sha256 html_bytes content_success final_url].freeze
     FIELDS = %i[
       title
       html_sha256
@@ -43,8 +43,8 @@ module Distillator
 
     def call
       key = Distillator::WringerUrlKey.call(uri, include_fragment: include_fragment)
-      legacy_result = fetch_legacy_cache(key.uri_key)
-      legacy_cache = normalize_legacy_cache(legacy_result[:payload])
+      legacy_result = fetch_legacy_cache(key)
+      legacy_cache = normalize_legacy_cache(legacy_result)
       condenser_cache = normalize_condenser_cache(condenser_cache_record(key))
 
       {
@@ -81,16 +81,16 @@ module Distillator
       condenser_result&.cache || Distillator::FetchCache.find_by(uri_key: key.uri_key)
     end
 
-    def fetch_legacy_cache(uri_key)
+    def fetch_legacy_cache(key)
       if legacy_lookup
-        payload = legacy_lookup.call(uri_key)
+        payload = legacy_lookup.call(key.uri_key)
         return { payload: payload, source: "injected_lookup", status: payload.present? ? "ok" : "missing", error: nil }
       end
 
-      default_legacy_lookup(uri_key)
+      default_legacy_lookup(key)
     end
 
-    def default_legacy_lookup(uri_key)
+    def default_legacy_lookup(key)
       endpoint = wringer_endpoint || Distillator::WringerEndpoint.current
       unless endpoint.legacy_lookup_base_url.present?
         return {
@@ -101,17 +101,34 @@ module Distillator
         }
       end
 
-      response = HTTParty.get(
-        "#{endpoint.legacy_lookup_base_url}/websites.json",
-        query: { term: uri_key }
+      payload = first_payload(
+        HTTParty.get(
+          "#{endpoint.legacy_lookup_base_url}/websites.json",
+          query: { term: key.uri_key }
+        )
       )
-      body = response.respond_to?(:body) ? response.body : response.to_s
-      payload = JSON.parse(body)
-      {
-        payload: payload.is_a?(Array) ? payload.first : payload,
+      return { payload: nil, source: "remote_wringer", status: "missing", error: nil } if payload.blank?
+
+      return {
+        payload: payload,
         source: "remote_wringer",
         status: "ok",
         error: nil
+      } if payload["html"].present? || payload[:html].present?
+
+      hydrated_payload = hydrate_legacy_body(
+        endpoint: endpoint,
+        normalized_url: key.normalized_url,
+        payload: payload
+      )
+      return hydrated_payload if hydrated_payload.is_a?(Hash) && hydrated_payload.key?(:status)
+
+      hydrated_html_present = hydrated_payload.present? && (hydrated_payload["html"].present? || hydrated_payload[:html].present?)
+      {
+        payload: hydrated_payload || payload,
+        source: "remote_wringer",
+        status: hydrated_html_present ? "ok" : "body_omitted",
+        error: hydrated_html_present ? nil : "legacy_body_omitted"
       }
     rescue StandardError => e
       {
@@ -122,13 +139,14 @@ module Distillator
       }
     end
 
-    def normalize_legacy_cache(payload)
+    def normalize_legacy_cache(result)
+      payload = result[:payload]
       return nil if payload.blank?
 
       data = payload.with_indifferent_access
       {
         html: data[:html],
-        title: extract_title(data[:html]),
+        title: extract_title(data[:html]).presence || data[:title].presence || data[:name].presence || data[:page_name].presence,
         scrape_date: data[:scrape_date],
         successful_refresh: data[:successful_refresh],
         http_code: data[:http_code] || data[:http_response_code],
@@ -141,7 +159,9 @@ module Distillator
         signals: (data[:signals] || {}).to_h,
         hints: Array(data[:hints]),
         final_url: data[:final_url],
-        redirect_chain: Array(data[:redirect_chain])
+        redirect_chain: Array(data[:redirect_chain]),
+        body_hydrated: data[:html].present?,
+        lookup_status: result[:status]
       }
     end
 
@@ -199,6 +219,7 @@ module Distillator
         same: changed.empty?,
         promotable: !comparison.dig(:missing, :legacy) &&
           !comparison.dig(:missing, :condenser) &&
+          comparison[:legacy_lookup_status] == "ok" &&
           blocking.empty?,
         blocking_regressions: blocking,
         improvements: improvements,
@@ -230,6 +251,7 @@ module Distillator
       return :metadata_only if legacy_value == distillator_value
       return :blocking_regression if distillator_cache.nil?
       return :unknown if legacy_cache.nil?
+      return :unknown if legacy_body_unavailable?(legacy_cache) && BODY_DEPENDENT_FIELDS.include?(field)
 
       case field
       when :html_sha256, :http_code, :final_url, :content_type, :content_success, :transport_success, :blocking_issue, :cache_policy
@@ -254,6 +276,44 @@ module Distillator
 
       data = signals.to_h
       data[key.to_s] || data[key.to_sym]
+    end
+
+    def first_payload(response)
+      body = response.respond_to?(:body) ? response.body : response.to_s
+      payload = JSON.parse(body)
+      payload.is_a?(Array) ? payload.first : payload
+    end
+
+    def hydrate_legacy_body(endpoint:, normalized_url:, payload:)
+      return nil unless endpoint.compatibility_base_url.present?
+
+      # This endpoint is expected to return Wringer-compatible cached output only.
+      # CacheCompare keeps the comparison path read-only by sending only the URI
+      # and never force_scrape/use_phantomjs/json_post flags during hydration.
+      hydrated_payload = first_payload(
+        HTTParty.get(
+          "#{endpoint.compatibility_base_url}/websites/wring.json",
+          query: hydration_query(normalized_url)
+        )
+      )
+      return nil if hydrated_payload.blank?
+
+      payload.merge(hydrated_payload)
+    rescue StandardError => e
+      {
+        payload: payload,
+        source: "remote_wringer",
+        status: "unreachable",
+        error: e.message
+      }
+    end
+
+    def legacy_body_unavailable?(legacy_cache)
+      legacy_cache[:body_hydrated] == false || legacy_cache[:lookup_status] == "body_omitted"
+    end
+
+    def hydration_query(normalized_url)
+      { uri: normalized_url }
     end
   end
 end

@@ -74,6 +74,183 @@ class Distillator::CacheCompareTest < ActiveSupport::TestCase
     assert_nil result[:legacy_lookup_error]
   end
 
+  test "hydrates remote wringer html and title from compatibility endpoint when search payload omits body" do
+    endpoint = Distillator::WringerEndpoint::Result.new(
+      compatibility_base_url: "https://compat.example",
+      legacy_lookup_base_url: "https://wringer.example",
+      state: :remote_configured,
+      status_label: "Current Wringer: Remote configured",
+      status_detail: "https://wringer.example"
+    )
+    search_payload = [{
+      "http_response_code" => 200,
+      "successful_refresh" => "2026-03-06T16:47:36Z",
+      "name" => "Legacy listing title"
+    }]
+    wring_payload = {
+      "html" => "<html><title>Legacy hydrated title</title><body>cached</body></html>",
+      "http_code" => 200,
+      "successful_refresh" => "2026-03-06T16:47:36Z",
+      "final_url" => "https://example.org/events/match-dimprovisation",
+      "signals" => { "content_success" => true }
+    }
+
+    HTTParty.expects(:get).with(
+      "https://wringer.example/websites.json",
+      query: { term: CGI.escape("https://example.org/events/match-dimprovisation?lang=fr") }
+    ).returns(Struct.new(:body).new(search_payload.to_json))
+    HTTParty.expects(:get).with(
+      "https://compat.example/websites/wring.json",
+      query: { uri: "https://example.org/events/match-dimprovisation?lang=fr" }
+    ).returns(Struct.new(:body).new(wring_payload.to_json))
+
+    result = Distillator::CacheCompare.call(
+      uri: "https://example.org/events/match-dimprovisation?lang=fr",
+      wringer_endpoint: endpoint
+    )
+
+    assert_equal "ok", result[:legacy_lookup_status]
+    assert_equal "<html><title>Legacy hydrated title</title><body>cached</body></html>", result.dig(:legacy_cache, :html)
+    assert_equal "Legacy hydrated title", result.dig(:legacy_cache, :title)
+    assert_equal false, result.dig(:missing, :legacy)
+  end
+
+  test "hydration request stays read only and sends only the normalized url query" do
+    endpoint = Distillator::WringerEndpoint::Result.new(
+      compatibility_base_url: "https://compat.example",
+      legacy_lookup_base_url: "https://wringer.example",
+      state: :remote_configured,
+      status_label: "Current Wringer: Remote configured",
+      status_detail: "https://wringer.example"
+    )
+    normalized_url = "https://example.org/evenements/cafe?lang=fr&ville=trois-rivieres"
+    uri_key = CGI.escape(normalized_url)
+
+    sequence = sequence("read_only_hydration")
+
+    HTTParty.expects(:get).in_sequence(sequence).with(
+      "https://wringer.example/websites.json",
+      query: { term: uri_key }
+    ).returns(Struct.new(:body).new([{ "http_response_code" => 200 }].to_json))
+    HTTParty.expects(:get).in_sequence(sequence).with(
+      "https://compat.example/websites/wring.json",
+      query: { uri: normalized_url }
+    ).returns(Struct.new(:body).new({ "html" => "<html><title>Hydrated</title></html>" }.to_json))
+
+    result = Distillator::CacheCompare.call(uri: normalized_url, wringer_endpoint: endpoint)
+
+    assert_equal "ok", result[:legacy_lookup_status]
+    assert_equal "Hydrated", result.dig(:legacy_cache, :title)
+  end
+
+  test "hydration request ignores compare options and never sends legacy refresh flags" do
+    endpoint = Distillator::WringerEndpoint::Result.new(
+      compatibility_base_url: "https://compat.example",
+      legacy_lookup_base_url: "https://wringer.example",
+      state: :remote_configured,
+      status_label: "Current Wringer: Remote configured",
+      status_detail: "https://wringer.example"
+    )
+    normalized_url = "https://example.org/evenements/cafe?lang=fr"
+    HTTParty.expects(:get).with(
+      "https://wringer.example/websites.json",
+      query: { term: CGI.escape(normalized_url) }
+    ).returns(Struct.new(:body).new([{ "http_response_code" => 200 }].to_json))
+    HTTParty.expects(:get).with(
+      "https://compat.example/websites/wring.json",
+      query: { uri: normalized_url }
+    ).returns(Struct.new(:body).new({ "html" => "<html><title>Hydrated</title></html>" }.to_json))
+
+    result = Distillator::CacheCompare.call(
+      uri: normalized_url,
+      include_fragment: true,
+      wringer_endpoint: endpoint
+    )
+
+    assert_equal "ok", result[:legacy_lookup_status]
+    assert_equal "Hydrated", result.dig(:legacy_cache, :title)
+    assert_equal false, result.dig(:summary, :promotable)
+  end
+
+  test "keeps legacy row visible when wringer body endpoint omits html" do
+    endpoint = Distillator::WringerEndpoint::Result.new(
+      compatibility_base_url: "https://compat.example",
+      legacy_lookup_base_url: "https://wringer.example",
+      state: :remote_configured,
+      status_label: "Current Wringer: Remote configured",
+      status_detail: "https://wringer.example"
+    )
+    key = CGI.escape("https://example.org/events/body-omitted")
+    fresh_cache = Distillator::FetchCache.create!(
+      uri_key: key,
+      normalized_url: "https://example.org/events/body-omitted",
+      html: "<html><title>Condenser title</title><body>fresh</body></html>",
+      body: "<html><title>Condenser title</title><body>fresh</body></html>",
+      scrape_date: Time.zone.now,
+      successful_refresh: Time.zone.now,
+      http_response_code: 200,
+      headers: {},
+      signals: { "content_success" => true, "transport_success" => true },
+      hints: [],
+      final_url: "https://example.org/events/body-omitted/final",
+      redirect_chain: []
+    )
+    HTTParty.stubs(:get).with("https://wringer.example/websites.json", query: { term: key }).returns(
+      Struct.new(:body).new([{
+        "http_response_code" => 200,
+        "successful_refresh" => "2026-03-06T16:47:36Z",
+        "final_url" => "https://example.org/events/body-omitted",
+        "signals" => { "transport_success" => true }
+      }].to_json)
+    )
+    HTTParty.stubs(:get).with("https://compat.example/websites/wring.json", query: { uri: "https://example.org/events/body-omitted" }).returns(
+      Struct.new(:body).new({ "http_code" => 200, "successful_refresh" => "2026-03-06T16:47:36Z" }.to_json)
+    )
+
+    result = Distillator::CacheCompare.call(
+      uri: "https://example.org/events/body-omitted",
+      wringer_endpoint: endpoint
+    )
+
+    assert_equal "body_omitted", result[:legacy_lookup_status]
+    assert_equal "legacy_body_omitted", result[:legacy_lookup_error]
+    assert_equal false, result.dig(:missing, :legacy)
+    assert_not_includes result.dig(:summary, :blocking_regressions), :html_sha256
+    assert_not_includes result.dig(:summary, :blocking_regressions), :content_success
+    assert_not_includes result.dig(:summary, :blocking_regressions), :final_url
+    assert_includes result.dig(:summary, :unknown_diffs), :html_sha256
+    assert_includes result.dig(:summary, :unknown_diffs), :content_success
+    assert_includes result.dig(:summary, :unknown_diffs), :final_url
+    assert_equal "<html><title>Condenser title</title><body>fresh</body></html>", fresh_cache.reload.html
+    assert_equal false, result.dig(:summary, :promotable)
+  end
+
+  test "search uses uri_key once and hydration uses normalized url with encoded inputs" do
+    endpoint = Distillator::WringerEndpoint::Result.new(
+      compatibility_base_url: "https://compat.example",
+      legacy_lookup_base_url: "https://wringer.example",
+      state: :remote_configured,
+      status_label: "Current Wringer: Remote configured",
+      status_detail: "https://wringer.example"
+    )
+    raw_url = "https://example.org/evenements/caf%C3%A9?categorie=arts%20vivants&lang=fr"
+    key = Distillator::WringerUrlKey.call(raw_url)
+
+    HTTParty.expects(:get).with(
+      "https://wringer.example/websites.json",
+      query: { term: key.uri_key }
+    ).returns(Struct.new(:body).new([{ "http_response_code" => 200 }].to_json))
+    HTTParty.expects(:get).with(
+      "https://compat.example/websites/wring.json",
+      query: { uri: key.normalized_url }
+    ).returns(Struct.new(:body).new({ "html" => "<html><title>Cafe</title></html>" }.to_json))
+
+    result = Distillator::CacheCompare.call(uri: raw_url, wringer_endpoint: endpoint)
+
+    assert_equal "ok", result[:legacy_lookup_status]
+    assert_equal "Cafe", result.dig(:legacy_cache, :title)
+  end
+
   test "labels failed remote wringer lookup without raising" do
     endpoint = Distillator::WringerEndpoint::Result.new(
       compatibility_base_url: "http://compat.example",

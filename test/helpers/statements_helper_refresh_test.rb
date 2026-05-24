@@ -831,6 +831,16 @@ class StatementsHelperRefreshTest < ActionView::TestCase
     previous_mode = ENV["DISTILLATOR_FETCH_MODE"]
     ENV["DISTILLATOR_FETCH_MODE"] = "legacy"
     Distillator::FetchCacheStore.expects(:fetch).never
+    Distillator::WringerEndpoint.stubs(:current).returns(
+      Distillator::WringerEndpoint::Result.new(
+        compatibility_base_url: "https://wringer.example",
+        legacy_lookup_base_url: "https://wringer.example",
+        compatibility_source: Distillator::WringerEndpoint::CANONICAL_COMPATIBILITY_ENV,
+        state: :remote_configured,
+        status_label: "Current Wringer: Remote configured",
+        status_detail: "https://wringer.example"
+      )
+    )
     website = websites(:one)
     website.update!(distillator_mode: "active")
 

@@ -368,7 +368,7 @@ module WebsitesHelper
         params: { website: { distillator_mode: "shadow" } }
       }
     when "shadow"
-      if blockers.blank?
+      if blockers.blank? && warnings.blank?
         {
           label: "Promote to active",
           next_mode: "active",

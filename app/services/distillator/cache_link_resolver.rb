@@ -26,7 +26,7 @@ module Distillator
     def call
       key = Distillator::WringerUrlKey.call(url, include_fragment: include_fragment)
       resolution = current_resolution
-      legacy_url = "#{wringer_base_url}/websites?term=#{CGI.escape(key.uri_key)}"
+      legacy_url = wringer_base_url.present? ? "#{wringer_base_url}/websites?term=#{key.uri_key}" : nil
       distillator_url = "/condenser/cache?term=#{CGI.escape(key.normalized_url)}"
       compare_url = "/condenser/cache/compare?uri=#{CGI.escape(url.to_s)}#{include_fragment_query}"
 
@@ -50,25 +50,24 @@ module Distillator
       case resolution.rollout_mode
       when :active
         payload[:active_cache_url] = distillator_url
-        payload[:secondary_links] = [
-          { label: Distillator::RolloutCopy.legacy_inspection_label, url: legacy_url },
-          { label: Distillator::RolloutCopy.compare_label, url: compare_url }
-        ]
+        payload[:secondary_links] = []
+        payload[:secondary_links] << { label: Distillator::RolloutCopy.legacy_inspection_label, url: legacy_url } if legacy_url.present?
+        payload[:secondary_links] << { label: Distillator::RolloutCopy.compare_label, url: compare_url } if legacy_url.present?
       when :shadow
         payload[:active_cache_url] = legacy_url
-        payload[:secondary_links] = [
-          { label: Distillator::RolloutCopy.compare_label, url: compare_url },
-          { label: Distillator::RolloutCopy.condenser_cache_label, url: distillator_url }
-        ]
-        payload[:warning] = Distillator::RolloutCopy.description(:shadow)
+        payload[:secondary_links] = []
+        payload[:secondary_links] << { label: Distillator::RolloutCopy.compare_label, url: compare_url } if legacy_url.present?
+        payload[:secondary_links] << { label: Distillator::RolloutCopy.condenser_cache_label, url: distillator_url }
+        payload[:warning] = legacy_url.present? ? Distillator::RolloutCopy.description(:shadow) : "Wringer endpoint missing; comparison unavailable."
       when :replay
         payload[:active_cache_url] = distillator_url
-        payload[:secondary_links] = [{ label: Distillator::RolloutCopy.legacy_inspection_label, url: legacy_url }]
+        payload[:secondary_links] = []
+        payload[:secondary_links] << { label: Distillator::RolloutCopy.legacy_inspection_label, url: legacy_url } if legacy_url.present?
         payload[:warning] = Distillator::RolloutCopy.description(:replay)
       else
         payload[:active_cache_url] = legacy_url
         payload[:secondary_links] = [{ label: Distillator::RolloutCopy.condenser_cache_label, url: distillator_url }]
-        payload[:warning] = Distillator::RolloutCopy.description(:legacy)
+        payload[:warning] = legacy_url.present? ? Distillator::RolloutCopy.description(:legacy) : "Wringer endpoint missing; comparison unavailable."
       end
 
       payload
@@ -103,7 +102,7 @@ module Distillator
     end
 
     def wringer_base_url
-      ApplicationController.helpers.get_wringer_url_per_environment
+      Distillator::WringerEndpoint.current.legacy_lookup_base_url
     end
 
     def include_fragment_query

@@ -3,6 +3,16 @@ require 'test_helper'
 class WebpagesControllerTest < ActionDispatch::IntegrationTest
   setup do
     @webpage = webpages(:one)
+    Distillator::WringerEndpoint.stubs(:current).returns(
+      Distillator::WringerEndpoint::Result.new(
+        compatibility_base_url: "http://compat.example",
+        legacy_lookup_base_url: "http://wringer.example",
+        compatibility_source: "DISTILLATOR_COMPAT_BASE_URL",
+        state: :remote_configured,
+        status_label: "Current Wringer: Remote configured",
+        status_detail: "http://compat.example via DISTILLATOR_COMPAT_BASE_URL"
+      )
+    )
   end
 
   def create_test_website_with_webpage(distillator_mode:, seedurl:, url:)

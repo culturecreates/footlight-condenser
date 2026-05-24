@@ -290,10 +290,13 @@ module CcWringerHelper
   end
 
   def legacy_wringer_fallback_requested?(options = {})
+    # Legacy-only escape hatch for explicitly targeting the legacy Wringer path.
+    # Endpoint resolution still comes from Distillator::WringerEndpoint; this flag
+    # only chooses between the already-resolved compatibility and legacy URLs.
     Distillator::BooleanParam.parse(
       options[:force_legacy] ||
       options["force_legacy"] ||
-      ENV["DISTILLATOR_LEGACY_WRINGER_FALLBACK"]
+      ENV[Distillator::WringerEndpoint::LEGACY_WRINGER_FALLBACK_ENV]
     )
   end
 

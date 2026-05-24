@@ -36,6 +36,16 @@ class DistillatorRolloutStatementRefreshTest < ActionDispatch::IntegrationTest
     ENV["DISTILLATOR_FETCH_MODE"] = "legacy"
     Distillator::FetchGuard.stubs(:check_url).returns(Distillator::FetchGuard::Result.new(allowed: true))
     Distillator::FetchGuard.stubs(:check_response).returns(Distillator::FetchGuard::Result.new(allowed: true))
+    Distillator::WringerEndpoint.stubs(:current).returns(
+      Distillator::WringerEndpoint::Result.new(
+        compatibility_base_url: "https://wringer.example",
+        legacy_lookup_base_url: "https://wringer.example",
+        compatibility_source: Distillator::WringerEndpoint::CANONICAL_COMPATIBILITY_ENV,
+        state: :remote_configured,
+        status_label: "Current Wringer: Remote configured",
+        status_detail: "https://wringer.example"
+      )
+    )
     @logger = CapturingLogger.new
     Rails.stubs(:logger).returns(@logger)
   end

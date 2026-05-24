@@ -3,6 +3,16 @@ require 'test_helper'
 class StatementsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @statement = statements(:one)
+    Distillator::WringerEndpoint.stubs(:current).returns(
+      Distillator::WringerEndpoint::Result.new(
+        compatibility_base_url: "https://wringer.example",
+        legacy_lookup_base_url: "https://wringer.example",
+        compatibility_source: Distillator::WringerEndpoint::CANONICAL_COMPATIBILITY_ENV,
+        state: :remote_configured,
+        status_label: "Current Wringer: Remote configured",
+        status_detail: "https://wringer.example"
+      )
+    )
   end
 
   test "should get index" do

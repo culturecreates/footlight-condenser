@@ -300,7 +300,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
         representative_webpages: [url],
         representative_webpage_count: 1,
         candidate_webpage_count: 4,
-        selection_rule: "Event pages first, ordered by archive date",
+        selection_rule: Distillator::TransitionCheck::SELECTION_RULE,
         statements_refreshed_count: 1,
         statements_failed_count: 1,
         failing_statement_ids: [statement.id],
@@ -357,7 +357,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
         representative_webpages: [url],
         representative_webpage_count: 1,
         candidate_webpage_count: 1,
-        selection_rule: "Event pages first, ordered by archive date",
+        selection_rule: Distillator::TransitionCheck::SELECTION_RULE,
         statements_refreshed_count: 0,
         statements_failed_count: 0
       }
@@ -384,6 +384,16 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "fetch blocker shows direct cache links and audit uses causal labels" do
+    Distillator::WringerEndpoint.stubs(:current).returns(
+      Distillator::WringerEndpoint::Result.new(
+        compatibility_base_url: "http://compat.example",
+        legacy_lookup_base_url: "http://wringer.example",
+        compatibility_source: "DISTILLATOR_COMPAT_BASE_URL",
+        state: :remote_configured,
+        status_label: "Current Wringer: Remote configured",
+        status_detail: "http://compat.example via DISTILLATOR_COMPAT_BASE_URL"
+      )
+    )
     website = create_shadow_website(name: "Fetch links detail", seedurl: "fetch-links-detail")
     url = "https://www.dansedanse.ca/fr/spectacles/message-in-a-bottle-sting-kate-prince"
     cache = create_cache_for(
@@ -433,7 +443,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
         representative_webpages: [url],
         representative_webpage_count: 1,
         candidate_webpage_count: 1,
-        selection_rule: "Event pages first, ordered by archive date",
+        selection_rule: Distillator::TransitionCheck::SELECTION_RULE,
         statements_refreshed_count: 0,
         statements_failed_count: 0
       }
@@ -579,6 +589,99 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Condenser fetch: passed", @response.body
     assert_match "Legacy lookup status: unreachable", @response.body
     assert_match "Legacy lookup error: connection refused", @response.body
+  end
+
+  test "shadow report detail distinguishes body omitted legacy lookup from condenser failure" do
+    website = create_shadow_website(name: "Legacy body omitted", seedurl: "legacy-body-omitted")
+    url = "https://legacy-body-omitted.example/event"
+    create_cache_for(
+      website,
+      url: url,
+      signals: { "transport_success" => true, "content_success" => true },
+      health_status: "healthy",
+      health_severity: "ok"
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: Time.current,
+      details: {
+        attempted_condenser_fetch: true,
+        condenser_fetch_success: true,
+        comparison_performed: false,
+        legacy_lookup_status: "body_omitted",
+        legacy_lookup_error: "legacy_body_omitted",
+        representative_urls_checked: true,
+        reason: "legacy_lookup_body_omitted"
+      }
+    )
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Condenser fetch passed, but legacy Wringer body was omitted from the comparison endpoint.", @response.body
+    assert_match "Condenser fetch: passed", @response.body
+    assert_match "Legacy lookup status: body_omitted", @response.body
+    assert_match "Legacy lookup error: legacy_body_omitted", @response.body
+    assert_match "Verify the legacy Wringer body endpoint or compare using the legacy inspection link.", @response.body
+    assert_no_match "Promote to active", @response.body
+  end
+
+  test "shadow report detail keeps representative checked count honest across tiers" do
+    website = create_shadow_website(name: "Honest candidate count", seedurl: "honest-candidate-count")
+    url = "https://honest-candidate-count.example/future-one"
+    create_cache_for(
+      website,
+      url: url,
+      signals: { "transport_success" => true, "content_success" => true },
+      health_status: "healthy",
+      health_severity: "ok"
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "statement_delta",
+      status: "checked",
+      statement_count_delta_acceptable: true,
+      checked_at: 1.hour.ago,
+      details: {
+        representative_webpages: [
+          "https://honest-candidate-count.example/future-one",
+          "https://honest-candidate-count.example/future-two"
+        ],
+        representative_webpage_count: 2,
+        candidate_webpage_count: 9,
+        selected_candidate_tier_count: 2,
+        selection_rule: Distillator::TransitionCheck::SELECTION_RULE
+      }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "export_diff",
+      status: "checked",
+      export_diff_checked: true,
+      checked_at: 1.hour.ago,
+      details: {
+        representative_webpages: [
+          "https://honest-candidate-count.example/future-one",
+          "https://honest-candidate-count.example/future-two"
+        ],
+        representative_webpage_count: 2,
+        candidate_webpage_count: 9,
+        selected_candidate_tier_count: 2,
+        export_compared: true,
+        export_basis: "current export vs production-equivalent export"
+      }
+    )
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Representative webpages checked: 2 of 9", @response.body
+    assert_match "This check used a limited sample of representative webpages.", @response.body
   end
 
   test "diagnostics is read only and does not render transition check button or trailing separator" do

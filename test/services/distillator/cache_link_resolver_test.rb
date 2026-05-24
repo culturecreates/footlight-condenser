@@ -4,7 +4,15 @@ class Distillator::CacheLinkResolverTest < ActiveSupport::TestCase
   setup do
     @old_fetch_mode = ENV["DISTILLATOR_FETCH_MODE"]
     @old_replay_fetch = ENV["REPLAY_FETCH"]
-    ApplicationController.helpers.stubs(:get_wringer_url_per_environment).returns("http://wringer.example")
+    Distillator::WringerEndpoint.stubs(:current).returns(
+      Distillator::WringerEndpoint::Result.new(
+        compatibility_base_url: "http://compat.example",
+        legacy_lookup_base_url: "http://wringer.example",
+        state: :remote_configured,
+        status_label: "Current Wringer: Remote configured",
+        status_detail: "http://wringer.example"
+      )
+    )
   end
 
   teardown do
@@ -107,6 +115,53 @@ class Distillator::CacheLinkResolverTest < ActiveSupport::TestCase
     assert_equal "Compare Condenser vs Wringer", payload[:secondary_links].first[:label]
     assert_match "/condenser/cache/compare?uri=", payload[:secondary_links].first[:url]
     assert_equal "Wringer serves production while Condenser is checked in the background.", payload[:warning]
+  end
+
+  test "compare link preserves single escaped uri parameter for query urls" do
+    payload = Distillator::CacheLinkResolver.call(url: "https://example.org/evenements/caf%C3%A9?lang=fr&category=arts%20vivants", mode: :shadow)
+
+    assert_includes payload[:compare_url], "uri=https%3A%2F%2Fexample.org%2Fevenements%2Fcaf%25C3%25A9%3Flang%3Dfr%26category%3Darts%2520vivants"
+    refute_includes payload[:compare_url], "uri=https%253A"
+  end
+
+  test "missing wringer endpoint keeps condenser links but does not build malformed legacy links" do
+    Distillator::WringerEndpoint.stubs(:current).returns(
+      Distillator::WringerEndpoint::Result.new(
+        compatibility_base_url: nil,
+        legacy_lookup_base_url: nil,
+        compatibility_source: nil,
+        state: :missing_config,
+        status_label: "Current Wringer: Missing staging config",
+        status_detail: "comparisons disabled"
+      )
+    )
+
+    payload = Distillator::CacheLinkResolver.call(url: "http://example.org/page", mode: :shadow)
+
+    assert_nil payload[:legacy_cache_url]
+    assert_nil payload[:active_cache_url]
+    assert_equal [{ label: "Open Condenser cache", url: payload[:distillator_cache_url] }], payload[:secondary_links]
+    assert_equal "Wringer endpoint missing; comparison unavailable.", payload[:warning]
+  end
+
+  test "legacy mode with missing wringer endpoint still exposes condenser cache only" do
+    Distillator::WringerEndpoint.stubs(:current).returns(
+      Distillator::WringerEndpoint::Result.new(
+        compatibility_base_url: nil,
+        legacy_lookup_base_url: nil,
+        compatibility_source: nil,
+        state: :missing_config,
+        status_label: "Current Wringer: Missing staging config",
+        status_detail: "comparisons disabled"
+      )
+    )
+
+    payload = Distillator::CacheLinkResolver.call(url: "http://example.org/page", mode: :legacy)
+
+    assert_nil payload[:legacy_cache_url]
+    assert_nil payload[:active_cache_url]
+    assert_equal [{ label: "Open Condenser cache", url: payload[:distillator_cache_url] }], payload[:secondary_links]
+    assert_equal "Wringer endpoint missing; comparison unavailable.", payload[:warning]
   end
 
   test "legacy mode keeps wringer active and exposes distillator cache as secondary link" do

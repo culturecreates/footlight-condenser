@@ -5,7 +5,7 @@ module Distillator
       "statement_delta" => "Statements",
       "export_diff" => "Export"
     }.freeze
-    DEFAULT_SELECTION_RULE = "Event pages first, ordered by archive date".freeze
+    DEFAULT_SELECTION_RULE = Distillator::TransitionCheck::SELECTION_RULE
 
     Result = Struct.new(
       :key,
@@ -48,7 +48,7 @@ module Distillator
     attr_reader :check_kind, :evidence, :website, :state
 
     def severity
-      return "warning" if check_kind == "fetch_parity" && %w[legacy_lookup_missing_config legacy_lookup_unreachable].include?(reason)
+      return "warning" if check_kind == "fetch_parity" && %w[legacy_lookup_missing_config legacy_lookup_unreachable legacy_lookup_body_omitted].include?(reason)
 
       case state
       when :failed, :blocked_by_fetch, :not_evaluated
@@ -78,6 +78,7 @@ module Distillator
       return "Latest Condenser attempt failed: empty body." if state == :failed && reason == "empty_body"
       return "Condenser fetch passed, but legacy Wringer lookup is missing staging configuration." if reason == "legacy_lookup_missing_config"
       return "Condenser fetch passed, but legacy Wringer lookup failed." if reason == "legacy_lookup_unreachable"
+      return "Condenser fetch passed, but legacy Wringer body was omitted from the comparison endpoint." if reason == "legacy_lookup_body_omitted"
       return "Fresh Condenser evidence is missing for this comparison." if reason == "cache_compare_missing"
       return "Fresh Condenser evidence differs from Wringer in blocking fields." if reason == "cache_compare_blocking_regression"
       case state
@@ -180,6 +181,7 @@ module Distillator
       when "fetch_parity"
         return "Configure the Wringer endpoint for staging, then rerun the transition check." if reason == "legacy_lookup_missing_config"
         return "Fix the legacy Wringer endpoint, then rerun the transition check." if reason == "legacy_lookup_unreachable"
+        return "Verify the legacy Wringer body endpoint or compare using the legacy inspection link." if reason == "legacy_lookup_body_omitted"
 
         state == :passed ? "No fetch action is needed right now." : "Fix the fetch/cache failure first, then rerun the transition check."
       when "statement_delta"

@@ -56,6 +56,8 @@ Rails.application.configure do
   # switch to :sidekiq if needed
   config.active_job.queue_adapter = :async
 
+  # Canonical compatibility endpoint: DISTILLATOR_COMPAT_BASE_URL.
+  # DISTILLATOR_COMPATIBILITY_BASE_URL remains a temporary backward-compatible alias.
   config.x.distillator.compatibility_base_url =
     ENV["DISTILLATOR_COMPAT_BASE_URL"].presence ||
     ENV["DISTILLATOR_COMPATIBILITY_BASE_URL"].presence

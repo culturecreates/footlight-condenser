@@ -64,6 +64,8 @@ class CcWringerHelperTest < ActionView::TestCase
     assert_equal "https://compat.example", distillator_compatibility_base_url
     assert_equal "https://legacy.example", get_wringer_url_per_environment
     assert_equal "Current Wringer: Remote configured", current_wringer_endpoint.status_label
+    assert_equal "config.x.distillator.compatibility_base_url", current_wringer_endpoint.compatibility_source
+    assert_equal "https://compat.example via config.x.distillator.compatibility_base_url", current_wringer_endpoint.status_detail
   end
 
   test "staging can resolve remote endpoint from DISTILLATOR_COMPAT_BASE_URL when config is nil" do
@@ -77,8 +79,43 @@ class CcWringerHelperTest < ActionView::TestCase
     assert_equal "https://footlight-wringer.herokuapp.com", distillator_compatibility_base_url
     assert_equal "https://footlight-wringer.herokuapp.com", get_wringer_url_per_environment
     assert_equal "Current Wringer: Remote configured", current_wringer_endpoint.status_label
+    assert_equal "DISTILLATOR_COMPAT_BASE_URL", current_wringer_endpoint.compatibility_source
+    assert_equal "https://footlight-wringer.herokuapp.com via DISTILLATOR_COMPAT_BASE_URL", current_wringer_endpoint.status_detail
   ensure
     ENV["DISTILLATOR_COMPAT_BASE_URL"] = old_compat_alias
+  end
+
+  test "staging can resolve remote endpoint from DISTILLATOR_COMPATIBILITY_BASE_URL alias when canonical is blank" do
+    Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("staging"))
+    @distillator_config.compatibility_base_url = nil
+    @distillator_config.legacy_wringer_base_url = nil
+    @distillator_config.allow_localhost_compatibility = false
+    old_compatibility_alias = ENV["DISTILLATOR_COMPATIBILITY_BASE_URL"]
+    ENV["DISTILLATOR_COMPATIBILITY_BASE_URL"] = "https://alias.example"
+
+    assert_equal "https://alias.example", distillator_compatibility_base_url
+    assert_equal "DISTILLATOR_COMPATIBILITY_BASE_URL", current_wringer_endpoint.compatibility_source
+    assert_equal "https://alias.example via DISTILLATOR_COMPATIBILITY_BASE_URL", current_wringer_endpoint.status_detail
+  ensure
+    ENV["DISTILLATOR_COMPATIBILITY_BASE_URL"] = old_compatibility_alias
+  end
+
+  test "canonical compat env wins over alias in helper status" do
+    Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("staging"))
+    @distillator_config.compatibility_base_url = nil
+    @distillator_config.legacy_wringer_base_url = nil
+    @distillator_config.allow_localhost_compatibility = false
+    old_compat = ENV["DISTILLATOR_COMPAT_BASE_URL"]
+    old_alias = ENV["DISTILLATOR_COMPATIBILITY_BASE_URL"]
+    ENV["DISTILLATOR_COMPAT_BASE_URL"] = "https://canonical.example"
+    ENV["DISTILLATOR_COMPATIBILITY_BASE_URL"] = "https://alias.example"
+
+    assert_equal "https://canonical.example", distillator_compatibility_base_url
+    assert_equal "DISTILLATOR_COMPAT_BASE_URL", current_wringer_endpoint.compatibility_source
+    assert_equal "https://canonical.example via DISTILLATOR_COMPAT_BASE_URL", current_wringer_endpoint.status_detail
+  ensure
+    ENV["DISTILLATOR_COMPAT_BASE_URL"] = old_compat
+    ENV["DISTILLATOR_COMPATIBILITY_BASE_URL"] = old_alias
   end
 
   test "staging configured remote endpoint can be marked unreachable without exposing credentials" do
@@ -92,6 +129,7 @@ class CcWringerHelperTest < ActionView::TestCase
     assert_equal :unreachable, endpoint.state
     assert_equal "Current Wringer: Unreachable", endpoint.status_label
     assert_equal "last lookup failed", endpoint.status_detail
+    assert_equal "config.x.distillator.compatibility_base_url", endpoint.compatibility_source
     assert_equal "https://user:secret@compat.example/token", endpoint.compatibility_base_url
   end
 
@@ -113,13 +151,13 @@ class CcWringerHelperTest < ActionView::TestCase
   end
 
   test "wringer_received_404 returns false when explicit legacy fallback aborts" do
-    previous = ENV["DISTILLATOR_LEGACY_WRINGER_FALLBACK"]
-    ENV["DISTILLATOR_LEGACY_WRINGER_FALLBACK"] = "true"
+    previous = ENV[Distillator::WringerEndpoint::LEGACY_WRINGER_FALLBACK_ENV]
+    ENV[Distillator::WringerEndpoint::LEGACY_WRINGER_FALLBACK_ENV] = "true"
     stubs(:safe_wringer_call).returns(["abort_update", { error: "Wringer unreachable", error_type: "SocketError" }])
 
     assert_not wringer_received_404?("https://example.com")
   ensure
-    ENV["DISTILLATOR_LEGACY_WRINGER_FALLBACK"] = previous
+    ENV[Distillator::WringerEndpoint::LEGACY_WRINGER_FALLBACK_ENV] = previous
   end
 
   test "safe_wringer_call handles connection error" do
