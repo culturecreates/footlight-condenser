@@ -34,9 +34,10 @@ module Distillator
       new(last_error: last_error).call
     end
 
-    def initialize(config: Rails.application.config.x.distillator, env: Rails.env, last_error: nil)
+    def initialize(config: Rails.application.config.x.distillator, env: Rails.env, env_vars: ENV, last_error: nil)
       @config = config
       @env = env.to_s
+      @env_vars = env_vars
       @last_error = last_error
     end
 
@@ -55,20 +56,28 @@ module Distillator
 
     private
 
-    attr_reader :config, :env, :last_error
+    attr_reader :config, :env, :env_vars, :last_error
 
     def allow_localhost_default?
-      return config.allow_localhost_compatibility if [true, false].include?(config.allow_localhost_compatibility)
+      configured = config_value(:allow_localhost_compatibility)
+      return configured if [true, false].include?(configured)
 
       env == "development"
     end
 
     def configured_compatibility_base_url
-      normalize_base_url(config.compatibility_base_url)
+      normalize_base_url(
+        config_value(:compatibility_base_url) ||
+        env_vars["DISTILLATOR_COMPAT_BASE_URL"] ||
+        env_vars["DISTILLATOR_COMPATIBILITY_BASE_URL"]
+      )
     end
 
     def configured_legacy_lookup_base_url(compatibility)
-      normalize_base_url(config.legacy_wringer_base_url) || compatibility
+      normalize_base_url(
+        config_value(:legacy_wringer_base_url) ||
+        env_vars["LEGACY_WRINGER_BASE_URL"]
+      ) || compatibility
     end
 
     def build_remote_result(compatibility, legacy_lookup)
@@ -99,7 +108,7 @@ module Distillator
     def build_local_result
       Result.new(
         compatibility_base_url: LOCAL_COMPATIBILITY_BASE_URL,
-        legacy_lookup_base_url: normalize_base_url(config.legacy_wringer_base_url) || LOCAL_LEGACY_BASE_URL,
+        legacy_lookup_base_url: normalize_base_url(config_value(:legacy_wringer_base_url) || env_vars["LEGACY_WRINGER_BASE_URL"]) || LOCAL_LEGACY_BASE_URL,
         state: :local_development,
         status_label: "Current Wringer: Local development",
         status_detail: sanitize_display_url(LOCAL_COMPATIBILITY_BASE_URL)
@@ -135,6 +144,13 @@ module Distillator
       return nil if url.blank?
 
       url.sub(%r{/\z}, "")
+    end
+
+    def config_value(key)
+      return nil unless config.present?
+      return config.public_send(key) if config.respond_to?(key)
+
+      nil
     end
 
     def sanitize_display_url(value)

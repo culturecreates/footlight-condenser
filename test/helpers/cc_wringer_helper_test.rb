@@ -66,6 +66,21 @@ class CcWringerHelperTest < ActionView::TestCase
     assert_equal "Current Wringer: Remote configured", current_wringer_endpoint.status_label
   end
 
+  test "staging can resolve remote endpoint from DISTILLATOR_COMPAT_BASE_URL when config is nil" do
+    Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("staging"))
+    @distillator_config.compatibility_base_url = nil
+    @distillator_config.legacy_wringer_base_url = nil
+    @distillator_config.allow_localhost_compatibility = false
+    old_compat_alias = ENV["DISTILLATOR_COMPAT_BASE_URL"]
+    ENV["DISTILLATOR_COMPAT_BASE_URL"] = "https://footlight-wringer.herokuapp.com"
+
+    assert_equal "https://footlight-wringer.herokuapp.com", distillator_compatibility_base_url
+    assert_equal "https://footlight-wringer.herokuapp.com", get_wringer_url_per_environment
+    assert_equal "Current Wringer: Remote configured", current_wringer_endpoint.status_label
+  ensure
+    ENV["DISTILLATOR_COMPAT_BASE_URL"] = old_compat_alias
+  end
+
   test "staging configured remote endpoint can be marked unreachable without exposing credentials" do
     Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("staging"))
     @distillator_config.compatibility_base_url = "https://user:secret@compat.example/token"

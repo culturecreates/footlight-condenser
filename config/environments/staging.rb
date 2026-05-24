@@ -90,4 +90,13 @@ Rails.application.configure do
 
   # Do not dump schema after migrations.
   config.active_record.dump_schema_after_migration = false
+
+  config.x.distillator.compatibility_base_url =
+    ENV["DISTILLATOR_COMPAT_BASE_URL"].presence ||
+    ENV["DISTILLATOR_COMPATIBILITY_BASE_URL"].presence ||
+    ENV["WRINGER_URL"].presence
+  config.x.distillator.legacy_wringer_base_url =
+    ENV["LEGACY_WRINGER_BASE_URL"].presence ||
+    ENV["WRINGER_URL"].presence
+  config.x.distillator.allow_localhost_compatibility = false
 end

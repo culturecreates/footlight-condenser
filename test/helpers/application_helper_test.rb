@@ -19,6 +19,8 @@ class ApplicationHelperTest < ActionView::TestCase
     @distillator_config.compatibility_base_url = nil
     @distillator_config.legacy_wringer_base_url = nil
     @distillator_config.allow_localhost_compatibility = false
+    ENV.delete("DISTILLATOR_COMPAT_BASE_URL")
+    ENV.delete("DISTILLATOR_COMPATIBILITY_BASE_URL")
     Distillator::TransitionEvidence.stubs(:latest_legacy_lookup_error).returns(nil)
 
     endpoint = Distillator::WringerEndpoint.current
@@ -47,5 +49,19 @@ class ApplicationHelperTest < ActionView::TestCase
     Distillator::TransitionEvidence.stubs(:latest_legacy_lookup_error).returns(nil)
 
     assert_equal "Current Wringer: Remote configured - https://compat.example", current_wringer_status_text
+  end
+
+  test "current wringer status text uses DISTILLATOR_COMPATIBILITY_BASE_URL when config is nil" do
+    Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("staging"))
+    @distillator_config.compatibility_base_url = nil
+    @distillator_config.legacy_wringer_base_url = nil
+    @distillator_config.allow_localhost_compatibility = false
+    old_compatibility_alias = ENV["DISTILLATOR_COMPATIBILITY_BASE_URL"]
+    ENV["DISTILLATOR_COMPATIBILITY_BASE_URL"] = "https://footlight-wringer.herokuapp.com"
+    Distillator::TransitionEvidence.stubs(:latest_legacy_lookup_error).returns(nil)
+
+    assert_equal "Current Wringer: Remote configured - https://footlight-wringer.herokuapp.com", current_wringer_status_text
+  ensure
+    ENV["DISTILLATOR_COMPATIBILITY_BASE_URL"] = old_compatibility_alias
   end
 end

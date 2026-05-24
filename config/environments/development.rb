@@ -55,4 +55,10 @@ Rails.application.configure do
   # Use the bult-in queue adapter in DEV to simplify environment
   # switch to :sidekiq if needed
   config.active_job.queue_adapter = :async
+
+  config.x.distillator.compatibility_base_url =
+    ENV["DISTILLATOR_COMPAT_BASE_URL"].presence ||
+    ENV["DISTILLATOR_COMPATIBILITY_BASE_URL"].presence
+  config.x.distillator.legacy_wringer_base_url = ENV["LEGACY_WRINGER_BASE_URL"].presence
+  config.x.distillator.allow_localhost_compatibility = true
 end
