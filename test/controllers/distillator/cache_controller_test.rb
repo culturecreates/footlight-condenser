@@ -796,94 +796,6 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_equal [matching.id], payload.map { |row| row["id"] }
   end
 
-  test "json index filters by http_response_code without fetching" do
-    matching = create_cache(uri: "http://example.org/not-found", http_response_code: 404)
-    create_cache(uri: "http://example.org/success", http_response_code: 200)
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { http_response_code: "404" }
-
-    assert_response :success
-    payload = JSON.parse(@response.body)
-    assert_equal [matching.id], payload.map { |row| row["id"] }
-  end
-
-  test "json index ignores blank http_response_code without fetching" do
-    first = create_cache(uri: "http://example.org/first", http_response_code: 404)
-    second = create_cache(uri: "http://example.org/second", http_response_code: 200)
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { http_response_code: "" }
-
-    assert_response :success
-    payload = JSON.parse(@response.body)
-    assert_equal [first.id, second.id].sort, payload.map { |row| row["id"] }.sort
-  end
-
-  test "json index ignores invalid http_response_code without fetching" do
-    zero = create_cache(uri: "http://example.org/zero", http_response_code: 0)
-    other = create_cache(uri: "http://example.org/other", http_response_code: 404)
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { http_response_code: "abc" }
-
-    assert_response :success
-    payload = JSON.parse(@response.body)
-    assert_equal [zero.id, other.id].sort, payload.map { |row| row["id"] }.sort
-  end
-
-  test "json index trims numeric http_response_code without fetching" do
-    matching = create_cache(uri: "http://example.org/not-found-trimmed", http_response_code: 404)
-    create_cache(uri: "http://example.org/success-trimmed", http_response_code: 200)
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { http_response_code: " 404 " }
-
-    assert_response :success
-    payload = JSON.parse(@response.body)
-    assert_equal [matching.id], payload.map { |row| row["id"] }
-  end
-
-  test "json index filters by has_html without fetching" do
-    matching = create_cache(uri: "http://example.org/with-html", html: "<html>present</html>")
-    create_cache(uri: "http://example.org/without-html", html: nil, body: nil)
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { has_html: "true" }
-
-    assert_response :success
-    payload = JSON.parse(@response.body)
-    assert_equal [matching.id], payload.map { |row| row["id"] }
-  end
-
-  test "json index filters by network_status without fetching" do
-    matching = create_cache(uri: "http://example.org/failed", signals: { "network_status" => "failed" })
-    create_cache(uri: "http://example.org/ok", signals: { "network_status" => "ok" })
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { network_status: "failed" }
-
-    assert_response :success
-    payload = JSON.parse(@response.body)
-    assert_equal [matching.id], payload.map { |row| row["id"] }
-  end
-
-  test "json index filters redirected false without fetching" do
-    direct = create_cache(uri: "http://example.org/direct", final_url: "http://example.org/direct", redirect_chain: [])
-    create_cache(
-      uri: "http://example.org/redirected",
-      final_url: "https://example.org/final",
-      redirect_chain: ["http://example.org/redirected", "https://example.org/final"]
-    )
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { redirected: "false" }
-
-    assert_response :success
-    payload = JSON.parse(@response.body)
-    assert_equal [direct.id], payload.map { |row| row["id"] }
-  end
-
   test "json index paginates with conservative default without fetching" do
     55.times do |index|
       create_cache(uri: "http://example.org/cache-#{index}")
@@ -901,23 +813,6 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_equal "2", @response.headers["X-Total-Pages"]
   end
 
-  test "json index respects page and per_page without fetching" do
-    5.times do |index|
-      create_cache(uri: "http://example.org/page-#{index}")
-    end
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { page: "2", per_page: "2" }
-
-    assert_response :success
-    payload = JSON.parse(@response.body)
-    assert_equal 2, payload.length
-    assert_equal "2", @response.headers["X-Page"]
-    assert_equal "2", @response.headers["X-Per-Page"]
-    assert_equal "5", @response.headers["X-Total-Count"]
-    assert_equal "3", @response.headers["X-Total-Pages"]
-  end
-
   test "json index respects sort and direction without fetching" do
     low = create_cache(uri: "http://example.org/low", http_response_code: 200)
     high = create_cache(uri: "http://example.org/high", http_response_code: 404)
@@ -928,40 +823,6 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     payload = JSON.parse(@response.body)
     assert_equal [low.id, high.id], payload.map { |row| row["id"] }
-  end
-
-  test "json index falls back safely for invalid sort and direction without fetching" do
-    first = create_cache(uri: "http://example.org/first-safe", updated_at: 2.days.ago)
-    second = create_cache(uri: "http://example.org/second-safe")
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { sort: "bogus", direction: "sideways" }
-
-    assert_response :success
-    payload = JSON.parse(@response.body)
-    assert_equal [second.id, first.id], payload.map { |row| row["id"] }
-  end
-
-  test "json index sorts by normalized_url without fetching" do
-    alpha = create_cache(uri: "http://example.org/a")
-    beta = create_cache(uri: "http://example.org/b")
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { sort: "normalized_url", direction: "asc" }
-
-    assert_response :success
-    assert_equal [alpha.id, beta.id], JSON.parse(@response.body).map { |row| row["id"] }
-  end
-
-  test "json index sorts by html_bytes without fetching" do
-    small = create_cache(uri: "http://example.org/small", html: "<p>x</p>", body: "<p>x</p>")
-    large = create_cache(uri: "http://example.org/large", html: "<div>#{'x' * 20}</div>", body: "<div>#{'x' * 20}</div>")
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { sort: "html_bytes", direction: "desc" }
-
-    assert_response :success
-    assert_equal [large.id, small.id], JSON.parse(@response.body).map { |row| row["id"] }
   end
 
   test "html index next page link preserves existing filters and per_page" do
@@ -1394,94 +1255,6 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_match "Legacy source:</strong> unavailable", @response.body
     assert_match "Legacy lookup error:</strong> Unexpected comparison failure", @response.body
     assert_match "Condenser source:</strong> local_fetch_cache", @response.body
-  end
-
-  test "json index filters by health without fetching" do
-    matching = create_cache(uri: "http://example.org/network-failed", signals: { "network_status" => "failed" })
-    create_cache(uri: "http://example.org/healthy")
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { health: "network_failed" }
-
-    assert_response :success
-    assert_equal [matching.id], JSON.parse(@response.body).map { |row| row["id"] }
-  end
-
-  test "json index filters by status group without fetching" do
-    matching = create_cache(uri: "http://example.org/4xx", http_response_code: 404)
-    create_cache(uri: "http://example.org/2xx", http_response_code: 200)
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { status_group: "4xx" }
-
-    assert_response :success
-    assert_equal [matching.id], JSON.parse(@response.body).map { |row| row["id"] }
-  end
-
-  test "json index filters by nil status group without fetching" do
-    matching = create_cache(uri: "http://example.org/nil-code", http_response_code: nil)
-    create_cache(uri: "http://example.org/not-nil", http_response_code: 200)
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { status_group: "nil" }
-
-    assert_response :success
-    assert_equal [matching.id], JSON.parse(@response.body).map { |row| row["id"] }
-  end
-
-  test "json index filters by content type without fetching" do
-    matching = create_cache(uri: "http://example.org/json", signals: { "content_type" => "json" })
-    create_cache(uri: "http://example.org/html", signals: { "content_type" => "html" })
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { content_type: "json" }
-
-    assert_response :success
-    assert_equal [matching.id], JSON.parse(@response.body).map { |row| row["id"] }
-  end
-
-  test "json index filters by hint without fetching" do
-    matching = create_cache(uri: "http://example.org/empty", hints: ["empty_body"])
-    create_cache(uri: "http://example.org/full", hints: ["json_detected"])
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { hint: "empty_body" }
-
-    assert_response :success
-    assert_equal [matching.id], JSON.parse(@response.body).map { |row| row["id"] }
-  end
-
-  test "json index filters by redirected without fetching" do
-    matching = create_cache(uri: "http://example.org/source", final_url: "http://example.org/final", redirect_chain: ["http://example.org/source", "http://example.org/final"])
-    create_cache(uri: "http://example.org/direct", final_url: "http://example.org/direct", redirect_chain: [])
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { redirected: "true" }
-
-    assert_response :success
-    assert_equal [matching.id], JSON.parse(@response.body).map { |row| row["id"] }
-  end
-
-  test "json index filters by last attempt without fetching" do
-    matching = create_cache(uri: "http://example.org/never-attempted", scrape_date: nil)
-    create_cache(uri: "http://example.org/attempted")
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { last_attempt: "never" }
-
-    assert_response :success
-    assert_equal [matching.id], JSON.parse(@response.body).map { |row| row["id"] }
-  end
-
-  test "json index filters by last success without fetching" do
-    matching = create_cache(uri: "http://example.org/never-success", successful_refresh: nil)
-    create_cache(uri: "http://example.org/with-success")
-    Distillator::FetchCacheStore.expects(:fetch).never
-
-    get "/distillator/cache.json", params: { last_success: "never" }
-
-    assert_response :success
-    assert_equal [matching.id], JSON.parse(@response.body).map { |row| row["id"] }
   end
 
   test "html index renders quick filters and badges without fetching" do

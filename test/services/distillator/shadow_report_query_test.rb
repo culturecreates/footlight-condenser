@@ -84,6 +84,58 @@ class Distillator::ShadowReportQueryTest < ActiveSupport::TestCase
     assert_equal ["Review queue"], filtered.records.map { |row| row.website.name }
   end
 
+  test "filters by promotable recommendation readiness" do
+    ready = create_shadow_site(name: "Promotable queue", seedurl: "promotable-queue", recommendation: :ready)
+    blocked = create_shadow_site(name: "Blocked queue", seedurl: "blocked-promotable-queue", recommendation: :blocked, issue_key: "timeout", health_severity: "high")
+
+    add_promotion_evidence(ready, checked_at: 1.hour.ago, statement_delta: true, export_diff: true)
+
+    promotable = Distillator::ShadowReportQuery.call(
+      filters: { promotable: "yes", term: "queue" },
+      sort: Distillator::ShadowReportQuery::DEFAULT_SORT,
+      direction: Distillator::ShadowReportQuery::DEFAULT_DIRECTION,
+      page: 1,
+      per_page: 25
+    )
+    not_promotable = Distillator::ShadowReportQuery.call(
+      filters: { promotable: "no", term: "queue" },
+      sort: Distillator::ShadowReportQuery::DEFAULT_SORT,
+      direction: Distillator::ShadowReportQuery::DEFAULT_DIRECTION,
+      page: 1,
+      per_page: 25
+    )
+
+    assert_equal ["Promotable queue"], promotable.records.map { |row| row.website.name }
+    assert_equal ["Blocked queue"], not_promotable.records.map { |row| row.website.name }
+  end
+
+  test "filters by safety and confidence independently" do
+    safe = create_shadow_site(name: "Safe confidence high", seedurl: "safe-confidence-high", recommendation: :ready)
+    add_promotion_evidence(safe, checked_at: 1.hour.ago, statement_delta: true, export_diff: true)
+
+    review = create_shadow_site(name: "Review confidence low", seedurl: "review-confidence-low", recommendation: :review, issue_key: "queue_it", health_severity: "low")
+    review_url = "https://review-confidence-low.example/event"
+    review.transition_evidences.create!(
+      id: next_id,
+      url: review_url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: { reason: "review_needed_difference", comparison_policy: "operator", compare_summary: { review_needed_diffs: ["html_sha256"] } }
+    )
+    add_promotion_evidence(review, checked_at: 1.hour.ago, statement_delta: true, export_diff: true)
+
+    filtered = Distillator::ShadowReportQuery.call(
+      filters: { safety: "review", confidence: "low", term: "confidence" },
+      sort: Distillator::ShadowReportQuery::DEFAULT_SORT,
+      direction: Distillator::ShadowReportQuery::DEFAULT_DIRECTION,
+      page: 1,
+      per_page: 25
+    )
+
+    assert_equal ["Review confidence low"], filtered.records.map { |row| row.website.name }
+  end
+
   test "sorts by website, recommendation, latest attempt, latest successful refresh, and issue key" do
     create_shadow_site(name: "Sort fixture Zulu ready", seedurl: "sort-fixture-zulu-ready", recommendation: :ready, scrape_date: 3.hours.ago, successful_refresh: 3.hours.ago)
     create_shadow_site(name: "Sort fixture Alpha blocked", seedurl: "sort-fixture-alpha-blocked", recommendation: :blocked, issue_key: "timeout", scrape_date: 1.hour.ago, successful_refresh: 5.hours.ago)
@@ -232,5 +284,26 @@ class Distillator::ShadowReportQueryTest < ActiveSupport::TestCase
   def next_id
     @next_id ||= 1_000_000_000 + ((Process.pid % 10_000) * 100_000)
     @next_id += 1
+  end
+
+  def add_promotion_evidence(website, checked_at:, statement_delta:, export_diff:)
+    url = "https://#{website.seedurl}.example/event"
+
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "statement_delta",
+      status: "checked",
+      statement_count_delta_acceptable: statement_delta,
+      checked_at: checked_at
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "export_diff",
+      status: "checked",
+      export_diff_checked: export_diff,
+      checked_at: checked_at
+    )
   end
 end
