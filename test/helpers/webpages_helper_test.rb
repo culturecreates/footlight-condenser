@@ -17,7 +17,19 @@ class WebpagesHelperTest < ActionView::TestCase
       filters: { publishable: "true" }
     )
 
-    assert_equal "Showing 1 of 1 publishable webpages for Helper webpage site.", heading
+    assert_equal "Showing 1 publishable event page for this website.", heading
+  end
+
+  test "webpages summary heading pluralizes publishable event page copy" do
+    heading = webpages_index_summary_heading(
+      website: websites(:one),
+      visible_count: 2,
+      filtered_count: 2,
+      total_count: 7,
+      filters: {}
+    )
+
+    assert_equal "Showing 2 publishable event pages for this website.", heading
   end
 
   test "webpages filter label falls back to matching for term filters" do

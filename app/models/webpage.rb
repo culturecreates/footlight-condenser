@@ -10,6 +10,7 @@ class Webpage < ApplicationRecord
   scope :internal_uris, -> { where.not(id: public_source_urls.select(:id)) }
   scope :active, -> { where("archive_date IS NULL OR archive_date > ?", Time.zone.now) }
   scope :publishable, -> { where(id: publishable_relation.select(:id)) }
+  scope :publishable_event_pages, -> { active.publishable }
   scope :not_publishable, -> { where.not(id: publishable.select(:id)) }
   scope :transition_candidates, -> { order(:archive_date, :id) }
   scope :event_pages, -> { joins(:rdfs_class).where(rdfs_classes: { name: "Event" }) }

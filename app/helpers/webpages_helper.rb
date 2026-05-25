@@ -79,10 +79,11 @@ module WebpagesHelper
   end
 
   def webpages_index_summary_heading(website:, visible_count:, filtered_count:, total_count:, filters:)
+    page_label = "publishable event #{'page'.pluralize(visible_count)}"
     return "Showing #{visible_count} matching webpages." if webpages_all_scope?(filters)
-    return "Showing #{visible_count} active publishable event pages for this website." if website.present?
+    return "Showing #{visible_count} #{page_label}." unless website.present?
 
-    "Showing #{visible_count} active publishable event pages."
+    "Showing #{visible_count} #{page_label} for this website."
   end
 
   def webpages_index_summary_secondary_lines(website:, summary:, filters:, total_count:)
@@ -111,7 +112,7 @@ module WebpagesHelper
   end
 
   def webpages_scope_toggle_path(filters:, seedurl:, target_scope:)
-    scope_filters = filters.to_h.symbolize_keys.except(:scope, :publishable)
+    scope_filters = filters.to_h.symbolize_keys.except(:scope, :publishable, :website_id)
     scope_filters[:scope] = "all" if target_scope.to_s == "all"
     scope_filters[:seedurl] = seedurl if seedurl.present?
 

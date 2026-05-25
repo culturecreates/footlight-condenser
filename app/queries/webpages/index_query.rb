@@ -10,6 +10,7 @@ module Webpages
       url_kind
       publishable
       scope
+      include_all
     ].freeze
 
     DEFAULT_SORT = "url".freeze
@@ -28,9 +29,26 @@ module Webpages
       new(...).call
     end
 
-    def self.scope(filters:)
+    def self.normalize_filters(filters:, website: nil, params: nil, default_scope: :publishable_event_pages)
       new(
         filters: filters,
+        website: website,
+        params: params,
+        default_scope: default_scope,
+        sort: DEFAULT_SORT,
+        direction: DEFAULT_DIRECTION,
+        page: nil,
+        per_page: nil,
+        paginate: false
+      ).normalized_filters
+    end
+
+    def self.scope(filters: nil, website: nil, params: nil, default_scope: :publishable_event_pages)
+      new(
+        filters: filters,
+        website: website,
+        params: params,
+        default_scope: default_scope,
         sort: DEFAULT_SORT,
         direction: DEFAULT_DIRECTION,
         page: nil,
@@ -39,8 +57,10 @@ module Webpages
       ).scope
     end
 
-    def initialize(filters:, sort:, direction:, page: nil, per_page: nil, paginate: true)
-      @filters = filters.to_h.symbolize_keys
+    def initialize(filters: nil, website: nil, params: nil, default_scope: :publishable_event_pages, sort:, direction:, page: nil, per_page: nil, paginate: true)
+      @website = website
+      @default_scope = default_scope.to_sym
+      @filters = normalize_filters(filters: filters, params: params)
       @sort = SORT_COLUMNS.key?(sort.to_s) ? sort.to_s : DEFAULT_SORT
       @direction = %w[asc desc].include?(direction.to_s) ? direction.to_s : DEFAULT_DIRECTION
       @page = page
@@ -60,14 +80,19 @@ module Webpages
       apply_filters(base_scope)
     end
 
+    def normalized_filters
+      filters
+    end
+
     private
 
-    attr_reader :filters, :sort, :direction, :page, :per_page, :paginate
+    attr_reader :filters, :sort, :direction, :page, :per_page, :paginate, :website, :default_scope
 
     def base_scope
-      return Webpage.all if filters[:scope].to_s == "all"
+      return website.webpages if include_all_scope? && website.present?
+      return Webpage.all if include_all_scope?
 
-      Webpage.active.publishable
+      default_base_scope
     end
 
     def apply_filters(scope)
@@ -78,7 +103,6 @@ module Webpages
       scope = filter_url_kind(scope)
       scope = filter_publishable(scope)
       filter_archive_state(scope)
-      
     end
 
     def filter_term(scope)
@@ -123,6 +147,35 @@ module Webpages
       else
         scope
       end
+    end
+
+    def normalize_filters(filters:, params:)
+      raw = (filters || params || {}).to_h.symbolize_keys
+      raw[:website_id] ||= website&.id
+      raw[:scope] = "all" if raw[:include_all].to_s == "true"
+      raw[:scope] = nil unless raw[:scope].to_s == "all"
+      raw[:publishable] = nil if raw[:scope].blank?
+      raw.except(:include_all).compact_blank
+    end
+
+    def default_base_scope
+      relation =
+        if website.present?
+          website.webpages
+        else
+          Webpage.all
+        end
+
+      case default_scope
+      when :publishable_event_pages
+        relation.publishable_event_pages
+      else
+        relation.public_send(default_scope)
+      end
+    end
+
+    def include_all_scope?
+      filters[:scope].to_s == "all"
     end
 
     def filter_archive_state(scope)

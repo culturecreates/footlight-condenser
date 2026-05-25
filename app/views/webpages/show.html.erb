@@ -34,7 +34,7 @@
   <h2>Data actions</h2>
   <ul class="webpage-show-link-list">
     <li><%= link_to "Statements", statements_path(rdf_uri: @webpage.rdf_uri) %></li>
-    <li><%= link_to "Refresh", refresh_webpage_statements_path(url: @webpage.url), method: :patch %></li>
+    <li><%= link_to "Refresh", refresh_webpage_statements_path(url: @webpage.url, return_to: @return_to), method: :patch %></li>
   </ul>
 </section>
 

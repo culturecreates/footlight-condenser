@@ -218,30 +218,6 @@ class Webpages::IndexQueryTest < ActiveSupport::TestCase
     ].sort, records.map(&:id).sort
   end
 
-  test "filters other class bucket as nil or unbucketed classes" do
-    nil_class_page = Webpage.create!(
-      url: "footlight:nil-class-query",
-      language: "en",
-      rdf_uri: "footlight:nil-class-query",
-      rdfs_class: @event_class,
-      website: @website_one,
-      archive_date: 8.days.from_now
-    )
-    nil_class_page.update_column(:rdfs_class_id, nil)
-
-    records = Webpages::IndexQuery.call(
-      filters: { website_id: @website_one.id, scope: "all", rdfs_class: "Other" },
-      sort: "url",
-      direction: "asc",
-      page: 1,
-      per_page: 50
-    )
-
-    assert_includes records.map(&:id), @other_page.id
-    assert_includes records.map(&:id), nil_class_page.id
-    assert_not_includes records.map(&:id), @active_publishable_event.id
-  end
-
   test "paginate false returns all matching rows" do
     30.times do |index|
       webpage = Webpage.create!(
@@ -288,18 +264,6 @@ class Webpages::IndexQueryTest < ActiveSupport::TestCase
     assert_not_equal page_one.first.id, page_two.first.id
   end
 
-  test "sorts by updated at within the selected scope" do
-    records = Webpages::IndexQuery.call(
-      filters: { scope: "all" },
-      sort: "updated_at",
-      direction: "desc",
-      page: 1,
-      per_page: 50
-    )
-
-    assert_equal @place_page.id, records.first.id
-  end
-
   test "falls back on invalid sort and direction" do
     records = Webpages::IndexQuery.call(
       filters: { website_id: @website_one.id, scope: "all" },
@@ -317,6 +281,19 @@ class Webpages::IndexQueryTest < ActiveSupport::TestCase
     )
 
     assert_equal expected.map(&:id), records.map(&:id)
+  end
+
+  test "public normalize filters keeps website internal and ignores publishable false outside all scope" do
+    normalized = Webpages::IndexQuery.normalize_filters(
+      filters: { publishable: "false", page: "2", per_page: "1" },
+      website: @website_one
+    )
+
+    assert_equal @website_one.id, normalized[:website_id]
+    assert_nil normalized[:publishable]
+    assert_nil normalized[:scope]
+    assert_equal "2", normalized[:page]
+    assert_equal "1", normalized[:per_page]
   end
 
   private

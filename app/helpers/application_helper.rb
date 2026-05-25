@@ -44,6 +44,10 @@ module ApplicationHelper
     statements_path(contextual_seedurl_params)
   end
 
+  def operator_return_to_params(path = request.fullpath)
+    preserved_return_to_params(path)
+  end
+
   def operator_rollout_badge(website_or_mode)
     state = operator_rollout_state(website_or_mode)
     content_tag(:span, state[:label], class: "rollout-badge #{state[:css_class]}")

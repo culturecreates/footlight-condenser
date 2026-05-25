@@ -29,8 +29,9 @@ class StatementsController < ApplicationController
     return render_missing_refresh_webpage if webpage.blank?
 
     error_list = refresh_webpage_statements(webpage,  webpage.website.default_language)
+    redirect_path = safe_return_to_param || webpage_statements_path(url: params[:url])
     respond_to do |format|
-        format.html { redirect_to webpage_statements_path(url: params[:url]), notice: refresh_summary_notice(success_message: "Webpage statements refreshed.", errors: error_list, error_prefix: "Refresh completed") }
+        format.html { redirect_to redirect_path, notice: refresh_summary_notice(success_message: "Webpage statements refreshed.", errors: error_list, error_prefix: "Refresh completed") }
         format.json { render json: { message: refresh_summary_notice(success_message: "Webpage statements refreshed.", errors: error_list, error_prefix: "Refresh completed"), errors: compact_refresh_error_list(error_list) }.to_json }
     end
   end
@@ -602,9 +603,10 @@ class StatementsController < ApplicationController
 
   def render_missing_refresh_webpage
     message = "Webpage not found for URL: #{params[:url]}"
+    redirect_path = safe_return_to_param || webpage_statements_path(url: params[:url])
 
     respond_to do |format|
-      format.html { redirect_to webpage_statements_path(url: params[:url]), alert: message }
+      format.html { redirect_to redirect_path, alert: message }
       format.json { render json: { error: message, url: params[:url] }, status: :not_found }
     end
   end

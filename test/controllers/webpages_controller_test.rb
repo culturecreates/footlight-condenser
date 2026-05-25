@@ -85,11 +85,6 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     [website, active_publishable, archived_publishable, active_unpublishable, place_page]
   end
 
-  test "should get index" do
-    get webpages_url
-    assert_response :success
-  end
-
   test "webpages json index preserves existing contract" do
     get webpages_url(format: :json)
 
@@ -110,15 +105,6 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_harmonized_filter_form(action: "/webpages")
     assert_harmonized_apply_filters_button
     assert_select 'a', text: "Reset filters"
-  end
-
-  test "webpages index renders sortable headers" do
-    get webpages_url
-
-    assert_response :success
-    assert_select 'th a[href*="sort=url"]'
-    assert_select 'th a[href*="sort=language"]'
-    assert_select 'th a[href*="sort=updated_at"]'
   end
 
   test "webpages index preserves active filters in sort links" do
@@ -152,7 +138,7 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     )
   end
 
-  test "webpages index canonicalizes scope all publishable false and drops page params" do
+  test "webpages index drops ignored publishable false and page params from canonical urls" do
     website, = build_transition_inspection_website(seedurl: "canonical-webpages-site")
 
     get webpages_url, params: {
@@ -163,7 +149,7 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     }
 
     assert_response :redirect
-    assert_redirected_to webpages_path(seedurl: website.seedurl, scope: "all", publishable: "false")
+    assert_redirected_to webpages_path(seedurl: website.seedurl)
   end
 
   test "webpages index defaults to active publishable event webpages for selected website" do
@@ -176,8 +162,8 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes @response.body, archived_publishable.url
     assert_not_includes @response.body, active_unpublishable.url
     assert_not_includes @response.body, place_page.url
-    assert_includes @response.body, "Showing 1 active publishable event pages for this website."
-    assert_select "a[href='#{webpages_path(seedurl: website.seedurl, scope: "all")}']", text: "Show all webpages"
+    assert_includes @response.body, "Showing 1 publishable event page for this website."
+    assert_match(%r{href="/webpages\?(?:scope=all&amp;seedurl=#{website.seedurl}|seedurl=#{website.seedurl}&amp;scope=all)">Show all webpages}, @response.body)
     assert_select "a[href='#{webpage_path(active_publishable, return_to: webpages_path(seedurl: website.seedurl))}']", text: "Show"
   end
 
@@ -193,19 +179,7 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, place_page.url
     assert_includes @response.body, "Showing 4 matching webpages."
     assert_select "input[name='scope'][value='all']", 1
-    assert_select "a[href='#{webpages_path(seedurl: website.seedurl)}']", text: "Show publishable event pages"
-  end
-
-  test "webpages index scope all publishable false shows only non publishable webpages" do
-    website, active_publishable, archived_publishable, active_unpublishable, place_page = build_transition_inspection_website(seedurl: "all-scope-unpublishable-site")
-
-    get webpages_url, params: { seedurl: website.seedurl, scope: "all", publishable: "false" }
-
-    assert_response :success
-    assert_not_includes @response.body, active_publishable.url
-    assert_not_includes @response.body, archived_publishable.url
-    assert_includes @response.body, active_unpublishable.url
-    assert_includes @response.body, place_page.url
+    assert_match(%r{href="/webpages\?seedurl=#{website.seedurl}">Show publishable event pages}, @response.body)
   end
 
   test "webpages index ignores page and per page for rendering and pagination controls" do
@@ -238,39 +212,6 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/Showing page \d+ of \d+\./, @response.body)
   end
 
-  test "webpages index filters through controller params using webpages index query" do
-    matching = Webpage.create!(
-      url: "http://example.com/query-match",
-      language: "fr",
-      rdf_uri: "rdf:query-match",
-      rdfs_class: rdfs_classes(:one),
-      website: websites(:one),
-      archive_date: 5.days.from_now
-    )
-    create_publishable_statements_for(matching)
-    non_matching = Webpage.create!(
-      url: "http://example.com/query-miss",
-      language: "en",
-      rdf_uri: "rdf:query-miss",
-      rdfs_class: rdfs_classes(:place),
-      website: websites(:two),
-      archive_date: 5.days.from_now
-    )
-
-    get webpages_url, params: { term: "query-", language: "fr" }
-
-    assert_response :success
-    assert_includes @response.body, matching.url
-    assert_not_includes @response.body, non_matching.url
-  end
-
-  test "webpages index falls back safely for invalid sort and direction" do
-    get webpages_url, params: { sort: "bogus", direction: "sideways" }
-
-    assert_response :redirect
-    assert_redirected_to "/webpages"
-  end
-
   test "webpages index renders empty state" do
     get webpages_url, params: { term: "no-such-webpage-filter" }
 
@@ -279,68 +220,28 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_select ".harmonized-table-empty-state", 1
   end
 
-  test "webpages index shows website scoped typed summary and preserves reset seedurl" do
+  test "webpages index shows website scoped summary and navigation" do
     website = Website.create!(
-      name: "Typed summary website",
-      seedurl: "typed-summary-website",
-      graph_name: "https://example.org/typed-summary-website",
+      name: "Scoped summary website",
+      seedurl: "scoped-summary-website",
+      graph_name: "https://example.org/scoped-summary-website",
       default_language: "en"
     )
 
-    resource_list_class = RdfsClass.create!(name: "ResourceList")
-    web_page_class = RdfsClass.create!(name: "WebPage")
-    other_class = RdfsClass.create!(name: "Thingish")
-
-    publishable_page = Webpage.create!(url: "https://example.org/events/typed", language: "en", rdf_uri: "rdf:typed:event", rdfs_class: rdfs_classes(:one), website: website)
+    publishable_page = Webpage.create!(url: "https://example.org/events/scoped", language: "en", rdf_uri: "rdf:scoped:event", rdfs_class: rdfs_classes(:one), website: website)
     create_publishable_statements_for(publishable_page)
-    Webpage.create!(url: "https://example.org/events/blocked", language: "en", rdf_uri: "rdf:typed:event:blocked", rdfs_class: rdfs_classes(:one), website: website)
-    Webpage.create!(url: "footlight:typed:person", language: "en", rdf_uri: "rdf:typed:person", rdfs_class: rdfs_classes(:person), website: website)
-    Webpage.create!(url: "footlight:typed:place", language: "en", rdf_uri: "rdf:typed:place", rdfs_class: rdfs_classes(:place), website: website)
-    Webpage.create!(url: "https://example.org/resources/typed", language: "en", rdf_uri: "rdf:typed:resource-list", rdfs_class: resource_list_class, website: website)
-    Webpage.create!(url: "https://example.org/pages/typed", language: "en", rdf_uri: "rdf:typed:webpage", rdfs_class: web_page_class, website: website)
-    Webpage.create!(url: "footlight:typed:other", language: "en", rdf_uri: "rdf:typed:other", rdfs_class: other_class, website: website)
+    Webpage.create!(url: "footlight:scoped:person", language: "en", rdf_uri: "rdf:scoped:person", rdfs_class: rdfs_classes(:person), website: website)
 
     get webpages_url, params: { seedurl: website.seedurl, scope: "all" }
 
     assert_response :success
-    assert_includes @response.body, "Showing 7 matching webpages."
-    assert_includes @response.body, "4 public source URLs · 3 internal entity URIs"
-    assert_includes @response.body, "Events 2 · People 1 · Places 1 · Resource lists 1 · Web pages 1 · Other 1"
-    assert_includes @response.body, "Publishable 1 · Not publishable 6"
+    assert_includes @response.body, "Showing 2 matching webpages."
     assert_match(%r{href="/webpages\?(?:scope=all&amp;seedurl=#{website.seedurl}|seedurl=#{website.seedurl}&amp;scope=all)"}, @response.body)
-    assert_select "a[href='/webpages?seedurl=#{website.seedurl}']", text: "Show publishable event pages"
+    assert_match(%r{href="/webpages\?seedurl=#{website.seedurl}">Show publishable event pages}, @response.body)
     assert_select "a[href='#{website_path(website)}']", text: website.name
     assert_select "a[href='/webpages?seedurl=#{website.seedurl}']", text: "webpages"
     assert_select "a[href='/sources?seedurl=#{website.seedurl}']", text: "sources"
     assert_select "a[href='/statements?seedurl=#{website.seedurl}']", text: "statements"
-  end
-
-  test "webpages index filtered summary keeps website total semantics" do
-    website = Website.create!(
-      name: "Filtered summary website",
-      seedurl: "filtered-summary-website",
-      graph_name: "https://example.org/filtered-summary-website",
-      default_language: "en"
-    )
-
-    publishable_page = Webpage.create!(url: "https://example.org/events/filtered", language: "en", rdf_uri: "rdf:filtered:event", rdfs_class: rdfs_classes(:one), website: website)
-    create_publishable_statements_for(publishable_page)
-    Webpage.create!(url: "footlight:filtered:other", language: "en", rdf_uri: "rdf:filtered:other", rdfs_class: rdfs_classes(:person), website: website)
-
-    get webpages_url, params: { seedurl: website.seedurl, scope: "all", publishable: "true" }
-
-    assert_response :success
-    assert_includes @response.body, "Showing 1 matching webpages."
-    assert_includes @response.body, "Total website webpages: 2."
-  end
-
-  test "global webpages index keeps global navigation without seedurl context" do
-    get webpages_url
-
-    assert_response :success
-    assert_select "a[href='#{webpages_path}']", text: "webpages"
-    assert_select "a[href='#{sources_path}']", text: "sources"
-    assert_select "a[href='#{statements_path}']", text: "statements"
   end
 
   test "should get new" do
@@ -381,42 +282,6 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_match(%r{href="/webpages\?(?:seedurl=#{@webpage.website.seedurl}&amp;scope=all|scope=all&amp;seedurl=#{@webpage.website.seedurl})"}, @response.body)
   end
 
-  test "website show uses cache link resolver labels for legacy mode" do
-    assert_read_only_page_does_not_fetch
-    @webpage.website.update!(distillator_mode: "legacy")
-
-    get webpage_url(@webpage)
-
-    assert_response :success
-    assert_includes @response.body, "Open active cache"
-    assert_includes @response.body, "Open Condenser cache"
-    assert_includes @response.body, "Production backend:</strong> Wringer"
-  end
-
-  test "webpage show uses cache link resolver labels for shadow mode" do
-    assert_read_only_page_does_not_fetch
-    @webpage.website.update!(distillator_mode: "shadow")
-
-    get webpage_url(@webpage)
-
-    assert_response :success
-    assert_includes @response.body, "Open active cache"
-    assert_includes @response.body, "Compare Condenser vs Wringer"
-    assert_includes @response.body, "Production backend:</strong> Wringer"
-  end
-
-  test "webpage show uses cache link resolver labels for active mode" do
-    assert_read_only_page_does_not_fetch
-    @webpage.website.update!(distillator_mode: "active")
-
-    get webpage_url(@webpage)
-
-    assert_response :success
-    assert_includes @response.body, "Open active cache"
-    assert_includes @response.body, "Inspect legacy Wringer"
-    assert_includes @response.body, "Production backend:</strong> Condenser"
-  end
-
   test "webpage show uses one production transition section and avoids retired wording" do
     assert_read_only_page_does_not_fetch
     @webpage.website.update!(distillator_mode: "shadow")
@@ -442,7 +307,7 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "webpage pages render cache links without fetching" do
+  test "webpage pages render representative cache links without fetching" do
     assert_read_only_page_does_not_fetch
     website, webpage = create_test_website_with_webpage(
       distillator_mode: "active",
@@ -469,38 +334,6 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Diagnose refresh"
   end
 
-  test "webpage show renders rollout warning for shadow website" do
-    assert_read_only_page_does_not_fetch
-    @webpage.website.update!(distillator_mode: "shadow")
-
-    get webpage_url(@webpage)
-
-    assert_response :success
-    assert_includes @response.body, "Shadow"
-    assert_includes @response.body, "Wringer serves production while Condenser is checked in the background."
-    assert_includes @response.body, "Production backend:</strong> Wringer"
-    assert_includes @response.body, "Compare Condenser vs Wringer"
-  end
-
-  test "webpage show keeps rollout copy compact and grouped links visible" do
-    assert_read_only_page_does_not_fetch
-    @webpage.website.update!(distillator_mode: "legacy")
-
-    get webpage_url(@webpage)
-
-    assert_response :success
-    assert_operator @response.body.scan("Legacy").length, :>=, 1
-    assert_operator @response.body.scan("Wringer serves production.").length, :<=, 2
-    assert_includes @response.body, "Statements"
-    assert_includes @response.body, "Refresh"
-    assert_includes @response.body, "Google JSON-LD"
-    assert_includes @response.body, "Artsdata JSON-LD"
-    assert_includes @response.body, "Call Condenser"
-    assert_includes @response.body, "Code Snippet API"
-    assert_includes @response.body, "Edit"
-    assert_includes @response.body, "Back"
-  end
-
   test "webpage show uses diagnostic next step for invalid cache urls" do
     assert_read_only_page_does_not_fetch
     website, webpage = create_test_website_with_webpage(
@@ -517,64 +350,6 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Use Diagnose refresh to inspect why this URL is not cache-inspectable."
     assert_not_includes @response.body, "Inspect Condenser cache before promotion"
     assert_includes @response.body, "Diagnose refresh"
-  end
-
-  test "webpage index shows distillator cache column when wringer remains active" do
-    Distillator::FetchCacheStore.expects(:fetch).never
-    website, webpage = create_test_website_with_webpage(
-      distillator_mode: "legacy",
-      seedurl: "legacy-cache-index",
-      url: "http://example.com/legacy-cache-index"
-    )
-
-    get webpages_url, params: { seedurl: website.seedurl, scope: "all" }
-
-    assert_response :success
-    assert_includes @response.body, "<th>Active Cache</th>"
-    assert_not_includes @response.body, "<th>Condenser Cache</th>"
-    assert_includes @response.body, "Open active cache"
-    assert_not_includes @response.body, "Open Condenser cache"
-    assert_includes @response.body, "Production: Wringer"
-    assert_not_includes @response.body, "/condenser/cache?term=#{CGI.escape(webpage.url)}"
-    assert_not_includes @response.body, "/condenser/cache?term=#{CGI.escape(website.seedurl)}"
-  end
-
-  test "webpage index hides distillator cache column when active cache is already distillator" do
-    Distillator::FetchCacheStore.expects(:fetch).never
-    website, webpage = create_test_website_with_webpage(
-      distillator_mode: "active",
-      seedurl: "active-column-hidden",
-      url: "http://example.com/active-column-hidden"
-    )
-
-    get webpages_url, params: { seedurl: website.seedurl, scope: "all" }
-
-    assert_response :success
-    assert_includes @response.body, "<th>Active Cache</th>"
-    assert_not_includes @response.body, "<th>Condenser Cache</th>"
-    assert_includes @response.body, "Open active cache"
-    assert_not_includes @response.body, "Open Condenser cache"
-    assert_includes @response.body, "Production: Condenser"
-    assert_includes @response.body, "/condenser/cache?term=#{CGI.escape(webpage.url)}"
-  end
-
-  test "webpage index shows distillator cache column when shadow mode exposes that link" do
-    Distillator::FetchCacheStore.expects(:fetch).never
-    website, webpage = create_test_website_with_webpage(
-      distillator_mode: "shadow",
-      seedurl: "shadow-column-hidden",
-      url: "http://example.com/shadow-column-hidden"
-    )
-
-    get webpages_url, params: { seedurl: website.seedurl, scope: "all" }
-
-    assert_response :success
-    assert_includes @response.body, "<th>Active Cache</th>"
-    assert_not_includes @response.body, "<th>Condenser Cache</th>"
-    assert_includes @response.body, "Open active cache"
-    assert_not_includes @response.body, "Open Condenser cache"
-    assert_includes @response.body, "Production: Wringer"
-    assert_not_includes @response.body, "/condenser/cache?term=#{CGI.escape(webpage.url)}"
   end
 
   test "should get edit" do

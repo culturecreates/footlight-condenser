@@ -21,7 +21,7 @@ class WebpagesController < ApplicationController
       max_per_page: Webpages::IndexQuery::MAX_PER_PAGE
     )
     index_params = index_params.merge(
-      filters: normalized_webpages_filters(index_params[:filters]),
+      filters: normalized_webpages_filters(index_params[:filters], website: website),
       page: 1,
       per_page: Webpages::IndexQuery::DEFAULT_PER_PAGE
     )
@@ -33,25 +33,26 @@ class WebpagesController < ApplicationController
       default_per_page: Webpages::IndexQuery::DEFAULT_PER_PAGE,
       preserve: @seedurl.present? ? { seedurl: @seedurl } : {}
     )
+    canonical.except!("website_id")
 
     raw = harmonized_index_raw_params(
       allowed_filters: Webpages::IndexQuery::FILTER_KEYS,
       preserve: %w[seedurl sort direction page per_page]
     )
+    raw.except!("website_id")
 
     return redirect_to(webpages_path(canonical)) if canonical != raw
 
     @filters = index_params[:filters]
-    query_filters = @filters.merge(website_id: website.id) if website.present?
-    query_filters ||= @filters
 
     @sort = index_params[:sort]
     @direction = index_params[:direction]
 
-    filtered_scope = Webpages::IndexQuery.scope(filters: query_filters)
+    filtered_scope = Webpages::IndexQuery.scope(website: website, filters: @filters)
 
     @webpages = Webpages::IndexQuery.call(
-      filters: query_filters,
+      website: website,
+      filters: @filters,
       sort: @sort,
       direction: @direction,
       page: nil,
@@ -59,7 +60,7 @@ class WebpagesController < ApplicationController
       paginate: false
     )
 
-    @sortable_filters = @filters.dup
+    @sortable_filters = @filters.except(:website_id)
     @sortable_filters[:seedurl] = @seedurl if @seedurl.present?
     @return_to = request.fullpath
 
@@ -113,7 +114,7 @@ class WebpagesController < ApplicationController
    
     respond_to do |format|
       if @webpage.save
-        format.html { redirect_to(safe_return_to || @webpage, notice: "Webpage was successfully created.") }
+        format.html { redirect_to(safe_return_to_param || @webpage, notice: "Webpage was successfully created.") }
         format.json { render :show, status: :created, location: @webpage }
       else
         @rdfs_classes = RdfsClass.all
@@ -153,12 +154,12 @@ class WebpagesController < ApplicationController
     end
     respond_to do |format|
       if @webpage.update(webpage_params)
-        format.html { redirect_to(safe_return_to || @webpage, notice: "Webpage was successfully updated.") }
+        format.html { redirect_to(safe_return_to_param || @webpage, notice: "Webpage was successfully updated.") }
         format.json { render :show, status: :ok, location: @webpage }
       else
         @rdfs_classes = RdfsClass.all
         @jsonld_outputs = JsonldOutput.all
-        @return_to = safe_return_to || fallback_collection_return_path(@webpage.website)
+        @return_to = safe_return_to_param || fallback_collection_return_path(@webpage.website)
         format.html { render :edit }
         format.json { render json: @webpage.errors, status: :unprocessable_entity }
       end
@@ -168,7 +169,7 @@ class WebpagesController < ApplicationController
   # DELETE /webpages/1
   # DELETE /webpages/1.json
   def destroy
-    redirect_path = safe_return_to || fallback_collection_return_path(@webpage.website)
+    redirect_path = safe_return_to_param || fallback_collection_return_path(@webpage.website)
     @webpage.destroy
     respond_to do |format|
       format.html { redirect_to redirect_path, notice: "Webpage was successfully destroyed." }
@@ -192,39 +193,42 @@ class WebpagesController < ApplicationController
     params.require(:webpage).permit(:url, :language, :rdf_uri, :rdfs_class, :seedurl)
   end
 
-  def normalized_webpages_filters(filters)
-    normalized = filters.to_h.symbolize_keys
-    normalized[:scope] = "all" if normalized[:publishable].to_s == "false" && normalized[:scope].to_s != "all"
-    normalized[:scope] = nil unless normalized[:scope].to_s == "all"
-    normalized[:publishable] = nil if normalized[:scope].blank? && normalized[:publishable].to_s == "true"
-    normalized.compact_blank
+  def normalized_webpages_filters(filters, website:)
+    Webpages::IndexQuery.normalize_filters(
+      filters: filters,
+      website: website
+    )
   end
 
   def set_return_to
-    @return_to = safe_return_to || fallback_collection_return_path(@webpage&.website)
-  end
-
-  def safe_return_to
-    return_to = params[:return_to].to_s
-    return return_to if safe_relative_return_path?(return_to)
-
-    nil
-  end
-
-  def safe_relative_return_path?(value)
-    value.start_with?("/") && !value.start_with?("//")
+    @return_to = safe_return_to_param || fallback_collection_return_path(@webpage&.website)
   end
 
   def fallback_collection_return_path(website = nil)
-    webpages_path(seedurl: website&.seedurl.presence || params[:seedurl].presence || cookies[:seedurl].presence)
+    seedurl = params[:seedurl].presence || website&.seedurl.presence || cookies[:seedurl].presence
+    webpages_path({ seedurl: seedurl, scope: params[:scope].presence }.compact_blank)
   end
 
   def normalized_seedurl_website
-    seedurl = params[:seedurl].presence || cookies[:seedurl].presence
+    return website_id_pair if params[:website_id].present?
+
+    seedurl =
+      if params.key?(:seedurl)
+        params[:seedurl].presence
+      else
+        cookies[:seedurl].presence
+      end
     return [nil, nil] if seedurl.blank? || seedurl == "all"
 
     website = Website.find_by(seedurl: seedurl)
     website.present? ? [seedurl, website] : [nil, nil]
+  end
+
+  def website_id_pair
+    website = Website.find_by(id: params[:website_id])
+    return [nil, nil] unless website.present?
+
+    [website.seedurl, website]
   end
 
 end
