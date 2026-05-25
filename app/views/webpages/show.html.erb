@@ -57,7 +57,7 @@
 <section class="webpage-show-section">
   <h2>Page actions</h2>
   <ul class="webpage-show-link-list">
-    <li><%= link_to "Edit", edit_webpage_path(@webpage) %></li>
-    <li><%= link_to "Back", webpages_path %></li>
+    <li><%= link_to "Edit", edit_webpage_path(@webpage, return_to: @return_to) %></li>
+    <li><%= link_to "Back", @return_to %></li>
   </ul>
 </section>

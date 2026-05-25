@@ -79,26 +79,17 @@ module WebpagesHelper
   end
 
   def webpages_index_summary_heading(website:, visible_count:, filtered_count:, total_count:, filters:)
-    if website.present?
-      filter_label = webpages_filter_label(filters)
+    return "Showing #{visible_count} matching webpages." if webpages_all_scope?(filters)
+    return "Showing #{visible_count} active publishable event pages for this website." if website.present?
 
-      if filter_label.present?
-        "Showing #{visible_count} of #{filtered_count} #{filter_label} webpages for #{website.name}."
-      else
-        "Showing #{visible_count} of #{total_count} webpages for #{website.name}."
-      end
-    elsif webpages_filter_active?(filters)
-      "Showing #{visible_count} of #{filtered_count} matching webpages. Total webpages: #{total_count}."
-    else
-      "Showing #{visible_count} of #{total_count} webpages."
-    end
+    "Showing #{visible_count} active publishable event pages."
   end
 
   def webpages_index_summary_secondary_lines(website:, summary:, filters:, total_count:)
     return [] unless website.present? && summary.present?
 
     lines = []
-    if webpages_filter_active?(filters)
+    if webpages_all_scope?(filters) || webpages_filter_active?(filters)
       lines << "Total website webpages: #{total_count}."
     end
 
@@ -113,6 +104,18 @@ module WebpagesHelper
     ].join(" · ")
     lines << "Publishable #{summary[:publishable]} · Not publishable #{summary[:not_publishable]}"
     lines
+  end
+
+  def webpages_all_scope?(filters)
+    filters[:scope].to_s == "all"
+  end
+
+  def webpages_scope_toggle_path(filters:, seedurl:, target_scope:)
+    scope_filters = filters.to_h.symbolize_keys.except(:scope, :publishable)
+    scope_filters[:scope] = "all" if target_scope.to_s == "all"
+    scope_filters[:seedurl] = seedurl if seedurl.present?
+
+    webpages_path(scope_filters.compact_blank)
   end
 
   def webpage_cache_warning_for(webpage, cache_links)

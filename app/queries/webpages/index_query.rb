@@ -1,6 +1,17 @@
 module Webpages
   class IndexQuery
-    FILTER_KEYS = %i[term website_id language rdfs_class_id rdfs_class archive_state url_kind publishable].freeze
+    FILTER_KEYS = %i[
+      term
+      website_id
+      language
+      rdfs_class_id
+      rdfs_class
+      archive_state
+      url_kind
+      publishable
+      scope
+    ].freeze
+
     DEFAULT_SORT = "url".freeze
     DEFAULT_DIRECTION = "asc".freeze
     DEFAULT_PER_PAGE = 25
@@ -18,30 +29,46 @@ module Webpages
     end
 
     def self.scope(filters:)
-      new(filters: filters, sort: DEFAULT_SORT, direction: DEFAULT_DIRECTION, page: 1, per_page: DEFAULT_PER_PAGE).scope
+      new(
+        filters: filters,
+        sort: DEFAULT_SORT,
+        direction: DEFAULT_DIRECTION,
+        page: nil,
+        per_page: nil,
+        paginate: false
+      ).scope
     end
 
-    def initialize(filters:, sort:, direction:, page:, per_page:)
+    def initialize(filters:, sort:, direction:, page: nil, per_page: nil, paginate: true)
       @filters = filters.to_h.symbolize_keys
       @sort = SORT_COLUMNS.key?(sort.to_s) ? sort.to_s : DEFAULT_SORT
       @direction = %w[asc desc].include?(direction.to_s) ? direction.to_s : DEFAULT_DIRECTION
       @page = page
       @per_page = per_page
+      @paginate = paginate
     end
 
     def call
-      scope = Webpage.all
+      scope = base_scope
       scope = apply_filters(scope)
-      scope.order(SORT_COLUMNS.fetch(sort) => direction.to_sym).paginate(page: page, per_page: per_page)
+      scope = scope.order(SORT_COLUMNS.fetch(sort) => direction.to_sym)
+
+      paginate ? scope.paginate(page: page, per_page: per_page) : scope
     end
 
     def scope
-      apply_filters(Webpage.all)
+      apply_filters(base_scope)
     end
 
     private
 
-    attr_reader :filters, :sort, :direction, :page, :per_page
+    attr_reader :filters, :sort, :direction, :page, :per_page, :paginate
+
+    def base_scope
+      return Webpage.all if filters[:scope].to_s == "all"
+
+      Webpage.active.publishable
+    end
 
     def apply_filters(scope)
       scope = filter_term(scope)
@@ -50,8 +77,8 @@ module Webpages
       scope = filter_rdfs_class(scope)
       scope = filter_url_kind(scope)
       scope = filter_publishable(scope)
-      scope = filter_archive_state(scope)
-      scope
+      filter_archive_state(scope)
+      
     end
 
     def filter_term(scope)
@@ -90,6 +117,8 @@ module Webpages
       when "true"
         scope.publishable
       when "false"
+        return scope unless filters[:scope].to_s == "all"
+
         scope.not_publishable
       else
         scope

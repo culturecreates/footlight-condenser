@@ -8,6 +8,7 @@ class Webpage < ApplicationRecord
   has_many :statements, dependent: :destroy
   scope :public_source_urls, -> { where(PUBLIC_SOURCE_URL_SQL) }
   scope :internal_uris, -> { where.not(id: public_source_urls.select(:id)) }
+  scope :active, -> { where("archive_date IS NULL OR archive_date > ?", Time.zone.now) }
   scope :publishable, -> { where(id: publishable_relation.select(:id)) }
   scope :not_publishable, -> { where.not(id: publishable.select(:id)) }
   scope :transition_candidates, -> { order(:archive_date, :id) }

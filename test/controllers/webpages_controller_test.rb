@@ -36,6 +36,55 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     [website, webpage]
   end
 
+  def build_transition_inspection_website(seedurl: "transition-inspection-site")
+    website = Website.create!(
+      name: "Transition inspection #{seedurl}",
+      seedurl: seedurl,
+      graph_name: "http://example.com/#{seedurl}",
+      default_language: "en"
+    )
+
+    active_publishable = Webpage.create!(
+      url: "https://example.org/#{seedurl}/active-publishable",
+      language: "en",
+      rdf_uri: "rdf:#{seedurl}:active-publishable",
+      rdfs_class: rdfs_classes(:one),
+      website: website,
+      archive_date: 3.days.from_now
+    )
+    create_publishable_statements_for(active_publishable)
+
+    archived_publishable = Webpage.create!(
+      url: "https://example.org/#{seedurl}/archived-publishable",
+      language: "en",
+      rdf_uri: "rdf:#{seedurl}:archived-publishable",
+      rdfs_class: rdfs_classes(:one),
+      website: website,
+      archive_date: 2.days.ago
+    )
+    create_publishable_statements_for(archived_publishable)
+
+    active_unpublishable = Webpage.create!(
+      url: "https://example.org/#{seedurl}/active-unpublishable",
+      language: "en",
+      rdf_uri: "rdf:#{seedurl}:active-unpublishable",
+      rdfs_class: rdfs_classes(:one),
+      website: website,
+      archive_date: 5.days.from_now
+    )
+
+    place_page = Webpage.create!(
+      url: "https://example.org/#{seedurl}/place-page",
+      language: "en",
+      rdf_uri: "rdf:#{seedurl}:place-page",
+      rdfs_class: rdfs_classes(:place),
+      website: website,
+      archive_date: 5.days.from_now
+    )
+
+    [website, active_publishable, archived_publishable, active_unpublishable, place_page]
+  end
+
   test "should get index" do
     get webpages_url
     assert_response :success
@@ -75,30 +124,118 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
   test "webpages index preserves active filters in sort links" do
     get webpages_url, params: {
       seedurl: websites(:one).seedurl,
+      scope: "all",
       term: "example",
       language: "en",
       archive_state: "active",
       url_kind: "public",
       rdfs_class: "Event",
       publishable: "true",
-      per_page: "10"
+      page: "2"
     }
 
+    follow_redirect! if response.redirect?
     assert_response :success
-    assert_sort_link_preserves_params(
+    assert_sort_link_preserves_filters(
       label: "Url",
       sort_key: "url",
       params: {
         seedurl: websites(:one).seedurl,
+        scope: "all",
         term: "example",
         language: "en",
         archive_state: "active",
         url_kind: "public",
         rdfs_class: "Event",
-        publishable: "true",
-        per_page: "10"
+        publishable: "true"
       }
     )
+  end
+
+  test "webpages index canonicalizes scope all publishable false and drops page params" do
+    website, = build_transition_inspection_website(seedurl: "canonical-webpages-site")
+
+    get webpages_url, params: {
+      seedurl: website.seedurl,
+      publishable: "false",
+      page: "2",
+      per_page: "1"
+    }
+
+    assert_response :redirect
+    assert_redirected_to webpages_path(seedurl: website.seedurl, scope: "all", publishable: "false")
+  end
+
+  test "webpages index defaults to active publishable event webpages for selected website" do
+    website, active_publishable, archived_publishable, active_unpublishable, place_page = build_transition_inspection_website(seedurl: "default-scope-site")
+
+    get webpages_url, params: { seedurl: website.seedurl }
+
+    assert_response :success
+    assert_includes @response.body, active_publishable.url
+    assert_not_includes @response.body, archived_publishable.url
+    assert_not_includes @response.body, active_unpublishable.url
+    assert_not_includes @response.body, place_page.url
+    assert_includes @response.body, "Showing 1 active publishable event pages for this website."
+    assert_select "a[href='#{webpages_path(seedurl: website.seedurl, scope: "all")}']", text: "Show all webpages"
+    assert_select "a[href='#{webpage_path(active_publishable, return_to: webpages_path(seedurl: website.seedurl))}']", text: "Show"
+  end
+
+  test "webpages index scope all shows all webpages for selected website" do
+    website, active_publishable, archived_publishable, active_unpublishable, place_page = build_transition_inspection_website(seedurl: "all-scope-site")
+
+    get webpages_url, params: { seedurl: website.seedurl, scope: "all" }
+
+    assert_response :success
+    assert_includes @response.body, active_publishable.url
+    assert_includes @response.body, archived_publishable.url
+    assert_includes @response.body, active_unpublishable.url
+    assert_includes @response.body, place_page.url
+    assert_includes @response.body, "Showing 4 matching webpages."
+    assert_select "input[name='scope'][value='all']", 1
+    assert_select "a[href='#{webpages_path(seedurl: website.seedurl)}']", text: "Show publishable event pages"
+  end
+
+  test "webpages index scope all publishable false shows only non publishable webpages" do
+    website, active_publishable, archived_publishable, active_unpublishable, place_page = build_transition_inspection_website(seedurl: "all-scope-unpublishable-site")
+
+    get webpages_url, params: { seedurl: website.seedurl, scope: "all", publishable: "false" }
+
+    assert_response :success
+    assert_not_includes @response.body, active_publishable.url
+    assert_not_includes @response.body, archived_publishable.url
+    assert_includes @response.body, active_unpublishable.url
+    assert_includes @response.body, place_page.url
+  end
+
+  test "webpages index ignores page and per page for rendering and pagination controls" do
+    website, active_publishable, = build_transition_inspection_website(seedurl: "no-pagination-site")
+    extra_pages = 30.times.map do |index|
+      webpage = Webpage.create!(
+        url: "https://example.org/no-pagination-site/more-#{index}",
+        language: "en",
+        rdf_uri: "rdf:no-pagination-site:#{index}",
+        rdfs_class: rdfs_classes(:one),
+        website: website,
+        archive_date: 5.days.from_now
+      )
+      create_publishable_statements_for(webpage)
+      webpage
+    end
+
+    get webpages_url, params: { seedurl: website.seedurl, page: "2", per_page: "1" }
+    assert_response :redirect
+    follow_redirect!
+
+    assert_response :success
+    assert_includes @response.body, active_publishable.url
+    extra_pages.each do |webpage|
+      assert_includes @response.body, webpage.url
+    end
+    assert_select "input[name='per_page']", 0
+    assert_select "a", text: "Previous page", count: 0
+    assert_select "a", text: "Next page", count: 0
+    assert_no_match(/Showing page \d+ of \d+\./, @response.body)
   end
 
   test "webpages index filters through controller params using webpages index query" do
@@ -108,8 +245,9 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
       rdf_uri: "rdf:query-match",
       rdfs_class: rdfs_classes(:one),
       website: websites(:one),
-      archive_date: 1.day.ago
+      archive_date: 5.days.from_now
     )
+    create_publishable_statements_for(matching)
     non_matching = Webpage.create!(
       url: "http://example.com/query-miss",
       language: "en",
@@ -119,7 +257,7 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
       archive_date: 5.days.from_now
     )
 
-    get webpages_url, params: { term: "query-", language: "fr", archive_state: "archived" }
+    get webpages_url, params: { term: "query-", language: "fr" }
 
     assert_response :success
     assert_includes @response.body, matching.url
@@ -162,14 +300,15 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     Webpage.create!(url: "https://example.org/pages/typed", language: "en", rdf_uri: "rdf:typed:webpage", rdfs_class: web_page_class, website: website)
     Webpage.create!(url: "footlight:typed:other", language: "en", rdf_uri: "rdf:typed:other", rdfs_class: other_class, website: website)
 
-    get webpages_url, params: { seedurl: website.seedurl }
+    get webpages_url, params: { seedurl: website.seedurl, scope: "all" }
 
     assert_response :success
-    assert_includes @response.body, "Showing 7 of 7 webpages for Typed summary website."
+    assert_includes @response.body, "Showing 7 matching webpages."
     assert_includes @response.body, "4 public source URLs · 3 internal entity URIs"
     assert_includes @response.body, "Events 2 · People 1 · Places 1 · Resource lists 1 · Web pages 1 · Other 1"
     assert_includes @response.body, "Publishable 1 · Not publishable 6"
-    assert_select "a[href='/webpages?seedurl=#{website.seedurl}']", text: "Reset filters"
+    assert_match(%r{href="/webpages\?(?:scope=all&amp;seedurl=#{website.seedurl}|seedurl=#{website.seedurl}&amp;scope=all)"}, @response.body)
+    assert_select "a[href='/webpages?seedurl=#{website.seedurl}']", text: "Show publishable event pages"
     assert_select "a[href='#{website_path(website)}']", text: website.name
     assert_select "a[href='/webpages?seedurl=#{website.seedurl}']", text: "webpages"
     assert_select "a[href='/sources?seedurl=#{website.seedurl}']", text: "sources"
@@ -188,10 +327,10 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     create_publishable_statements_for(publishable_page)
     Webpage.create!(url: "footlight:filtered:other", language: "en", rdf_uri: "rdf:filtered:other", rdfs_class: rdfs_classes(:person), website: website)
 
-    get webpages_url, params: { seedurl: website.seedurl, publishable: "true" }
+    get webpages_url, params: { seedurl: website.seedurl, scope: "all", publishable: "true" }
 
     assert_response :success
-    assert_includes @response.body, "Showing 1 of 1 publishable webpages for Filtered summary website."
+    assert_includes @response.body, "Showing 1 matching webpages."
     assert_includes @response.body, "Total website webpages: 2."
   end
 
@@ -211,10 +350,13 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
 
   test "should create webpage" do
     assert_difference('Webpage.count') do
-      post webpages_url, params: { webpage: { language: @webpage.language, rdf_uri: @webpage.rdf_uri, rdfs_class_id: @webpage.rdfs_class_id, url: @webpage.url + "newwebpageurl", website_id: @webpage.website_id } }
+      post webpages_url, params: {
+        return_to: "/webpages?seedurl=#{@webpage.website.seedurl}&scope=all",
+        webpage: { language: @webpage.language, rdf_uri: @webpage.rdf_uri, rdfs_class_id: @webpage.rdfs_class_id, url: @webpage.url + "newwebpageurl", website_id: @webpage.website_id }
+      }
     end
 
-    assert_redirected_to webpage_url(Webpage.last)
+    assert_redirected_to "/webpages?seedurl=#{@webpage.website.seedurl}&scope=all"
   end
 
   test "should show webpage" do
@@ -227,6 +369,16 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "JSON-LD"
     assert_includes @response.body, "Validation"
     assert_includes @response.body, "Page actions"
+  end
+
+  test "webpage show preserves safe return to links" do
+    return_to = "/webpages?seedurl=#{@webpage.website.seedurl}&scope=all"
+
+    get webpage_url(@webpage, return_to: return_to)
+
+    assert_response :success
+    assert_select "a[href='#{edit_webpage_path(@webpage, return_to: return_to)}']", text: "Edit"
+    assert_match(%r{href="/webpages\?(?:seedurl=#{@webpage.website.seedurl}&amp;scope=all|scope=all&amp;seedurl=#{@webpage.website.seedurl})"}, @response.body)
   end
 
   test "website show uses cache link resolver labels for legacy mode" do
@@ -298,7 +450,7 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
       url: "http://example.com/active-cache-index"
     )
 
-    get webpages_url, params: { seedurl: website.seedurl }
+    get webpages_url, params: { seedurl: website.seedurl, scope: "all" }
     assert_response :success
     assert_includes @response.body, "<th>Active Cache</th>"
     assert_not_includes @response.body, "<th>Condenser Cache</th>"
@@ -375,7 +527,7 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
       url: "http://example.com/legacy-cache-index"
     )
 
-    get webpages_url, params: { seedurl: website.seedurl }
+    get webpages_url, params: { seedurl: website.seedurl, scope: "all" }
 
     assert_response :success
     assert_includes @response.body, "<th>Active Cache</th>"
@@ -395,7 +547,7 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
       url: "http://example.com/active-column-hidden"
     )
 
-    get webpages_url, params: { seedurl: website.seedurl }
+    get webpages_url, params: { seedurl: website.seedurl, scope: "all" }
 
     assert_response :success
     assert_includes @response.body, "<th>Active Cache</th>"
@@ -414,7 +566,7 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
       url: "http://example.com/shadow-column-hidden"
     )
 
-    get webpages_url, params: { seedurl: website.seedurl }
+    get webpages_url, params: { seedurl: website.seedurl, scope: "all" }
 
     assert_response :success
     assert_includes @response.body, "<th>Active Cache</th>"
@@ -431,16 +583,28 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "should update webpage" do
-    patch webpage_url(@webpage), params: { webpage: { language: @webpage.language, rdf_uri: @webpage.rdf_uri, rdfs_class_id: @webpage.rdfs_class_id, url: @webpage.url, website_id: @webpage.website_id } }
-    assert_redirected_to webpage_url(@webpage)
+    patch webpage_url(@webpage), params: {
+      return_to: "/webpages?seedurl=#{@webpage.website.seedurl}",
+      webpage: { language: @webpage.language, rdf_uri: @webpage.rdf_uri, rdfs_class_id: @webpage.rdfs_class_id, url: @webpage.url, website_id: @webpage.website_id }
+    }
+    assert_redirected_to "/webpages?seedurl=#{@webpage.website.seedurl}"
   end
 
   test "should destroy webpage" do
     assert_difference('Webpage.count', -1) do
-      delete webpage_url(@webpage)
+      delete webpage_url(@webpage), params: { return_to: "/webpages?seedurl=#{@webpage.website.seedurl}&scope=all" }
     end
 
-    assert_redirected_to webpages_url
+    assert_redirected_to "/webpages?seedurl=#{@webpage.website.seedurl}&scope=all"
+  end
+
+  test "unsafe return to falls back to a safe webpages path" do
+    patch webpage_url(@webpage), params: {
+      return_to: "https://evil.example/webpages",
+      webpage: { language: @webpage.language, rdf_uri: @webpage.rdf_uri, rdfs_class_id: @webpage.rdfs_class_id, url: @webpage.url, website_id: @webpage.website_id }
+    }
+
+    assert_redirected_to webpage_url(@webpage)
   end
 
   private

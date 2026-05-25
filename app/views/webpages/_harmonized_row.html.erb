@@ -20,11 +20,12 @@
   </td>
   <td>
     <%= link_to "statements", statements_path(rdf_uri: webpage.rdf_uri) %>
-    <%= link_to "Show", webpage %>
-    <%= link_to "Edit", edit_webpage_path(webpage) %>
+    <%= link_to "Show", webpage_path(webpage, return_to: @return_to) %>
+    <%= link_to "Edit", edit_webpage_path(webpage, return_to: @return_to) %>
     <%= button_to "Destroy",
                   webpage_path(webpage),
                   method: :delete,
+                  params: { return_to: @return_to },
                   form: { data: { confirm: "Are you sure?", turbo: false } } %>
   </td>
 </tr>
