@@ -14,7 +14,7 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
     assert_equal "Wringer", summary.production_backend_label
     assert_equal "Not checked", summary.readiness_label
     assert_equal "unknown", summary.severity
-    assert_equal "Run transition check.", summary.primary_action
+    assert_equal "Run transition batch check.", summary.primary_action
   end
 
   test "blocked when latest attempt failed and last good content was preserved" do

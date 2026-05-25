@@ -324,26 +324,26 @@ module Distillator
 
     def activation_reason
       return primary_blocker if primary_blocker.present?
-      return "All transition checks are currently passing." if overall_status == :ready
+      return "All sampled transition checks are currently passing." if overall_status == :ready
 
-      "Run the transition check to record current evidence."
+      "Run the transition batch check to record current sampled evidence."
     end
 
     def activation_next_action
       return fetch_failure_next_action if fetch_status == :failed
-      return "Configure the Wringer endpoint for staging, then rerun the transition check." if legacy_lookup_missing_config?
-      return "Fix the legacy Wringer endpoint, then rerun the transition check." if legacy_lookup_unreachable?
+      return "Configure the Wringer endpoint for staging, then rerun the transition batch check." if legacy_lookup_missing_config?
+      return "Fix the legacy Wringer endpoint, then rerun the transition batch check." if legacy_lookup_unreachable?
       return "Verify the legacy Wringer body endpoint or compare using the legacy inspection link." if legacy_lookup_body_omitted?
       return "Review the checklist, then activate with a recorded reason." if review_activation_eligible?
       return "Metadata notes only. Promote to active when you are satisfied with the evidence." if metadata_only_difference?
-      return "Review the unknown comparison results, then rerun the transition check if needed." if cache_compare_unknown?
-      return "Review the parity differences, then rerun the transition check if needed." if review_needed_difference?
+      return "Review the unknown comparison results, then rerun the transition batch check if needed." if cache_compare_unknown?
+      return "Review the parity differences, then rerun the transition batch check if needed." if review_needed_difference?
       return "Verify selected sources/statements for the sampled webpages." if statements_status == :inconclusive
-      return "Fix the blocking check, then rerun the transition check." if blockers.any?
-      return "Review the warning and rerun the transition check if needed." if warnings.any?
+      return "Fix the blocking check, then rerun the transition batch check." if blockers.any?
+      return "Review the warning and rerun the transition batch check if needed." if warnings.any?
       return "Promote to active when you are satisfied with the evidence." if overall_status == :ready
 
-      "Run the transition check to record current evidence."
+      "Run the transition batch check to record current sampled evidence."
     end
 
     def transition_evidence_status(evidence)
@@ -399,7 +399,7 @@ module Distillator
 
     def legacy_lookup_warning
       return "Needs review: legacy Wringer endpoint is not configured for this environment." if legacy_lookup_missing_config?
-      return "Needs review: legacy Wringer lookup failed during the latest transition check." if legacy_lookup_unreachable?
+      return "Needs review: legacy Wringer lookup failed during the latest transition batch check." if legacy_lookup_unreachable?
       return "Needs review: legacy Wringer body was omitted from the comparison endpoint." if legacy_lookup_body_omitted?
 
       nil
@@ -478,10 +478,10 @@ module Distillator
     end
 
     def fetch_failure_next_action
-      return "Review the compare page for the affected URLs, then rerun the transition check." if cache_compare_failure?
-      return "Re-run the comparison for the affected URLs, then rerun the transition check." if cache_compare_missing? || cache_compare_unknown?
+      return "Review the compare page for the affected URLs, then rerun the transition batch check." if cache_compare_failure?
+      return "Re-run the comparison for the affected URLs, then rerun the transition batch check." if cache_compare_missing? || cache_compare_unknown?
 
-      "Fix fetch/cache first, then rerun the transition check."
+      "Fix fetch/cache first, then rerun the transition batch check."
     end
 
     def cache_compare_failure?
@@ -501,7 +501,7 @@ module Distillator
     end
 
     def partial_fetch_prevented_statement_refresh?(evidence)
-      evidence_reason(evidence) == "partial_fetch_failed_before_statement_refresh"
+      evidence_reason(evidence).in?(%w[partial_fetch_failed_before_statement_refresh transition_check_timeout_budget_exceeded])
     end
 
     def no_selected_statements?(evidence)
@@ -513,7 +513,7 @@ module Distillator
     end
 
     def partial_fetch_prevented_export_comparison?(evidence)
-      evidence_reason(evidence) == "partial_fetch_failed_before_export_comparison"
+      evidence_reason(evidence).in?(%w[partial_fetch_failed_before_export_comparison transition_check_timeout_budget_exceeded])
     end
 
     def export_diff_not_available?(evidence)

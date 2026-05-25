@@ -76,6 +76,10 @@ module Distillator
     def fetch_headline
       return "No representative event webpages were available." if reason == "no_representative_webpages"
       return "Latest Condenser attempt failed: empty body." if state == :failed && reason == "empty_body"
+      return "Transition check reached its runtime budget before all sampled URLs were fetched." if reason == "transition_check_timeout_budget_exceeded"
+      return "Captcha was detected while fetching one or more sampled URLs." if reason == "captcha_detected"
+      return "Rendered fetch is unavailable because PHANTOMJS_API_KEY is missing." if reason == "phantomjs_api_key_missing"
+      return "Rendered fetch is unavailable for one or more sampled URLs." if reason == "renderer_unavailable"
       return "Condenser fetch passed, but legacy Wringer lookup is missing staging configuration." if reason == "legacy_lookup_missing_config"
       return "Condenser fetch passed, but legacy Wringer lookup failed." if reason == "legacy_lookup_unreachable"
       return "Condenser fetch passed, but legacy Wringer body was omitted from the comparison endpoint." if reason == "legacy_lookup_body_omitted"
@@ -100,6 +104,7 @@ module Distillator
       return "No representative event webpages were available." if reason == "no_representative_webpages"
       return "Fetch failed before statements could be refreshed." if state == :not_evaluated || reason == "fetch_failed_before_statement_refresh"
       return "Some representative URLs could not be fetched, so statement coverage is incomplete." if reason == "partial_fetch_failed_before_statement_refresh"
+      return "Transition check reached its runtime budget before statement coverage completed." if reason == "transition_check_timeout_budget_exceeded"
       return "No selected statements were found for the representative webpages." if state == :inconclusive || reason == "no_selected_statements"
       return "Statement refresh failed for #{pluralize(failing_statement_count, 'statement')}." if reason == "statement_refresh_failed" && failing_statement_count.positive?
       return "Statement refresh found #{pluralize(failing_statement_count, 'failing statement')}." if state == :failed
@@ -112,6 +117,7 @@ module Distillator
     def export_headline
       return "Fetch failed before export could be compared." if state == :blocked_by_fetch || reason == "fetch_failed_before_export_comparison"
       return "Some representative URLs could not be fetched, so export coverage is incomplete." if reason == "partial_fetch_failed_before_export_comparison"
+      return "Transition check reached its runtime budget before export coverage completed." if reason == "transition_check_timeout_budget_exceeded"
       return "Export could not be generated." if reason == "export_generation_failed"
       return "Export comparison is not available yet." if reason == "export_diff_not_available"
       return "No representative event webpages were available." if reason == "no_representative_webpages"
@@ -187,20 +193,26 @@ module Distillator
     def next_action
       case check_kind
       when "fetch_parity"
-        return "Configure the Wringer endpoint for staging, then rerun the transition check." if reason == "legacy_lookup_missing_config"
-        return "Fix the legacy Wringer endpoint, then rerun the transition check." if reason == "legacy_lookup_unreachable"
+        return "Increase runtime coverage or rerun the transition batch check outside the web request budget." if reason == "transition_check_timeout_budget_exceeded"
+        return "Resolve the captcha or use the direct inspection links for the affected URLs, then rerun the transition batch check." if reason == "captcha_detected"
+        return "Configure PHANTOMJS_API_KEY or switch away from rendered fetch for the affected URLs, then rerun the transition batch check." if reason == "phantomjs_api_key_missing"
+        return "Fix rendered fetch availability for the affected URLs, then rerun the transition batch check." if reason == "renderer_unavailable"
+        return "Configure the Wringer endpoint for staging, then rerun the transition batch check." if reason == "legacy_lookup_missing_config"
+        return "Fix the legacy Wringer endpoint, then rerun the transition batch check." if reason == "legacy_lookup_unreachable"
         return "Verify the legacy Wringer body endpoint or compare using the legacy inspection link." if reason == "legacy_lookup_body_omitted"
         return "Review the Condenser vs Wringer comparison for the affected URLs." if reason == "cache_compare_blocking_regression"
         return "Re-run the cache comparison and verify the affected URLs." if %w[cache_compare_missing cache_compare_unknown].include?(reason)
 
-        state == :passed ? "No fetch action is needed right now." : "Fix the fetch/cache failure first, then rerun the transition check."
+        state == :passed ? "No fetch action is needed right now." : "Fix the fetch/cache failure first, then rerun the transition batch check."
       when "statement_delta"
         if state == :passed
           "No statement refresh action is needed right now."
         elsif state == :not_evaluated || reason == "fetch_failed_before_statement_refresh"
-          "Fix the fetch/cache failure first, then rerun the transition check."
+          "Fix the fetch/cache failure first, then rerun the transition batch check."
+        elsif reason == "transition_check_timeout_budget_exceeded"
+          "Rerun the transition batch check with enough runtime budget to finish statement coverage."
         elsif reason == "partial_fetch_failed_before_statement_refresh"
-          "Fetch the missing representative URLs, then rerun the transition check to complete statement coverage."
+          "Fetch the missing representative URLs, then rerun the transition batch check to complete statement coverage."
         elsif state == :inconclusive || reason == "no_selected_statements"
           "Verify selected sources/statements for the sampled webpages."
         elsif reason == "no_representative_webpages"
@@ -212,13 +224,15 @@ module Distillator
         if state == :passed
           "No export action is needed right now."
         elsif state == :blocked_by_fetch || reason == "fetch_failed_before_export_comparison"
-          "Fix the fetch/cache failure first, then rerun the transition check."
+          "Fix the fetch/cache failure first, then rerun the transition batch check."
+        elsif reason == "transition_check_timeout_budget_exceeded"
+          "Rerun the transition batch check with enough runtime budget to finish export coverage."
         elsif reason == "partial_fetch_failed_before_export_comparison"
-          "Fetch the missing representative URLs, then rerun the transition check to complete export coverage."
+          "Fetch the missing representative URLs, then rerun the transition batch check to complete export coverage."
         elsif reason == "export_generation_failed"
-          "Fix the export generation failure, then rerun the transition check."
+          "Fix the export generation failure, then rerun the transition batch check."
         else
-          "Review the export comparison and rerun the transition check before activating."
+          "Review the export comparison and rerun the transition batch check before activating."
         end
       else
         "Review this check before activating."

@@ -163,7 +163,7 @@ class WebsitesHelperTest < ActionView::TestCase
     assert_includes summary, "Fetch parity checked"
     assert_includes summary, "Statement coverage checked."
     assert_includes summary, "Export comparison checked."
-    assert_equal distillator_shadow_report_site_path(website, anchor: "website-transition"), path
+    assert_equal distillator_shadow_report_site_path(website, anchor: "transition-report-summary"), path
   end
 
   test "website transition secondary actions do not expose run transition check labels" do

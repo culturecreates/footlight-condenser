@@ -23,7 +23,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     assert_equal :blocked, status.status
     assert_equal :failed, status.fetch
     assert_equal :unsafe, status.safety
-    assert_equal "Fix fetch/cache first, then rerun the transition check.", status.activation_recommendation[:next_action]
+    assert_equal "Fix fetch/cache first, then rerun the transition batch check.", status.activation_recommendation[:next_action]
   end
 
   test "failed content returns blocked and fetch failed" do
@@ -181,7 +181,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     assert_equal :not_evaluated, status.statements
     assert_equal :passed, status.export
     assert_equal "Cannot activate yet: fetch check failed.", status.activation_recommendation[:reason]
-    assert_equal "Fix fetch/cache first, then rerun the transition check.", status.activation_recommendation[:next_action]
+    assert_equal "Fix fetch/cache first, then rerun the transition batch check.", status.activation_recommendation[:next_action]
   end
 
   test "no selected statements marks statements inconclusive" do
@@ -291,7 +291,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     assert_equal :review, status.status
     assert_equal :passed, status.fetch
     assert_includes status.warnings, "Needs review: legacy Wringer endpoint is not configured for this environment."
-    assert_equal "Configure the Wringer endpoint for staging, then rerun the transition check.", status.activation_recommendation[:next_action]
+    assert_equal "Configure the Wringer endpoint for staging, then rerun the transition batch check.", status.activation_recommendation[:next_action]
   end
 
   test "legacy lookup unreachable keeps condenser fetch passed but marks review" do
@@ -323,8 +323,8 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
 
     assert_equal :review, status.status
     assert_equal :passed, status.fetch
-    assert_includes status.warnings, "Needs review: legacy Wringer lookup failed during the latest transition check."
-    assert_equal "Fix the legacy Wringer endpoint, then rerun the transition check.", status.activation_recommendation[:next_action]
+    assert_includes status.warnings, "Needs review: legacy Wringer lookup failed during the latest transition batch check."
+    assert_equal "Fix the legacy Wringer endpoint, then rerun the transition batch check.", status.activation_recommendation[:next_action]
   end
 
   test "legacy lookup body omitted keeps condenser fetch passed but marks review" do
@@ -430,6 +430,58 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     assert_equal false, status.review_activation_eligible
     assert_equal false, status.manual_review_required
     assert_equal "Metadata notes only. Promote to active when you are satisfied with the evidence.", status.activation_recommendation[:next_action]
+  end
+
+  test "timeout budget exceeded keeps statements and export inconclusive while fetch stays failed" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true })
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "fetch_parity",
+      status: "failed",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "transition_check_timeout_budget_exceeded",
+        failed_layer: "fetch",
+        affected_url_count: 1
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "statement_delta",
+      status: "pending",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "transition_check_timeout_budget_exceeded",
+        representative_url_statement_results: [
+          { url: "https://example.org/one", status: "inconclusive", reason: "transition_check_timeout_budget_exceeded" },
+          { url: "https://example.org/two", status: "blocked_by_fetch", reason: "transition_check_timeout_budget_exceeded" }
+        ]
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "export_diff",
+      status: "pending",
+      export_diff_checked: false,
+      export_diff_status: "pending",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "transition_check_timeout_budget_exceeded",
+        representative_url_export_results: [
+          { url: "https://example.org/one", status: "inconclusive", reason: "transition_check_timeout_budget_exceeded" },
+          { url: "https://example.org/two", status: "blocked_by_fetch", reason: "transition_check_timeout_budget_exceeded" }
+        ]
+      }
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :blocked, status.status
+    assert_equal :unsafe, status.safety
+    assert_equal :failed, status.fetch
+    assert_equal :inconclusive, status.statements
+    assert_equal :inconclusive, status.export
   end
 
   private

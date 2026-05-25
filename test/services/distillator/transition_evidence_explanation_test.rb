@@ -59,6 +59,58 @@ class Distillator::TransitionEvidenceExplanationTest < ActiveSupport::TestCase
     )
 
     assert_equal "Condenser fetch/cache failed for one or more sampled URLs.", explanation.headline
-    assert_equal "Fix the fetch/cache failure first, then rerun the transition check.", explanation.next_action
+    assert_equal "Fix the fetch/cache failure first, then rerun the transition batch check.", explanation.next_action
+  end
+
+  test "fetch explanation uses explicit captcha wording" do
+    website = websites(:one)
+    evidence = Distillator::TransitionEvidence.new(
+      website: website,
+      url: "https://example.org/event",
+      check_kind: "fetch_parity",
+      status: "failed",
+      checked_at: Time.current,
+      details: {
+        reason: "captcha_detected",
+        failed_layer: "fetch",
+        affected_url_count: 1,
+        attempted_condenser_fetch: true,
+        condenser_fetch_success: false
+      }
+    )
+
+    explanation = Distillator::TransitionEvidenceExplanation.call(
+      check_kind: "fetch_parity",
+      evidence: evidence,
+      website: website,
+      state: :failed
+    )
+
+    assert_equal "Captcha was detected while fetching one or more sampled URLs.", explanation.headline
+    assert_equal "Resolve the captcha or use the direct inspection links for the affected URLs, then rerun the transition batch check.", explanation.next_action
+  end
+
+  test "export explanation does not claim pass when runtime budget is exhausted" do
+    website = websites(:one)
+    evidence = Distillator::TransitionEvidence.new(
+      website: website,
+      url: "https://example.org/event",
+      check_kind: "export_diff",
+      status: "pending",
+      checked_at: Time.current,
+      details: {
+        reason: "transition_check_timeout_budget_exceeded"
+      }
+    )
+
+    explanation = Distillator::TransitionEvidenceExplanation.call(
+      check_kind: "export_diff",
+      evidence: evidence,
+      website: website,
+      state: :inconclusive
+    )
+
+    assert_equal "Transition check reached its runtime budget before export coverage completed.", explanation.headline
+    assert_equal "Rerun the transition batch check with enough runtime budget to finish export coverage.", explanation.next_action
   end
 end

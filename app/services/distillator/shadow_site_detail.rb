@@ -167,14 +167,14 @@ module Distillator
             failed_layer: "fetch",
             concrete_reason: fetch_rows.first[:fetch_reason].to_s.humanize,
             affected_url_count: fetch_rows.count,
-            next_operator_action: "Fetch/refresh Condenser cache for the affected URLs, then rerun the transition check."
+            next_operator_action: "Fetch or refresh Condenser cache for the affected URLs, then rerun the transition batch check."
           }
         elsif legacy_rows.any?
           {
             failed_layer: "legacy lookup",
             concrete_reason: legacy_rows.first[:legacy_lookup_reason].to_s.humanize,
             affected_url_count: legacy_rows.count,
-            next_operator_action: "Open the active Wringer cache or fix the legacy lookup configuration before rerunning the transition check."
+            next_operator_action: "Open the active Wringer cache or fix the legacy lookup configuration before rerunning the transition batch check."
           }
         elsif compare_rows.any?
           {

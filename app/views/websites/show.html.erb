@@ -21,15 +21,23 @@
 
 <section id="website-transition" class="website-rollout-panel website-show-section">
   <h2>Transition</h2>
-  <p><strong>Current mode:</strong> <%= transition_contract[:current_mode_label] %></p>
-  <p><strong>Production backend:</strong> <%= transition_contract[:backend_label] %></p>
-  <p><strong>Latest transition status:</strong> <%= website_transition_status_summary(@website) %></p>
-  <p><strong>Compact evidence summary:</strong> <%= website_transition_evidence_summary(@website) %></p>
-  <p><strong>Transition report:</strong> <%= link_to "Open transition report detail", website_transition_report_path(@website) %></p>
+  <p><strong>Transition mode:</strong> <%= transition_contract[:current_mode_label] %></p>
+  <p><strong>Latest batch check:</strong> <%= website_transition_status_summary(@website) %></p>
+  <p><strong>Important pages:</strong> <%= website_important_page_count(@website) %></p>
+  <p><strong>Publishable event pages:</strong> <%= website_publishable_event_page_count(@website) %></p>
+  <p><strong>Latest transition report:</strong> <%= link_to "Latest transition report", website_transition_report_path(@website) %></p>
+  <p><strong>Cache diagnostics:</strong> <%= link_to "Open cache diagnostics", website_cache_diagnostics_path(@website) %></p>
+  <p><strong>Webpages inspection:</strong> <%= link_to "Inspect publishable event pages", website_publishable_event_pages_path(@website) %></p>
+  <p><%= website_transition_batch_check_copy %></p>
+  <%= button_to "Run transition batch check",
+                website_transition_batch_check_path,
+                method: :post,
+                params: website_transition_batch_check_params(@website, return_to: website_transition_batch_status_path(@website)),
+                class: "website-transition-button" %>
 </section>
 
 <section class="website-rollout-panel website-show-section">
-  <h2>Rollout controls</h2>
+  <h2>Mode controls</h2>
   <% primary_action = transition_contract[:primary_action] %>
   <% if primary_action[:enabled] %>
     <%= button_to primary_action[:label], primary_action[:path], method: primary_action[:method], params: primary_action[:params], class: "website-transition-button" %>
@@ -37,7 +45,7 @@
     <p class="transition-context-disabled-action">
       <strong><%= primary_action[:label] %>:</strong>
       <%= primary_action[:message] %>
-      <%= link_to "See transition detail", distillator_shadow_report_site_path(@website) %>
+      <%= link_to "See latest transition report", distillator_shadow_report_site_path(@website) %>
     </p>
   <% end %>
 
@@ -96,16 +104,14 @@
   </ul>
 
   <section id="website-batch-jobs-transition" class="website-rollout-panel">
-    <h3>Transition</h3>
-    <p>Runs in the background and updates this website's transition report as evidence is recorded.</p>
+    <h3>Transition batch check</h3>
+    <p><%= website_transition_batch_check_copy %></p>
     <p>It may fetch representative URLs, compare Condenser and Wringer cache output, refresh selected statements, and compare exports.</p>
-    <%= button_to "Queue transition check",
-                  distillator_transition_checks_path,
+    <p><%= link_to "Latest transition report", website_transition_report_path(@website) %></p>
+    <%= button_to "Run transition batch check",
+                  website_transition_batch_check_path,
                   method: :post,
-                  params: {
-                    website_id: @website.id,
-                    return_to: website_path(@website, anchor: "website-batch-jobs-transition")
-                  },
+                  params: website_transition_batch_check_params(@website, return_to: website_transition_batch_status_path(@website)),
                   class: "website-transition-button" %>
   </section>
 </section>

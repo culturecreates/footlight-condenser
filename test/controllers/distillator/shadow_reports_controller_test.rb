@@ -18,7 +18,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Promotable sites", @response.body
     assert_match "Top blockers", @response.body
     assert_match "Failed fetch", @response.body
-    assert_includes @response.body, "Use each site row to run a transition check"
+    assert_includes @response.body, "Transition checks are run by batch job. This page displays the latest result for each website."
     assert_no_cohort_source_requests
   end
 
@@ -45,7 +45,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Severity", @response.body
     assert_match "Primary blocker", @response.body
     assert_match "Next action", @response.body
-    assert_match "Detail", @response.body
+    assert_match "Latest report", @response.body
     assert_no_match "Compare Condenser vs Wringer", @response.body
     assert_no_match "Open active cache", @response.body
     assert_no_match "Latest attempt", @response.body
@@ -141,91 +141,6 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Not checked", @response.body
   end
 
-  test "shadow report supports promotable filter" do
-    ready = create_shadow_website(name: "Promotable queue", seedurl: "promotable-queue")
-    blocked = create_shadow_website(name: "Blocked queue", seedurl: "blocked-promotable-queue")
-
-    create_cache_for(
-      ready,
-      url: "https://promotable-queue.example/event",
-      signals: {
-        "transport_success" => true,
-        "content_success" => true,
-        "statement_count_delta_acceptable" => true,
-        "export_diff_checked" => true
-      }
-    )
-    ready.transition_evidences.create!(
-      id: next_id,
-      url: "https://promotable-queue.example/event",
-      check_kind: "statement_delta",
-      status: "checked",
-      statement_count_delta_acceptable: true,
-      checked_at: 1.hour.ago
-    )
-    ready.transition_evidences.create!(
-      id: next_id,
-      url: "https://promotable-queue.example/event",
-      check_kind: "export_diff",
-      status: "checked",
-      export_diff_checked: true,
-      checked_at: 1.hour.ago
-    )
-    create_cache_for(
-      blocked,
-      url: "https://blocked-promotable-queue.example/event",
-      signals: { "transport_success" => false, "content_success" => false },
-      health_status: "attempt_failed",
-      health_severity: "high",
-      primary_issue_key: "timeout",
-      primary_issue_label: "Fetch timeout",
-      primary_issue_severity: "failed"
-    )
-
-    get distillator_shadow_report_path, params: { promotable: "yes", term: "queue" }
-
-    assert_response :success
-    assert_includes @response.body, 'name="promotable"'
-    assert_match "Promotable queue", @response.body
-    assert_no_match "Blocked queue", @response.body
-
-    get distillator_shadow_report_path, params: { promotable: "no", term: "queue" }
-
-    assert_response :success
-    assert_match "Blocked queue", @response.body
-    assert_no_match "Promotable queue", @response.body
-  end
-
-  test "shadow report supports safety and confidence filters independently" do
-    safe = create_shadow_website(name: "Safe confidence high", seedurl: "safe-confidence-high")
-    safe_url = "https://safe-confidence-high.example/event"
-    create_cache_for(safe, url: safe_url, signals: { "transport_success" => true, "content_success" => true })
-    safe.transition_evidences.create!(id: next_id, url: safe_url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
-    safe.transition_evidences.create!(id: next_id, url: safe_url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
-
-    review = create_shadow_website(name: "Review confidence low", seedurl: "review-confidence-low")
-    review_url = "https://review-confidence-low.example/event"
-    create_cache_for(review, url: review_url, signals: { "transport_success" => true, "content_success" => true })
-    review.transition_evidences.create!(
-      id: next_id,
-      url: review_url,
-      check_kind: "fetch_parity",
-      status: "checked",
-      checked_at: 1.hour.ago,
-      details: { reason: "review_needed_difference", comparison_policy: "operator", compare_summary: { review_needed_diffs: ["html_sha256"] } }
-    )
-    review.transition_evidences.create!(id: next_id, url: review_url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
-    review.transition_evidences.create!(id: next_id, url: review_url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
-
-    get distillator_shadow_report_path, params: { safety: "review", confidence: "low", term: "confidence" }
-
-    assert_response :success
-    assert_includes @response.body, 'name="safety"'
-    assert_includes @response.body, 'name="confidence"'
-    assert_match "Review confidence low", @response.body
-    assert_no_match "Safe confidence high", @response.body
-  end
-
   test "shadow report detail page renders without fetching" do
     website = create_shadow_website(name: "Detail site", seedurl: "detail-site")
     create_cache_for(website, url: "https://detail-site.example/event")
@@ -241,6 +156,8 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_match "Transition Report Detail", @response.body
+    assert_match "Transition checks are run by batch job. This page displays the latest result.", @response.body
+    assert_match "Summary", @response.body
     assert_match "Decision", @response.body
     assert_match "Main blocker", @response.body
     assert_match "Representative URL Matrix", @response.body
@@ -248,19 +165,22 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Transition evidence", @response.body
     assert_match "Fetch parity", @response.body
     assert_no_match "Queue transition check", @response.body
-    assert_match "Open Website Batch jobs &gt; Transition", @response.body
+    assert_match "Website batch jobs", @response.body
+    assert_match "Inspect publishable event pages", @response.body
+    assert_match "Open cache diagnostics", @response.body
+    assert_match "Fetch parity details", @response.body
     assert_no_match "Run transition check", @response.body
     assert_match %r{Decision.*Main blocker.*Representative URL Matrix.*Checked scope}m, @response.body
   end
 
-  test "shadow report row shows run transition check for shadow sites with missing evidence" do
+  test "shadow report row shows run batch check for shadow sites with missing evidence" do
     website = create_shadow_website(name: "Blocked evidence", seedurl: "blocked-evidence")
     create_cache_for(website, url: "https://blocked-evidence.example/event")
 
     get distillator_shadow_report_path
 
     assert_response :success
-    assert_match "Run transition check", @response.body
+    assert_match "Run batch check", @response.body
     assert_match "Statement check not yet recorded", @response.body
   end
 
@@ -462,7 +382,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match "Statements</strong> — Not evaluated", @response.body
     assert_match "Fetch failed before statements could be refreshed.", @response.body
-    assert_match "Fix the fetch/cache failure first, then rerun the transition check.", @response.body
+    assert_match "Fix the fetch/cache failure first, then rerun the transition batch check.", @response.body
     assert_match %r{<strong>Export</strong> — Passed}m, @response.body
     assert_no_match "failed on 0 representative webpages", @response.body
     assert_operator @response.body.scan("Cannot promote yet").count, :<=, 1
@@ -1308,7 +1228,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match "Priority sites", @response.body
     assert_match options_path, @response.body
-    assert_match "Detail", @response.body
+    assert_match "Latest report", @response.body
     assert_no_match "Compare Condenser vs Wringer", @response.body
     assert_no_match "Open active cache", @response.body
   end

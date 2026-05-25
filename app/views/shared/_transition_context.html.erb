@@ -26,7 +26,7 @@
       <p><strong>Latest evidence summary:</strong> <%= transition_evidence_summary %></p>
     <% end %>
     <% if transition_report_path.present? %>
-      <p><strong>Transition report detail:</strong> <%= link_to "Open transition report detail", transition_report_path %></p>
+      <p><strong>Latest transition report:</strong> <%= link_to "Latest transition report", transition_report_path %></p>
     <% end %>
   <% end %>
 
@@ -57,7 +57,7 @@
         <p class="transition-context-disabled-action">
           <strong><%= primary_action[:label] %>:</strong>
           <%= primary_action[:message] %>
-          <%= link_to "See transition detail", distillator_shadow_report_site_path(website) %>
+          <%= link_to "See latest transition report", distillator_shadow_report_site_path(website) %>
         </p>
       <% end %>
 

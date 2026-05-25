@@ -1,7 +1,7 @@
 <h1>Transition Report</h1>
 
 <p class="cache-page-note">This dashboard is read-only. Use it to review legacy, shadow, and active rollout state without triggering fetches.</p>
-<p class="cache-page-note">Use each site row to run a transition check, then review blockers, warnings, and promotable state without leaving the report.</p>
+<p class="cache-page-note">Transition checks are run by batch job. This page displays the latest result for each website.</p>
 <% if shadow_report_staging_rollout_warning.present? %>
   <p class="cache-page-note"><strong><%= shadow_report_staging_rollout_warning %></strong></p>
 <% end %>

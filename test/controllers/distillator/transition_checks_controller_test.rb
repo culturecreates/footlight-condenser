@@ -57,7 +57,7 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
     post distillator_transition_checks_path, params: { website_id: target.id, return_to: website_path(target, anchor: "website-transition") }
 
     assert_redirected_to website_path(target, anchor: "website-transition")
-    assert_equal "Transition check queued. The report will update as evidence is recorded.", flash[:notice]
+    assert_equal "Transition batch check queued. The latest transition report will update as evidence is recorded.", flash[:notice]
   end
 
   test "transition check allows deliberate relative webpages return_to" do

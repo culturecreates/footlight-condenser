@@ -260,6 +260,17 @@ module Distillator::ShadowReportsHelper
     ]
   end
 
+  def shadow_report_checked_pages_summary(scope)
+    publishable_count = scope[:publishable_event_page_count].to_i
+    sampled_count = scope[:representative_webpage_count].to_i
+
+    if publishable_count.positive?
+      "#{sampled_count} of #{publishable_count} publishable event pages."
+    else
+      "#{sampled_count} representative webpages."
+    end
+  end
+
   def shadow_report_statement_failure_groups(detail)
     Array(detail.statement_failure_groups)
   end
@@ -461,13 +472,20 @@ module Distillator::ShadowReportsHelper
   end
 
   def shadow_report_actions(row)
+    return_to = operator_return_to_params
     links = [
-      { label: "Detail", url: distillator_shadow_report_site_path(row.website) },
+      { label: "Latest report", url: distillator_shadow_report_site_path(row.website) },
       { label: "Website", url: website_path(row.website) },
-      { label: "Options", url: options_path }
+      {
+        kind: :button,
+        label: "Run batch check",
+        url: distillator_transition_checks_path,
+        method: :post,
+        params: { website_id: row.website.id }.merge(return_to)
+      }
     ]
-    links << { label: "Webpages", url: webpages_path(seedurl: row.website.seedurl) }
-    links << { label: "Statements", url: statements_path(seedurl: row.website.seedurl) }
+    links << { label: "Inspect publishable event pages", url: webpages_path(seedurl: row.website.seedurl) }
+    links << { label: "Open cache diagnostics", url: website_cache_diagnostics_path(row.website) }
 
     links.uniq { |link| [link[:label], link[:url]] }
   end

@@ -1,6 +1,20 @@
 <h1>Transition Report Detail</h1>
 
 <p class="cache-page-note">This page is read-only. It reflects the current rollout state without triggering fetches.</p>
+<p class="cache-page-note">Transition checks are run by batch job. This page displays the latest result.</p>
+
+<section id="transition-report-summary" class="website-rollout-panel">
+  <h2>Summary</h2>
+  <p><strong>Is this site ready?</strong> <%= shadow_report_decision_label(@detail.decision) %></p>
+  <p><strong>What is blocking it?</strong> <%= @detail.primary_blocker&.headline.presence || "No blocking issue is currently recorded." %></p>
+  <p><strong>When was it checked?</strong> <%= shadow_report_timestamp(@detail.summary.latest_refresh || @detail.summary.latest_successful_refresh) %></p>
+  <p><strong>How many pages were checked?</strong> <%= shadow_report_checked_pages_summary(@detail.checked_scope) %></p>
+  <p><strong>Links:</strong>
+    <%= link_to "Website batch jobs", website_path(@website, anchor: "website-batch-jobs-transition") %> |
+    <%= link_to "Inspect publishable event pages", webpages_path(seedurl: @website.seedurl) %> |
+    <%= link_to "Open cache diagnostics", website_cache_diagnostics_path(@website) %>
+  </p>
+</section>
 
 <section class="website-rollout-panel">
   <h2>Decision</h2>
@@ -42,7 +56,7 @@
   <% if blocker_links.any? %>
     <p><strong>Next diagnostic links:</strong> <%= safe_join(blocker_links, " | ") %></p>
   <% end %>
-  <p><%= link_to "Open Website Batch jobs > Transition", website_path(@website, anchor: "website-batch-jobs-transition") %></p>
+  <p><%= link_to "Open website batch jobs", website_path(@website, anchor: "website-batch-jobs-transition") %></p>
 </section>
 
 <section class="website-rollout-panel">
@@ -131,8 +145,8 @@
   <p><strong>Cache links:</strong> <%= shadow_report_cache_diagnostic_links(@detail.summary) %></p>
   <h3>Check explanations</h3>
   <% @detail.transition_evidence_explanations.each do |explanation| %>
-    <section class="website-rollout-panel">
-      <h3><%= explanation.check %></h3>
+    <details class="website-rollout-panel">
+      <summary><%= explanation.check %> details</summary>
       <p><strong>State:</strong> <%= explanation.state %></p>
       <p><strong>Headline:</strong> <%= explanation.headline %></p>
       <% if explanation.details.any? %>
@@ -146,7 +160,7 @@
       <% if explanation.links.any? %>
         <p><strong>Links:</strong> <%= safe_join(shadow_report_explanation_links(explanation, @website, detail: @detail), " | ") %></p>
       <% end %>
-    </section>
+    </details>
   <% end %>
   <h3>Recent rollout events</h3>
   <% if @detail.recent_rollout_events.any? %>
@@ -200,20 +214,28 @@
           <td><%= row[:label] %></td>
           <td><%= row[:status] %></td>
           <td><%= row[:checked_at] %></td>
-          <td><%= row[:url] %></td>
+          <td><%= external_website_link(row[:url], max: 120) %></td>
           <td><%= row[:headline] %></td>
           <td>
             <% if row[:details].any? %>
-              <ul>
-                <% row[:details].each do |detail| %>
-                  <li><%= detail %></li>
-                <% end %>
-              </ul>
+              <details>
+                <summary>Show details</summary>
+                <ul>
+                  <% row[:details].each do |detail| %>
+                    <li><%= detail %></li>
+                  <% end %>
+                </ul>
+              </details>
             <% else %>
               Recorded
             <% end %>
           </td>
-          <td><%= row[:next_action] %></td>
+          <td>
+            <p><%= row[:next_action] %></p>
+            <% if row[:links].any? %>
+              <p><%= safe_join(row[:links], " | ") %></p>
+            <% end %>
+          </td>
         </tr>
       <% end %>
     </tbody>

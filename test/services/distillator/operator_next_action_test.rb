@@ -15,11 +15,11 @@ class Distillator::OperatorNextActionTest < ActiveSupport::TestCase
     assert_equal "Move to Shadow.", Distillator::OperatorNextAction.call(website: website, transition_status: status)
   end
 
-  test "shadow site with stale evidence says run transition check" do
+  test "shadow site with stale evidence says run transition batch check" do
     website = stub_website("shadow")
     status = stub_status(status: :review, fetch: :stale)
 
-    assert_equal "Run transition check.", Distillator::OperatorNextAction.call(website: website, transition_status: status)
+    assert_equal "Run transition batch check.", Distillator::OperatorNextAction.call(website: website, transition_status: status)
   end
 
   test "ready shadow site says promote to active" do

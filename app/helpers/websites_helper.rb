@@ -233,7 +233,7 @@ module WebsitesHelper
   end
 
   def website_transition_report_path(website)
-    distillator_shadow_report_site_path(website, anchor: "website-transition")
+    distillator_shadow_report_site_path(website, anchor: "transition-report-summary")
   end
 
   def website_transition_status_summary(website)
@@ -259,6 +259,42 @@ module WebsitesHelper
     lines << "Statement coverage #{statements.status}." if statements.present?
     lines << "Export comparison #{export.export_diff_status.presence || export.status}." if export.present?
     lines.join(" ")
+  end
+
+  def website_transition_batch_check_path
+    distillator_transition_checks_path
+  end
+
+  def website_transition_batch_check_params(website, return_to:)
+    { website_id: website.id }.merge(operator_return_to_params(return_to))
+  end
+
+  def website_transition_batch_check_copy
+    "Transition checks are run by batch job. This page displays the latest result."
+  end
+
+  def website_transition_batch_status_path(website)
+    website_path(website, anchor: "website-batch-jobs-transition")
+  end
+
+  def website_cache_diagnostics_path(website)
+    cache = website_transition_cache(website)
+    return distillator_cache_path(cache) if cache.present?
+
+    distillator_cache_index_path(term: website.seedurl)
+  end
+
+  def website_publishable_event_pages_path(website)
+    webpages_path(seedurl: website.seedurl)
+  end
+
+  def website_publishable_event_page_count(website)
+    summary = Distillator::WebsiteWebpageSummary.for_websites([website.id])[website.id] || Distillator::WebsiteWebpageSummary.empty_summary
+    summary[:publishable].to_i
+  end
+
+  def website_important_page_count(website)
+    website.webpages.active.event_pages.count
   end
 
   def website_transition_status(website)
@@ -493,7 +529,7 @@ module WebsitesHelper
     when "shadow"
       return "Promote to active when the current checks are satisfactory." if blockers.blank?
 
-      "Run transition check and resolve blockers before promoting."
+      "Run the transition batch job and resolve blockers before promoting."
     when "active"
       "Use rollback only if production parity regresses."
     else
