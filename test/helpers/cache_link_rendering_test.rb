@@ -67,7 +67,7 @@ class CacheLinkRenderingTest < ActionView::TestCase
     shadow_links = Distillator::ShadowReportsHelper.instance_method(:cache_inspection_links).bind_call(self, url, website: website)
 
     assert_equal cache_links, shadow_links
-    assert_equal ["Source website", "Compare", "Open active cache", "Open Condenser cache", "Webpage record"], cache_links.map { |link| link[:label] }
+    assert_equal ["Source website", "Compare", "Compare extracted statements", "Open active cache", "Open Condenser cache", "Webpage record"], cache_links.map { |link| link[:label] }
   end
 
   private

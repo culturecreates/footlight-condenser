@@ -224,6 +224,7 @@ module Distillator
         [
           { label: "Open failed cache result", target: :failed_cache_result },
           { label: "Compare Condenser vs Wringer", target: :compare_cache },
+          { label: "Compare extracted statements", target: :compare_statements },
           { label: "Open active Wringer cache", target: :active_wringer_cache }
         ]
       end

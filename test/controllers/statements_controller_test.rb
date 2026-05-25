@@ -124,6 +124,71 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "search_name propagates linked-data abort payload when cckg lookup fails" do
+    webpage = webpages(:one)
+    helper_proxy = mock("search_name_helpers")
+    helper_proxy.expects(:search_everywhere).with("Broken Venue", "Place", webpage).returns(
+      ["abort_update", {
+        error: "No server running at http://example.invalid/reconcile",
+        error_type: "LinkedDataLookupError",
+        source: "search_cckg",
+        query: "Broken Venue",
+        expected_class: "Place"
+      }]
+    )
+    StatementsController.any_instance.stubs(:helpers).returns(helper_proxy)
+
+    get "/statements/search_name.json", params: {
+      str: "Broken Venue",
+      expected_class: "Place",
+      webpage_id: webpage.id
+    }
+
+    assert_response :success
+    payload = JSON.parse(@response.body)
+    assert_equal "abort_update", payload.first
+    assert_equal "LinkedDataLookupError", payload.last["error_type"]
+    assert_equal "search_cckg", payload.last["source"]
+  end
+
+  test "compare_extracted renders read only parity diagnostics without persisting records" do
+    website, webpage = build_statement_compare_page_records
+    legacy_html, condenser_html = statement_compare_html_pair
+
+    Distillator::CacheCompare.expects(:call).with(uri: webpage.url).returns(
+      legacy_cache: { html: legacy_html },
+      condenser_cache: { html: condenser_html }
+    )
+
+    assert_no_difference("Statement.count") do
+      assert_no_difference("Source.count") do
+        assert_no_difference("Webpage.count") do
+          assert_no_difference("Distillator::FetchCache.count") do
+            assert_no_difference("Distillator::TransitionEvidence.count") do
+              assert_no_difference("Distillator::RolloutEvent.count") do
+                get compare_extracted_statements_url, params: { url: webpage.url, website_id: website.id }
+              end
+            end
+          end
+        end
+      end
+    end
+
+    assert_response :success
+    assert_includes @response.body, "Extracted Statement Comparison"
+    assert_includes @response.body, "Read-only diagnostic only"
+    assert_includes @response.body, "limited to essential properties 1, 3, 5, and 13"
+    assert_includes @response.body, "Same statements"
+    assert_includes @response.body, "Removed statements"
+    assert_includes @response.body, "Changed statements"
+    assert_includes @response.body, "Extraction errors"
+    assert_includes @response.body, "Compare extracted statements"
+    assert_includes @response.body, "Shared Title"
+    assert_includes @response.body, "Condenser description"
+    assert_includes @response.body, "Legacy note"
+    assert_not_includes @response.body, "Non essential photo"
+  end
+
   test "should create statement" do
     assert_difference('Statement.count') do
       #use different combination of webpage_id and source_id
@@ -2147,6 +2212,151 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     )
 
     [matching_one, matching_two, other_page, other_filter]
+  end
+
+  def build_statement_compare_page_records
+    website = Website.create!(
+      name: "Statement compare website",
+      seedurl: "statement-compare-website",
+      graph_name: "http://example.com/statement-compare-website",
+      default_language: "en"
+    )
+    webpage = Webpage.create!(
+      url: "http://example.com/statement-compare-website/event",
+      language: "en",
+      rdf_uri: "rdf:statement-compare-website:event",
+      rdfs_class: rdfs_classes(:one),
+      website: website
+    )
+
+    [
+      [Property.create!(id: 1, label: "Essential title", value_datatype: "MyString", uri: "http://example.com/properties/essential-title", rdfs_class: rdfs_classes(:one)), "xpath=//title/text()"],
+      [Property.create!(id: 3, label: "Essential description", value_datatype: "MyString", uri: "http://example.com/properties/essential-description", rdfs_class: rdfs_classes(:one)), "xpath=//meta[@name='description']/@content"]
+    ].each do |property, algorithm|
+      source = Source.create!(
+        algorithm_value: algorithm,
+        selected: true,
+        selected_by: "test",
+        language: "en",
+        render_js: false,
+        property: property,
+        website: website
+      )
+      Statement.create!(
+        cache: "seeded cache",
+        status: "ok",
+        status_origin: "test",
+        cache_refreshed: 1.hour.ago,
+        cache_changed: 1.hour.ago,
+        source: source,
+        webpage: webpage
+      )
+    end
+
+    legacy_only_property = Property.create!(
+      id: 5,
+      label: "Essential legacy note",
+      value_datatype: "MyString",
+      uri: "http://example.com/properties/statement-compare-legacy-only",
+      rdfs_class: rdfs_classes(:one)
+    )
+    legacy_only_source = Source.create!(
+      algorithm_value: "xpath=//div[@class='legacy-only']/text()",
+      selected: true,
+      selected_by: "test",
+      language: "en",
+      render_js: false,
+      property: legacy_only_property,
+      website: website
+    )
+    Statement.create!(
+      cache: "seeded cache",
+      status: "ok",
+      status_origin: "test",
+      cache_refreshed: 1.hour.ago,
+      cache_changed: 1.hour.ago,
+      source: legacy_only_source,
+      webpage: webpage
+    )
+
+    error_source = Source.create!(
+      algorithm_value: "url=$url + '?detail'; xpath=//title/text()",
+      selected: true,
+      selected_by: "test",
+      language: "en",
+      render_js: false,
+      property: Property.create!(
+        id: 13,
+        label: "Essential fetched title",
+        value_datatype: "MyString",
+        uri: "http://example.com/properties/statement-compare-fetched-title",
+        rdfs_class: rdfs_classes(:one)
+      ),
+      website: website
+    )
+    Statement.create!(
+      cache: "seeded cache",
+      status: "ok",
+      status_origin: "test",
+      cache_refreshed: 1.hour.ago,
+      cache_changed: 1.hour.ago,
+      source: error_source,
+      webpage: webpage
+    )
+
+    non_essential_source = Source.create!(
+      algorithm_value: "xpath=//img/@src",
+      selected: true,
+      selected_by: "test",
+      language: "en",
+      render_js: false,
+      property: Property.create!(
+        id: 21,
+        label: "Non essential photo",
+        value_datatype: "MyString",
+        uri: "http://example.com/properties/non-essential-photo",
+        rdfs_class: rdfs_classes(:one)
+      ),
+      website: website
+    )
+    Statement.create!(
+      cache: "seeded cache",
+      status: "ok",
+      status_origin: "test",
+      cache_refreshed: 1.hour.ago,
+      cache_changed: 1.hour.ago,
+      source: non_essential_source,
+      webpage: webpage
+    )
+
+    [website, webpage]
+  end
+
+  def statement_compare_html_pair
+    legacy_html = <<~HTML
+      <html>
+        <head>
+          <title>Shared Title</title>
+          <meta name="description" content="Legacy description">
+        </head>
+        <body>
+          <div class="legacy-only">Legacy note</div>
+        </body>
+      </html>
+    HTML
+    condenser_html = <<~HTML
+      <html>
+        <head>
+          <title>Shared Title</title>
+          <meta name="description" content="Condenser description">
+        </head>
+        <body>
+          <img src="https://cdn.example.org/poster.jpg">
+        </body>
+      </html>
+    HTML
+
+    [legacy_html, condenser_html]
   end
 
 end

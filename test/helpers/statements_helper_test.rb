@@ -95,6 +95,50 @@ test "process_algorithm_uses_cache_path is true for explicit mode" do
   assert_equal true, process_algorithm_uses_cache_path?(mode: :internal)
 end
 
+test "build_refresh_proxy preserves logger and route helper context" do
+  proxy = StatementsHelper.build_refresh_proxy(cookies: { dsl_trace: "false" })
+
+  assert_respond_to proxy, :logger
+  assert_respond_to proxy, :statement_path
+  assert_equal ["2020-05-31"], proxy.convert_datetime("2020-05-31")
+end
+
+test "search_everywhere aborts when cckg lookup fails and no local reconciliation is available" do
+  stubs(:search_condenser).returns({ data: [] })
+  stubs(:search_cckg).returns({ error: "No server running at http://example.invalid/reconcile" })
+  stubs(:logger).returns(stub(error: true))
+
+  result = search_everywhere("Broken Venue", "Place")
+
+  assert_equal "abort_update", result.first
+  assert_equal "LinkedDataLookupError", result.second[:error_type]
+  assert_equal "search_cckg", result.second[:source]
+  assert_equal "Broken Venue", result.second[:query]
+  assert_equal "Place", result.second[:expected_class]
+end
+
+test "refresh_statement_helper keeps existing good uri links when linked-data reconciliation aborts" do
+  @statement = statements(:four)
+  original_cache = "[\"Existing venue\",\"Place\",[\"Good Venue\",\"http://kg.artsdata.ca/resource/K11-3\"]]"
+  @statement.update!(status: "ok", cache: original_cache)
+
+  stubs(:run_dsl).returns(["Broken Venue"])
+  stubs(:format_datatype).returns(
+    ["abort_update", {
+      error: "No server running at http://example.invalid/reconcile",
+      error_type: "LinkedDataLookupError",
+      source: "search_cckg",
+      query: "Broken Venue",
+      expected_class: "Place"
+    }]
+  )
+
+  result = refresh_statement_helper(@statement)
+
+  assert_includes result[:errors].join(" "), "Scrape aborted (LinkedDataLookupError)"
+  assert_equal original_cache, @statement.reload.cache
+end
+
   # french_to_english_month
   test "french_to_english_month: should covert french month mai to english" do
     expected_output = "7 MAY 2019 - 20 h"

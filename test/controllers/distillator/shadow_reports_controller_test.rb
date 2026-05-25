@@ -552,6 +552,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Latest successful refresh", @response.body
     assert_match "Open failed cache result", @response.body
     assert_match "Compare Condenser vs Wringer", @response.body
+    assert_match "Compare extracted statements", @response.body
     assert_match "Open active Wringer cache", @response.body
     assert_match "Open Condenser cache", @response.body
     assert_match CGI.escape(url), @response.body
@@ -769,6 +770,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match primary_url, @response.body
     assert_match secondary_url, @response.body
     assert_operator @response.body.scan("Compare Condenser vs Wringer").count, :>=, 2
+    assert_operator @response.body.scan("Compare extracted statements").count, :>=, 2
     assert_operator @response.body.scan("Open active Wringer cache").count, :>=, 2
     assert_operator @response.body.scan("Open Condenser cache").count, :>=, 2
     assert_match "Representative webpages checked: 2 of 4", @response.body

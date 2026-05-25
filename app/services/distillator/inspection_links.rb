@@ -14,6 +14,7 @@ module Distillator
       links = []
       links << { label: "Source website", url: url } if url.present?
       links << { label: "Compare", url: payload[:compare_url] } if payload[:compare_url].present?
+      links << { label: "Compare extracted statements", url: compare_extracted_statements_url } if compare_extracted_statements_url.present?
       links << { label: payload[:label], url: payload[:active_cache_url] } if payload[:label].present? && payload[:active_cache_url].present?
 
       Array(payload[:secondary_links]).each do |link|
@@ -41,6 +42,14 @@ module Distillator
 
     def helpers
       Rails.application.routes.url_helpers
+    end
+
+    def compare_extracted_statements_url
+      return if url.blank?
+
+      params = { url: url }
+      params[:website_id] = website.id if website.present?
+      helpers.compare_extracted_statements_path(params)
     end
   end
 end

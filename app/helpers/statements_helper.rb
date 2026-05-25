@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+require "delegate"
 
 module StatementsHelper
   include ApplicationHelper
@@ -6,12 +7,43 @@ module StatementsHelper
   include CcWringerHelper
   Page = Struct.new(:text) # Used to simulate Nokogiri object's text method
 
-  def self.build_refresh_proxy(cookies: {})
-    helper = Object.new
-    helper.extend(StatementsHelper)
-    helper.instance_variable_set(:@_statement_refresh_cookies, cookies.with_indifferent_access)
-    helper.define_singleton_method(:cookies) { @_statement_refresh_cookies }
-    helper
+  class RefreshProxy < SimpleDelegator
+    include StatementsHelper
+
+    def initialize(context: nil, cookies: {}, logger: nil)
+      @refresh_cookies = (cookies || {}).with_indifferent_access
+      @fallback_logger = logger
+      super(context || DefaultRefreshContext.new(logger: logger))
+    end
+
+    def cookies
+      @refresh_cookies
+    end
+
+    def logger
+      target = __getobj__
+      return target.logger if target.respond_to?(:logger)
+
+      @fallback_logger || Rails.logger
+    end
+  end
+
+  class DefaultRefreshContext
+    include Rails.application.routes.url_helpers
+
+    def initialize(logger: nil)
+      @logger = logger || Rails.logger
+    end
+
+    attr_reader :logger
+
+    def default_url_options
+      {}
+    end
+  end
+
+  def self.build_refresh_proxy(context: nil, cookies: {}, logger: nil)
+    RefreshProxy.new(context: context, cookies: cookies, logger: logger)
   end
 
 # :nocov:
@@ -225,7 +257,7 @@ module StatementsHelper
     @dsl_trace = nil
     data = nil
     error_messages = []
-    build_result = lambda do
+    build_result = -> do
       {
         data: data,
         trace: @dsl_trace,
@@ -296,6 +328,13 @@ module StatementsHelper
 
     # Format the result according to the property's datatype
     formatted = format_datatype(data, stat.source.property, stat.webpage)
+    if abort_update_structure?(formatted)
+      info = formatted.second || {}
+      abort_error_message = compact_refresh_error(info)
+      stat.errors.add(:base, abort_error_message)
+      error_messages << abort_error_message
+      return build_result.call
+    end
 
     # Save if appropriate
     if save_record?(formatted.to_s, stat.status, stat.cache, stat.new_record?)
@@ -360,6 +399,16 @@ module StatementsHelper
   end
 
   def statement_refresh_scrape_options(stat, scrape_options)
+    statement_scrape_options(
+      source: stat.source,
+      webpage: stat.webpage,
+      scrape_options: scrape_options,
+      statement_id: stat.id,
+      source_id: stat.source_id
+    )
+  end
+
+  def statement_scrape_options(source:, webpage:, scrape_options: {}, statement_id: nil, source_id: nil)
     options =
       if scrape_options.respond_to?(:to_h)
         scrape_options.to_h.symbolize_keys
@@ -368,16 +417,16 @@ module StatementsHelper
       end
 
     options.reverse_merge(
-      json_post: stat.source.json_post?,
-      use_phantomjs: stat.source.render_js,
-      website: stat.source.website,
-      website_id: stat.source.website_id
+      json_post: source.json_post?,
+      use_phantomjs: source.render_js,
+      website: source.website,
+      website_id: source.website_id
     ).merge(
       log_context: {
-        statement_id: stat.id,
-        source_id: stat.source_id,
-        webpage_id: stat.webpage_id,
-        website_id: stat.webpage&.website_id || stat.source.website_id
+        statement_id: statement_id,
+        source_id: source_id || source.id,
+        webpage_id: webpage.id,
+        website_id: webpage&.website_id || source.website_id
       }
     )
   end
@@ -818,10 +867,10 @@ module StatementsHelper
     rdfs_class = expected_classes.first
     uris = [uri_string, rdfs_class]
 
-    expected_classes.each do |expected_class|
+    expected_classes.each_with_index do |expected_class, index|
       results = search_everywhere(uri_string, expected_class, current_webpage)
       if abort_update_structure?(results)
-        return results if uris.length <= 2
+        return results if uris.length <= 2 && index.zero?
 
         next
       end
@@ -866,6 +915,7 @@ module StatementsHelper
 
       if cckg_results[:error]
         logger.error("*** search kg ERROR:  #{cckg_results}")
+        return linked_data_abort(error: cckg_results[:error], query: uri_string, expected_class: rdfs_class) if local_results[:data].blank?
       else
         cckg_results[:data].each do |uri|
           uris << uri if uri

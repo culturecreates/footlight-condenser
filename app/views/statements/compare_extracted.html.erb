@@ -1,0 +1,68 @@
+<h1>Extracted Statement Comparison</h1>
+
+<p class="cache-page-notice cache-compare-warning">Read-only diagnostic only. No statements, webpages, caches, or rollout state were changed.</p>
+<p class="cache-page-notice">This comparison is limited to properties <%= @statement_parity.property_ids.join(", ") %>.</p>
+
+<p><strong>URL:</strong> <%= external_website_link(@statement_parity.url) %></p>
+<p><strong>Website:</strong> <%= link_to @webpage.website.name, website_path(@webpage.website) %></p>
+<p><strong>Webpage record:</strong> <%= link_to @webpage.url, webpage_path(@webpage) %></p>
+<p><strong>Links:</strong> <%= safe_join(cache_inspection_links(@statement_parity.url, website: @webpage.website).map { |link| link_to(link[:label], link[:url]) }, " | ") %></p>
+
+<section class="website-rollout-panel">
+  <h2>Summary</h2>
+  <p><strong>Sources checked:</strong> <%= @statement_parity.sources_count %></p>
+  <p><strong>Property scope:</strong> Essential properties <%= @statement_parity.property_ids.join(", ") %></p>
+  <p><strong>Legacy HTML present:</strong> <%= @statement_parity.legacy_html_present ? "yes" : "no" %></p>
+  <p><strong>Condenser HTML present:</strong> <%= @statement_parity.condenser_html_present ? "yes" : "no" %></p>
+  <p><strong>Same:</strong> <%= @statement_parity.counts[:same] %></p>
+  <p><strong>Added:</strong> <%= @statement_parity.counts[:added] %></p>
+  <p><strong>Removed:</strong> <%= @statement_parity.counts[:removed] %></p>
+  <p><strong>Changed:</strong> <%= @statement_parity.counts[:changed] %></p>
+  <p><strong>Extraction errors:</strong> <%= @statement_parity.counts[:extraction_errors] %></p>
+</section>
+
+<% {
+  "Same statements" => @statement_parity.groups[:same],
+  "Added statements" => @statement_parity.groups[:added],
+  "Removed statements" => @statement_parity.groups[:removed],
+  "Changed statements" => @statement_parity.groups[:changed],
+  "Extraction errors" => @statement_parity.groups[:extraction_errors]
+}.each do |heading, rows| %>
+  <section class="website-rollout-panel">
+    <h2><%= heading %></h2>
+    <% if rows.empty? %>
+      <p>None.</p>
+    <% else %>
+      <table class="cache-table cache-compare-table">
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th>Legacy</th>
+            <th>Condenser</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% rows.each do |row| %>
+            <tr>
+              <td><%= row[:source_label] %></td>
+              <td>
+                <% if row[:legacy_error].present? %>
+                  <pre class="cache-json-block"><%= JSON.pretty_generate(row[:legacy_error]) rescue row[:legacy_error].inspect %></pre>
+                <% else %>
+                  <pre class="cache-json-block"><%= JSON.pretty_generate(row[:legacy]) rescue row[:legacy].inspect %></pre>
+                <% end %>
+              </td>
+              <td>
+                <% if row[:condenser_error].present? %>
+                  <pre class="cache-json-block"><%= JSON.pretty_generate(row[:condenser_error]) rescue row[:condenser_error].inspect %></pre>
+                <% else %>
+                  <pre class="cache-json-block"><%= JSON.pretty_generate(row[:condenser]) rescue row[:condenser].inspect %></pre>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+  </section>
+<% end %>

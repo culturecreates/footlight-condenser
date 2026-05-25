@@ -13,6 +13,7 @@ Rails.application.routes.draw do
   resources :websites do
     # API: get /websites 
     member do
+      post :activate_after_review
       post :activate_anyway
     end
     collection do
@@ -106,6 +107,7 @@ Rails.application.routes.draw do
       patch 'refresh'                # Internal Webpages Only
     end
     collection do
+      get 'compare_extracted'        # Internal Webpages Only
       get 'webpage'                  # Internal Webpages Only
       get 'search_name'              # When manually adding links in Console
       patch 'refresh_webpage'        # Internal Webpages Only

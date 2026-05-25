@@ -35,6 +35,22 @@ class StatementsController < ApplicationController
     end
   end
 
+  # GET /statements/compare_extracted?url=http://
+  def compare_extracted
+    @webpage = statement_compare_webpage
+    return render_missing_compare_extracted if @webpage.blank?
+
+    @cache_comparison = Distillator::CacheCompare.call(uri: params[:url])
+    @statement_parity = Statements::ExtractedParityComparisonService.call(
+      webpage: @webpage,
+      default_language: @webpage.website.default_language,
+      legacy_html: @cache_comparison.dig(:legacy_cache, :html),
+      condenser_html: @cache_comparison.dig(:condenser_cache, :html),
+      property_ids: statement_compare_property_ids,
+      refresh_helper: statement_refresh_helper_proxy
+    )
+  end
+
   # PATCH /statements/refresh_rdf_uri.json?rdf_uri=
   # PATCH /statements/refresh_rdf_uri.json?rdf_uri=&force_scrape_every_hrs=24
   def refresh_rdf_uri
@@ -526,7 +542,11 @@ class StatementsController < ApplicationController
   private
 
   def statement_refresh_helper_proxy
-    StatementsHelper.build_refresh_proxy(cookies: request_cookie_snapshot)
+    StatementsHelper.build_refresh_proxy(
+      context: helpers,
+      cookies: request_cookie_snapshot,
+      logger: logger
+    )
   end
 
   def request_cookie_snapshot
@@ -599,6 +619,15 @@ class StatementsController < ApplicationController
   end
 
   def render_missing_webpage_listing
+    message = "Webpage not found for URL: #{params[:url]}"
+
+    respond_to do |format|
+      format.html { render plain: message, status: :not_found }
+      format.json { render json: { error: message, url: params[:url] }, status: :not_found }
+    end
+  end
+
+  def render_missing_compare_extracted
     message = "Webpage not found for URL: #{params[:url]}"
 
     respond_to do |format|
@@ -793,17 +822,18 @@ class StatementsController < ApplicationController
     class_list = rdfs_class_name.split(',')
     class_list.each do |c|
       rdfs_class = RdfsClass.where(name: c).first
-      if rdfs_class
-        rdfs_class.properties.each do |property|
-          property_ids << property.id
-         ### TODO: is skipping xsd:uri ok? if ((property.value_datatype == "bnode" || property.value_datatype == "xsd:anyURI") && property.expected_class != rdfs_class_name)
-          if (property.value_datatype == "bnode"  && property.expected_class != rdfs_class_name)
-            extract_property_ids property.expected_class, property_ids
-          end
+      next unless rdfs_class
+
+      rdfs_class.properties.each do |property|
+        property_ids << property.id
+        # TODO: keep xsd:anyURI handling aligned with statement refresh semantics.
+        if property.value_datatype == "bnode" && property.expected_class != rdfs_class_name
+          extract_property_ids property.expected_class, property_ids
         end
       end
     end
-    return property_ids
+
+    property_ids
   end
 
   def build_query
@@ -826,6 +856,23 @@ class StatementsController < ApplicationController
         per_page: params[:per_page].presence
       )
       .compact
+  end
+
+  def statement_compare_webpage
+    scope = Webpage.includes(:website, :rdfs_class)
+    scope = scope.where(website_id: params[:website_id]) if params[:website_id].present?
+    scope.find_by(url: params[:url])
+  end
+
+  def statement_compare_property_ids
+    if params[:scope].to_s == "all"
+      return Statements::RefreshWebpageStatementsService.property_ids_for_class_name(@webpage.rdfs_class.name, [])
+    end
+
+    custom_ids = params[:property_ids].to_s.split(",").map(&:strip).reject(&:blank?)
+    return custom_ids if custom_ids.present?
+
+    Statements::ExtractedParityComparisonService::DEFAULT_PROPERTY_IDS
   end
 
 end

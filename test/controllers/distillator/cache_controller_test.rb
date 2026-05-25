@@ -70,6 +70,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_match "Detailed comparison", @response.body
     assert_match "Raw payloads", @response.body
     assert_match "Condenser source", @response.body
+    assert_match "Compare extracted statements", @response.body
     assert_no_match "Distillator", visible_text(@response.body)
   end
 

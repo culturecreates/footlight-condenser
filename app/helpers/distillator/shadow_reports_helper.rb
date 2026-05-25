@@ -351,6 +351,8 @@ module Distillator::ShadowReportsHelper
           shadow_report_failed_cache_result_path(detail)
         when :compare_cache
           shadow_report_compare_cache_path(detail)
+        when :compare_statements
+          shadow_report_compare_statements_path(detail)
         when :active_wringer_cache
           shadow_report_active_wringer_cache_path(detail)
         else
@@ -451,11 +453,13 @@ module Distillator::ShadowReportsHelper
     links = []
     failed_cache_path = shadow_report_failed_cache_result_path(detail)
     compare_path = shadow_report_compare_cache_path(detail)
+    compare_statements_path = shadow_report_compare_statements_path(detail)
     active_wringer_path = shadow_report_active_wringer_cache_path(detail)
     condenser_path = shadow_report_condenser_cache_path(detail)
 
     links << link_to("Open failed cache result", failed_cache_path) if failed_cache_path.present?
     links << link_to("Compare Condenser vs Wringer", compare_path) if compare_path.present?
+    links << link_to("Compare extracted statements", compare_statements_path) if compare_statements_path.present?
     links << link_to("Open active Wringer cache", active_wringer_path) if active_wringer_path.present?
     links << link_to("Open Condenser cache", condenser_path) if condenser_path.present? && condenser_path != failed_cache_path
     links
@@ -475,6 +479,13 @@ module Distillator::ShadowReportsHelper
     payload = detail.summary.cache_link_payload || {}
     compare_link = Array(payload[:secondary_links]).find { |link| link[:label] == "Compare Condenser vs Wringer" }
     compare_link&.fetch(:url, nil) || payload[:compare_url]
+  end
+
+  def shadow_report_compare_statements_path(detail)
+    url = detail.transition_evidence_by_kind["fetch_parity"]&.url || detail.summary.cache&.normalized_url
+    return if url.blank?
+
+    compare_extracted_statements_path(url: url, website_id: detail.summary.website.id)
   end
 
   def shadow_report_active_wringer_cache_path(detail)
