@@ -27,6 +27,7 @@ Rails.application.routes.draw do
   end
 
   namespace :distillator do
+    get :capabilities, to: "capabilities#index", as: :capabilities
     get :shadow_report, to: "shadow_reports#index", as: :shadow_report
     get "shadow_report/:id", to: "shadow_reports#show", as: :shadow_report_site
     resources :transition_checks, only: [:create]
