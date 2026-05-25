@@ -15,6 +15,13 @@ class OptionsControllerTest < ActionDispatch::IntegrationTest
     assert_match '>options<', @response.body
   end
 
+  test "options page does not render transition check queue button" do
+    get options_path
+
+    assert_response :success
+    assert_not_includes @response.body, "Queue transition check"
+  end
+
   test "options page shows preflight pass fail summary and staging rollout policy failure" do
     ENV["DISTILLATOR_RUNTIME"] = "staging"
     Website.create!(

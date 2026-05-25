@@ -20,7 +20,12 @@
 <%= render "shared/transition_context",
            website: @website,
            contract: website_transition_contract(@website),
-           compact: false %>
+           compact: false,
+           transition_status_summary: website_transition_status_summary(@website),
+           transition_evidence_summary: website_transition_evidence_summary(@website),
+           transition_report_path: website_transition_report_path(@website),
+           show_transition_queue: true,
+           transition_queue_return_to: website_path(@website, anchor: "website-transition") %>
 
 <section class="website-rollout-panel website-show-section">
   <h2>Recent rollout events</h2>

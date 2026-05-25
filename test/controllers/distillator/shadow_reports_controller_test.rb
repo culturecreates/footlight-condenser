@@ -231,6 +231,10 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     create_cache_for(website, url: "https://detail-site.example/event")
 
     assert_read_only_page_does_not_fetch
+    Distillator::TransitionCheckRunner.expects(:call).never
+    Distillator::RefreshRunner.expects(:call).never
+    ExportArtsdataService.expects(:call).never
+    ExportArtsdataService.expects(:production_equivalent).never
 
     get distillator_shadow_report_site_path(website)
 
@@ -242,6 +246,9 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Checked scope", @response.body
     assert_match "Transition evidence", @response.body
     assert_match "Fetch parity", @response.body
+    assert_match "Queue transition check", @response.body
+    assert_match "Open Website Transition section", @response.body
+    assert_no_match "Run transition check", @response.body
     assert_match %r{Decision.*Representative URL Matrix.*Root cause.*Checked scope}m, @response.body
   end
 
@@ -1031,6 +1038,79 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "export generation failed", @response.body.downcase
   end
 
+  test "shadow report detail shows timeout budget as fetch root cause without claiming export passed" do
+    website = create_shadow_website(name: "Timeout detail", seedurl: "timeout-detail")
+    url_one = "https://timeout-detail.example/one"
+    url_two = "https://timeout-detail.example/two"
+    create_cache_for(website, url: url_one, signals: { "transport_success" => true, "content_success" => true }, health_status: "healthy", health_severity: "ok")
+    website.webpages.create!(id: next_id, url: url_two, language: "en", rdf_uri: "rdf:two", rdfs_class: rdfs_classes(:one))
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url_one,
+      check_kind: "fetch_parity",
+      status: "failed",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "transition_check_timeout_budget_exceeded",
+        failed_layer: "fetch",
+        affected_url_count: 1,
+        representative_webpages: [url_one, url_two],
+        representative_webpage_count: 2,
+        candidate_webpage_count: 2,
+        representative_url_results: [
+          { url: url_one, webpage_id: website.webpages.find_by(url: url_one).id, fetch_status: "passed", fetch_reason: "ok", legacy_lookup_status: "ok", comparison_status: "passed" },
+          { url: url_two, webpage_id: website.webpages.find_by(url: url_two).id, fetch_status: "failed", fetch_reason: "transition_check_timeout_budget_exceeded", legacy_lookup_status: nil, comparison_status: "not_performed" }
+        ]
+      }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url_one,
+      check_kind: "statement_delta",
+      status: "pending",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "transition_check_timeout_budget_exceeded",
+        representative_webpages: [url_one, url_two],
+        representative_webpage_count: 2,
+        candidate_webpage_count: 2,
+        representative_url_statement_results: [
+          { url: url_one, status: "inconclusive", reason: "transition_check_timeout_budget_exceeded" },
+          { url: url_two, status: "blocked_by_fetch", reason: "transition_check_timeout_budget_exceeded" }
+        ]
+      }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url_one,
+      check_kind: "export_diff",
+      status: "pending",
+      export_diff_checked: false,
+      export_diff_status: "pending",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "transition_check_timeout_budget_exceeded",
+        representative_webpages: [url_one, url_two],
+        representative_webpage_count: 2,
+        candidate_webpage_count: 2,
+        representative_url_export_results: [
+          { url: url_one, status: "inconclusive", reason: "transition_check_timeout_budget_exceeded" },
+          { url: url_two, status: "blocked_by_fetch", reason: "transition_check_timeout_budget_exceeded" }
+        ]
+      }
+    )
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Failed layer: fetch", @response.body
+    assert_match "Affected sampled URLs: 1", @response.body
+    assert_match "Transition check reached its runtime budget before all sampled URLs were fetched.", @response.body
+    assert_match "Timed out", @response.body
+    assert_match "Blocked by fetch", @response.body
+    assert_no_match "Export comparison passed.", @response.body
+  end
+
   test "shadow report detail keeps representative checked count honest across tiers" do
     website = create_shadow_website(name: "Honest candidate count", seedurl: "honest-candidate-count")
     url = "https://honest-candidate-count.example/future-one"
@@ -1096,9 +1176,9 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     audit_html = @response.body[%r{<summary>Audit</summary>.*?</details>}m]
     assert_not_nil audit_html
-    assert_no_match "Run transition check", audit_html
+    assert_no_match "Queue transition check", audit_html
     assert_no_match %r{\|\s*</p>}m, audit_html
-    assert_equal 1, @response.body.scan("Run transition check").size
+    assert_equal 1, @response.body.scan("Queue transition check").size
   end
 
   test "transition detail suppresses empty operator context status and actions" do

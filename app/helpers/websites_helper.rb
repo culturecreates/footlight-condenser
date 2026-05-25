@@ -232,6 +232,44 @@ module WebsitesHelper
     "Website ##{website.id}"
   end
 
+  def website_transition_report_path(website)
+    distillator_shadow_report_site_path(website, anchor: "website-transition")
+  end
+
+  def website_transition_status_summary(website)
+    status = website_transition_status(website)
+    return "Not checked yet." if status.status == :not_checked
+
+    summary = [status.readiness_label]
+    summary << "fetch #{status.fetch.to_s.humanize.downcase}"
+    summary << "statements #{status.statements.to_s.humanize.downcase}"
+    summary << "export #{status.export.to_s.humanize.downcase}"
+    summary.join(" | ")
+  end
+
+  def website_transition_evidence_summary(website)
+    evidence = website.latest_transition_evidences_by_kind.with_indifferent_access
+    return "No transition evidence recorded yet." if evidence.blank?
+
+    lines = []
+    fetch = evidence["fetch_parity"]
+    statements = evidence["statement_delta"]
+    export = evidence["export_diff"]
+    lines << "Fetch parity checked #{time_ago_in_words(fetch.checked_at)} ago." if fetch&.checked_at.present?
+    lines << "Statement coverage #{statements.status}." if statements.present?
+    lines << "Export comparison #{export.export_diff_status.presence || export.status}." if export.present?
+    lines.join(" ")
+  end
+
+  def website_transition_status(website)
+    @website_transition_statuses ||= {}
+    @website_transition_statuses[website.id] ||= Distillator::TransitionStatus.call(
+      website: website,
+      cache: website_transition_cache(website),
+      evidence_by_kind: website.latest_transition_evidences_by_kind
+    )
+  end
+
   def normalize_website_rollout_filter(raw_mode)
     mode = raw_mode.to_s.presence
     return nil if mode.blank?

@@ -112,6 +112,10 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_read_only_page_does_not_fetch
     stub_remote_wringer_endpoint
     @website.update!(distillator_mode: "shadow")
+    Distillator::TransitionCheckRunner.expects(:call).never
+    Distillator::RefreshRunner.expects(:call).never
+    ExportArtsdataService.expects(:call).never
+    ExportArtsdataService.expects(:production_equivalent).never
     get website_url(@website)
     assert_response :success
     assert_select 'details[data-operator-context-card]', 0
@@ -121,9 +125,15 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Next recommended action:"
     assert_includes @response.body, "Readiness:"
     assert_includes @response.body, "Latest rollout event:"
+    assert_includes @response.body, "Latest transition status:"
+    assert_includes @response.body, "Latest evidence summary:"
     assert_includes @response.body, "Shadow"
     assert_includes @response.body, "Wringer"
-    assert_includes @response.body, "Run transition check"
+    assert_includes @response.body, "Queue transition check"
+    assert_includes @response.body, "Runs in the background and updates this website's transition report as evidence is recorded."
+    assert_includes @response.body, "Open transition report detail"
+    assert_includes @response.body, "name=\"website_id\" value=\"#{@website.id}\""
+    assert_includes @response.body, distillator_shadow_report_site_path(@website, anchor: "website-transition")
     assert_includes @response.body, "Compare Condenser vs Wringer"
     assert_includes @response.body, "Operations"
     assert_includes @response.body, "Batch jobs"
@@ -131,6 +141,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Edit"
     assert_not_includes @response.body, "Back"
     assert_not_includes @response.body, "/distillator/cache/preview?uri=#{CGI.escape(@website.seedurl)}"
+    assert_equal "shadow", @website.reload.distillator_mode
     assert_no_cohort_source_requests
   end
 
@@ -237,7 +248,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes @response.body, "Move to shadow"
-    assert_includes @response.body, "Run transition check"
+    assert_includes @response.body, "Queue transition check"
     assert_includes @response.body, "Activate anyway"
     assert_includes @response.body, "Use after manual inspection or on staging. Records current blockers and reason."
   end
@@ -250,7 +261,8 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes @response.body, "Readiness:"
-    assert_includes @response.body, "Run transition check"
+    assert_includes @response.body, "Queue transition check"
+    assert_includes @response.body, "Open transition report detail"
   end
 
   test "website show for shadow ready site shows promote to active action" do
@@ -274,7 +286,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes @response.body, "Cannot promote yet"
     assert_includes @response.body, "Cannot activate yet: statements check failed."
-    assert_includes @response.body, "Run transition check"
+    assert_includes @response.body, "Queue transition check"
   end
 
   test "website show for review-needed shadow site shows activate after review instead of promote or activate anyway" do
@@ -1136,7 +1148,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Production backend:</strong> Wringer"
     assert_includes @response.body, "Readiness:</strong>"
     assert_includes @response.body, "Promote to active"
-    assert_includes @response.body, "Run transition check"
+    assert_includes @response.body, "Queue transition check"
     assert_includes @response.body, "Compare Condenser vs Wringer"
   end
 

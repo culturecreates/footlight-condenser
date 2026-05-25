@@ -100,7 +100,9 @@
       <% end %>
     </details>
   <% end %>
-  <%= button_to "Run transition check", distillator_transition_checks_path, method: :post, params: { website_id: @website.id, return_to: request.fullpath }, class: "website-transition-button" %>
+  <p>Transition checks run in the background and update the transition report as evidence is recorded.</p>
+  <p><%= link_to "Open Website Transition section", website_path(@website, anchor: "website-transition") %></p>
+  <%= button_to "Queue transition check", distillator_transition_checks_path, method: :post, params: { website_id: @website.id, return_to: request.fullpath }, class: "website-transition-button" %>
 </section>
 
 <section class="website-rollout-panel">

@@ -1,7 +1,18 @@
 require "test_helper"
 
 class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationTest
-  test "transition check runs for one website only and does not change rollout mode" do
+  setup do
+    @previous_queue_adapter = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :test
+    ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+  end
+
+  teardown do
+    ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+    ActiveJob::Base.queue_adapter = @previous_queue_adapter
+  end
+
+  test "transition check queues a job for one website only and does not change rollout mode" do
     target = Website.create!(
       name: "Transition target",
       seedurl: "transition-target",
@@ -17,29 +28,22 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
       distillator_mode: "legacy"
     )
 
-    Distillator::TransitionCheckRunner.expects(:call).with(website: target).once.returns(
-      Distillator::TransitionCheckRunner::Result.new(
-        website: target,
-        records: {
-          fetch_parity: OpenStruct.new(status: "checked"),
-          statement_delta: OpenStruct.new(status: "checked"),
-          export_diff: OpenStruct.new(status: "pending")
-        }
-      )
-    )
+    Distillator::TransitionCheckRunner.expects(:call).never
 
-    post distillator_transition_checks_path, params: { website_id: target.id }
+    assert_difference -> { ActiveJob::Base.queue_adapter.enqueued_jobs.count { |job| job[:job] == Distillator::TransitionCheckJob } }, 1 do
+      post distillator_transition_checks_path, params: { website_id: target.id }
+    end
 
+    job = ActiveJob::Base.queue_adapter.enqueued_jobs.find { |entry| entry[:job] == Distillator::TransitionCheckJob }
+    assert_equal [target.id], job[:args]
     assert_redirected_to distillator_shadow_report_site_path(target)
-    follow_redirect!
-    assert_includes @response.body, "Transition check incomplete: fetch checked, statements checked, export missing"
     assert_equal "shadow", target.reload.distillator_mode
     assert_equal "legacy", other.reload.distillator_mode
     assert_equal 0, target.transition_evidences.count
     assert_equal 0, other.transition_evidences.count
   end
 
-  test "transition check redirects back to report detail when return_to is provided" do
+  test "transition check redirects back to website transition section when return_to is provided" do
     target = Website.create!(
       name: "Transition target",
       seedurl: "transition-target-return",
@@ -48,20 +52,12 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
       distillator_mode: "shadow"
     )
 
-    Distillator::TransitionCheckRunner.expects(:call).with(website: target).once.returns(
-      Distillator::TransitionCheckRunner::Result.new(
-        website: target,
-        records: {
-          fetch_parity: OpenStruct.new(status: "checked"),
-          statement_delta: OpenStruct.new(status: "checked"),
-          export_diff: OpenStruct.new(status: "checked")
-        }
-      )
-    )
+    Distillator::TransitionCheckRunner.expects(:call).never
 
-    post distillator_transition_checks_path, params: { website_id: target.id, return_to: distillator_shadow_report_site_path(target) }
+    post distillator_transition_checks_path, params: { website_id: target.id, return_to: website_path(target, anchor: "website-transition") }
 
-    assert_redirected_to distillator_shadow_report_site_path(target)
+    assert_redirected_to website_path(target, anchor: "website-transition")
+    assert_equal "Transition check queued. The report will update as evidence is recorded.", flash[:notice]
   end
 
   test "transition check allows deliberate relative webpages return_to" do
@@ -73,16 +69,7 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
       distillator_mode: "shadow"
     )
 
-    Distillator::TransitionCheckRunner.expects(:call).with(website: target).once.returns(
-      Distillator::TransitionCheckRunner::Result.new(
-        website: target,
-        records: {
-          fetch_parity: OpenStruct.new(status: "checked"),
-          statement_delta: OpenStruct.new(status: "checked"),
-          export_diff: OpenStruct.new(status: "checked")
-        }
-      )
-    )
+    Distillator::TransitionCheckRunner.expects(:call).never
 
     return_to = "/webpages?seedurl=#{target.seedurl}"
     post distillator_transition_checks_path, params: { website_id: target.id, return_to: return_to }
@@ -99,390 +86,10 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
       distillator_mode: "shadow"
     )
 
-    Distillator::TransitionCheckRunner.expects(:call).with(website: target).once.returns(
-      Distillator::TransitionCheckRunner::Result.new(
-        website: target,
-        records: {
-          fetch_parity: OpenStruct.new(status: "checked"),
-          statement_delta: OpenStruct.new(status: "checked"),
-          export_diff: OpenStruct.new(status: "checked")
-        }
-      )
-    )
+    Distillator::TransitionCheckRunner.expects(:call).never
 
     post distillator_transition_checks_path, params: { website_id: target.id, return_to: "https://evil.example/steal" }
 
     assert_redirected_to distillator_shadow_report_site_path(target)
-  end
-
-  test "transition check creates statement and export evidence records" do
-    target = Website.create!(
-      name: "Transition target live",
-      seedurl: "transition-target-live",
-      graph_name: "https://example.org/transition-target-live",
-      default_language: "en",
-      distillator_mode: "shadow"
-    )
-    url = "https://transition-target-live.example/event"
-    target.webpages.create!(url: url, language: "en", rdf_uri: "rdf:transition-target-live", rdfs_class: rdfs_classes(:one))
-    source = Source.create!(
-      algorithm_value: "manual=Transition target live",
-      selected: true,
-      selected_by: "test",
-      language: "en",
-      render_js: false,
-      property: properties(:four),
-      website: target
-    )
-    Statement.create!(
-      cache: "Transition target live",
-      status: "ok",
-      status_origin: "transition_checks_controller_test",
-      cache_refreshed: 1.hour.ago,
-      cache_changed: 1.hour.ago,
-      source: source,
-      webpage: target.webpages.first,
-      selected_individual: true
-    )
-    Distillator::FetchCache.create!(
-      uri_key: CGI.escape(url),
-      normalized_url: url,
-      html: "<html>ok</html>",
-      body: "<html>ok</html>",
-      scrape_date: 1.hour.ago,
-      successful_refresh: 1.hour.ago,
-      headers: {},
-      signals: {
-        "transport_success" => true,
-        "content_success" => true,
-        "statement_count_delta_acceptable" => true,
-        "export_diff_checked" => true
-      },
-      final_url: url,
-      health_status: "healthy"
-    )
-    fresh_fetch_result = Distillator::FetchCacheStore::Result.new(
-      status: :ok,
-      body: "<html>ok</html>",
-      html: "<html>ok</html>",
-      headers: {},
-      final_url: url,
-      redirect_chain: [],
-      http_response_code: 200,
-      signals: {
-        "transport_success" => true,
-        "content_success" => true,
-        "statement_count_delta_acceptable" => true,
-        "export_diff_checked" => true
-      },
-      hints: [],
-      duration_ms: 5,
-      cache_hit: false,
-      cache_write: true,
-      cache_reason: "force_scrape",
-      uri_key: CGI.escape(url),
-      normalized_url: url,
-      fetch_path: "native",
-      name: "Transition target live",
-      scrape_date: Time.current,
-      successful_refresh: Time.current,
-      cache: Distillator::FetchCache.find_by!(uri_key: CGI.escape(url))
-    )
-    Distillator::FetchCacheStore.expects(:fetch).with do |kwargs|
-      assert_equal url, kwargs[:uri]
-      assert_equal true, kwargs[:force_scrape]
-      assert_equal "internal", kwargs[:mode]
-      assert_equal target, kwargs[:website]
-      assert_equal "transition_check", kwargs.dig(:log_context, :source)
-      true
-    end.returns(fresh_fetch_result)
-    Distillator::CacheCompare.expects(:call).with(uri: url, condenser_result: fresh_fetch_result, comparison_policy: :operator).returns(
-      {
-        summary: { promotable: true, blocking_regressions: [] },
-        missing: { legacy: false, condenser: false },
-        legacy_source: "remote_wringer",
-        legacy_lookup_error: nil,
-        condenser_source: "local_fetch_cache"
-      }
-    )
-    Distillator::RefreshRunner.expects(:call).once.returns([])
-    export_json = '[{"@id":"event:1","name":"Transition target live"}]'
-    ExportArtsdataService.expects(:call).with(seedurl: target.seedurl).once.returns(export_json)
-    ExportArtsdataService.expects(:production_equivalent).with(seedurl: target.seedurl).once.returns(export_json)
-
-    post distillator_transition_checks_path, params: { website_id: target.id }
-
-    assert_redirected_to distillator_shadow_report_site_path(target)
-    assert_equal "shadow", target.reload.distillator_mode
-    assert_equal %w[export_diff fetch_parity statement_delta], target.transition_evidences.order(:check_kind).pluck(:check_kind)
-    assert_equal "checked", target.latest_transition_evidence("statement_delta").status
-    assert_equal 0, target.latest_transition_evidence("statement_delta").statement_delta
-    assert_equal "checked", target.latest_transition_evidence("fetch_parity").status
-    assert_equal true, target.latest_transition_evidence("fetch_parity").details["attempted_condenser_fetch"]
-    assert_equal "checked", target.latest_transition_evidence("export_diff").status
-
-    follow_redirect!
-    assert_includes @response.body, "Transition evidence"
-    assert_includes @response.body, "Statements check passed."
-  end
-
-  test "transition check keeps condenser success visible when legacy lookup is missing config" do
-    target = Website.create!(
-      name: "Transition target missing config",
-      seedurl: "transition-target-missing-config",
-      graph_name: "https://example.org/transition-target-missing-config",
-      default_language: "en",
-      distillator_mode: "shadow"
-    )
-    url = "https://transition-target-missing-config.example/event"
-    target.webpages.create!(url: url, language: "en", rdf_uri: "rdf:transition-target-missing-config", rdfs_class: rdfs_classes(:one))
-    source = Source.create!(
-      algorithm_value: "manual=Transition target missing config",
-      selected: true,
-      selected_by: "test",
-      language: "en",
-      render_js: false,
-      property: properties(:four),
-      website: target
-    )
-    Statement.create!(
-      cache: "Transition target missing config",
-      status: "ok",
-      status_origin: "transition_checks_controller_test",
-      cache_refreshed: 1.hour.ago,
-      cache_changed: 1.hour.ago,
-      source: source,
-      webpage: target.webpages.first,
-      selected_individual: true
-    )
-    cache = Distillator::FetchCache.create!(
-      uri_key: CGI.escape(url),
-      normalized_url: url,
-      html: "<html>ok</html>",
-      body: "<html>ok</html>",
-      scrape_date: 1.hour.ago,
-      successful_refresh: 1.hour.ago,
-      headers: {},
-      signals: {
-        "transport_success" => true,
-        "content_success" => true,
-        "statement_count_delta_acceptable" => true,
-        "export_diff_checked" => true
-      },
-      final_url: url,
-      health_status: "healthy"
-    )
-    fresh_fetch_result = Distillator::FetchCacheStore::Result.new(
-      status: :ok,
-      body: "<html>ok</html>",
-      html: "<html>ok</html>",
-      headers: {},
-      final_url: url,
-      redirect_chain: [],
-      http_response_code: 200,
-      signals: {
-        "transport_success" => true,
-        "content_success" => true
-      },
-      hints: [],
-      duration_ms: 5,
-      cache_hit: false,
-      cache_write: true,
-      cache_reason: "force_scrape",
-      uri_key: CGI.escape(url),
-      normalized_url: url,
-      fetch_path: "native",
-      name: "Transition target missing config",
-      scrape_date: Time.current,
-      successful_refresh: Time.current,
-      cache: cache
-    )
-    Distillator::FetchCacheStore.expects(:fetch).once.returns(fresh_fetch_result)
-    Distillator::CacheCompare.expects(:call).returns(
-      {
-        summary: { promotable: false, blocking_regressions: [] },
-        missing: { legacy: true, condenser: false },
-        legacy_source: "missing_config",
-        legacy_lookup_status: "missing_config",
-        legacy_lookup_error: "missing_config",
-        condenser_source: "local_fetch_cache"
-      }
-    )
-    Distillator::RefreshRunner.expects(:call).once.returns([])
-    export_json = '[{"@id":"event:1","name":"Transition target missing config"}]'
-    ExportArtsdataService.expects(:call).with(seedurl: target.seedurl).once.returns(export_json)
-    ExportArtsdataService.expects(:production_equivalent).with(seedurl: target.seedurl).once.returns(export_json)
-
-    post distillator_transition_checks_path, params: { website_id: target.id }
-
-    assert_redirected_to distillator_shadow_report_site_path(target)
-    assert_equal "shadow", target.reload.distillator_mode
-    evidence = target.latest_transition_evidence("fetch_parity")
-    assert_equal "checked", evidence.status
-    assert_equal true, evidence.details["condenser_fetch_success"]
-    assert_equal "missing_config", evidence.details["legacy_lookup_error"]
-
-    follow_redirect!
-    assert_includes @response.body, "Condenser fetch passed, but legacy Wringer lookup is missing staging configuration."
-  end
-
-  test "transition check keeps condenser success visible when legacy lookup is unreachable" do
-    target = Website.create!(
-      name: "Transition target unreachable legacy",
-      seedurl: "transition-target-unreachable-legacy",
-      graph_name: "https://example.org/transition-target-unreachable-legacy",
-      default_language: "en",
-      distillator_mode: "shadow"
-    )
-    url = "https://transition-target-unreachable-legacy.example/event"
-    target.webpages.create!(url: url, language: "en", rdf_uri: "rdf:transition-target-unreachable-legacy", rdfs_class: rdfs_classes(:one))
-    source = Source.create!(
-      algorithm_value: "manual=Transition target unreachable legacy",
-      selected: true,
-      selected_by: "test",
-      language: "en",
-      render_js: false,
-      property: properties(:four),
-      website: target
-    )
-    Statement.create!(
-      cache: "Transition target unreachable legacy",
-      status: "ok",
-      status_origin: "transition_checks_controller_test",
-      cache_refreshed: 1.hour.ago,
-      cache_changed: 1.hour.ago,
-      source: source,
-      webpage: target.webpages.first,
-      selected_individual: true
-    )
-    cache = Distillator::FetchCache.create!(
-      uri_key: CGI.escape(url),
-      normalized_url: url,
-      html: "<html>ok</html>",
-      body: "<html>ok</html>",
-      scrape_date: 1.hour.ago,
-      successful_refresh: 1.hour.ago,
-      headers: {},
-      signals: {
-        "transport_success" => true,
-        "content_success" => true,
-        "statement_count_delta_acceptable" => true,
-        "export_diff_checked" => true
-      },
-      final_url: url,
-      health_status: "healthy"
-    )
-    fresh_fetch_result = Distillator::FetchCacheStore::Result.new(
-      status: :ok,
-      body: "<html>ok</html>",
-      html: "<html>ok</html>",
-      headers: {},
-      final_url: url,
-      redirect_chain: [],
-      http_response_code: 200,
-      signals: {
-        "transport_success" => true,
-        "content_success" => true
-      },
-      hints: [],
-      duration_ms: 5,
-      cache_hit: false,
-      cache_write: true,
-      cache_reason: "force_scrape",
-      uri_key: CGI.escape(url),
-      normalized_url: url,
-      fetch_path: "native",
-      name: "Transition target unreachable legacy",
-      scrape_date: Time.current,
-      successful_refresh: Time.current,
-      cache: cache
-    )
-    Distillator::FetchCacheStore.expects(:fetch).once.returns(fresh_fetch_result)
-    Distillator::CacheCompare.expects(:call).returns(
-      {
-        summary: { promotable: false, blocking_regressions: [] },
-        missing: { legacy: true, condenser: false },
-        legacy_source: "remote_wringer",
-        legacy_lookup_status: "unreachable",
-        legacy_lookup_error: "connection refused",
-        condenser_source: "local_fetch_cache"
-      }
-    )
-    Distillator::RefreshRunner.expects(:call).once.returns([])
-    export_json = '[{"@id":"event:1","name":"Transition target unreachable legacy"}]'
-    ExportArtsdataService.expects(:call).with(seedurl: target.seedurl).once.returns(export_json)
-    ExportArtsdataService.expects(:production_equivalent).with(seedurl: target.seedurl).once.returns(export_json)
-
-    post distillator_transition_checks_path, params: { website_id: target.id }
-
-    assert_redirected_to distillator_shadow_report_site_path(target)
-    assert_equal "shadow", target.reload.distillator_mode
-    evidence = target.latest_transition_evidence("fetch_parity")
-    assert_equal "checked", evidence.status
-    assert_equal true, evidence.details["condenser_fetch_success"]
-    assert_equal "unreachable", evidence.details["legacy_lookup_status"]
-    assert_equal "connection refused", evidence.details["legacy_lookup_error"]
-
-    follow_redirect!
-    assert_includes @response.body, "Condenser fetch passed, but legacy Wringer lookup failed."
-  end
-
-  test "report detail displays actionable reason fields for latest evidence" do
-    target = Website.create!(
-      name: "Transition target detail",
-      seedurl: "transition-target-detail",
-      graph_name: "https://example.org/transition-target-detail",
-      default_language: "en",
-      distillator_mode: "shadow"
-    )
-    url = "https://transition-target-detail.example/event"
-    target.webpages.create!(url: url, language: "en", rdf_uri: "rdf:transition-target-detail", rdfs_class: rdfs_classes(:one))
-    Distillator::TransitionEvidenceRecorder.call(
-      website: target,
-      url: url,
-      check_kind: :statement_delta,
-      status: :failed,
-      statement_delta: 2,
-      statement_count_delta_acceptable: false,
-      details: { reason: "statement_refresh_failed" }
-    )
-    Distillator::TransitionEvidenceRecorder.call(
-      website: target,
-      url: url,
-      check_kind: :export_diff,
-      status: :failed,
-      export_diff_status: "failed",
-      rdf_added_count: 1,
-      rdf_removed_count: 3,
-      details: { reason: "export_generation_failed" }
-    )
-
-    get distillator_shadow_report_site_path(target)
-
-    assert_response :success
-    assert_includes @response.body, "Statement refresh failed for 2 statements."
-    assert_includes @response.body, "Export could not be generated."
-    assert_includes @response.body, "RDF added: 1"
-    assert_includes @response.body, "RDF removed: 3"
-  end
-
-  test "transition check without representative webpages records incomplete fetch evidence instead of comparing stale cache" do
-    target = Website.create!(
-      name: "Transition no representative",
-      seedurl: "transition-no-representative",
-      graph_name: "https://example.org/transition-no-representative",
-      default_language: "en",
-      distillator_mode: "shadow"
-    )
-    Distillator::FetchCacheStore.expects(:fetch).never
-    Distillator::CacheCompare.expects(:call).never
-    ExportArtsdataService.expects(:call).never
-    ExportArtsdataService.expects(:production_equivalent).never
-
-    post distillator_transition_checks_path, params: { website_id: target.id }
-
-    assert_redirected_to distillator_shadow_report_site_path(target)
-    assert_equal "pending", target.latest_transition_evidence("fetch_parity").status
-    assert_equal "no_representative_webpages", target.latest_transition_evidence("fetch_parity").details["reason"]
   end
 end

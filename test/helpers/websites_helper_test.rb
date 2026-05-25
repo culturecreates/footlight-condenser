@@ -142,6 +142,29 @@ class WebsitesHelperTest < ActionView::TestCase
     assert_includes html, "6 not publishable"
   end
 
+  test "transition status summary reports readiness and check states" do
+    website = ready_shadow_website(seedurl: "summary-transition-ready")
+
+    summary = website_transition_status_summary(website)
+
+    assert_includes summary, "Ready"
+    assert_includes summary, "fetch passed"
+    assert_includes summary, "statements passed"
+    assert_includes summary, "export passed"
+  end
+
+  test "transition evidence summary mentions recorded evidence and report path" do
+    website = ready_shadow_website(seedurl: "summary-transition-evidence")
+
+    summary = website_transition_evidence_summary(website)
+    path = website_transition_report_path(website)
+
+    assert_includes summary, "Fetch parity checked"
+    assert_includes summary, "Statement coverage checked."
+    assert_includes summary, "Export comparison checked."
+    assert_equal distillator_shadow_report_site_path(website, anchor: "website-transition"), path
+  end
+
   private
 
   def build_website(mode, seedurl:)

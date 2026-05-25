@@ -2,9 +2,9 @@ module Distillator
   class TransitionChecksController < ApplicationController
     def create
       website = Website.find(params[:website_id])
-      result = Distillator::TransitionCheckRunner.call(website: website)
+      Distillator::TransitionCheckJob.perform_later(website.id)
 
-      redirect_to transition_check_return_path(website), notice: result.flash_message
+      redirect_to transition_check_return_path(website), notice: "Transition check queued. The report will update as evidence is recorded."
     end
 
     private

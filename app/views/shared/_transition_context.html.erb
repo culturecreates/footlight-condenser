@@ -2,9 +2,14 @@
   website = local_assigns.fetch(:website)
   contract = local_assigns.fetch(:contract)
   compact = local_assigns.fetch(:compact, false)
+  transition_status_summary = local_assigns.fetch(:transition_status_summary, nil)
+  transition_evidence_summary = local_assigns.fetch(:transition_evidence_summary, nil)
+  transition_report_path = local_assigns.fetch(:transition_report_path, nil)
+  show_transition_queue = local_assigns.fetch(:show_transition_queue, false)
+  transition_queue_return_to = local_assigns.fetch(:transition_queue_return_to, nil)
 %>
 
-<section class="transition-context-card <%= compact ? 'transition-context-card-compact' : 'transition-context-card-full' %>" data-transition-context>
+<section <%= %(id="website-transition").html_safe if show_transition_queue %> class="transition-context-card <%= compact ? 'transition-context-card-compact' : 'transition-context-card-full' %>" data-transition-context>
   <h2><%= compact ? "Transition context" : "Transition" %></h2>
   <% cache_links = contract[:cache_links] || {} %>
   <% has_diagnostics = cache_links[:active_cache_url].present? || Array(cache_links[:secondary_links]).any? || cache_links[:warning].present? %>
@@ -16,6 +21,15 @@
     <p><strong>Next recommended action:</strong> <%= contract[:next_recommended_action] %></p>
     <p><strong>Readiness:</strong> <%= contract[:readiness_summary] %></p>
     <p><strong>Latest rollout event:</strong> <%= contract[:latest_rollout_event_summary] %></p>
+    <% if transition_status_summary.present? %>
+      <p><strong>Latest transition status:</strong> <%= transition_status_summary %></p>
+    <% end %>
+    <% if transition_evidence_summary.present? %>
+      <p><strong>Latest evidence summary:</strong> <%= transition_evidence_summary %></p>
+    <% end %>
+    <% if transition_report_path.present? %>
+      <p><strong>Transition report detail:</strong> <%= link_to "Open transition report detail", transition_report_path %></p>
+    <% end %>
   <% end %>
 
   <% if compact %>
@@ -63,6 +77,21 @@
             <% end %>
           </details>
         <% end %>
+      <% end %>
+
+      <% if show_transition_queue %>
+        <div class="website-transition-queue">
+          <p>Runs in the background and updates this website's transition report as evidence is recorded.</p>
+          <p>It may fetch representative URLs, compare Condenser and Wringer cache output, refresh selected statements, and compare exports.</p>
+          <%= button_to "Queue transition check",
+                        distillator_transition_checks_path,
+                        method: :post,
+                        params: {
+                          website_id: website.id,
+                          return_to: transition_queue_return_to
+                        },
+                        class: "website-transition-button" %>
+        </div>
       <% end %>
     </div>
   <% end %>
