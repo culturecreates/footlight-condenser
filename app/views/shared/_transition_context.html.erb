@@ -5,11 +5,9 @@
   transition_status_summary = local_assigns.fetch(:transition_status_summary, nil)
   transition_evidence_summary = local_assigns.fetch(:transition_evidence_summary, nil)
   transition_report_path = local_assigns.fetch(:transition_report_path, nil)
-  show_transition_queue = local_assigns.fetch(:show_transition_queue, false)
-  transition_queue_return_to = local_assigns.fetch(:transition_queue_return_to, nil)
 %>
 
-<section <%= %(id="website-transition").html_safe if show_transition_queue %> class="transition-context-card <%= compact ? 'transition-context-card-compact' : 'transition-context-card-full' %>" data-transition-context>
+<section class="transition-context-card <%= compact ? 'transition-context-card-compact' : 'transition-context-card-full' %>" data-transition-context>
   <h2><%= compact ? "Transition context" : "Transition" %></h2>
   <% cache_links = contract[:cache_links] || {} %>
   <% has_diagnostics = cache_links[:active_cache_url].present? || Array(cache_links[:secondary_links]).any? || cache_links[:warning].present? %>
@@ -79,20 +77,6 @@
         <% end %>
       <% end %>
 
-      <% if show_transition_queue %>
-        <div class="website-transition-queue">
-          <p>Runs in the background and updates this website's transition report as evidence is recorded.</p>
-          <p>It may fetch representative URLs, compare Condenser and Wringer cache output, refresh selected statements, and compare exports.</p>
-          <%= button_to "Queue transition check",
-                        distillator_transition_checks_path,
-                        method: :post,
-                        params: {
-                          website_id: website.id,
-                          return_to: transition_queue_return_to
-                        },
-                        class: "website-transition-button" %>
-        </div>
-      <% end %>
     </div>
   <% end %>
 </section>

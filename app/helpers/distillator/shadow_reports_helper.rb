@@ -252,6 +252,18 @@ module Distillator::ShadowReportsHelper
     blocker ? "#{blocker.check} (selected from sampled URLs)" : "None"
   end
 
+  def shadow_report_main_blocker_lines(detail)
+    [
+      "Failed layer: #{detail.root_cause[:failed_layer]}",
+      "Reason: #{detail.root_cause[:concrete_reason]}",
+      "Affected sampled URLs: #{detail.root_cause[:affected_url_count]}"
+    ]
+  end
+
+  def shadow_report_statement_failure_groups(detail)
+    Array(detail.statement_failure_groups)
+  end
+
   def shadow_report_primary_blocker_details(detail)
     blocker = detail.primary_blocker
     return [] unless blocker.present?
@@ -280,11 +292,17 @@ module Distillator::ShadowReportsHelper
 
   def shadow_report_scope_lines(scope)
     lines = []
-    lines << "Representative webpages checked: #{scope[:representative_webpage_count]} of #{scope[:candidate_webpage_count]}"
-    if scope[:selected_candidate_tier_count].to_i.positive?
-      lines << "Selected candidate tier size: #{scope[:selected_candidate_tier_count]}"
+    publishable_count = scope[:publishable_event_page_count].to_i
+    sampled_count = scope[:representative_webpage_count].to_i
+
+    if publishable_count.positive?
+      lines << "Checked #{sampled_count} of #{publishable_count} publishable event pages."
+    else
+      lines << "Checked #{sampled_count} representative webpages because no publishable event pages were available."
     end
-    lines << "Selection rule: #{scope[:selection_rule]}"
+    lines << "Publishable event pages: #{publishable_count}"
+    lines << "Sampled count: #{sampled_count}"
+    lines << "Sampling rule: #{scope[:selection_rule]}"
     lines << "Statements refreshed: #{scope[:statements_refreshed_count]}"
     lines << "Statements failed: #{scope[:statements_failed_count]}"
     lines << "Export compared: #{scope[:export_compared] ? 'yes' : 'no'}"
@@ -300,14 +318,6 @@ module Distillator::ShadowReportsHelper
 
   def shadow_report_url_matrix_actions(row, website)
     links = []
-    links << button_to(
-      "Fetch/refresh Condenser cache for this URL",
-      fetch_distillator_cache_index_path,
-      method: :post,
-      params: { uri: row[:url], force_scrape: "true", include_fragment: "false", fetch_kind: "normal" },
-      form_class: "inline",
-      class: "as-link"
-    )
 
     cache_inspection_links(row[:url], website: website).each do |link|
       label =
@@ -324,6 +334,8 @@ module Distillator::ShadowReportsHelper
 
       links << link_to(label, link[:url])
     end
+
+    return "No diagnostic links recorded." if links.empty?
 
     safe_join(links, " | ")
   end

@@ -452,15 +452,7 @@ module WebsitesHelper
   end
 
   def website_transition_secondary_actions(website, mode, readiness)
-    actions = [
-      {
-        kind: :button,
-        label: mode == "active" ? "Run transition check again" : "Run transition check",
-        path: distillator_transition_checks_path(website_id: website.id),
-        method: :post,
-        params: {}
-      }
-    ]
+    actions = []
 
     if mode == "shadow" && readiness.review_activation_eligible
       actions << {

@@ -232,6 +232,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
 
     assert_read_only_page_does_not_fetch
     Distillator::TransitionCheckRunner.expects(:call).never
+    Distillator::FetchCacheStore.expects(:fetch).never
     Distillator::RefreshRunner.expects(:call).never
     ExportArtsdataService.expects(:call).never
     ExportArtsdataService.expects(:production_equivalent).never
@@ -241,15 +242,15 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match "Transition Report Detail", @response.body
     assert_match "Decision", @response.body
+    assert_match "Main blocker", @response.body
     assert_match "Representative URL Matrix", @response.body
-    assert_match "Root cause", @response.body
     assert_match "Checked scope", @response.body
     assert_match "Transition evidence", @response.body
     assert_match "Fetch parity", @response.body
-    assert_match "Queue transition check", @response.body
-    assert_match "Open Website Transition section", @response.body
+    assert_no_match "Queue transition check", @response.body
+    assert_match "Open Website Batch jobs &gt; Transition", @response.body
     assert_no_match "Run transition check", @response.body
-    assert_match %r{Decision.*Representative URL Matrix.*Root cause.*Checked scope}m, @response.body
+    assert_match %r{Decision.*Main blocker.*Representative URL Matrix.*Checked scope}m, @response.body
   end
 
   test "shadow report row shows run transition check for shadow sites with missing evidence" do
@@ -323,11 +324,10 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_match "Review before activating", @response.body
-    assert_match "Activate after review", @response.body
     assert_match "Review checklist", @response.body
     assert_match "Check statements page", @response.body
     assert_match "Open compare page", @response.body
-    assert_select "form.website-transition-override-form textarea[name=?]", "reason"
+    assert_select "form.website-transition-override-form textarea[name=?]", "reason", 0
     assert_no_match "Promote to active", @response.body
     assert_no_match "Activate anyway", @response.body
   end
@@ -380,6 +380,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
         representative_webpages: [url],
         representative_webpage_count: 1,
         candidate_webpage_count: 4,
+        publishable_event_page_count: 4,
         selection_rule: Distillator::TransitionCheck::SELECTION_RULE,
         statements_refreshed_count: 1,
         statements_failed_count: 1,
@@ -404,11 +405,15 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Blocked", @response.body
     assert_match %r{<strong>Export</strong> — Passed}m, @response.body
     assert_match "Statement refresh failed for 1 statement.", @response.body
-    assert_match "Statement ID: #{statement.id}", @response.body
-    assert_match "Source: Dates / fr", @response.body
-    assert_match "Reason: DSL returned blank result", @response.body
+    visible_html = @response.body.split('<summary>Audit</summary>').first
+    assert_includes visible_html, "Statement failure summary"
+    assert_includes visible_html, "Blank DSL result - Dates / fr - 1 affected"
+    assert_not_includes visible_html, "Statement ID: #{statement.id}"
     assert_match "Open the statement trace and fix the source before activating.", @response.body
-    assert_match "Representative webpages checked: 1 of 4", @response.body
+    assert_match "Checked 1 of 4 publishable event pages.", @response.body
+    assert_match "Publishable event pages: 4", @response.body
+    assert_match "Sampled count: 1", @response.body
+    assert_match Distillator::TransitionCheck::SELECTION_RULE, @response.body
     assert_match "This check used a limited sample of representative webpages.", @response.body
     assert_match "Do not activate yet", @response.body
   end
@@ -549,7 +554,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match %r{all websites</a>\s*\|\s*<a[^>]+href="/websites/#{website.id}">#{Regexp.escape(website.name)}</a>\s*\|\s*<a[^>]+href="/webpages\?seedurl=#{Regexp.escape(website.seedurl)}"}, @response.body
     assert_match "Condenser fetch/cache failed for one or more sampled URLs.", @response.body
-    assert_match "Root cause", @response.body
+    assert_match "Main blocker", @response.body
     assert_match "Failed layer: fetch", @response.body
     assert_match "generic_error_text", @response.body
     assert_match "High: Generic error text observed", @response.body
@@ -751,6 +756,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
         representative_webpages: [primary_url, secondary_url],
         representative_webpage_count: 2,
         candidate_webpage_count: 4,
+        publishable_event_page_count: 4,
         selection_rule: Distillator::TransitionCheck::SELECTION_RULE,
         attempted_condenser_fetch: true,
         condenser_fetch_success: true,
@@ -784,7 +790,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
-    assert_match "Root cause", @response.body
+    assert_match "Main blocker", @response.body
     assert_match "Failed layer: cache compare", @response.body
     assert_match "Condenser and Wringer have a blocking parity mismatch.", @response.body
     assert_no_match "Fetch/cache failed for the representative URL.", @response.body
@@ -795,7 +801,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_operator @response.body.scan("Compare extracted statements").count, :>=, 2
     assert_operator @response.body.scan("Open active Wringer cache").count, :>=, 2
     assert_operator @response.body.scan("Open Condenser cache").count, :>=, 2
-    assert_match "Representative webpages checked: 2 of 4", @response.body
+    assert_match "Checked 2 of 4 publishable event pages.", @response.body
   end
 
   test "shadow report detail matrix renders three sampled urls with distinct outcomes and actions" do
@@ -884,7 +890,6 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Passed", @response.body
     assert_match "Body omitted", @response.body
     assert_match "Failed", @response.body
-    assert_operator @response.body.scan("Fetch/refresh Condenser cache for this URL").count, :>=, 3
     assert_operator @response.body.scan("Compare Condenser vs Wringer").count, :>=, 3
     assert_operator @response.body.scan("Compare extracted statements").count, :>=, 3
     assert_operator @response.body.scan("Open webpage record").count, :>=, 3
@@ -1135,7 +1140,8 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
         ],
         representative_webpage_count: 2,
         candidate_webpage_count: 9,
-        selected_candidate_tier_count: 2,
+        publishable_event_page_count: 9,
+        selected_candidate_tier_count: 9,
         selection_rule: Distillator::TransitionCheck::SELECTION_RULE
       }
     )
@@ -1153,7 +1159,8 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
         ],
         representative_webpage_count: 2,
         candidate_webpage_count: 9,
-        selected_candidate_tier_count: 2,
+        publishable_event_page_count: 9,
+        selected_candidate_tier_count: 9,
         export_compared: true,
         export_basis: "current export vs production-equivalent export"
       }
@@ -1162,7 +1169,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
-    assert_match "Representative webpages checked: 2 of 9", @response.body
+    assert_match "Checked 2 of 9 publishable event pages.", @response.body
     assert_match "This check used a limited sample of representative webpages.", @response.body
   end
 
@@ -1178,7 +1185,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_not_nil audit_html
     assert_no_match "Queue transition check", audit_html
     assert_no_match %r{\|\s*</p>}m, audit_html
-    assert_equal 1, @response.body.scan("Queue transition check").size
+    assert_equal 0, @response.body.scan("Queue transition check").size
   end
 
   test "transition detail suppresses empty operator context status and actions" do

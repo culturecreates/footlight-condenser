@@ -68,6 +68,7 @@ class WebsitesHelperTest < ActionView::TestCase
 
     assert_equal "Review before activating", contract[:next_action_label]
     assert_equal false, contract[:action_enabled]
+    assert_empty contract[:secondary_actions].select { |action| action[:kind] == :button }
     assert_equal ["Activate after review"], contract[:secondary_actions].select { |action| action[:kind] == :override }.map { |action| action[:label] }
   end
 
@@ -163,6 +164,15 @@ class WebsitesHelperTest < ActionView::TestCase
     assert_includes summary, "Statement coverage checked."
     assert_includes summary, "Export comparison checked."
     assert_equal distillator_shadow_report_site_path(website, anchor: "website-transition"), path
+  end
+
+  test "website transition secondary actions do not expose run transition check labels" do
+    website = ready_shadow_website(seedurl: "summary-transition-secondary-actions")
+
+    contract = website_transition_contract(website)
+
+    refute_includes contract[:secondary_actions].map { |action| action[:label] }, "Run transition check"
+    refute_includes contract[:secondary_actions].map { |action| action[:label] }, "Run transition check again"
   end
 
   private

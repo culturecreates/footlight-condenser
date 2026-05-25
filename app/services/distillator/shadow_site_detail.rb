@@ -6,6 +6,7 @@ module Distillator
       :transition_evidence_by_kind,
       :transition_evidence_explanations,
       :primary_blocker,
+      :statement_failure_groups,
       :url_matrix,
       :root_cause,
       :checked_scope,
@@ -31,6 +32,7 @@ module Distillator
         transition_evidence_by_kind: transition_evidence_by_kind,
         transition_evidence_explanations: transition_evidence_explanations,
         primary_blocker: primary_blocker,
+        statement_failure_groups: statement_failure_groups,
         url_matrix: url_matrix,
         root_cause: root_cause,
         checked_scope: checked_scope,
@@ -79,10 +81,12 @@ module Distillator
         representative_urls = Array(statement_details["representative_webpages"] || export_details["representative_webpages"] || fetch_details["representative_webpages"]).compact
         representative_count = (statement_details["representative_webpage_count"] || export_details["representative_webpage_count"] || fetch_details["representative_webpage_count"] || representative_urls.count).to_i
         candidate_count = (statement_details["candidate_webpage_count"] || export_details["candidate_webpage_count"] || fetch_details["candidate_webpage_count"] || representative_count).to_i
+        publishable_count = (statement_details["publishable_event_page_count"] || export_details["publishable_event_page_count"] || fetch_details["publishable_event_page_count"] || 0).to_i
 
         {
           representative_webpage_count: representative_count,
           candidate_webpage_count: candidate_count,
+          publishable_event_page_count: publishable_count,
           representative_webpages: representative_urls,
           selection_rule: statement_details["selection_rule"] || export_details["selection_rule"] || fetch_details["selection_rule"] || Distillator::TransitionCheck::SELECTION_RULE,
           selected_candidate_tier_count: (statement_details["selected_candidate_tier_count"] || export_details["selected_candidate_tier_count"] || fetch_details["selected_candidate_tier_count"]).to_i,
@@ -90,7 +94,12 @@ module Distillator
           statements_failed_count: (statement_details["statements_failed_count"] || transition_evidence_by_kind["statement_delta"]&.statement_delta || 0).to_i,
           export_compared: export_details["export_compared"] == true,
           export_basis: export_details["export_basis"].presence || "current export vs production-equivalent export",
-          sample_small: (statement_details["sample_small"] == true || export_details["sample_small"] == true || fetch_details["sample_small"] == true || candidate_count > representative_count)
+          sample_small: (
+            statement_details["sample_small"] == true ||
+            export_details["sample_small"] == true ||
+            fetch_details["sample_small"] == true ||
+            (publishable_count.positive? ? publishable_count : candidate_count) > representative_count
+          )
         }
       end
     end
@@ -131,11 +140,29 @@ module Distillator
 
     def root_cause
       @root_cause ||= begin
-        fetch_rows = url_matrix.select { |row| row[:condenser_fetch_result] == "Failed" }
+        fetch_rows = url_matrix.select do |row|
+          row[:fetch_reason].present? &&
+            row[:fetch_reason] != "ok" &&
+            row[:condenser_fetch_result] != "Passed"
+        end
         legacy_rows = url_matrix.select { |row| row[:legacy_lookup_result] != "OK" }
         compare_rows = url_matrix.select { |row| row[:cache_comparison_result].in?(%w[Failed Review Unknown Missing]) }
 
-        if fetch_rows.any?
+        if primary_blocker&.key == "statement_delta"
+          {
+            failed_layer: "statements",
+            concrete_reason: primary_blocker.headline,
+            affected_url_count: checked_scope[:representative_webpage_count],
+            next_operator_action: transition_status.primary_action
+          }
+        elsif primary_blocker&.key == "export_diff"
+          {
+            failed_layer: "export",
+            concrete_reason: primary_blocker.headline,
+            affected_url_count: checked_scope[:representative_webpage_count],
+            next_operator_action: transition_status.primary_action
+          }
+        elsif fetch_rows.any?
           {
             failed_layer: "fetch",
             concrete_reason: fetch_rows.first[:fetch_reason].to_s.humanize,
@@ -156,20 +183,6 @@ module Distillator
             affected_url_count: compare_rows.count,
             next_operator_action: "Compare Condenser vs Wringer for the affected URLs and review the parity differences."
           }
-        elsif transition_status.statements == :failed || transition_status.statements == :inconclusive
-          {
-            failed_layer: "statements",
-            concrete_reason: transition_evidence_explanations.find { |explanation| explanation.key == "statement_delta" }&.headline,
-            affected_url_count: checked_scope[:representative_webpage_count],
-            next_operator_action: transition_status.primary_action
-          }
-        elsif transition_status.export == :failed || transition_status.export == :blocked_by_fetch || transition_status.export == :inconclusive
-          {
-            failed_layer: "export",
-            concrete_reason: transition_evidence_explanations.find { |explanation| explanation.key == "export_diff" }&.headline,
-            affected_url_count: checked_scope[:representative_webpage_count],
-            next_operator_action: transition_status.primary_action
-          }
         else
           {
             failed_layer: "evidence missing",
@@ -183,6 +196,43 @@ module Distillator
 
     def primary_blocker
       @primary_blocker ||= transition_evidence_explanations.find { |explanation| explanation.severity == "blocker" && explanation.state != "passed" }
+    end
+
+    def statement_failure_groups
+      @statement_failure_groups ||= begin
+        details = transition_evidence_by_kind["statement_delta"]&.details.to_h || {}
+        failing_statements = Array(details["failing_statements"] || details[:failing_statements]).map do |entry|
+          entry.respond_to?(:to_h) ? entry.to_h.symbolize_keys : {}
+        end
+        statements_failed_count = (details["statements_failed_count"] || details[:statements_failed_count] || 0).to_i
+        reasons = Array(details["refresh_errors"] || details[:refresh_errors]).map(&:to_s)
+        normalized_reason = normalize_statement_failure_reason(reasons.first.presence || details["reason"] || details[:reason])
+
+        grouped = failing_statements.group_by do |statement|
+          [
+            normalized_reason,
+            statement[:source].presence || "Unknown source"
+          ]
+        end.map do |(reason, source), entries|
+          {
+            reason: reason,
+            source: source,
+            count: entries.count,
+            statement_ids: entries.map { |entry| entry[:id] }.compact
+          }
+        end
+
+        if grouped.blank? && statements_failed_count.positive?
+          grouped = [{
+            reason: normalized_reason,
+            source: nil,
+            count: statements_failed_count,
+            statement_ids: []
+          }]
+        end
+
+        grouped.sort_by { |group| [-group[:count].to_i, group[:reason].to_s, group[:source].to_s] }
+      end
     end
 
     def decision
@@ -243,7 +293,7 @@ module Distillator
       return [primary_blocker.headline] if primary_blocker.present?
       return transition_status.warnings.presence if transition_status.warnings.any?
 
-      ["All transition checks are currently passing."]
+      ["All sampled transition checks are currently passing."]
     end
 
     def symbolize_row(row)
@@ -252,7 +302,14 @@ module Distillator
 
     def condenser_fetch_label(row)
       return "Missing" if row.blank?
-      return "Failed" if row[:fetch_status] == "failed"
+      if row[:fetch_status] == "failed"
+        return "Captcha" if row[:fetch_reason] == "captcha_detected"
+        return "Renderer unavailable" if %w[renderer_unavailable phantomjs_api_key_missing].include?(row[:fetch_reason].to_s)
+        return "Timed out" if row[:fetch_reason] == "transition_check_timeout_budget_exceeded"
+        return "Redirected" if row[:fetch_reason] == "redirect_to_listing"
+
+        return "Failed"
+      end
 
       "Passed"
     end
@@ -312,6 +369,16 @@ module Distillator
       else
         transition_status.export.to_s.humanize
       end
+    end
+
+    def normalize_statement_failure_reason(raw_reason)
+      reason = raw_reason.to_s.strip
+      return "Statement failure" if reason.blank?
+      return "Blank DSL result" if reason.match?(/blank/i)
+      return "Captcha during URL step" if reason.match?(/captcha/i)
+      return "Invalid URL from json_url" if reason.match?(/invalid url/i) || reason.match?(/json_url/i)
+
+      reason.sub(/\AReason:\s*/i, "").strip.humanize
     end
 
     def cache_compare_reason(row)

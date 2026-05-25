@@ -17,15 +17,44 @@
   <p class="website-debug-id"><%= website_debug_id_label(@website) %></p>
 </section>
 
-<%= render "shared/transition_context",
-           website: @website,
-           contract: website_transition_contract(@website),
-           compact: false,
-           transition_status_summary: website_transition_status_summary(@website),
-           transition_evidence_summary: website_transition_evidence_summary(@website),
-           transition_report_path: website_transition_report_path(@website),
-           show_transition_queue: true,
-           transition_queue_return_to: website_path(@website, anchor: "website-transition") %>
+<% transition_contract = website_transition_contract(@website) %>
+
+<section id="website-transition" class="website-rollout-panel website-show-section">
+  <h2>Transition</h2>
+  <p><strong>Current mode:</strong> <%= transition_contract[:current_mode_label] %></p>
+  <p><strong>Production backend:</strong> <%= transition_contract[:backend_label] %></p>
+  <p><strong>Latest transition status:</strong> <%= website_transition_status_summary(@website) %></p>
+  <p><strong>Compact evidence summary:</strong> <%= website_transition_evidence_summary(@website) %></p>
+  <p><strong>Transition report:</strong> <%= link_to "Open transition report detail", website_transition_report_path(@website) %></p>
+</section>
+
+<section class="website-rollout-panel website-show-section">
+  <h2>Rollout controls</h2>
+  <% primary_action = transition_contract[:primary_action] %>
+  <% if primary_action[:enabled] %>
+    <%= button_to primary_action[:label], primary_action[:path], method: primary_action[:method], params: primary_action[:params], class: "website-transition-button" %>
+  <% else %>
+    <p class="transition-context-disabled-action">
+      <strong><%= primary_action[:label] %>:</strong>
+      <%= primary_action[:message] %>
+      <%= link_to "See transition detail", distillator_shadow_report_site_path(@website) %>
+    </p>
+  <% end %>
+
+  <% transition_contract[:secondary_actions].each do |action| %>
+    <% if action[:kind] == :override %>
+      <details class="website-transition-override">
+        <summary><%= action[:label] %></summary>
+        <p><%= action[:copy] %></p>
+        <%= form_with url: action[:path], method: action[:method], local: true, class: "website-transition-override-form" do |form| %>
+          <%= form.label :reason, "Reason" %>
+          <%= form.text_field :reason, required: true %>
+          <%= form.submit action[:label] %>
+        <% end %>
+      </details>
+    <% end %>
+  <% end %>
+</section>
 
 <section class="website-rollout-panel website-show-section">
   <h2>Recent rollout events</h2>
@@ -57,7 +86,7 @@
   </ul>
 </section>
 
-<section class="website-show-section">
+<section id="website-batch-jobs" class="website-show-section">
   <h2>Batch jobs</h2>
   <ul class="website-show-link-list">
     <li><%= link_to "Refresh upcoming events", refresh_upcoming_events_batch_jobs_path(seedurl: @website.seedurl) %></li>
@@ -65,6 +94,20 @@
     <li><%= link_to "Refresh all Webpages (all classes, all dates)", refresh_webpages_batch_jobs_path(seedurl: @website.seedurl) %></li>
     <li><%= link_to "Export Events to Artsdata", graphs_website_queue_path(seedurl: @website.seedurl) %></li>
   </ul>
+
+  <section id="website-batch-jobs-transition" class="website-rollout-panel">
+    <h3>Transition</h3>
+    <p>Runs in the background and updates this website's transition report as evidence is recorded.</p>
+    <p>It may fetch representative URLs, compare Condenser and Wringer cache output, refresh selected statements, and compare exports.</p>
+    <%= button_to "Queue transition check",
+                  distillator_transition_checks_path,
+                  method: :post,
+                  params: {
+                    website_id: @website.id,
+                    return_to: website_path(@website, anchor: "website-batch-jobs-transition")
+                  },
+                  class: "website-transition-button" %>
+  </section>
 </section>
 
 <details class="website-danger-zone website-show-section">
