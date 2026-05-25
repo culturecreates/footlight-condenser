@@ -155,7 +155,7 @@ module WebsitesHelper
       readiness = website_transition_readiness(website)
       blockers = Array(readiness.blockers)
       warnings = Array(readiness.warnings)
-      primary_action = website_transition_primary_action(website, mode, blockers, warnings)
+      primary_action = website_transition_primary_action(website, mode, readiness)
 
       {
         current_mode: mode,
@@ -174,7 +174,7 @@ module WebsitesHelper
         latest_rollout_event: website.rollout_events.order(created_at: :desc).first,
         cache_links: website_cache_panel_links(website),
         primary_action: primary_action,
-        secondary_actions: website_transition_secondary_actions(website, mode),
+        secondary_actions: website_transition_secondary_actions(website, mode, readiness),
         navigation_links: website_transition_navigation_links(website)
       }
     end
@@ -356,7 +356,10 @@ module WebsitesHelper
     }
   end
 
-  def website_transition_primary_action(website, mode, blockers, warnings)
+  def website_transition_primary_action(website, mode, readiness)
+    blockers = Array(readiness.blockers)
+    warnings = Array(readiness.warnings)
+
     case mode
     when "legacy"
       {
@@ -376,6 +379,16 @@ module WebsitesHelper
           path: website_path(website),
           method: :patch,
           params: { website: { distillator_mode: "active" } }
+        }
+      elsif readiness.review_activation_eligible
+        {
+          label: "Review before activating",
+          next_mode: "active",
+          enabled: false,
+          path: nil,
+          method: nil,
+          params: {},
+          message: "Only review-needed parity differences remain. Use Activate after review with a recorded reason."
         }
       else
         {
@@ -400,7 +413,7 @@ module WebsitesHelper
     end
   end
 
-  def website_transition_secondary_actions(website, mode)
+  def website_transition_secondary_actions(website, mode, readiness)
     actions = [
       {
         kind: :button,
@@ -411,7 +424,15 @@ module WebsitesHelper
       }
     ]
 
-    if %w[legacy shadow].include?(mode) && website_transition_runtime_override_allowed?
+    if mode == "shadow" && readiness.review_activation_eligible
+      actions << {
+        kind: :override,
+        label: "Activate after review",
+        path: activate_after_review_website_path(website),
+        method: :post,
+        copy: "Use when only review-needed differences remain. Records the review reason and readiness snapshot."
+      }
+    elsif %w[legacy shadow].include?(mode) && website_transition_runtime_override_allowed?
       actions << {
         kind: :override,
         label: "Activate anyway",

@@ -85,6 +85,82 @@ class Distillator::RolloutTransitionTest < ActiveSupport::TestCase
     assert_equal "active", website.reload.distillator_mode
   end
 
+  test "allows shadow to active after review when only review-needed parity differences remain" do
+    website = build_website("shadow", seedurl: "review-activate")
+    url = "https://example.org/review-activate"
+    website.webpages.create!(url: url, language: "en", rdf_uri: "rdf:review-activate", rdfs_class: rdfs_classes(:one))
+    Distillator::FetchCache.create!(
+      uri_key: CGI.escape(url),
+      normalized_url: url,
+      html: "<html>ok</html>",
+      body: "<html>ok</html>",
+      scrape_date: 1.hour.ago,
+      successful_refresh: 1.hour.ago,
+      headers: {},
+      signals: { "transport_success" => true, "content_success" => true },
+      final_url: url
+    )
+    website.transition_evidences.create!(
+      url: url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: { reason: "review_needed_difference", comparison_policy: "operator", compare_summary: { review_needed_diffs: ["html_sha256"] } }
+    )
+    website.transition_evidences.create!(url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
+
+    result = Distillator::RolloutTransition.call(website: website, to_mode: "active", actor: "test", reason: "Manual review complete", review: true)
+
+    assert_equal true, result.success?
+    assert_equal "active", website.reload.distillator_mode
+    event = website.rollout_events.order(:created_at).last
+    assert_equal "rollout.review_activate", event.readiness_snapshot["event"]
+    assert_equal true, event.readiness_snapshot["review_activation"]
+    assert_equal ["html_sha256"], event.readiness_snapshot["review_needed_fields"]
+    assert_equal "review", event.readiness_snapshot["safety"]
+    assert_equal "low", event.readiness_snapshot["confidence"]
+    assert_equal "operator", event.readiness_snapshot["comparison_policy"]
+  end
+
+  test "rejects activate after review when legacy body was omitted" do
+    website = build_website("shadow", seedurl: "review-body-omitted")
+    url = "https://example.org/review-body-omitted"
+    website.webpages.create!(url: url, language: "en", rdf_uri: "rdf:review-body-omitted", rdfs_class: rdfs_classes(:one))
+    Distillator::FetchCache.create!(
+      uri_key: CGI.escape(url),
+      normalized_url: url,
+      html: "<html>ok</html>",
+      body: "<html>ok</html>",
+      scrape_date: 1.hour.ago,
+      successful_refresh: 1.hour.ago,
+      headers: {},
+      signals: { "transport_success" => true, "content_success" => true },
+      final_url: url
+    )
+    website.transition_evidences.create!(
+      url: url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: { reason: "legacy_lookup_body_omitted", comparison_policy: "operator" }
+    )
+    website.transition_evidences.create!(url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
+
+    result = Distillator::RolloutTransition.call(
+      website: website,
+      to_mode: "active",
+      actor: "test",
+      reason: "Manual review complete",
+      review: true
+    )
+
+    assert_equal false, result.success?
+    assert_equal "shadow", website.reload.distillator_mode
+    assert_includes result.errors, "Activate after review is available only for review-needed parity differences."
+  end
+
   test "allows active rollback to legacy even when readiness would fail" do
     website = build_website("active", seedurl: "hector-charland-com")
 
@@ -270,7 +346,7 @@ class Distillator::RolloutTransitionTest < ActiveSupport::TestCase
       website: website,
       to_mode: "active",
       actor: "test",
-      reason: "Manual inspection complete",
+      reason: "  Manual inspection complete  ",
       override: true
     )
 

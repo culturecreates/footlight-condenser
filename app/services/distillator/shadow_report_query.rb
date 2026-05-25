@@ -2,7 +2,7 @@ require "will_paginate/collection"
 
 module Distillator
   class ShadowReportQuery
-    FILTER_KEYS = %i[status recommendation health_severity primary_issue_key term cohort mode promotable].freeze
+    FILTER_KEYS = %i[status recommendation safety confidence health_severity primary_issue_key term cohort mode promotable].freeze
     STAGING_INVALID_FILTER = "invalid_on_staging".freeze
     SORT_COLUMNS = %w[website status recommendation latest_attempt latest_successful_refresh issue_key].freeze
     DEFAULT_SORT = "website".freeze
@@ -154,6 +154,8 @@ module Distillator
 
     def include_summary?(summary)
       status_match?(summary) &&
+        safety_match?(summary) &&
+        confidence_match?(summary) &&
         mode_match?(summary) &&
         promotable_match?(summary) &&
         health_severity_match?(summary) &&
@@ -174,6 +176,18 @@ module Distillator
       return true if requested.blank?
 
       summary.status.to_s == requested.to_s
+    end
+
+    def safety_match?(summary)
+      return true if filters[:safety].blank?
+
+      summary.safety.to_s == filters[:safety].to_s
+    end
+
+    def confidence_match?(summary)
+      return true if filters[:confidence].blank?
+
+      summary.confidence.to_s == filters[:confidence].to_s
     end
 
     def promotable_match?(summary)

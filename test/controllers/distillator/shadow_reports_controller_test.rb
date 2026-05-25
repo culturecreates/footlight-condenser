@@ -196,6 +196,36 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Promotable queue", @response.body
   end
 
+  test "shadow report supports safety and confidence filters independently" do
+    safe = create_shadow_website(name: "Safe confidence high", seedurl: "safe-confidence-high")
+    safe_url = "https://safe-confidence-high.example/event"
+    create_cache_for(safe, url: safe_url, signals: { "transport_success" => true, "content_success" => true })
+    safe.transition_evidences.create!(id: next_id, url: safe_url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
+    safe.transition_evidences.create!(id: next_id, url: safe_url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
+
+    review = create_shadow_website(name: "Review confidence low", seedurl: "review-confidence-low")
+    review_url = "https://review-confidence-low.example/event"
+    create_cache_for(review, url: review_url, signals: { "transport_success" => true, "content_success" => true })
+    review.transition_evidences.create!(
+      id: next_id,
+      url: review_url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: { reason: "review_needed_difference", comparison_policy: "operator", compare_summary: { review_needed_diffs: ["html_sha256"] } }
+    )
+    review.transition_evidences.create!(id: next_id, url: review_url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
+    review.transition_evidences.create!(id: next_id, url: review_url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
+
+    get distillator_shadow_report_path, params: { safety: "review", confidence: "low", term: "confidence" }
+
+    assert_response :success
+    assert_includes @response.body, 'name="safety"'
+    assert_includes @response.body, 'name="confidence"'
+    assert_match "Review confidence low", @response.body
+    assert_no_match "Safe confidence high", @response.body
+  end
+
   test "shadow report detail page renders without fetching" do
     website = create_shadow_website(name: "Detail site", seedurl: "detail-site")
     create_cache_for(website, url: "https://detail-site.example/event")
@@ -250,6 +280,50 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Promote to active", @response.body
     assert_match "Safe to promote", @response.body
     assert_match %r{<strong>Export</strong> — Passed}m, @response.body
+  end
+
+  test "shadow report detail shows activate after review checklist for review-only parity differences" do
+    website = create_shadow_website(name: "Review detail", seedurl: "review-detail")
+    url = "https://review-detail.example/event"
+    create_cache_for(
+      website,
+      url: url,
+      signals: {
+        "transport_success" => true,
+        "content_success" => true,
+        "statement_count_delta_acceptable" => true,
+        "export_diff_checked" => true
+      }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "review_needed_difference",
+        comparison_policy: "operator",
+        representative_webpages: [url],
+        representative_webpage_count: 1,
+        candidate_webpage_count: 1,
+        compare_summary: { review_needed_diffs: ["html_sha256"] }
+      }
+    )
+    website.transition_evidences.create!(id: next_id, url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(id: next_id, url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Review before activating", @response.body
+    assert_match "Activate after review", @response.body
+    assert_match "Review checklist", @response.body
+    assert_match "Check statements page", @response.body
+    assert_match "Open compare page", @response.body
+    assert_select "form.website-transition-override-form textarea[name=?]", "reason"
+    assert_no_match "Promote to active", @response.body
+    assert_no_match "Activate anyway", @response.body
   end
 
   test "shadow report detail separates blocked activation from passing export and shows failed statement explanation" do
@@ -626,7 +700,78 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Legacy lookup status: body_omitted", @response.body
     assert_match "Legacy lookup error: legacy_body_omitted", @response.body
     assert_match "Verify the legacy Wringer body endpoint or compare using the legacy inspection link.", @response.body
+    assert_no_match "Activate after review", @response.body
+    assert_no_match "Review checklist", @response.body
     assert_no_match "Promote to active", @response.body
+  end
+
+  test "shadow report detail shows every sampled representative url with cache links and distinguishes parity mismatch from fetch failure" do
+    Distillator::WringerEndpoint.stubs(:current).returns(
+      Distillator::WringerEndpoint::Result.new(
+        compatibility_base_url: "http://compat.example",
+        legacy_lookup_base_url: "http://wringer.example",
+        compatibility_source: "DISTILLATOR_COMPAT_BASE_URL",
+        state: :remote_configured,
+        status_label: "Current Wringer: Remote configured",
+        status_detail: "http://compat.example via DISTILLATOR_COMPAT_BASE_URL"
+      )
+    )
+    website = create_shadow_website(name: "Sample visibility detail", seedurl: "sample-visibility-detail")
+    primary_url = "https://sample-visibility-detail.example/future-one"
+    secondary_url = "https://sample-visibility-detail.example/future-two"
+    create_cache_for(
+      website,
+      url: primary_url,
+      html: "<html><title>Shared title</title><body>cached html differs</body></html>",
+      body: "",
+      signals: {
+        "transport_success" => true,
+        "content_success" => true,
+        "content_type" => "html",
+        "stored_body_bytes" => 0,
+        "fetched_body_bytes" => 2048
+      },
+      health_status: "healthy",
+      health_severity: "ok"
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: primary_url,
+      check_kind: "fetch_parity",
+      status: "failed",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "cache_compare_blocking_regression",
+        representative_webpages: [primary_url, secondary_url],
+        representative_webpage_count: 2,
+        candidate_webpage_count: 4,
+        selection_rule: Distillator::TransitionCheck::SELECTION_RULE,
+        attempted_condenser_fetch: true,
+        condenser_fetch_success: true,
+        comparison_performed: true,
+        compare_summary: {
+          blocking_regressions: ["html_sha256"],
+          metadata_only_diffs: [],
+          review_needed_diffs: %w[content_type final_url transport_success content_success],
+          unknown_diffs: []
+        }
+      }
+    )
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Primary blocker", @response.body
+    assert_match "selected blocker among the sampled representative URLs", @response.body
+    assert_match "Condenser and Wringer have a blocking parity mismatch.", @response.body
+    assert_no_match "Fetch/cache failed for the representative URL.", @response.body
+    assert_match "Sampled representative URLs", @response.body
+    assert_match primary_url, @response.body
+    assert_match secondary_url, @response.body
+    assert_operator @response.body.scan("Compare Condenser vs Wringer").count, :>=, 2
+    assert_operator @response.body.scan("Open active Wringer cache").count, :>=, 2
+    assert_operator @response.body.scan("Open Condenser cache").count, :>=, 2
+    assert_match "Representative webpages checked: 2 of 4", @response.body
   end
 
   test "shadow report detail keeps representative checked count honest across tiers" do

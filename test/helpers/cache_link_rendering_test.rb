@@ -2,6 +2,8 @@ require "test_helper"
 
 class CacheLinkRenderingTest < ActionView::TestCase
   include ApplicationHelper
+  include Distillator::CacheHelper
+  include Distillator::ShadowReportsHelper
   include WebsitesHelper
   include WebpagesHelper
   include StatementsHelper
@@ -54,6 +56,18 @@ class CacheLinkRenderingTest < ActionView::TestCase
       assert_equal shared_contract(expected_links), shared_contract(operator_links)
       remove_instance_variable(:@statement)
     end
+  end
+
+  test "cache compare and shadow report share the same inspection link labels" do
+    ENV["DISTILLATOR_FETCH_MODE"] = "active"
+    website, = rollout_fixture_for(mode: "shadow", suffix: "inspection-shared")
+    url = website.webpages.first.url
+
+    cache_links = Distillator::CacheHelper.instance_method(:cache_inspection_links).bind_call(self, url, website: website)
+    shadow_links = Distillator::ShadowReportsHelper.instance_method(:cache_inspection_links).bind_call(self, url, website: website)
+
+    assert_equal cache_links, shadow_links
+    assert_equal ["Source website", "Compare", "Open active cache", "Open Condenser cache", "Webpage record"], cache_links.map { |link| link[:label] }
   end
 
   private

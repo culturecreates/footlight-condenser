@@ -4,7 +4,18 @@ module Distillator
     LAVITRINE_EVIDENCE_STALE_AFTER = 24.hours
     EXPORT_DIFF_STALE_AFTER = 7.days
 
-    Result = Struct.new(:blockers, :warnings, :evidence_by_kind, keyword_init: true)
+    Result = Struct.new(
+      :blockers,
+      :warnings,
+      :evidence_by_kind,
+      :safety,
+      :confidence,
+      :review_activation_eligible,
+      :manual_review_required,
+      :review_needed_fields,
+      :comparison_policy,
+      keyword_init: true
+    )
 
     def self.call(...)
       new(...).call
@@ -22,7 +33,13 @@ module Distillator
       Result.new(
         blockers: transition.blockers,
         warnings: transition.warnings,
-        evidence_by_kind: evidence_by_kind
+        evidence_by_kind: evidence_by_kind,
+        safety: transition.safety,
+        confidence: transition.confidence,
+        review_activation_eligible: transition.review_activation_eligible,
+        manual_review_required: transition.manual_review_required,
+        review_needed_fields: transition.review_needed_fields,
+        comparison_policy: transition.comparison_policy
       )
     end
 

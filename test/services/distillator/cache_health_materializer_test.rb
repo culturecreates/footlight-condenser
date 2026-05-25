@@ -269,6 +269,35 @@ class Distillator::CacheHealthMaterializerTest < ActiveSupport::TestCase
     refute_includes cache.health_reasons, "empty_body"
   end
 
+  test "html cache stays healthy when stored body is empty but cached html is present" do
+    cache = build_cache(
+      uri: "https://example.org/html-cache-present",
+      html: "<html><title>Cached HTML</title><body>cached body</body></html>",
+      body: "",
+      scrape_date: Time.zone.now,
+      successful_refresh: Time.zone.now,
+      http_response_code: 200,
+      signals: {
+        "network_status" => "ok",
+        "content_type" => "html",
+        "transport_success" => true,
+        "content_success" => true,
+        "stored_body_bytes" => 0,
+        "empty_body" => true
+      },
+      hints: ["empty_body"],
+      final_url: "https://example.org/html-cache-present"
+    )
+
+    Distillator::CacheHealthMaterializer.call(cache)
+
+    assert_equal "healthy", cache.health_status
+    assert_equal "ok", cache.health_severity
+    assert_equal cache.html.to_s.bytesize, cache.html_bytes
+    assert_equal 0, cache.body_bytes
+    refute_includes cache.health_reasons, "empty_body"
+  end
+
   private
 
   # Build an unsaved FetchCache with realistic defaults.

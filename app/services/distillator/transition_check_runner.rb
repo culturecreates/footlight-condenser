@@ -269,6 +269,7 @@ module Distillator
         attempted_condenser_fetch: transition_check.attempted_condenser_fetch == true,
         condenser_fetch_success: condenser_fetch_success?(transition_check),
         comparison_performed: transition_check.comparison.present?,
+        comparison_policy: transition_check.comparison_policy.to_s,
         legacy_source: transition_check.comparison&.dig(:legacy_source),
         legacy_lookup_status: transition_check.comparison&.dig(:legacy_lookup_status),
         legacy_lookup_error: transition_check.comparison&.dig(:legacy_lookup_error),
@@ -301,6 +302,18 @@ module Distillator
 
       if comparison.present? && comparison[:legacy_lookup_status] == "body_omitted"
         return [:checked, details.merge(reason: "legacy_lookup_body_omitted", comparison_performed: false)]
+      end
+
+      if comparison.present? && comparison.dig(:summary, :review_needed_diffs).present?
+        return [:checked, details.merge(reason: "review_needed_difference")]
+      end
+
+      if comparison.present? &&
+         comparison.dig(:summary, :metadata_only_diffs).present? &&
+         comparison.dig(:summary, :blocking_regressions).blank? &&
+         comparison.dig(:summary, :review_needed_diffs).blank? &&
+         comparison.dig(:summary, :unknown_diffs).blank?
+        return [:checked, details.merge(reason: "metadata_only_difference")]
       end
 
       if comparison.present? && (comparison.dig(:missing, :legacy) || comparison.dig(:missing, :condenser))

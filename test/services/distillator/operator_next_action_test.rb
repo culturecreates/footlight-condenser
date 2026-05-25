@@ -29,6 +29,13 @@ class Distillator::OperatorNextActionTest < ActiveSupport::TestCase
     assert_equal "Promote to Active.", Distillator::OperatorNextAction.call(website: website, transition_status: status)
   end
 
+  test "review-eligible shadow site says activate after review" do
+    website = stub_website("shadow")
+    status = stub_status(status: :review, review_activation_eligible: true)
+
+    assert_equal "Activate after review.", Distillator::OperatorNextAction.call(website: website, transition_status: status)
+  end
+
   test "ready active site prefers active cache when available" do
     website = stub_website("active")
     status = stub_status(status: :ready)
@@ -53,7 +60,7 @@ class Distillator::OperatorNextActionTest < ActiveSupport::TestCase
     Struct.new(:distillator_mode).new(mode)
   end
 
-  def stub_status(status:, blockers: [], fetch: :passed, statements: :passed, export: :passed)
-    Struct.new(:status, :blockers, :fetch, :statements, :export).new(status, blockers, fetch, statements, export)
+  def stub_status(status:, blockers: [], fetch: :passed, statements: :passed, export: :passed, review_activation_eligible: false)
+    Struct.new(:status, :blockers, :fetch, :statements, :export, :review_activation_eligible).new(status, blockers, fetch, statements, export, review_activation_eligible)
   end
 end

@@ -44,12 +44,15 @@ class Distillator::CacheCompareTest < ActiveSupport::TestCase
     assert_nil both[:legacy_lookup_error]
     assert_equal "local_fetch_cache", both[:condenser_source]
     assert_equal true, both.dig(:summary, :html_hash_difference)
-    assert_includes both.dig(:summary, :blocking_regressions), :html_sha256
+    assert_includes both.dig(:summary, :review_needed_diffs), :html_sha256
+    assert_equal "review", both.dig(:summary, :outcome)
 
     legacy_missing = Distillator::CacheCompare.call(uri: "http://example.org/page", legacy_lookup: ->(_uri_key) { nil })
     assert_equal true, legacy_missing.dig(:missing, :legacy)
     assert_equal "injected_lookup", legacy_missing[:legacy_source]
     assert_equal false, legacy_missing.dig(:summary, :promotable)
+    assert_equal "unknown", legacy_missing.dig(:summary, :outcome)
+    assert_equal "Legacy cache missing.", legacy_missing.dig(:summary, :primary_reason)
 
     Distillator::FetchCache.delete_all
     distillator_missing = Distillator::CacheCompare.call(uri: "http://example.org/page", legacy_lookup: ->(_uri_key) { { html: "<html>legacy</html>" } })
@@ -223,6 +226,90 @@ class Distillator::CacheCompareTest < ActiveSupport::TestCase
     assert_includes result.dig(:summary, :unknown_diffs), :final_url
     assert_equal "<html><title>Condenser title</title><body>fresh</body></html>", fresh_cache.reload.html
     assert_equal false, result.dig(:summary, :promotable)
+    assert_equal "unknown", result.dig(:summary, :outcome)
+    assert_equal "Legacy Wringer body was omitted from the comparison endpoint.", result.dig(:summary, :primary_reason)
+  end
+
+  test "metadata enrichments are review-needed rather than blocking when legacy fields are null" do
+    key = CGI.escape("https://example.org/events/review-needed")
+    Distillator::FetchCache.create!(
+      uri_key: key,
+      normalized_url: "https://example.org/events/review-needed",
+      html: "<html><title>Shared title</title><body>cached html differs</body></html>",
+      body: "",
+      scrape_date: Time.zone.now,
+      successful_refresh: Time.zone.now,
+      http_response_code: 200,
+      headers: {},
+      signals: {
+        "content_type" => "html",
+        "transport_success" => true,
+        "content_success" => true,
+        "network_status" => "ok"
+      },
+      hints: [],
+      final_url: "https://example.org/events/review-needed/final",
+      redirect_chain: []
+    )
+
+    result = Distillator::CacheCompare.call(
+      uri: "https://example.org/events/review-needed",
+      legacy_lookup: ->(_uri_key) do
+        {
+          html: "<html><title>Shared title</title><body>legacy html differs</body></html>",
+          http_code: 200,
+          successful_refresh: "2026-03-06T16:47:36Z",
+          signals: { "network_status" => "ok" }
+        }
+      end
+    )
+
+    assert_includes result.dig(:summary, :review_needed_diffs), :html_sha256
+    assert_not_includes result.dig(:summary, :blocking_regressions), :content_type
+    assert_not_includes result.dig(:summary, :blocking_regressions), :final_url
+    assert_not_includes result.dig(:summary, :blocking_regressions), :transport_success
+    assert_not_includes result.dig(:summary, :blocking_regressions), :content_success
+    assert_includes result.dig(:summary, :review_needed_diffs), :content_type
+    assert_includes result.dig(:summary, :review_needed_diffs), :final_url
+    assert_includes result.dig(:summary, :review_needed_diffs), :transport_success
+    assert_includes result.dig(:summary, :review_needed_diffs), :content_success
+    assert_equal false, result.dig(:summary, :promotable)
+    assert_equal "Shared title", result.dig(:legacy_cache, :title)
+    assert_equal "Shared title", result.dig(:condenser_cache, :title)
+  end
+
+  test "strict comparison policy keeps raw html drift blocking" do
+    key = CGI.escape("https://example.org/events/strict-review-needed")
+    Distillator::FetchCache.create!(
+      uri_key: key,
+      normalized_url: "https://example.org/events/strict-review-needed",
+      html: "<html><title>Shared title</title><body>cached html differs</body></html>",
+      body: "",
+      scrape_date: Time.zone.now,
+      successful_refresh: Time.zone.now,
+      http_response_code: 200,
+      headers: {},
+      signals: { "content_type" => "html", "transport_success" => true, "content_success" => true, "network_status" => "ok" },
+      hints: [],
+      final_url: "https://example.org/events/strict-review-needed",
+      redirect_chain: []
+    )
+
+    result = Distillator::CacheCompare.call(
+      uri: "https://example.org/events/strict-review-needed",
+      comparison_policy: :strict,
+      legacy_lookup: ->(_uri_key) do
+        {
+          html: "<html><title>Shared title</title><body>legacy html differs</body></html>",
+          http_code: 200,
+          successful_refresh: "2026-03-06T16:47:36Z",
+          signals: { "network_status" => "ok" }
+        }
+      end
+    )
+
+    assert_includes result.dig(:summary, :blocking_regressions), :html_sha256
+    assert_equal "blocked", result.dig(:summary, :outcome)
   end
 
   test "search uses uri_key once and hydration uses normalized url with encoded inputs" do
@@ -267,6 +354,7 @@ class Distillator::CacheCompareTest < ActiveSupport::TestCase
     assert_equal "unreachable", result[:legacy_lookup_status]
     assert_match "wringer unavailable", result[:legacy_lookup_error]
     assert_equal true, result.dig(:missing, :legacy)
+    assert_not_equal "review", result.dig(:summary, :outcome)
   end
 
   test "records missing config without attempting localhost" do
@@ -349,5 +437,61 @@ class Distillator::CacheCompareTest < ActiveSupport::TestCase
 
     assert_equal "<html>fresh</html>", result.dig(:condenser_cache, :html)
     assert_equal "<html>stale</html>", stale_cache.reload.html
+  end
+
+  test "metadata-only differences stay ready with metadata notes" do
+    key = CGI.escape("https://example.org/events/metadata-only")
+    now = Time.zone.now
+    Distillator::FetchCache.create!(
+      uri_key: key,
+      normalized_url: "https://example.org/events/metadata-only",
+      html: "<html><title>Shared title</title><body>same</body></html>",
+      body: "<html><title>Shared title</title><body>same</body></html>",
+      scrape_date: now,
+      successful_refresh: now,
+      http_response_code: 200,
+      headers: {},
+      signals: {
+        "content_type" => "html",
+        "transport_success" => true,
+        "content_success" => true,
+        "network_status" => "ok"
+      },
+      hints: ["condenser-extra-note"],
+      final_url: "https://example.org/events/metadata-only",
+      redirect_chain: ["https://example.org/events/metadata-only"]
+    )
+
+    result = Distillator::CacheCompare.call(
+      uri: "https://example.org/events/metadata-only",
+      legacy_lookup: ->(_uri_key) do
+        {
+          html: "<html><title>Shared title</title><body>same</body></html>",
+          http_code: 200,
+          scrape_date: now.iso8601,
+          successful_refresh: now.iso8601,
+          signals: {
+            "content_type" => "html",
+            "transport_success" => true,
+            "content_success" => true,
+            "network_status" => "ok"
+          },
+          hints: [],
+          final_url: "https://example.org/events/metadata-only",
+          redirect_chain: []
+        }
+      end
+    )
+
+    assert_equal [], result.dig(:summary, :blocking_regressions)
+    assert_equal [], result.dig(:summary, :review_needed_diffs)
+    assert_equal [], result.dig(:summary, :unknown_diffs)
+    assert_includes result.dig(:summary, :metadata_only_diffs), :hints
+    assert_includes result.dig(:summary, :metadata_only_diffs), :redirect_chain
+    assert_equal true, result.dig(:summary, :promotable)
+    assert_equal "ready_with_metadata_notes", result.dig(:summary, :outcome)
+    assert_match(/\AMetadata notes:/, result.dig(:summary, :primary_reason))
+    assert_includes result.dig(:summary, :primary_reason), "redirect_chain"
+    assert_includes result.dig(:summary, :primary_reason), "hints"
   end
 end

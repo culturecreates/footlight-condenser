@@ -363,6 +363,43 @@ module Distillator::CacheHelper
     wring_websites_path(format: :json, uri: cache_normalized_url(cache))
   end
 
+  def truncated_url_label(url, max: 80)
+    text = url.to_s
+    return text if text.length <= max
+
+    "#{text.first(max - 1)}..."
+  end
+
+  def external_website_link(url, label: nil, max: 80)
+    return "Not recorded" if url.blank?
+    return ERB::Util.html_escape(label.presence || truncated_url_label(url, max: max)) unless external_http_url?(url)
+
+    link_to(label.presence || truncated_url_label(url, max: max), url, target: "_blank", rel: "noopener")
+  end
+
+  def cache_inspection_links(url, website: nil)
+    Distillator::InspectionLinks.call(
+      url: url,
+      website: website,
+      payload: active_cache_links_for(url, website: website)
+    )
+  end
+
+  def cache_compare_outcome_label(summary)
+    case summary.to_h[:outcome].to_s
+    when "blocked"
+      "Blocked"
+    when "review"
+      "Needs review"
+    when "ready_with_metadata_notes"
+      "Ready with metadata notes"
+    when "pass"
+      "Pass"
+    else
+      "Unknown"
+    end
+  end
+
   private
 
   def external_http_url?(url)

@@ -28,6 +28,7 @@ module Distillator
       :attempted_condenser_fetch,
       :condenser_fetch_result,
       :comparison,
+      :comparison_policy,
       :cache,
       :cache_link_payload,
       :primary_action,
@@ -43,6 +44,7 @@ module Distillator
       cache: nil,
       evidence_by_kind: nil,
       run_fetch: false,
+      comparison_policy: :operator,
       fetch_cache_store: Distillator::FetchCacheStore,
       cache_compare: Distillator::CacheCompare
     )
@@ -50,6 +52,7 @@ module Distillator
       @cache = cache
       @evidence_by_kind = evidence_by_kind
       @run_fetch = run_fetch == true
+      @comparison_policy = normalize_comparison_policy(comparison_policy)
       @fetch_cache_store = fetch_cache_store
       @cache_compare = cache_compare
     end
@@ -85,6 +88,7 @@ module Distillator
         attempted_condenser_fetch: fetch_attempt[:attempted],
         condenser_fetch_result: fetch_attempt[:result],
         comparison: fetch_attempt[:comparison],
+        comparison_policy: comparison_policy,
         cache: resolved_cache,
         cache_link_payload: cache_link_payload,
         primary_action: primary_action
@@ -93,7 +97,7 @@ module Distillator
 
     private
 
-    attr_reader :website, :evidence_by_kind, :fetch_cache_store, :cache_compare
+    attr_reader :website, :evidence_by_kind, :fetch_cache_store, :cache_compare, :comparison_policy
 
     def cache
       @cache ||= Distillator::ShadowReportQuery.latest_cache_for_website(website)
@@ -195,8 +199,17 @@ module Distillator
       {
         attempted: true,
         result: fetch_result,
-        comparison: cache_compare.call(uri: representative_webpage.url, condenser_result: fetch_result)
+        comparison: cache_compare.call(
+          uri: representative_webpage.url,
+          condenser_result: fetch_result,
+          comparison_policy: comparison_policy
+        )
       }
+    end
+
+    def normalize_comparison_policy(value)
+      candidate = value.to_s.presence&.to_sym || :operator
+      Distillator::CacheCompare::POLICIES.include?(candidate) ? candidate : :operator
     end
   end
 end

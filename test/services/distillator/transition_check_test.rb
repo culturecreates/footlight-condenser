@@ -126,7 +126,7 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
       condenser_source: "local_fetch_cache"
     }
     cache_compare = mock
-    cache_compare.expects(:call).with(uri: stale_cache.normalized_url, condenser_result: fetch_result).returns(comparison)
+    cache_compare.expects(:call).with(uri: stale_cache.normalized_url, condenser_result: fetch_result, comparison_policy: :operator).returns(comparison)
 
     result = Distillator::TransitionCheck.call(
       website: website,

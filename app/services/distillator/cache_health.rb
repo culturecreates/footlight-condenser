@@ -82,6 +82,8 @@ module Distillator
     end
 
     def empty_body?
+      return false if valid_html_cache_with_empty_body?
+
       hints.include?("empty_body") || signal("empty_body") == true
     end
 
@@ -155,6 +157,14 @@ module Distillator
 
     def has_html?
       cache.html.present?
+    end
+
+    def valid_html_cache_with_empty_body?
+      success_2xx?(cache.http_response_code) &&
+        has_html? &&
+        signal("content_type").to_s == "html" &&
+        truthy_signal?("transport_success") &&
+        truthy_signal?("content_success")
     end
 
     def fetched_body_non_empty?

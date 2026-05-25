@@ -196,7 +196,7 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
       assert_equal "transition_check", kwargs.dig(:log_context, :source)
       true
     end.returns(fresh_fetch_result)
-    Distillator::CacheCompare.expects(:call).with(uri: url, condenser_result: fresh_fetch_result).returns(
+    Distillator::CacheCompare.expects(:call).with(uri: url, condenser_result: fresh_fetch_result, comparison_policy: :operator).returns(
       {
         summary: { promotable: true, blocking_regressions: [] },
         missing: { legacy: false, condenser: false },

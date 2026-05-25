@@ -4,7 +4,7 @@ class WebsitesController < ApplicationController
 
   FILTER_KEYS = %i[q seed_filter default_language graph_name distillator_mode cohort].freeze
 
-  before_action :set_website, only: [:show, :edit, :update, :destroy, :delete_all_statements, :activate_anyway]
+  before_action :set_website, only: [:show, :edit, :update, :destroy, :delete_all_statements, :activate_after_review, :activate_anyway]
 
   def test_api
     @websites = Website.all.order(:name)
@@ -192,6 +192,22 @@ class WebsitesController < ApplicationController
         format.html { render :edit }
         format.json { render json: @website.errors, status: :unprocessable_entity }
       end
+    end
+  end
+
+  def activate_after_review
+    result = Distillator::RolloutTransition.call(
+      website: @website,
+      to_mode: "active",
+      actor: rollout_actor,
+      reason: params[:reason],
+      review: true
+    )
+
+    if result.success?
+      redirect_to @website, notice: "Website activated after review. Reason recorded."
+    else
+      redirect_to @website, alert: result.errors.join(", ")
     end
   end
 

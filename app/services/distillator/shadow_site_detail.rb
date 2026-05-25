@@ -69,22 +69,24 @@ module Distillator
 
     def checked_scope
       @checked_scope ||= begin
+        fetch_details = transition_evidence_by_kind["fetch_parity"]&.details.to_h || {}
         statement_details = transition_evidence_by_kind["statement_delta"]&.details.to_h || {}
         export_details = transition_evidence_by_kind["export_diff"]&.details.to_h || {}
-        representative_urls = Array(statement_details["representative_webpages"] || export_details["representative_webpages"]).compact
-        representative_count = (statement_details["representative_webpage_count"] || export_details["representative_webpage_count"] || representative_urls.count).to_i
-        candidate_count = (statement_details["candidate_webpage_count"] || export_details["candidate_webpage_count"] || representative_count).to_i
+        representative_urls = Array(statement_details["representative_webpages"] || export_details["representative_webpages"] || fetch_details["representative_webpages"]).compact
+        representative_count = (statement_details["representative_webpage_count"] || export_details["representative_webpage_count"] || fetch_details["representative_webpage_count"] || representative_urls.count).to_i
+        candidate_count = (statement_details["candidate_webpage_count"] || export_details["candidate_webpage_count"] || fetch_details["candidate_webpage_count"] || representative_count).to_i
 
         {
           representative_webpage_count: representative_count,
           candidate_webpage_count: candidate_count,
           representative_webpages: representative_urls,
-          selection_rule: statement_details["selection_rule"] || export_details["selection_rule"] || Distillator::TransitionCheck::SELECTION_RULE,
+          selection_rule: statement_details["selection_rule"] || export_details["selection_rule"] || fetch_details["selection_rule"] || Distillator::TransitionCheck::SELECTION_RULE,
+          selected_candidate_tier_count: (statement_details["selected_candidate_tier_count"] || export_details["selected_candidate_tier_count"] || fetch_details["selected_candidate_tier_count"]).to_i,
           statements_refreshed_count: (statement_details["statements_refreshed_count"] || 0).to_i,
           statements_failed_count: (statement_details["statements_failed_count"] || transition_evidence_by_kind["statement_delta"]&.statement_delta || 0).to_i,
           export_compared: export_details["export_compared"] == true,
           export_basis: export_details["export_basis"].presence || "current export vs production-equivalent export",
-          sample_small: (statement_details["sample_small"] == true || export_details["sample_small"] == true || candidate_count > representative_count)
+          sample_small: (statement_details["sample_small"] == true || export_details["sample_small"] == true || fetch_details["sample_small"] == true || candidate_count > representative_count)
         }
       end
     end
@@ -97,12 +99,12 @@ module Distillator
       @decision ||= begin
         action = if primary_blocker.present?
           primary_blocker.next_action
-        elsif transition_status.status == :review
-          "Review the warning or use Activate anyway only when you have manually inspected the site."
+        elsif transition_status.review_activation_eligible
+          "Use the review checklist, then activate with a recorded reason if the content is acceptable."
         elsif transition_status.status == :ready
           "Promote to active when you are satisfied with the evidence."
         else
-          "Run the transition check to record current evidence."
+          transition_status.primary_action
         end
 
         {

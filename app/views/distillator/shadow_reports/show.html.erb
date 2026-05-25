@@ -5,6 +5,8 @@
 <section class="website-rollout-panel">
   <h2>Decision</h2>
   <p><strong>Decision:</strong> <%= shadow_report_decision_label(@detail.decision) %></p>
+  <p><strong>Safety:</strong> <%= @detail.transition_status.safety.to_s.humanize %></p>
+  <p><strong>Confidence:</strong> <%= @detail.transition_status.confidence.to_s.humanize %></p>
   <p><strong>Why:</strong> <%= @detail.decision[:why].first %></p>
   <p><strong>Recommended action:</strong> <%= @detail.decision[:recommended_action] %></p>
 </section>
@@ -21,6 +23,7 @@
 <section class="website-rollout-panel">
   <h2>Primary blocker</h2>
   <% if @detail.primary_blocker.present? %>
+    <p>This is the selected blocker among the sampled representative URLs.</p>
     <p><strong><%= shadow_report_primary_blocker_heading(@detail.primary_blocker) %>:</strong> <%= @detail.primary_blocker.headline %></p>
     <% if shadow_report_primary_blocker_details(@detail).any? %>
       <ul>
@@ -46,6 +49,18 @@
   <% if primary_action[:enabled] && primary_action[:label].in?(["Promote to active", "Rollback to Legacy Wringer"]) %>
     <%= button_to primary_action[:label], primary_action[:path], method: primary_action[:method], params: primary_action[:params], class: "website-transition-button" %>
   <% end %>
+  <% review_action = contract[:secondary_actions].find { |action| action[:kind] == :override && action[:label] == "Activate after review" } %>
+  <% if review_action.present? %>
+    <details class="website-transition-override">
+      <summary>Activate after review</summary>
+      <p><%= review_action[:copy] %></p>
+      <%= form_with url: review_action[:path], method: review_action[:method], local: true, class: "website-transition-override-form" do |form| %>
+        <%= form.label :reason, "Reason" %>
+        <%= form.text_area :reason, required: true, rows: 4, placeholder: "Summarize what you checked and why activation is safe." %>
+        <%= form.submit review_action[:label] %>
+      <% end %>
+    </details>
+  <% end %>
   <%= button_to "Run transition check", distillator_transition_checks_path, method: :post, params: { website_id: @website.id, return_to: request.fullpath }, class: "website-transition-button" %>
 </section>
 
@@ -61,6 +76,58 @@
   <% end %>
 </section>
 
+<section class="website-rollout-panel">
+  <h2>Sampled representative URLs</h2>
+  <% sampled_webpages = shadow_report_sampled_webpages(@detail) %>
+  <% if sampled_webpages.any? %>
+    <table class="harmonized-table-shell">
+      <thead>
+        <tr>
+          <th>URL</th>
+          <th>Result</th>
+          <th>Key issue</th>
+          <th>Links</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% sampled_webpages.each do |sample| %>
+          <tr>
+            <td>
+              <%= external_website_link(sample[:url]) %>
+              <% if sample[:primary_blocker] %>
+                <div class="rollout-note">Primary blocker</div>
+              <% end %>
+            </td>
+            <td><%= sample[:result] %></td>
+            <td><%= sample[:key_issue].presence || "None recorded" %></td>
+            <td><%= safe_join(sample[:links].map { |link| link_to(link[:label], link[:url]) }, " | ") %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <p>No sampled representative URLs were recorded.</p>
+  <% end %>
+</section>
+
+<% if @detail.transition_status.review_activation_eligible %>
+  <section class="website-rollout-panel">
+    <h2>Review checklist</h2>
+    <% first_sample = sampled_webpages.first %>
+    <ul>
+      <li><%= link_to "Open source website", first_sample[:links].find { |link| link[:label] == "Source website" }[:url], target: "_blank", rel: "noopener" if first_sample.present? && first_sample[:links].any? { |link| link[:label] == "Source website" } %></li>
+      <li><%= link_to "Open compare page", first_sample[:links].find { |link| link[:label] == "Compare" }[:url] if first_sample.present? && first_sample[:links].any? { |link| link[:label] == "Compare" } %></li>
+      <li><%= link_to "Open active cache", first_sample[:links].find { |link| link[:label] == "Open active cache" }[:url] if first_sample.present? && first_sample[:links].any? { |link| link[:label] == "Open active cache" } %></li>
+      <li><%= link_to "Open Condenser cache", first_sample[:links].find { |link| link[:label] == "Open Condenser cache" }[:url] if first_sample.present? && first_sample[:links].any? { |link| link[:label] == "Open Condenser cache" } %></li>
+      <li><%= link_to "Open webpage record", first_sample[:links].find { |link| link[:label] == "Webpage record" }[:url] if first_sample.present? && first_sample[:links].any? { |link| link[:label] == "Webpage record" } %></li>
+      <li>Compare title, date, location, and ticket link.</li>
+      <li><%= link_to "Check statements page", statements_path(seedurl: @website.seedurl) %></li>
+      <li>Check JSON-LD/export if relevant.</li>
+      <li>Activate after review, with reason.</li>
+    </ul>
+  </section>
+<% end %>
+
 <details class="website-rollout-panel">
   <summary>Diagnostics</summary>
   <p><strong>Website:</strong> <%= @website.name %></p>
@@ -68,6 +135,7 @@
   <p><strong>Cohort:</strong> <%= @detail.summary.cohort_label.presence || "Other" %></p>
   <p><strong>Current rollout mode:</strong> <%= Distillator::RolloutCopy.label(@website.distillator_mode) %></p>
   <p><strong>Production backend:</strong> <%= shadow_report_production_backend_label(@detail.summary) %></p>
+  <p><strong>Comparison policy:</strong> <%= @detail.transition_status.comparison_policy.to_s.humanize %> mode</p>
   <p><strong>Latest attempt:</strong> <%= shadow_report_timestamp(@detail.summary.latest_refresh) %></p>
   <p><strong>Latest successful refresh:</strong> <%= shadow_report_timestamp(@detail.summary.latest_successful_refresh) %></p>
   <p><strong>Health:</strong> <%= @detail.summary.health_summary %></p>

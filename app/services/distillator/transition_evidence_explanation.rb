@@ -48,7 +48,7 @@ module Distillator
     attr_reader :check_kind, :evidence, :website, :state
 
     def severity
-      return "warning" if check_kind == "fetch_parity" && %w[legacy_lookup_missing_config legacy_lookup_unreachable legacy_lookup_body_omitted].include?(reason)
+      return "warning" if check_kind == "fetch_parity" && %w[legacy_lookup_missing_config legacy_lookup_unreachable legacy_lookup_body_omitted review_needed_difference].include?(reason)
 
       case state
       when :failed, :blocked_by_fetch, :not_evaluated
@@ -79,8 +79,10 @@ module Distillator
       return "Condenser fetch passed, but legacy Wringer lookup is missing staging configuration." if reason == "legacy_lookup_missing_config"
       return "Condenser fetch passed, but legacy Wringer lookup failed." if reason == "legacy_lookup_unreachable"
       return "Condenser fetch passed, but legacy Wringer body was omitted from the comparison endpoint." if reason == "legacy_lookup_body_omitted"
+      return "Condenser and Wringer differ in fields that need manual review." if reason == "review_needed_difference"
+      return "Condenser and Wringer differ only in metadata fields." if reason == "metadata_only_difference"
       return "Fresh Condenser evidence is missing for this comparison." if reason == "cache_compare_missing"
-      return "Fresh Condenser evidence differs from Wringer in blocking fields." if reason == "cache_compare_blocking_regression"
+      return "Condenser and Wringer have a blocking parity mismatch." if reason == "cache_compare_blocking_regression"
       case state
       when :passed
         "Fetch parity passed."
@@ -140,6 +142,7 @@ module Distillator
       details << "Legacy lookup status: #{details_hash['legacy_lookup_status']}" if details_hash["legacy_lookup_status"].present?
       details << "Legacy lookup error: #{details_hash['legacy_lookup_error']}" if details_hash["legacy_lookup_error"].present?
       details << "Condenser source: #{details_hash['condenser_source']}" if details_hash["condenser_source"].present?
+      details << "Comparison policy: #{details_hash['comparison_policy']}" if details_hash["comparison_policy"].present?
       details << "Compare performed: #{details_hash["comparison_performed"] ? 'yes' : 'no'}" if details_hash.key?("comparison_performed")
       details << "Reason: #{reason.humanize}" if reason.present?
       details

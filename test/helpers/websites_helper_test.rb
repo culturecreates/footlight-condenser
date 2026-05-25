@@ -39,6 +39,69 @@ class WebsitesHelperTest < ActionView::TestCase
     assert_includes contract[:blockers], "Cannot activate yet: statements check failed."
   end
 
+  test "shadow review contract exposes activate after review instead of promote or activate anyway" do
+    website = build_website("shadow", seedurl: "helper-shadow-review")
+    url = "https://example.org/helper-shadow-review/event"
+    website.webpages.create!(url: url, language: "en", rdf_uri: "rdf:helper-shadow-review", rdfs_class: rdfs_classes(:one))
+    Distillator::FetchCache.create!(
+      uri_key: CGI.escape(url),
+      normalized_url: url,
+      html: "<html>ok</html>",
+      body: "<html>ok</html>",
+      scrape_date: 1.hour.ago,
+      successful_refresh: 1.hour.ago,
+      headers: {},
+      signals: { "transport_success" => true, "content_success" => true },
+      final_url: url
+    )
+    website.transition_evidences.create!(url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(
+      url: url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: { reason: "review_needed_difference", comparison_policy: "operator", compare_summary: { review_needed_diffs: %w[html_sha256] } }
+    )
+
+    contract = website_transition_contract(website)
+
+    assert_equal "Review before activating", contract[:next_action_label]
+    assert_equal false, contract[:action_enabled]
+    assert_equal ["Activate after review"], contract[:secondary_actions].select { |action| action[:kind] == :override }.map { |action| action[:label] }
+  end
+
+  test "shadow body omitted contract does not expose activate after review" do
+    website = build_website("shadow", seedurl: "helper-shadow-body-omitted")
+    url = "https://example.org/helper-shadow-body-omitted/event"
+    website.webpages.create!(url: url, language: "en", rdf_uri: "rdf:helper-shadow-body-omitted", rdfs_class: rdfs_classes(:one))
+    Distillator::FetchCache.create!(
+      uri_key: CGI.escape(url),
+      normalized_url: url,
+      html: "<html>ok</html>",
+      body: "<html>ok</html>",
+      scrape_date: 1.hour.ago,
+      successful_refresh: 1.hour.ago,
+      headers: {},
+      signals: { "transport_success" => true, "content_success" => true },
+      final_url: url
+    )
+    website.transition_evidences.create!(url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(
+      url: url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: { reason: "legacy_lookup_body_omitted", comparison_policy: "operator" }
+    )
+
+    contract = website_transition_contract(website)
+
+    assert_equal "Cannot promote yet", contract[:next_action_label]
+    assert_empty contract[:secondary_actions].select { |action| action[:kind] == :override && action[:label] == "Activate after review" }
+  end
+
   test "active contract exposes rollback" do
     website = build_website("active", seedurl: "helper-active")
 

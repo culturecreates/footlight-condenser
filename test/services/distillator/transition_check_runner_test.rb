@@ -166,6 +166,74 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal "Transition check incomplete: fetch checked, statements inconclusive, export checked", result.flash_message
   end
 
+  test "fetch parity records review-needed difference without classifying it as fetch failure" do
+    website = build_website(with_webpage: false)
+    cache = create_cache(website, signals: { "transport_success" => true, "content_success" => true })
+    create_selected_statement(website.webpages.first, status: "ok")
+    export_json = '[{"@id":"event:1","name":"Title"}]'
+
+    result = Distillator::TransitionCheckRunner.new(
+      website: website,
+      refresh_runner: FakeRefreshRunner.new,
+      export_service: FakeExportService.new(actual: export_json, expected: export_json),
+      transition_check_service: fake_transition_check_service(
+        website: website,
+        cache: cache,
+        comparison: {
+          legacy_source: "remote_wringer",
+          legacy_lookup_status: "ok",
+          legacy_lookup_error: nil,
+          condenser_source: "local_fetch_cache",
+          missing: { legacy: false, condenser: false },
+          summary: {
+            blocking_regressions: [],
+            metadata_only_diffs: [],
+            review_needed_diffs: [:content_type],
+            unknown_diffs: []
+          }
+        }
+      )
+    ).call
+
+    assert_equal "checked", result.records[:fetch_parity].status
+    assert_equal "review_needed_difference", result.records[:fetch_parity].details["reason"]
+    assert_equal "operator", result.records[:fetch_parity].details["comparison_policy"]
+  end
+
+  test "fetch parity records metadata-only difference as checked metadata notes" do
+    website = build_website(with_webpage: false)
+    cache = create_cache(website, signals: { "transport_success" => true, "content_success" => true })
+    create_selected_statement(website.webpages.first, status: "ok")
+    export_json = '[{"@id":"event:1","name":"Title"}]'
+
+    result = Distillator::TransitionCheckRunner.new(
+      website: website,
+      refresh_runner: FakeRefreshRunner.new,
+      export_service: FakeExportService.new(actual: export_json, expected: export_json),
+      transition_check_service: fake_transition_check_service(
+        website: website,
+        cache: cache,
+        comparison: {
+          legacy_source: "remote_wringer",
+          legacy_lookup_status: "ok",
+          legacy_lookup_error: nil,
+          condenser_source: "local_fetch_cache",
+          missing: { legacy: false, condenser: false },
+          summary: {
+            blocking_regressions: [],
+            metadata_only_diffs: [:redirect_chain],
+            review_needed_diffs: [],
+            unknown_diffs: []
+          }
+        }
+      )
+    ).call
+
+    assert_equal "checked", result.records[:fetch_parity].status
+    assert_equal "metadata_only_difference", result.records[:fetch_parity].details["reason"]
+    assert_equal "operator", result.records[:fetch_parity].details["comparison_policy"]
+  end
+
   private
 
   def build_website(with_webpage: true)
@@ -219,7 +287,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     )
   end
 
-  def fake_transition_check_service(website:, cache:, fetch: :passed, representative_webpages: nil, representative_webpage_count: nil, candidate_webpage_count: nil)
+  def fake_transition_check_service(website:, cache:, fetch: :passed, representative_webpages: nil, representative_webpage_count: nil, candidate_webpage_count: nil, comparison: nil)
     representative_webpages = representative_webpages.nil? ? Array(website.webpages.first).compact : representative_webpages
     representative_webpage = representative_webpages.first
 
@@ -248,7 +316,8 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
         selection_rule: Distillator::TransitionCheck::SELECTION_RULE,
         attempted_condenser_fetch: false,
         condenser_fetch_result: nil,
-        comparison: nil,
+        comparison: comparison,
+        comparison_policy: :operator,
         cache: cache,
         cache_link_payload: {},
         primary_action: "Run transition check."

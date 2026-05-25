@@ -2,9 +2,13 @@ module Distillator
   class TransitionStatus
     CHECK_RESULTS = %i[passed failed missing stale not_evaluated blocked_by_fetch inconclusive].freeze
     STATUSES = %i[ready review blocked not_checked].freeze
+    SAFETY_LEVELS = %i[safe review unsafe unknown].freeze
+    CONFIDENCE_LEVELS = %i[high medium low not_checked].freeze
 
     Result = Struct.new(
       :status,
+      :safety,
+      :confidence,
       :fetch,
       :statements,
       :export,
@@ -18,6 +22,10 @@ module Distillator
       :severity,
       :primary_blocker,
       :primary_action,
+      :review_activation_eligible,
+      :manual_review_required,
+      :review_needed_fields,
+      :comparison_policy,
       keyword_init: true
     )
 
@@ -49,6 +57,8 @@ module Distillator
     def call
       Result.new(
         status: overall_status,
+        safety: safety,
+        confidence: confidence,
         fetch: fetch_status,
         statements: statements_status,
         export: export_status,
@@ -61,7 +71,11 @@ module Distillator
         readiness_label: readiness_label,
         severity: severity,
         primary_blocker: primary_blocker,
-        primary_action: primary_action
+        primary_action: primary_action,
+        review_activation_eligible: review_activation_eligible?,
+        manual_review_required: manual_review_required?,
+        review_needed_fields: review_needed_fields,
+        comparison_policy: comparison_policy
       )
     end
 
@@ -86,11 +100,33 @@ module Distillator
     attr_reader :website, :cache, :now
 
     def overall_status
-      return :not_checked unless cache.present? || any_evidence_present?
-      return :blocked if blockers.any?
+      case safety
+      when :unsafe
+        :blocked
+      when :review
+        :review
+      when :safe
+        :ready
+      else
+        :not_checked
+      end
+    end
+
+    def safety
+      return :unknown unless cache.present? || any_evidence_present?
+      return :unsafe if blockers.any?
       return :review if warnings.any?
 
-      :ready
+      :safe
+    end
+
+    def confidence
+      return :not_checked unless cache.present? || any_evidence_present?
+      return :low if review_needed_difference? || legacy_lookup_missing_config? || legacy_lookup_unreachable? || legacy_lookup_body_omitted?
+      return :low if [fetch_status, statements_status, export_status].any? { |status| %i[missing stale inconclusive not_evaluated blocked_by_fetch].include?(status) }
+      return :medium if metadata_only_difference?
+
+      :high
     end
 
     def blockers
@@ -113,6 +149,7 @@ module Distillator
     def warnings
       reasons = []
       reasons << legacy_lookup_warning if legacy_lookup_warning.present?
+      reasons << "Needs review: Condenser and Wringer differ in fields that need manual verification." if review_needed_difference?
       reasons << "Needs review: fetch check is stale." if fetch_status == :stale && !lavitrine_pipeline?
       reasons << "Needs review: statements check is missing." if !lavitrine_pipeline? && statements_status == :missing
       reasons << "Needs review: statements check is stale." if !lavitrine_pipeline? && statements_status == :stale
@@ -293,6 +330,9 @@ module Distillator
       return "Configure the Wringer endpoint for staging, then rerun the transition check." if legacy_lookup_missing_config?
       return "Fix the legacy Wringer endpoint, then rerun the transition check." if legacy_lookup_unreachable?
       return "Verify the legacy Wringer body endpoint or compare using the legacy inspection link." if legacy_lookup_body_omitted?
+      return "Review the checklist, then activate with a recorded reason." if review_activation_eligible?
+      return "Metadata notes only. Promote to active when you are satisfied with the evidence." if metadata_only_difference?
+      return "Review the parity differences, then rerun the transition check if needed." if review_needed_difference?
       return "Verify selected sources/statements for the sampled webpages." if statements_status == :inconclusive
       return "Fix the blocking check, then rerun the transition check." if blockers.any?
       return "Review the warning and rerun the transition check if needed." if warnings.any?
@@ -369,6 +409,43 @@ module Distillator
 
     def legacy_lookup_body_omitted?
       fetch_parity_evidence&.detail_reason == "legacy_lookup_body_omitted"
+    end
+
+    def review_needed_difference?
+      fetch_parity_evidence&.detail_reason == "review_needed_difference"
+    end
+
+    def metadata_only_difference?
+      fetch_parity_evidence&.detail_reason == "metadata_only_difference"
+    end
+
+    def review_activation_eligible?
+      overall_status == :review &&
+        blockers.blank? &&
+        fetch_status == :passed &&
+        statements_status == :passed &&
+        export_status == :passed &&
+        review_needed_difference?
+    end
+
+    def manual_review_required?
+      overall_status == :review &&
+        blockers.blank? &&
+        fetch_status == :passed &&
+        statements_status == :passed &&
+        export_status == :passed &&
+        legacy_lookup_body_omitted?
+    end
+
+    def review_needed_fields
+      Array(fetch_parity_evidence&.details.to_h&.dig("compare_summary", "review_needed_diffs") ||
+        fetch_parity_evidence&.details.to_h&.dig(:compare_summary, :review_needed_diffs)).map(&:to_s)
+    end
+
+    def comparison_policy
+      fetch_parity_evidence&.details.to_h&.[]("comparison_policy") ||
+        fetch_parity_evidence&.details.to_h&.[](:comparison_policy) ||
+        "operator"
     end
 
     def primary_blocker_reason

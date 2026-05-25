@@ -16,6 +16,7 @@ module Distillator
       return "Review blocker." if blockers?
       return "Move to Shadow." if mode == :legacy
       return "Run transition check." if transition_check_needed?
+      return "Activate after review." if mode == :shadow && review_activation_eligible?
       return "Promote to Active." if mode == :shadow && ready?
 
       if mode == :active && ready?
@@ -37,6 +38,10 @@ module Distillator
 
     def ready?
       transition_status.status == :ready
+    end
+
+    def review_activation_eligible?
+      transition_status.respond_to?(:review_activation_eligible) && transition_status.review_activation_eligible
     end
 
     def blockers?

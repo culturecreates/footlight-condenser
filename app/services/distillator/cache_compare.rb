@@ -3,7 +3,11 @@ require "json"
 
 module Distillator
   class CacheCompare
+    POLICIES = %i[operator strict].freeze
     BODY_DEPENDENT_FIELDS = %i[title html_sha256 html_bytes content_success final_url].freeze
+    REVIEW_NEEDED_ENRICHMENT_FIELDS = %i[content_type final_url transport_success content_success].freeze
+    OPERATOR_REVIEW_FIELDS = %i[html_sha256 html_bytes].freeze
+    ALWAYS_BLOCKING_FIELDS = %i[title content_success transport_success blocking_issue cache_policy].freeze
     FIELDS = %i[
       title
       html_sha256
@@ -23,22 +27,24 @@ module Distillator
       successful_refresh
     ].freeze
 
-    def self.call(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil, wringer_endpoint: nil)
+    def self.call(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil, wringer_endpoint: nil, comparison_policy: :operator)
       new(
         uri: uri,
         include_fragment: include_fragment,
         legacy_lookup: legacy_lookup,
         condenser_result: condenser_result,
-        wringer_endpoint: wringer_endpoint
+        wringer_endpoint: wringer_endpoint,
+        comparison_policy: comparison_policy
       ).call
     end
 
-    def initialize(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil, wringer_endpoint: nil)
+    def initialize(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil, wringer_endpoint: nil, comparison_policy: :operator)
       @uri = uri
       @include_fragment = include_fragment
       @legacy_lookup = legacy_lookup
       @condenser_result = condenser_result
       @wringer_endpoint = wringer_endpoint
+      @comparison_policy = normalize_policy(comparison_policy)
     end
 
     def call
@@ -56,6 +62,7 @@ module Distillator
         legacy_lookup_error: legacy_result[:error],
         condenser_cache: condenser_cache,
         condenser_source: "local_fetch_cache",
+        comparison_policy: comparison_policy,
         diffs: build_diffs(legacy_cache, condenser_cache),
         missing: {
           legacy: legacy_cache.nil?,
@@ -75,7 +82,7 @@ module Distillator
 
     private
 
-    attr_reader :uri, :include_fragment, :legacy_lookup, :condenser_result, :wringer_endpoint
+    attr_reader :uri, :include_fragment, :legacy_lookup, :condenser_result, :wringer_endpoint, :comparison_policy
 
     def condenser_cache_record(key)
       condenser_result&.cache || Distillator::FetchCache.find_by(uri_key: key.uri_key)
@@ -109,12 +116,14 @@ module Distillator
       )
       return { payload: nil, source: "remote_wringer", status: "missing", error: nil } if payload.blank?
 
-      return {
-        payload: payload,
-        source: "remote_wringer",
-        status: "ok",
-        error: nil
-      } if payload["html"].present? || payload[:html].present?
+      if payload["html"].present? || payload[:html].present?
+        return {
+          payload: payload,
+          source: "remote_wringer",
+          status: "ok",
+          error: nil
+        }
+      end
 
       hydrated_payload = hydrate_legacy_body(
         endpoint: endpoint,
@@ -214,16 +223,22 @@ module Distillator
       improvements = changed.select { |_field, diff| diff[:classification] == :distillator_improvement }.keys
       metadata_only = changed.select { |_field, diff| diff[:classification] == :metadata_only }.keys
       unknown = changed.select { |_field, diff| diff[:classification] == :unknown }.keys
+      review_needed = changed.select { |_field, diff| diff[:classification] == :review_needed }.keys
 
       {
         same: changed.empty?,
         promotable: !comparison.dig(:missing, :legacy) &&
           !comparison.dig(:missing, :condenser) &&
           comparison[:legacy_lookup_status] == "ok" &&
-          blocking.empty?,
+          blocking.empty? &&
+          review_needed.empty? &&
+          unknown.empty?,
+        outcome: comparison_outcome(comparison, blocking: blocking, review_needed: review_needed, unknown: unknown, metadata_only: metadata_only),
+        primary_reason: comparison_primary_reason(comparison, blocking: blocking, review_needed: review_needed, unknown: unknown, metadata_only: metadata_only),
         blocking_regressions: blocking,
         improvements: improvements,
         metadata_only_diffs: metadata_only,
+        review_needed_diffs: review_needed,
         unknown_diffs: unknown,
         http_code_difference: !diffs.dig(:http_code, :same),
         final_url_difference: !diffs.dig(:final_url, :same),
@@ -252,10 +267,17 @@ module Distillator
       return :blocking_regression if distillator_cache.nil?
       return :unknown if legacy_cache.nil?
       return :unknown if legacy_body_unavailable?(legacy_cache) && BODY_DEPENDENT_FIELDS.include?(field)
+      return :review_needed if operator_review_only?(field)
+      return :review_needed if review_needed_enrichment?(field, legacy_value, distillator_value)
+      return :review_needed if safe_default_final_url?(field, legacy_value, distillator_value)
 
       case field
-      when :html_sha256, :http_code, :final_url, :content_type, :content_success, :transport_success, :blocking_issue, :cache_policy
+      when *ALWAYS_BLOCKING_FIELDS
         :blocking_regression
+      when :final_url, :content_type, :http_code
+        operator_metadata_difference?(field, legacy_value, distillator_value) ? :review_needed : :blocking_regression
+      when :html_sha256, :html_bytes
+        strict_policy? ? :blocking_regression : :review_needed
       when :scrape_date, :successful_refresh, :redirect_chain, :network_status, :signals, :hints
         if legacy_value.nil? && distillator_value.present?
           :distillator_improvement
@@ -268,7 +290,7 @@ module Distillator
     end
 
     def extract_title(html)
-      html.to_s[/\<title\>(.*?)\<\/title\>/im, 1].to_s.strip.presence
+      html.to_s[%r{<title>(.*?)</title>}im, 1].to_s.strip.presence
     end
 
     def signal_value(signals, key)
@@ -312,8 +334,85 @@ module Distillator
       legacy_cache[:body_hydrated] == false || legacy_cache[:lookup_status] == "body_omitted"
     end
 
+    def review_needed_enrichment?(field, legacy_value, distillator_value)
+      REVIEW_NEEDED_ENRICHMENT_FIELDS.include?(field) &&
+        legacy_unknown?(legacy_value) &&
+        distillator_value.present?
+    end
+
+    def operator_review_only?(field)
+      operator_policy? && OPERATOR_REVIEW_FIELDS.include?(field)
+    end
+
+    def safe_default_final_url?(field, legacy_value, distillator_value)
+      field == :final_url &&
+        legacy_unknown?(legacy_value) &&
+        distillator_value.to_s == normalized_url
+    end
+
+    def operator_metadata_difference?(field, legacy_value, distillator_value)
+      return false unless operator_policy?
+
+      case field
+      when :content_type
+        legacy_unknown?(legacy_value) && distillator_value.to_s == "html"
+      when :http_code
+        successful_http?(legacy_value) && successful_http?(distillator_value)
+      when :final_url
+        legacy_unknown?(legacy_value) && distillator_value.present?
+      else
+        false
+      end
+    end
+
+    def legacy_unknown?(value)
+      value.nil? || value.to_s.strip.blank? || value.to_s == "unknown"
+    end
+
+    def successful_http?(value)
+      value.to_i >= 200 && value.to_i < 300
+    end
+
     def hydration_query(normalized_url)
       { uri: normalized_url }
+    end
+
+    def normalized_url
+      @normalized_url ||= Distillator::WringerUrlKey.call(uri, include_fragment: include_fragment).normalized_url
+    end
+
+    def operator_policy?
+      comparison_policy == :operator
+    end
+
+    def strict_policy?
+      comparison_policy == :strict
+    end
+
+    def normalize_policy(value)
+      candidate = value.to_s.presence&.to_sym || :operator
+      POLICIES.include?(candidate) ? candidate : :operator
+    end
+
+    def comparison_outcome(comparison, blocking:, review_needed:, unknown:, metadata_only:)
+      return "blocked" if comparison.dig(:missing, :condenser) || blocking.any?
+      return "unknown" if comparison.dig(:missing, :legacy) || comparison[:legacy_lookup_status] != "ok" || unknown.any?
+      return "review" if review_needed.any?
+      return "ready_with_metadata_notes" if metadata_only.any?
+
+      "pass"
+    end
+
+    def comparison_primary_reason(comparison, blocking:, review_needed:, unknown:, metadata_only:)
+      return "Condenser cache missing." if comparison.dig(:missing, :condenser)
+      return "Legacy cache missing." if comparison.dig(:missing, :legacy)
+      return "Legacy Wringer body was omitted from the comparison endpoint." if comparison[:legacy_lookup_status] == "body_omitted"
+      return "Safety blockers: #{blocking.join(', ')}" if blocking.any?
+      return "Some legacy comparison fields were unavailable." if unknown.any?
+      return "Needs review: #{review_needed.join(', ')}" if review_needed.any?
+      return "Metadata notes: #{metadata_only.join(', ')}" if metadata_only.any?
+
+      "Wringer and Condenser match on the compared fields."
     end
   end
 end

@@ -9,6 +9,26 @@ module Distillator::ShadowReportsHelper
     ]
   end
 
+  def shadow_report_safety_options
+    [
+      ["All safety states", ""],
+      ["Safe", "safe"],
+      ["Review", "review"],
+      ["Unsafe", "unsafe"],
+      ["Unknown", "unknown"]
+    ]
+  end
+
+  def shadow_report_confidence_options
+    [
+      ["All confidence levels", ""],
+      ["High", "high"],
+      ["Medium", "medium"],
+      ["Low", "low"],
+      ["Not checked", "not_checked"]
+    ]
+  end
+
   def shadow_report_health_severity_options
     [
       ["All health severities", ""],
@@ -105,6 +125,8 @@ module Distillator::ShadowReportsHelper
   def shadow_report_check_label(value)
     case value.to_sym
     when :passed
+      "Passed"
+    when :checked
       "Passed"
     when :failed
       "Failed"
@@ -227,7 +249,7 @@ module Distillator::ShadowReportsHelper
   end
 
   def shadow_report_primary_blocker_heading(blocker)
-    blocker ? blocker.check : "None"
+    blocker ? "#{blocker.check} (selected from sampled URLs)" : "None"
   end
 
   def shadow_report_primary_blocker_details(detail)
@@ -259,6 +281,9 @@ module Distillator::ShadowReportsHelper
   def shadow_report_scope_lines(scope)
     lines = []
     lines << "Representative webpages checked: #{scope[:representative_webpage_count]} of #{scope[:candidate_webpage_count]}"
+    if scope[:selected_candidate_tier_count].to_i.positive?
+      lines << "Selected candidate tier size: #{scope[:selected_candidate_tier_count]}"
+    end
     lines << "Selection rule: #{scope[:selection_rule]}"
     lines << "Statements refreshed: #{scope[:statements_refreshed_count]}"
     lines << "Statements failed: #{scope[:statements_failed_count]}"
@@ -271,6 +296,45 @@ module Distillator::ShadowReportsHelper
     return unless scope[:sample_small]
 
     "This check used a limited sample of representative webpages."
+  end
+
+  def truncated_url_label(url, max: 80)
+    text = url.to_s
+    return text if text.length <= max
+
+    "#{text.first(max - 1)}..."
+  end
+
+  def external_website_link(url, label: nil, max: 80)
+    return ERB::Util.html_escape(url.to_s) if url.blank?
+
+    display_label = label.presence || truncated_url_label(url, max: max)
+    return ERB::Util.html_escape(display_label) unless url.to_s.start_with?("http://", "https://")
+
+    link_to(display_label, url, target: "_blank", rel: "noopener")
+  end
+
+  def cache_inspection_links(url, website: nil)
+    Distillator::InspectionLinks.call(
+      url: url,
+      website: website,
+      payload: Distillator::CacheLinkResolver.call(url: url, website: website)
+    )
+  end
+
+  def shadow_report_sampled_webpages(detail)
+    Array(detail.checked_scope[:representative_webpages]).map do |url|
+      links = cache_inspection_links(url, website: detail.summary.website)
+      explanation = shadow_report_sampled_explanation(detail, url)
+      {
+        url: url,
+        label: external_website_link(url),
+        result: shadow_report_sampled_result_label(explanation),
+        key_issue: explanation&.headline,
+        links: links,
+        primary_blocker: detail.primary_blocker&.details&.any? { |line| line.include?(url) } || detail.primary_blocker&.headline.to_s.include?(url.to_s)
+      }
+    end
   end
 
   def shadow_report_explanation_links(explanation, website, detail: nil)
@@ -317,6 +381,14 @@ module Distillator::ShadowReportsHelper
     safe_join(links.uniq, " | ")
   end
 
+  def shadow_report_safety_label(row)
+    row.safety.to_s.humanize
+  end
+
+  def shadow_report_confidence_label(row)
+    row.confidence.to_s.humanize
+  end
+
   private
 
   def shadow_report_summary_card(title, count, tone, description)
@@ -353,6 +425,26 @@ module Distillator::ShadowReportsHelper
       details: explanation.details,
       links: shadow_report_explanation_links(explanation, detail.summary.website, detail: detail)
     }
+  end
+
+  def shadow_report_sampled_explanation(detail, url)
+    detail.transition_evidence_explanations.find do |explanation|
+      Array(detail.transition_evidence_by_kind[explanation.key]&.details.to_h&.[]("representative_webpages") ||
+        detail.transition_evidence_by_kind[explanation.key]&.details.to_h&.[](:representative_webpages)).include?(url)
+    end || detail.primary_blocker
+  end
+
+  def shadow_report_sampled_result_label(explanation)
+    return "Not checked" unless explanation.present?
+
+    case explanation.severity
+    when "blocker"
+      "Failed"
+    when "warning"
+      "Review"
+    else
+      "Passed"
+    end
   end
 
   def shadow_report_fetch_blocker_links(detail)
@@ -406,5 +498,10 @@ module Distillator::ShadowReportsHelper
       signals: cache.signals.to_h,
       body_bytes: cache.respond_to?(:body_bytes) ? cache.body_bytes : nil
     }.with_indifferent_access
+  end
+
+  def condenser_cache_url_for(payload)
+    condenser_link = Array(payload[:secondary_links]).find { |link| link[:label] == "Open Condenser cache" }
+    condenser_link&.fetch(:url, nil) || payload[:distillator_cache_url]
   end
 end

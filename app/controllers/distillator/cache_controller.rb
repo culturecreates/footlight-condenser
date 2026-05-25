@@ -60,7 +60,8 @@ module Distillator
     def compare
       @comparison = Distillator::CacheCompare.call(
         uri: params[:uri],
-        include_fragment: params[:include_fragment]
+        include_fragment: params[:include_fragment],
+        comparison_policy: params[:comparison_policy]
       )
     rescue StandardError
       @comparison = {

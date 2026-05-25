@@ -277,6 +277,47 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Run transition check"
   end
 
+  test "website show for review-needed shadow site shows activate after review instead of promote or activate anyway" do
+    assert_read_only_page_does_not_fetch
+    website = Website.create!(
+      name: "Review activation site",
+      seedurl: "review-activation-site",
+      graph_name: "https://example.org/review-activation-site",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+    url = "https://example.org/review-activation-site/event"
+    website.webpages.create!(url: url, language: "en", rdf_uri: "rdf:review-activation-site", rdfs_class: rdfs_classes(:one))
+    Distillator::FetchCache.create!(
+      uri_key: CGI.escape(url),
+      normalized_url: url,
+      html: "<html>ok</html>",
+      body: "<html>ok</html>",
+      scrape_date: 1.hour.ago,
+      successful_refresh: 1.hour.ago,
+      headers: {},
+      signals: { "transport_success" => true, "content_success" => true },
+      final_url: url
+    )
+    website.transition_evidences.create!(url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(
+      url: url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: { reason: "review_needed_difference", comparison_policy: "operator", compare_summary: { review_needed_diffs: %w[html_sha256] } }
+    )
+
+    get website_url(website)
+
+    assert_response :success
+    assert_includes @response.body, "Activate after review"
+    assert_includes @response.body, "Review before activating"
+    assert_not_includes @response.body, "Promote to active"
+    assert_not_includes @response.body, "Activate anyway"
+  end
+
   test "website show hides activate anyway when override is not allowed" do
     assert_read_only_page_does_not_fetch
     @website.update!(distillator_mode: "shadow")
@@ -368,6 +409,73 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "rollout.override", event.readiness_snapshot["event"]
     assert event.readiness_snapshot["blockers"].is_a?(Array)
     assert event.readiness_snapshot["warnings"].is_a?(Array)
+  end
+
+  test "activate after review requires a reason" do
+    website = ready_review_activation_website(seedurl: "activate-after-review-required")
+
+    post activate_after_review_website_path(website), params: { reason: "   " }
+
+    assert_redirected_to website_url(website)
+    assert_equal "shadow", website.reload.distillator_mode
+    follow_redirect!
+    assert_includes @response.body, "Reason is required for Activate after review"
+  end
+
+  test "activate after review records reason and review snapshot" do
+    website = ready_review_activation_website(seedurl: "activate-after-review-success")
+
+    post activate_after_review_website_path(website), params: { reason: "Title/date/location match after manual review" }
+
+    assert_redirected_to website_url(website)
+    assert_equal "active", website.reload.distillator_mode
+    event = website.rollout_events.order(:created_at).last
+    assert_equal "Title/date/location match after manual review", event.reason
+    assert_equal "rollout.review_activate", event.readiness_snapshot["event"]
+    assert_equal true, event.readiness_snapshot["review_activation"]
+    assert_equal "review", event.readiness_snapshot["safety"]
+    assert_equal "low", event.readiness_snapshot["confidence"]
+    assert_equal "operator", event.readiness_snapshot["comparison_policy"]
+    assert_equal ["html_sha256"], event.readiness_snapshot["review_needed_fields"]
+  end
+
+  test "activate after review rejects legacy body omitted state" do
+    website = Website.create!(
+      name: "Body omitted review",
+      seedurl: "body-omitted-review",
+      graph_name: "https://example.org/body-omitted-review",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+    url = "https://example.org/body-omitted-review/event"
+    website.webpages.create!(url: url, language: "en", rdf_uri: "rdf:body-omitted-review", rdfs_class: rdfs_classes(:one))
+    Distillator::FetchCache.create!(
+      uri_key: CGI.escape(url),
+      normalized_url: url,
+      html: "<html>ok</html>",
+      body: "<html>ok</html>",
+      scrape_date: 1.hour.ago,
+      successful_refresh: 1.hour.ago,
+      headers: {},
+      signals: { "transport_success" => true, "content_success" => true },
+      final_url: url
+    )
+    website.transition_evidences.create!(
+      url: url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: { reason: "legacy_lookup_body_omitted", comparison_policy: "operator" }
+    )
+    website.transition_evidences.create!(url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
+
+    post activate_after_review_website_path(website), params: { reason: "Reviewed manually" }
+
+    assert_redirected_to website_url(website)
+    assert_equal "shadow", website.reload.distillator_mode
+    follow_redirect!
+    assert_includes @response.body, "Activate after review is available only for review-needed parity differences."
   end
 
   test "la vitrine shadow site cannot be promoted to active with missing export evidence" do
@@ -1247,6 +1355,43 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
       statement_count_delta_acceptable: false,
       checked_at: 1.hour.ago
     )
+    website
+  end
+
+  def ready_review_activation_website(seedurl:)
+    website = Website.create!(
+      name: "Review-ready #{seedurl}",
+      seedurl: seedurl,
+      graph_name: "https://example.org/#{seedurl}",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+    url = "https://example.org/#{seedurl}/event"
+    website.webpages.create!(url: url, language: "en", rdf_uri: "rdf:#{seedurl}", rdfs_class: rdfs_classes(:one))
+    Distillator::FetchCache.create!(
+      uri_key: CGI.escape(url),
+      normalized_url: url,
+      html: "<html>ok</html>",
+      body: "<html>ok</html>",
+      scrape_date: 1.hour.ago,
+      successful_refresh: 1.hour.ago,
+      headers: {},
+      signals: { "transport_success" => true, "content_success" => true },
+      final_url: url
+    )
+    website.transition_evidences.create!(
+      url: url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "review_needed_difference",
+        comparison_policy: "operator",
+        compare_summary: { review_needed_diffs: ["html_sha256"] }
+      }
+    )
+    website.transition_evidences.create!(url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
     website
   end
 

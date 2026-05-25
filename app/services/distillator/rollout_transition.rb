@@ -6,14 +6,15 @@ module Distillator
       new(...).call
     end
 
-    def initialize(website:, to_mode:, actor: nil, reason: nil, force: false, override: false, attributes: {})
+    def initialize(website:, to_mode:, actor: nil, reason: nil, force: false, override: false, review: false, attributes: {})
       @website = website
       @raw_to_mode = to_mode
       @to_mode = normalize_mode(to_mode)
       @actor = actor
-      @reason = reason
+      @reason = normalize_reason(reason)
       @force = force
       @override = override
+      @review = review
       @attributes = attributes.to_h.symbolize_keys.except(:distillator_mode)
     end
 
@@ -38,7 +39,7 @@ module Distillator
           actor: actor,
           reason: reason,
           readiness_snapshot: readiness_snapshot(warnings),
-          event: override_requested? ? "rollout.override" : nil
+          event: rollout_event_name
         )
         return Result.new(success?: true, website: website, from_mode: from_mode, to_mode: to_mode, warnings: warnings, blockers: [], errors: [])
       end
@@ -48,7 +49,7 @@ module Distillator
 
     private
 
-    attr_reader :website, :to_mode, :actor, :reason, :force, :override, :attributes, :raw_to_mode
+    attr_reader :website, :to_mode, :actor, :reason, :force, :override, :review, :attributes, :raw_to_mode
 
     def current_mode
       website.distillator_mode.presence || "legacy"
@@ -85,6 +86,7 @@ module Distillator
     end
 
     def shadow_to_active_errors
+      return review_to_active_errors if review_requested?
       return [] if override_requested? && Distillator::TransitionRuntime.allow_active_override?
       return [] if promotion_readiness.blockers.blank? && promotion_readiness.warnings.blank?
 
@@ -111,14 +113,27 @@ module Distillator
         blockers: promotion_readiness.blockers,
         warnings: warnings.presence || promotion_readiness.warnings,
         cohort_key: website.distillator_primary_cohort_key,
-        override: override_requested?
+        override: override_requested?,
+        review_activation: review_requested?,
+        manual_review_required: promotion_readiness.respond_to?(:manual_review_required) ? promotion_readiness.manual_review_required : nil,
+        review_needed_fields: promotion_readiness.respond_to?(:review_needed_fields) ? promotion_readiness.review_needed_fields : [],
+        safety: promotion_readiness.respond_to?(:safety) ? promotion_readiness.safety : nil,
+        confidence: promotion_readiness.respond_to?(:confidence) ? promotion_readiness.confidence : nil,
+        comparison_policy: promotion_readiness.respond_to?(:comparison_policy) ? promotion_readiness.comparison_policy : nil
       }
     end
 
     def explicit_override_errors
       return [] unless override_requested?
       return ["Activate anyway is not allowed in this runtime"] unless Distillator::TransitionRuntime.allow_active_override?
-      return ["Reason is required for Activate anyway"] if reason.to_s.strip.blank?
+      return ["Reason is required for Activate anyway"] if reason.blank?
+
+      []
+    end
+
+    def review_to_active_errors
+      return ["Reason is required for Activate after review"] if reason.blank?
+      return ["Activate after review is available only for review-needed parity differences."] unless promotion_readiness.respond_to?(:review_activation_eligible) && promotion_readiness.review_activation_eligible
 
       []
     end
@@ -137,9 +152,25 @@ module Distillator
       override || force
     end
 
+    def review_requested?
+      review == true
+    end
+
+    def rollout_event_name
+      return "rollout.review_activate" if review_requested?
+      return "rollout.override" if override_requested?
+
+      nil
+    end
+
     def activation_error_message(message)
       normalized = message.to_s.sub(/\ANeeds review:\s*/i, "")
       "Cannot activate yet: #{normalized.sub(/\.\z/, '')}."
+    end
+
+    def normalize_reason(value)
+      trimmed = value.to_s.strip
+      trimmed.presence
     end
   end
 end

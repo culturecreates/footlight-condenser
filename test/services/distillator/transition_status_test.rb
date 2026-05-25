@@ -10,6 +10,8 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     assert_equal :missing, status.fetch
     assert_equal :missing, status.statements
     assert_equal :missing, status.export
+    assert_equal :unknown, status.safety
+    assert_equal :not_checked, status.confidence
   end
 
   test "failed transport returns blocked and fetch failed" do
@@ -20,6 +22,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
 
     assert_equal :blocked, status.status
     assert_equal :failed, status.fetch
+    assert_equal :unsafe, status.safety
     assert_equal "Fix fetch/cache first, then rerun the transition check.", status.activation_recommendation[:next_action]
   end
 
@@ -97,6 +100,8 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     assert_equal :ready, status.status
     assert_equal :passed, status.statements
     assert_equal :passed, status.export
+    assert_equal :safe, status.safety
+    assert_equal :high, status.confidence
   end
 
   test "all required fresh evidence returns ready" do
@@ -297,7 +302,78 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     assert_equal :passed, status.fetch
     assert_includes status.warnings, "Needs review: legacy Wringer body was omitted from the comparison endpoint."
     assert_not_includes status.blockers, "Cannot activate yet: fetch check failed."
+    assert_equal false, status.review_activation_eligible
+    assert_equal true, status.manual_review_required
     assert_equal "Verify the legacy Wringer body endpoint or compare using the legacy inspection link.", status.activation_recommendation[:next_action]
+  end
+
+  test "review-needed parity difference stays in review without claiming fetch failure" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(
+      signals: {
+        "transport_success" => true,
+        "content_success" => true,
+        "statement_count_delta_acceptable" => true,
+        "export_diff_checked" => true
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: {
+        attempted_condenser_fetch: true,
+        condenser_fetch_success: true,
+        comparison_performed: true,
+        reason: "review_needed_difference"
+      }
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :review, status.status
+    assert_equal :passed, status.fetch
+    assert_not_includes status.blockers, "Cannot activate yet: fetch check failed."
+    assert_includes status.warnings, "Needs review: Condenser and Wringer differ in fields that need manual verification."
+    assert_equal :review, status.safety
+    assert_equal :low, status.confidence
+    assert_equal true, status.review_activation_eligible
+    assert_equal false, status.manual_review_required
+    assert_equal "Review the checklist, then activate with a recorded reason.", status.activation_recommendation[:next_action]
+  end
+
+  test "metadata only difference stays ready with medium confidence" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(
+      signals: {
+        "transport_success" => true,
+        "content_success" => true,
+        "statement_count_delta_acceptable" => true,
+        "export_diff_checked" => true
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: {
+        attempted_condenser_fetch: true,
+        condenser_fetch_success: true,
+        comparison_performed: true,
+        reason: "metadata_only_difference"
+      }
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :ready, status.status
+    assert_equal :safe, status.safety
+    assert_equal :medium, status.confidence
+    assert_equal false, status.review_activation_eligible
+    assert_equal false, status.manual_review_required
+    assert_equal "Metadata notes only. Promote to active when you are satisfied with the evidence.", status.activation_recommendation[:next_action]
   end
 
   private

@@ -42,11 +42,13 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     Distillator::CacheCompare.expects(:call).with do |kwargs|
       assert_equal "http://example.org/page", kwargs[:uri]
       assert_nil kwargs[:include_fragment]
+      assert_nil kwargs[:comparison_policy]
       true
     end.returns(
       {
         uri: "http://example.org/page",
         uri_key: "http%3A%2F%2Fexample.org%2Fpage",
+        comparison_policy: :operator,
         legacy_cache: { html: "<html>legacy</html>" },
         legacy_source: "injected_lookup",
         legacy_lookup_error: nil,
@@ -54,7 +56,8 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
         condenser_source: "local_fetch_cache",
         distillator_cache: { html: "<html>condenser</html>" },
         distillator_source: "local_fetch_cache",
-        diffs: {},
+        diffs: { title: { same: true, classification: :metadata_only, legacy: "Title", condenser: "Title" } },
+        summary: { outcome: "pass", primary_reason: "Wringer and Condenser match on the compared fields." },
         missing: { legacy: false, condenser: false, distillator: false }
       }
     )
@@ -63,6 +66,9 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_match "Cache Comparison", @response.body
+    assert_match "Comparison policy", @response.body
+    assert_match "Detailed comparison", @response.body
+    assert_match "Raw payloads", @response.body
     assert_match "Condenser source", @response.body
     assert_no_match "Distillator", visible_text(@response.body)
   end
@@ -1640,9 +1646,12 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
         condenser_source: "local_fetch_cache",
         distillator_cache: { html: "<html>condenser</html>" },
         distillator_source: "local_fetch_cache",
+        comparison_policy: :operator,
         diffs: { html_sha256: { same: false, classification: :blocking_regression, legacy: "a", condenser: "b", distillator: "b" } },
         missing: { legacy: false, condenser: false, distillator: false },
         summary: {
+          outcome: "blocked",
+          primary_reason: "Safety blockers: html_sha256",
           same: false,
           promotable: false,
           http_code_difference: false,
@@ -1663,9 +1672,9 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_match "Cache Comparison", @response.body
-    assert_match "Migration confidence", @response.body
-    assert_match "Promotable:", @response.body
-    assert_match "Blocking regressions:", @response.body
+    assert_match "Summary", @response.body
+    assert_match "Outcome:", @response.body
+    assert_match "Differences grouped by importance", @response.body
     assert_match "Legacy source:", @response.body
     assert_match "Condenser source:", @response.body
     assert_match "Condenser cache missing:", @response.body
@@ -1678,6 +1687,50 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "New source", visible_text(@response.body)
     assert_no_match "New cache", visible_text(@response.body)
     assert_no_match "Distillator", visible_text(@response.body)
+  end
+
+  test "compare page shows ready with metadata notes without review copy" do
+    assert_read_only_page_does_not_fetch
+    Distillator::CacheCompare.expects(:call).returns(
+      {
+        uri: "http://example.org/page",
+        uri_key: CGI.escape("http://example.org/page"),
+        legacy_cache: { html: "<html>same</html>" },
+        legacy_source: "injected_lookup",
+        legacy_lookup_error: nil,
+        condenser_cache: { html: "<html>same</html>" },
+        condenser_source: "local_fetch_cache",
+        distillator_cache: { html: "<html>same</html>" },
+        distillator_source: "local_fetch_cache",
+        comparison_policy: :operator,
+        diffs: { hints: { same: false, classification: :metadata_only, legacy: [], condenser: ["condenser-extra-note"], distillator: ["condenser-extra-note"] } },
+        missing: { legacy: false, condenser: false, distillator: false },
+        summary: {
+          outcome: "ready_with_metadata_notes",
+          primary_reason: "Metadata notes: hints",
+          same: false,
+          promotable: true,
+          http_code_difference: false,
+          final_url_difference: false,
+          content_type_difference: false,
+          html_hash_difference: false,
+          body_byte_difference: false,
+          title_difference: false,
+          blocking_regressions: [],
+          improvements: [],
+          metadata_only_diffs: [:hints],
+          review_needed_diffs: [],
+          unknown_diffs: []
+        }
+      }
+    )
+
+    get "/distillator/cache/compare", params: { uri: "http://example.org/page" }
+
+    assert_response :success
+    assert_match "Ready with metadata notes", @response.body
+    assert_match "Metadata notes only. Activation can proceed when the rest of the evidence is ready.", @response.body
+    assert_no_match "Outcome:</strong> Needs review", @response.body
   end
 
   test "cache index stays operational and does not fetch under heavy filter and sort usage" do
