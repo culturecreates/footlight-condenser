@@ -23,11 +23,13 @@ module HarmonizedTableHeaders
 
   def sources
     [
-      { label: "Status", sort_key: "selected" },
-      { label: "Property / Language", sort_key: "language" },
-      { label: "Pipeline", sort_key: "algorithm_value" },
-      { label: "Fetch strategy" },
-      { label: "Impact" },
+      { label: "ID", sort_key: "id" },
+      { label: "Property", sort_key: "property_id" },
+      { label: "Label", sort_key: "label" },
+      { label: "Algorithm value", sort_key: "algorithm_value" },
+      { label: "Selected", sort_key: "selected" },
+      { label: "Render JS", sort_key: "render_js" },
+      { label: "Auto review", sort_key: "auto_review" },
       { label: "Last test", sort_key: "updated_at" },
       { label: "Actions" }
     ]

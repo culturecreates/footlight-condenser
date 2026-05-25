@@ -1,14 +1,18 @@
 module Sources
   class IndexQuery
     FILTER_KEYS = %i[term algorithm_value selected auto_review render_js language website_id property_id].freeze
-    DEFAULT_SORT = "algorithm_value".freeze
+    DEFAULT_SORT = "property_id".freeze
     DEFAULT_DIRECTION = "asc".freeze
     DEFAULT_PER_PAGE = 25
     MAX_PER_PAGE = 100
 
     SORT_COLUMNS = {
+      "id" => :id,
+      "property_id" => :property_id,
+      "label" => :label,
       "algorithm_value" => :algorithm_value,
       "selected" => :selected,
+      "render_js" => :render_js,
       "auto_review" => :auto_review,
       "language" => :language,
       "updated_at" => :updated_at
@@ -35,7 +39,7 @@ module Sources
       scope = scope.where(language: filters[:language]) if filters[:language].present?
       scope = scope.where(website_id: filters[:website_id]) if filters[:website_id].present?
       scope = scope.where(property_id: filters[:property_id]) if filters[:property_id].present?
-      scope.order(SORT_COLUMNS.fetch(sort) => direction.to_sym).paginate(page: page, per_page: per_page)
+      apply_sort(scope).paginate(page: page, per_page: per_page)
     end
 
     private
@@ -57,6 +61,14 @@ module Sources
         scope.where(key => false)
       else
         scope
+      end
+    end
+
+    def apply_sort(scope)
+      if sort == DEFAULT_SORT && direction == DEFAULT_DIRECTION
+        scope.order(property_id: :asc, language: :asc, selected: :desc, id: :asc)
+      else
+        scope.order(SORT_COLUMNS.fetch(sort) => direction.to_sym, id: :asc)
       end
     end
   end

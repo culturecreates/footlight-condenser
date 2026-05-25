@@ -7,12 +7,10 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
 
   test "should get index" do
     Distillator::FetchService.expects(:fetch).never
-    @source.website.update!(distillator_mode: "legacy")
 
     get sources_url
 
     assert_response :success
-    assert_includes @response.body, "Legacy"
     assert_match "Quick filters", @response.body
     assert_match "Advanced filters", @response.body
     assert_match "name=\"term\"", @response.body
@@ -22,20 +20,17 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     assert_match "name=\"auto_review\"", @response.body
     assert_match "name=\"render_js\"", @response.body
 
-    header_positions = [
-      @response.body.index("Status"),
-      @response.body.index("Property / Language"),
-      @response.body.index("Pipeline"),
-      @response.body.index("<th>Fetch strategy</th>"),
-      @response.body.index("<th>Impact</th>"),
-      @response.body.index("Last test"),
-      @response.body.index("<th>Actions</th>")
-    ]
-
-    assert header_positions.all?
     assert_operator @response.body.index("Quick filters"), :<, @response.body.index("Advanced filters")
-    assert_operator @response.body.index("Advanced filters"), :<, @response.body.index("Status")
-    assert_equal header_positions.sort, header_positions
+    assert_operator @response.body.index("Advanced filters"), :<, @response.body.index("sort=property_id")
+    assert_select "th a", text: /ID/
+    assert_select "th a", text: /Property/
+    assert_select "th a", text: /Label/
+    assert_select "th a", text: /Algorithm value/
+    assert_select "th a", text: /Selected/
+    assert_select "th a", text: /Render JS/
+    assert_select "th a", text: /Auto review/
+    assert_select "th a", text: /Last test/
+    assert_select "th", text: "Actions"
   end
 
   test "sources index renders harmonized table shell and filters" do
@@ -57,8 +52,10 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     get sources_url
 
     assert_response :success
-    assert_select 'th a[href*="sort=selected"]', text: /Status/
-    assert_select 'th a[href*="sort=algorithm_value"]', text: /Pipeline/
+    assert_select 'th a[href*="sort=id"]', text: /ID/
+    assert_select 'th a[href*="sort=property_id"]', text: /Property/
+    assert_select 'th a[href*="sort=algorithm_value"]', text: /Algorithm value/
+    assert_select 'th a[href*="sort=render_js"]', text: /Render JS/
     assert_select 'th a[href*="sort=updated_at"]', text: /Last test/
   end
 
@@ -69,7 +66,7 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_sort_link_preserves_filters(
-      label: "Pipeline",
+      label: "Algorithm value",
       sort_key: "algorithm_value",
       params: {
         term: "query",
@@ -108,6 +105,72 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes @response.body, matching.algorithm_value
     assert_not_includes @response.body, non_matching.algorithm_value
+  end
+
+  test "sources index renders property label and visible dsl in main table" do
+    Distillator::FetchService.expects(:fetch).never
+    website = websites(:one)
+    property = properties(:one)
+
+    xpath_source = Source.create!(
+      algorithm_value: "xpath=//div[@class='event-title']",
+      label: "XPath title",
+      selected: true,
+      selected_by: "Operator",
+      language: "en",
+      render_js: false,
+      property: property,
+      website: website,
+      auto_review: false
+    )
+    ruby_source = Source.create!(
+      algorithm_value: "ruby=nodes.map(&:text)",
+      label: "Ruby title",
+      selected: false,
+      selected_by: "Operator",
+      language: "fr",
+      render_js: false,
+      property: property,
+      website: website,
+      auto_review: false
+    )
+    json_source = Source.create!(
+      algorithm_value: "json_url=https://example.test/events.json",
+      label: "JSON title",
+      selected: false,
+      selected_by: "Operator",
+      language: "",
+      render_js: true,
+      property: property,
+      website: website,
+      auto_review: true
+    )
+    manual_source = Source.create!(
+      algorithm_value: "manual=Festival Example",
+      label: "Manual title",
+      selected: false,
+      selected_by: "Operator",
+      language: "",
+      render_js: false,
+      property: property,
+      website: website,
+      auto_review: false
+    )
+
+    get sources_url, params: { seedurl: website.seedurl }
+
+    assert_response :success
+    assert_select "th a", text: /Property/
+    assert_select "th a", text: /Label/
+    assert_select "td.source-algorithm-cell pre", text: /xpath=/
+    assert_select "td.source-algorithm-cell pre", text: /ruby=/
+    assert_select "td.source-algorithm-cell pre", text: /json_url=/
+    assert_select "td.source-algorithm-cell pre", text: /manual=/
+    assert_includes @response.body, property.label
+    assert_includes @response.body, xpath_source.label
+    assert_includes @response.body, ruby_source.label
+    assert_includes @response.body, json_source.label
+    assert_includes @response.body, manual_source.label
   end
 
   test "sources index falls back safely for invalid sort and direction" do

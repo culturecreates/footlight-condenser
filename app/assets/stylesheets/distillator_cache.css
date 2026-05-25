@@ -747,6 +747,21 @@
   font-size: 0.9rem;
 }
 
+.source-algorithm-cell {
+  min-width: 22rem;
+}
+
+.sources-algorithm-preview {
+  margin: 0;
+  max-height: 9rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
 .sources-pipeline-list {
   display: flex;
   flex-wrap: wrap;

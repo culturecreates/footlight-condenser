@@ -1,36 +1,36 @@
-<% status = source_operator_status(source) %>
-<% strategy = source_fetch_strategy(source) %>
 <tr>
-  <td class="sources-status-cell">
-    <%= source_status_badge(source) %>
-    <div class="sources-secondary-text"><%= status[:detail] %></div>
+  <td>
+    <strong><%= source.id %></strong>
+    <div class="sources-secondary-text"><%= source.website&.seedurl.presence || "No website" %></div>
   </td>
 
   <td>
-    <strong><%= source_property_language_text(source) %></strong>
+    <strong><%= source_property_name(source) %></strong>
     <% if source_property_context(source).present? %>
       <div class="sources-secondary-text"><%= source_property_context(source) %></div>
     <% end %>
   </td>
 
   <td>
-    <div class="sources-pipeline-list">
-      <% source_pipeline_summary(source).each do |step_label| %>
-        <span class="sources-pill"><%= step_label %></span>
-      <% end %>
-    </div>
-    <div class="sources-secondary-text"><%= truncate(source.algorithm_value.to_s, length: 90) %></div>
+    <strong><%= source_label_text(source) %></strong>
+    <div class="sources-secondary-text"><%= source.language.presence || "Language-independent" %></div>
+  </td>
+
+  <td class="source-algorithm-cell">
+    <pre class="sources-algorithm-preview"><%= source_algorithm_text(source) %></pre>
   </td>
 
   <td>
-    <%= source_fetch_strategy_badge(source) %>
-    <div class="sources-secondary-text"><%= strategy[:detail] %></div>
+    <strong><%= source_boolean_text(source.selected?) %></strong>
+    <div class="sources-secondary-text"><%= source.selected_by.presence || "No selector recorded" %></div>
   </td>
 
   <td>
-    <strong><%= source_impact_summary(source) %></strong>
-    <div class="sources-secondary-text"><%= source.website&.seedurl %></div>
-    <div class="rollout-note"><%= source_rollout_badge(source) %></div>
+    <strong><%= source_boolean_text(source.render_js?) %></strong>
+  </td>
+
+  <td>
+    <strong><%= source_boolean_text(source.auto_review?) %></strong>
   </td>
 
   <td>
@@ -41,8 +41,9 @@
   <td class="sources-actions-cell">
     <div class="cache-action-group">
       <strong>Actions</strong>
-      <%= source_inline_test_action(source) %>
+      <%= link_to "Show", source_path(source, from: params[:from], seedurl: params[:seedurl]) %>
       <%= link_to "Edit", edit_source_path(source) %>
+      <%= source_inline_test_action(source) %>
       <%= source_inline_trace_action(source) %>
     </div>
 

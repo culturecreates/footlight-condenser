@@ -172,6 +172,22 @@ module SourcesHelper
     parts.join(" ")
   end
 
+  def source_property_name(source)
+    source.property&.label.presence || "No property"
+  end
+
+  def source_label_text(source)
+    source.label.presence || "Unlabeled"
+  end
+
+  def source_algorithm_text(source)
+    source.algorithm_value.presence || "No extraction DSL defined."
+  end
+
+  def source_boolean_text(value)
+    value ? "Yes" : "No"
+  end
+
   def source_property_context(source)
     details = []
     details << source.property&.rdfs_class&.name

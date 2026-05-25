@@ -37,6 +37,18 @@ class Sources::IndexQueryTest < ActiveSupport::TestCase
       website: websites(:two),
       updated_at: Time.zone.now
     )
+
+    @source_d = Source.create!(
+      algorithm_value: "query delta same property",
+      selected: false,
+      selected_by: "Operator",
+      auto_review: true,
+      language: "en",
+      render_js: true,
+      property: properties(:two),
+      website: websites(:one),
+      updated_at: 2.days.ago
+    )
   end
 
   test "filters by algorithm value term" do
@@ -48,13 +60,13 @@ class Sources::IndexQueryTest < ActiveSupport::TestCase
   test "filters by selected" do
     records = Sources::IndexQuery.call(filters: { term: "query", selected: "false" }, sort: "algorithm_value", direction: "asc", page: 1, per_page: 50)
 
-    assert_equal [@source_b.id], records.map(&:id)
+    assert_equal [@source_b.id, @source_d.id].sort, records.map(&:id).sort
   end
 
   test "filters by auto review" do
     records = Sources::IndexQuery.call(filters: { term: "query", auto_review: "true" }, sort: "algorithm_value", direction: "asc", page: 1, per_page: 50)
 
-    assert_equal [@source_a.id], records.map(&:id)
+    assert_equal [@source_a.id, @source_d.id].sort, records.map(&:id).sort
   end
 
   test "filters by language" do
@@ -66,7 +78,7 @@ class Sources::IndexQueryTest < ActiveSupport::TestCase
   test "filters by render js" do
     records = Sources::IndexQuery.call(filters: { term: "query", render_js: "true" }, sort: "algorithm_value", direction: "asc", page: 1, per_page: 50)
 
-    assert_equal [@source_b.id], records.map(&:id)
+    assert_equal [@source_b.id, @source_d.id].sort, records.map(&:id).sort
   end
 
   test "filters by website id" do
@@ -80,6 +92,15 @@ class Sources::IndexQueryTest < ActiveSupport::TestCase
     records = Sources::IndexQuery.call(filters: { term: "query", property_id: properties(:one).id }, sort: "algorithm_value", direction: "asc", page: 1, per_page: 50)
 
     assert_equal [@source_a.id], records.map(&:id)
+  end
+
+  test "defaults to property language and selected ordering" do
+    records = Sources::IndexQuery.call(filters: { term: "query" }, sort: "property_id", direction: "asc", page: 1, per_page: 50)
+
+    assert_operator records.index(@source_a), :<, records.index(@source_b) if @source_a.property_id < @source_b.property_id
+    assert_operator records.index(@source_b), :<, records.index(@source_a) if @source_b.property_id < @source_a.property_id
+    assert_operator records.index(@source_c), :<, records.index(@source_b)
+    assert_operator records.index(@source_c), :<, records.index(@source_d)
   end
 
   test "sorts by algorithm value" do
@@ -115,7 +136,11 @@ class Sources::IndexQueryTest < ActiveSupport::TestCase
   test "falls back on invalid sort" do
     records = Sources::IndexQuery.call(filters: { term: "query" }, sort: "bogus", direction: "asc", page: 1, per_page: 50)
 
-    assert_equal @source_a.id, records.first.id
+    expected_first = [@source_a, @source_b, @source_c, @source_d].min_by do |source|
+      [source.property_id, source.language.to_s, source.selected? ? 0 : 1, source.id]
+    end
+
+    assert_equal expected_first.id, records.first.id
   end
 
   test "falls back on invalid direction" do
@@ -125,8 +150,8 @@ class Sources::IndexQueryTest < ActiveSupport::TestCase
   end
 
   test "paginates" do
-    page_one = Sources::IndexQuery.call(filters: { term: "query" }, sort: "algorithm_value", direction: "asc", page: 1, per_page: 1)
-    page_two = Sources::IndexQuery.call(filters: { term: "query" }, sort: "algorithm_value", direction: "asc", page: 2, per_page: 1)
+    page_one = Sources::IndexQuery.call(filters: { term: "query" }, sort: "property_id", direction: "asc", page: 1, per_page: 1)
+    page_two = Sources::IndexQuery.call(filters: { term: "query" }, sort: "property_id", direction: "asc", page: 2, per_page: 1)
 
     assert_equal 1, page_one.length
     assert_equal 1, page_two.length
