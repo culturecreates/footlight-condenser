@@ -298,6 +298,52 @@ module Distillator::ShadowReportsHelper
     "This check used a limited sample of representative webpages."
   end
 
+  def shadow_report_url_matrix_actions(row, website)
+    links = []
+    links << button_to(
+      "Fetch/refresh Condenser cache for this URL",
+      fetch_distillator_cache_index_path,
+      method: :post,
+      params: { uri: row[:url], force_scrape: "true", include_fragment: "false", fetch_kind: "normal" },
+      form_class: "inline",
+      class: "as-link"
+    )
+
+    cache_inspection_links(row[:url], website: website).each do |link|
+      label =
+        case link[:label]
+        when "Compare"
+          "Compare Condenser vs Wringer"
+        when "Open active cache"
+          "Open active Wringer cache"
+        when "Webpage record"
+          "Open webpage record"
+        else
+          link[:label]
+        end
+
+      links << link_to(label, link[:url])
+    end
+
+    safe_join(links, " | ")
+  end
+
+  def shadow_report_root_cause_lines(root_cause)
+    [
+      "Failed layer: #{root_cause[:failed_layer]}",
+      "Concrete reason: #{root_cause[:concrete_reason]}",
+      "Affected sampled URLs: #{root_cause[:affected_url_count]}",
+      "Next operator action: #{root_cause[:next_operator_action]}"
+    ]
+  end
+
+  def shadow_report_matrix_reason(row, key)
+    value = row[key]
+    return if value.blank? || value == "ok"
+
+    value.to_s.humanize
+  end
+
   def truncated_url_label(url, max: 80)
     text = url.to_s
     return text if text.length <= max
@@ -323,16 +369,16 @@ module Distillator::ShadowReportsHelper
   end
 
   def shadow_report_sampled_webpages(detail)
-    Array(detail.checked_scope[:representative_webpages]).map do |url|
-      links = cache_inspection_links(url, website: detail.summary.website)
-      explanation = shadow_report_sampled_explanation(detail, url)
+    detail.url_matrix.map do |row|
+      links = cache_inspection_links(row[:url], website: detail.summary.website)
       {
-        url: url,
-        label: external_website_link(url),
-        result: shadow_report_sampled_result_label(explanation),
-        key_issue: explanation&.headline,
+        url: row[:url],
+        label: external_website_link(row[:url]),
+        result: [row[:condenser_fetch_result], row[:cache_comparison_result]].join(" / "),
+        key_issue: [shadow_report_matrix_reason(row, :fetch_reason), shadow_report_matrix_reason(row, :cache_compare_reason)].compact.first,
         links: links,
-        primary_blocker: detail.primary_blocker&.details&.any? { |line| line.include?(url) } || detail.primary_blocker&.headline.to_s.include?(url.to_s)
+        primary_blocker: detail.root_cause[:failed_layer].to_s.in?(%w[fetch legacy lookup cache compare]) &&
+          shadow_report_matrix_row_matches_root_cause?(row, detail.root_cause)
       }
     end
   end
@@ -514,5 +560,18 @@ module Distillator::ShadowReportsHelper
   def condenser_cache_url_for(payload)
     condenser_link = Array(payload[:secondary_links]).find { |link| link[:label] == "Open Condenser cache" }
     condenser_link&.fetch(:url, nil) || payload[:distillator_cache_url]
+  end
+
+  def shadow_report_matrix_row_matches_root_cause?(row, root_cause)
+    case root_cause[:failed_layer]
+    when "fetch"
+      row[:condenser_fetch_result] == "Failed"
+    when "legacy lookup"
+      row[:legacy_lookup_result] != "OK"
+    when "cache compare"
+      row[:cache_comparison_result].in?(%w[Failed Review Unknown Missing])
+    else
+      false
+    end
   end
 end

@@ -83,11 +83,12 @@ module Distillator
       return "Condenser and Wringer differ only in metadata fields." if reason == "metadata_only_difference"
       return "Fresh Condenser evidence is missing for this comparison." if reason == "cache_compare_missing"
       return "Condenser and Wringer have a blocking parity mismatch." if reason == "cache_compare_blocking_regression"
+      return "Condenser and Wringer comparison is still inconclusive." if reason == "cache_compare_unknown"
       case state
       when :passed
         "Fetch parity passed."
       when :failed
-        "Fetch/cache failed for the representative URL."
+        failed_layer == "cache_compare" ? "Condenser and Wringer comparison failed." : "Condenser fetch/cache failed for one or more sampled URLs."
       when :stale
         "Fetch parity is stale."
       else
@@ -98,6 +99,7 @@ module Distillator
     def statement_headline
       return "No representative event webpages were available." if reason == "no_representative_webpages"
       return "Fetch failed before statements could be refreshed." if state == :not_evaluated || reason == "fetch_failed_before_statement_refresh"
+      return "Some representative URLs could not be fetched, so statement coverage is incomplete." if reason == "partial_fetch_failed_before_statement_refresh"
       return "No selected statements were found for the representative webpages." if state == :inconclusive || reason == "no_selected_statements"
       return "Statement refresh failed for #{pluralize(failing_statement_count, 'statement')}." if reason == "statement_refresh_failed" && failing_statement_count.positive?
       return "Statement refresh found #{pluralize(failing_statement_count, 'failing statement')}." if state == :failed
@@ -109,6 +111,7 @@ module Distillator
 
     def export_headline
       return "Fetch failed before export could be compared." if state == :blocked_by_fetch || reason == "fetch_failed_before_export_comparison"
+      return "Some representative URLs could not be fetched, so export coverage is incomplete." if reason == "partial_fetch_failed_before_export_comparison"
       return "Export could not be generated." if reason == "export_generation_failed"
       return "Export comparison is not available yet." if reason == "export_diff_not_available"
       return "No representative event webpages were available." if reason == "no_representative_webpages"
@@ -133,6 +136,8 @@ module Distillator
     def fetch_details
       details = []
       details << "URL: #{evidence.url}" if evidence&.url.present?
+      details << "Failed layer: #{failed_layer.humanize}" if failed_layer.present?
+      details << "Affected sampled URLs: #{affected_url_count}" if affected_url_count.positive?
       details << "Attempted Condenser fetch: #{evidence&.attempted_condenser_fetch? ? 'yes' : 'no'}" if evidence.present?
       if details_hash.key?("condenser_fetch_success")
         details << "Condenser fetch: #{details_hash['condenser_fetch_success'] ? 'passed' : 'failed'}"
@@ -185,6 +190,8 @@ module Distillator
         return "Configure the Wringer endpoint for staging, then rerun the transition check." if reason == "legacy_lookup_missing_config"
         return "Fix the legacy Wringer endpoint, then rerun the transition check." if reason == "legacy_lookup_unreachable"
         return "Verify the legacy Wringer body endpoint or compare using the legacy inspection link." if reason == "legacy_lookup_body_omitted"
+        return "Review the Condenser vs Wringer comparison for the affected URLs." if reason == "cache_compare_blocking_regression"
+        return "Re-run the cache comparison and verify the affected URLs." if %w[cache_compare_missing cache_compare_unknown].include?(reason)
 
         state == :passed ? "No fetch action is needed right now." : "Fix the fetch/cache failure first, then rerun the transition check."
       when "statement_delta"
@@ -192,6 +199,8 @@ module Distillator
           "No statement refresh action is needed right now."
         elsif state == :not_evaluated || reason == "fetch_failed_before_statement_refresh"
           "Fix the fetch/cache failure first, then rerun the transition check."
+        elsif reason == "partial_fetch_failed_before_statement_refresh"
+          "Fetch the missing representative URLs, then rerun the transition check to complete statement coverage."
         elsif state == :inconclusive || reason == "no_selected_statements"
           "Verify selected sources/statements for the sampled webpages."
         elsif reason == "no_representative_webpages"
@@ -204,6 +213,8 @@ module Distillator
           "No export action is needed right now."
         elsif state == :blocked_by_fetch || reason == "fetch_failed_before_export_comparison"
           "Fix the fetch/cache failure first, then rerun the transition check."
+        elsif reason == "partial_fetch_failed_before_export_comparison"
+          "Fetch the missing representative URLs, then rerun the transition check to complete export coverage."
         elsif reason == "export_generation_failed"
           "Fix the export generation failure, then rerun the transition check."
         else
@@ -270,6 +281,14 @@ module Distillator
 
     def rdf_removed_count
       evidence&.rdf_removed_count
+    end
+
+    def failed_layer
+      details_hash["failed_layer"] || details_hash[:failed_layer]
+    end
+
+    def affected_url_count
+      (details_hash["affected_url_count"] || details_hash[:affected_url_count] || 0).to_i
     end
 
     def pluralize(count, noun)

@@ -237,13 +237,12 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match "Transition Report Detail", @response.body
     assert_match "Decision", @response.body
-    assert_match "Current checks", @response.body
-    assert_match "Primary blocker", @response.body
-    assert_match "Next action", @response.body
+    assert_match "Representative URL Matrix", @response.body
+    assert_match "Root cause", @response.body
     assert_match "Checked scope", @response.body
     assert_match "Transition evidence", @response.body
     assert_match "Fetch parity", @response.body
-    assert_match %r{Decision.*Current checks}m, @response.body
+    assert_match %r{Decision.*Representative URL Matrix.*Root cause.*Checked scope}m, @response.body
   end
 
   test "shadow report row shows run transition check for shadow sites with missing evidence" do
@@ -542,12 +541,11 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_match %r{all websites</a>\s*\|\s*<a[^>]+href="/websites/#{website.id}">#{Regexp.escape(website.name)}</a>\s*\|\s*<a[^>]+href="/webpages\?seedurl=#{Regexp.escape(website.seedurl)}"}, @response.body
-    assert_match "Fetch/cache failed for the representative URL.", @response.body
+    assert_match "Condenser fetch/cache failed for one or more sampled URLs.", @response.body
+    assert_match "Root cause", @response.body
+    assert_match "Failed layer: fetch", @response.body
     assert_match "generic_error_text", @response.body
     assert_match "High: Generic error text observed", @response.body
-    assert_match "Fetch result: HTTP 200 HTML", @response.body
-    assert_match "Storage decision: abort_update", @response.body
-    assert_match "Stored cache body: empty because the update was aborted", @response.body
     assert_match "Latest attempt", @response.body
     assert_match "Latest successful refresh", @response.body
     assert_match "Open failed cache result", @response.body
@@ -750,6 +748,23 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
         attempted_condenser_fetch: true,
         condenser_fetch_success: true,
         comparison_performed: true,
+        representative_url_results: [
+          {
+            url: primary_url,
+            webpage_id: website.webpages.find_by(url: primary_url)&.id,
+            fetch_status: "passed",
+            fetch_reason: "ok",
+            legacy_lookup_status: "ok",
+            comparison_status: "failed"
+          },
+          {
+            url: secondary_url,
+            fetch_status: "passed",
+            fetch_reason: "ok",
+            legacy_lookup_status: "ok",
+            comparison_status: "review"
+          }
+        ],
         compare_summary: {
           blocking_regressions: ["html_sha256"],
           metadata_only_diffs: [],
@@ -762,11 +777,11 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
-    assert_match "Primary blocker", @response.body
-    assert_match "selected blocker among the sampled representative URLs", @response.body
+    assert_match "Root cause", @response.body
+    assert_match "Failed layer: cache compare", @response.body
     assert_match "Condenser and Wringer have a blocking parity mismatch.", @response.body
     assert_no_match "Fetch/cache failed for the representative URL.", @response.body
-    assert_match "Sampled representative URLs", @response.body
+    assert_match "Representative URL Matrix", @response.body
     assert_match primary_url, @response.body
     assert_match secondary_url, @response.body
     assert_operator @response.body.scan("Compare Condenser vs Wringer").count, :>=, 2
@@ -774,6 +789,246 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_operator @response.body.scan("Open active Wringer cache").count, :>=, 2
     assert_operator @response.body.scan("Open Condenser cache").count, :>=, 2
     assert_match "Representative webpages checked: 2 of 4", @response.body
+  end
+
+  test "shadow report detail matrix renders three sampled urls with distinct outcomes and actions" do
+    Distillator::WringerEndpoint.stubs(:current).returns(
+      Distillator::WringerEndpoint::Result.new(
+        compatibility_base_url: "http://compat.example",
+        legacy_lookup_base_url: "http://wringer.example",
+        compatibility_source: "DISTILLATOR_COMPAT_BASE_URL",
+        state: :remote_configured,
+        status_label: "Current Wringer: Remote configured",
+        status_detail: "http://compat.example via DISTILLATOR_COMPAT_BASE_URL"
+      )
+    )
+    website = create_shadow_website(name: "Three row detail", seedurl: "three-row-detail")
+    url_one = "https://three-row-detail.example/one"
+    url_two = "https://three-row-detail.example/two"
+    url_three = "https://three-row-detail.example/three"
+    create_cache_for(website, url: url_one, signals: { "transport_success" => true, "content_success" => true }, health_status: "healthy", health_severity: "ok")
+    website.webpages.create!(id: next_id, url: url_two, language: "en", rdf_uri: "rdf:two", rdfs_class: rdfs_classes(:one))
+    website.webpages.create!(id: next_id, url: url_three, language: "en", rdf_uri: "rdf:three", rdfs_class: rdfs_classes(:one))
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url_one,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "review_needed_difference",
+        failed_layer: "cache_compare",
+        affected_url_count: 2,
+        representative_webpages: [url_one, url_two, url_three],
+        representative_webpage_count: 3,
+        candidate_webpage_count: 3,
+        representative_url_results: [
+          { url: url_one, webpage_id: website.webpages.find_by(url: url_one).id, fetch_status: "passed", fetch_reason: "ok", legacy_lookup_status: "ok", comparison_status: "passed" },
+          { url: url_two, webpage_id: website.webpages.find_by(url: url_two).id, fetch_status: "passed", fetch_reason: "ok", legacy_lookup_status: "body_omitted", legacy_lookup_error: "legacy_body_omitted", comparison_status: "review" },
+          { url: url_three, webpage_id: website.webpages.find_by(url: url_three).id, fetch_status: "failed", fetch_reason: "cache_health_failed", legacy_lookup_status: nil, comparison_status: "unknown" }
+        ],
+        compare_summary: { blocking_regressions: [], metadata_only_diffs: [], review_needed_diffs: ["body"], unknown_diffs: [] }
+      }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url_one,
+      check_kind: "statement_delta",
+      status: "failed",
+      checked_at: 1.hour.ago,
+      details: {
+        representative_webpages: [url_one, url_two, url_three],
+        representative_webpage_count: 3,
+        candidate_webpage_count: 3,
+        representative_url_statement_results: [
+          { url: url_one, status: "passed", reason: "ok" },
+          { url: url_two, status: "failed", reason: "statement_delta" },
+          { url: url_three, status: "blocked_by_fetch", reason: "cache_health_failed" }
+        ]
+      }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url_one,
+      check_kind: "export_diff",
+      status: "failed",
+      export_diff_status: "failed",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "export_generation_failed",
+        representative_webpages: [url_one, url_two, url_three],
+        representative_webpage_count: 3,
+        candidate_webpage_count: 3,
+        representative_url_export_results: [
+          { url: url_one, status: "checked", reason: "ok" },
+          { url: url_two, status: "failed", reason: "export_generation_failed" },
+          { url: url_three, status: "blocked_by_fetch", reason: "cache_health_failed" }
+        ]
+      }
+    )
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Representative URL Matrix", @response.body
+    assert_match url_one, @response.body
+    assert_match url_two, @response.body
+    assert_match url_three, @response.body
+    assert_match "Passed", @response.body
+    assert_match "Body omitted", @response.body
+    assert_match "Failed", @response.body
+    assert_operator @response.body.scan("Fetch/refresh Condenser cache for this URL").count, :>=, 3
+    assert_operator @response.body.scan("Compare Condenser vs Wringer").count, :>=, 3
+    assert_operator @response.body.scan("Compare extracted statements").count, :>=, 3
+    assert_operator @response.body.scan("Open webpage record").count, :>=, 3
+  end
+
+  test "shadow report detail shows one failed representative fetch out of three without marking statements and export as fully passed" do
+    website = create_shadow_website(name: "Partial fetch detail", seedurl: "partial-fetch-detail")
+    url_one = "https://partial-fetch-detail.example/one"
+    url_two = "https://partial-fetch-detail.example/two"
+    url_three = "https://partial-fetch-detail.example/three"
+    create_cache_for(website, url: url_one, signals: { "transport_success" => true, "content_success" => true }, health_status: "healthy", health_severity: "ok")
+    website.webpages.create!(id: next_id, url: url_two, language: "en", rdf_uri: "rdf:two", rdfs_class: rdfs_classes(:one))
+    website.webpages.create!(id: next_id, url: url_three, language: "en", rdf_uri: "rdf:three", rdfs_class: rdfs_classes(:one))
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url_one,
+      check_kind: "fetch_parity",
+      status: "failed",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "cache_health_failed",
+        failed_layer: "fetch",
+        affected_url_count: 1,
+        representative_webpages: [url_one, url_two, url_three],
+        representative_webpage_count: 3,
+        candidate_webpage_count: 3,
+        representative_url_results: [
+          { url: url_one, webpage_id: website.webpages.find_by(url: url_one).id, fetch_status: "passed", fetch_reason: "ok", legacy_lookup_status: "ok", comparison_status: "passed" },
+          { url: url_two, webpage_id: website.webpages.find_by(url: url_two).id, fetch_status: "passed", fetch_reason: "ok", legacy_lookup_status: "ok", comparison_status: "passed" },
+          { url: url_three, webpage_id: website.webpages.find_by(url: url_three).id, fetch_status: "failed", fetch_reason: "cache_health_failed", legacy_lookup_status: nil, comparison_status: "unknown" }
+        ]
+      }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url_one,
+      check_kind: "statement_delta",
+      status: "pending",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "partial_fetch_failed_before_statement_refresh",
+        representative_webpages: [url_one, url_two, url_three],
+        representative_webpage_count: 3,
+        candidate_webpage_count: 3,
+        representative_url_statement_results: [
+          { url: url_one, status: "passed", reason: "ok" },
+          { url: url_two, status: "passed", reason: "ok" },
+          { url: url_three, status: "blocked_by_fetch", reason: "cache_health_failed" }
+        ]
+      }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url_one,
+      check_kind: "export_diff",
+      status: "pending",
+      export_diff_checked: false,
+      export_diff_status: "partial",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "partial_fetch_failed_before_export_comparison",
+        representative_webpages: [url_one, url_two, url_three],
+        representative_webpage_count: 3,
+        candidate_webpage_count: 3,
+        representative_url_export_results: [
+          { url: url_one, status: "checked", reason: "ok" },
+          { url: url_two, status: "checked", reason: "ok" },
+          { url: url_three, status: "blocked_by_fetch", reason: "cache_health_failed" }
+        ]
+      }
+    )
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Failed layer: fetch", @response.body
+    assert_match "Affected sampled URLs: 1", @response.body
+    assert_match url_one, @response.body
+    assert_match url_two, @response.body
+    assert_match url_three, @response.body
+    assert_match "Blocked by fetch", @response.body
+    assert_match "Inconclusive", @response.body
+    assert_no_match "Export comparison passed.", @response.body
+    assert_no_match "Statements check passed.", @response.body
+  end
+
+  test "shadow report detail does not block statements and export by fetch when fetch passed but comparison failed" do
+    website = create_shadow_website(name: "Actual failing layer detail", seedurl: "actual-failing-layer-detail")
+    url = "https://actual-failing-layer-detail.example/event"
+    create_cache_for(website, url: url, signals: { "transport_success" => true, "content_success" => true }, health_status: "healthy", health_severity: "ok")
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "fetch_parity",
+      status: "failed",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "cache_compare_blocking_regression",
+        failed_layer: "cache_compare",
+        affected_url_count: 1,
+        attempted_condenser_fetch: true,
+        condenser_fetch_success: true,
+        comparison_performed: true,
+        legacy_lookup_status: "ok",
+        representative_webpages: [url],
+        representative_webpage_count: 1,
+        candidate_webpage_count: 1,
+        representative_url_results: [
+          { url: url, webpage_id: website.webpages.find_by(url: url).id, fetch_status: "passed", fetch_reason: "ok", legacy_lookup_status: "ok", comparison_status: "failed" }
+        ],
+        compare_summary: { blocking_regressions: ["html_sha256"], metadata_only_diffs: [], review_needed_diffs: [], unknown_diffs: [] }
+      }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "statement_delta",
+      status: "failed",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "statement_refresh_failed",
+        representative_webpages: [url],
+        representative_webpage_count: 1,
+        candidate_webpage_count: 1,
+        representative_url_statement_results: [{ url: url, status: "failed", reason: "statement_refresh_failed" }]
+      }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "export_diff",
+      status: "failed",
+      export_diff_status: "failed",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "export_generation_failed",
+        representative_webpages: [url],
+        representative_webpage_count: 1,
+        candidate_webpage_count: 1,
+        representative_url_export_results: [{ url: url, status: "failed", reason: "export_generation_failed" }]
+      }
+    )
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_no_match "Fetch/cache failed for the representative URL.", @response.body
+    assert_no_match "blocked by fetch", @response.body
+    assert_match "Condenser and Wringer have a blocking parity mismatch.", @response.body
+    assert_match "statement refresh failed", @response.body.downcase
+    assert_match "export generation failed", @response.body.downcase
   end
 
   test "shadow report detail keeps representative checked count honest across tiers" do
@@ -839,10 +1094,10 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
-    diagnostics_html = @response.body[%r{<summary>Diagnostics</summary>.*?</details>}m]
-    assert_not_nil diagnostics_html
-    assert_no_match "Run transition check", diagnostics_html
-    assert_no_match %r{\|\s*</p>}m, diagnostics_html
+    audit_html = @response.body[%r{<summary>Audit</summary>.*?</details>}m]
+    assert_not_nil audit_html
+    assert_no_match "Run transition check", audit_html
+    assert_no_match %r{\|\s*</p>}m, audit_html
     assert_equal 1, @response.body.scan("Run transition check").size
   end
 
@@ -866,7 +1121,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
-    assert_match %r{<summary>Diagnostics</summary>.*Cache links:}m, @response.body
+    assert_match %r{<summary>Audit</summary>.*Cache links:}m, @response.body
     assert_match %r{<summary>Audit</summary>.*Recent rollout events}m, @response.body
   end
 

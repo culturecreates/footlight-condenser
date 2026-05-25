@@ -205,6 +205,62 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     assert_equal "Verify selected sources/statements for the sampled webpages.", status.activation_recommendation[:next_action]
   end
 
+  test "partial representative fetch failure keeps statements and export inconclusive" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true })
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "fetch_parity",
+      status: "failed",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "cache_health_failed",
+        failed_layer: "fetch",
+        affected_url_count: 1
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "statement_delta",
+      status: "pending",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "partial_fetch_failed_before_statement_refresh",
+        representative_url_statement_results: [
+          { url: "https://example.org/one", status: "passed", reason: "ok" },
+          { url: "https://example.org/two", status: "passed", reason: "ok" },
+          { url: "https://example.org/three", status: "blocked_by_fetch", reason: "cache_health_failed" }
+        ]
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "export_diff",
+      status: "pending",
+      export_diff_checked: false,
+      export_diff_status: "partial",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "partial_fetch_failed_before_export_comparison",
+        representative_url_export_results: [
+          { url: "https://example.org/one", status: "checked", reason: "ok" },
+          { url: "https://example.org/two", status: "checked", reason: "ok" },
+          { url: "https://example.org/three", status: "blocked_by_fetch", reason: "cache_health_failed" }
+        ]
+      }
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :blocked, status.status
+    assert_equal :unsafe, status.safety
+    assert_equal :failed, status.fetch
+    assert_equal :inconclusive, status.statements
+    assert_equal :inconclusive, status.export
+    assert_includes status.blockers, "Cannot activate yet: statements check is inconclusive."
+    assert_includes status.blockers, "Cannot activate yet: export check is inconclusive."
+  end
+
   test "legacy lookup missing config keeps condenser fetch passed but marks review" do
     website = build_website("Outside Feed", "outside-feed")
     cache = build_cache(

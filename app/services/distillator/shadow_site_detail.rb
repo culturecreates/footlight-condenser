@@ -6,6 +6,8 @@ module Distillator
       :transition_evidence_by_kind,
       :transition_evidence_explanations,
       :primary_blocker,
+      :url_matrix,
+      :root_cause,
       :checked_scope,
       :decision,
       :rollout_notes,
@@ -29,6 +31,8 @@ module Distillator
         transition_evidence_by_kind: transition_evidence_by_kind,
         transition_evidence_explanations: transition_evidence_explanations,
         primary_blocker: primary_blocker,
+        url_matrix: url_matrix,
+        root_cause: root_cause,
         checked_scope: checked_scope,
         decision: decision,
         rollout_notes: rollout_notes,
@@ -88,6 +92,92 @@ module Distillator
           export_basis: export_details["export_basis"].presence || "current export vs production-equivalent export",
           sample_small: (statement_details["sample_small"] == true || export_details["sample_small"] == true || fetch_details["sample_small"] == true || candidate_count > representative_count)
         }
+      end
+    end
+
+    def url_matrix
+      @url_matrix ||= begin
+        fetch_rows = Array(transition_evidence_by_kind["fetch_parity"]&.details.to_h&.[]("representative_url_results") ||
+          transition_evidence_by_kind["fetch_parity"]&.details.to_h&.[](:representative_url_results))
+        statement_rows = Array(transition_evidence_by_kind["statement_delta"]&.details.to_h&.[]("representative_url_statement_results") ||
+          transition_evidence_by_kind["statement_delta"]&.details.to_h&.[](:representative_url_statement_results))
+        export_rows = Array(transition_evidence_by_kind["export_diff"]&.details.to_h&.[]("representative_url_export_results") ||
+          transition_evidence_by_kind["export_diff"]&.details.to_h&.[](:representative_url_export_results))
+        urls = checked_scope[:representative_webpages]
+        urls.map do |url|
+          fetch_row = symbolize_row(fetch_rows.find { |row| symbolize_row(row)[:url] == url })
+          fetch_row = fallback_fetch_row(url) if fetch_row.blank?
+          statement_row = symbolize_row(statement_rows.find { |row| symbolize_row(row)[:url] == url })
+          statement_row = fallback_statement_row(url) if statement_row.blank?
+          export_row = symbolize_row(export_rows.find { |row| symbolize_row(row)[:url] == url })
+          export_row = fallback_export_row(url) if export_row.blank?
+          {
+            url: url,
+            webpage_id: fetch_row[:webpage_id],
+            condenser_fetch_result: condenser_fetch_label(fetch_row),
+            legacy_lookup_result: legacy_lookup_label(fetch_row),
+            cache_comparison_result: cache_comparison_label(fetch_row),
+            statement_check_result: statement_check_label(statement_row),
+            export_impact: export_impact_label(export_row),
+            fetch_reason: fetch_row[:fetch_reason],
+            legacy_lookup_reason: fetch_row[:legacy_lookup_error] || fetch_row[:legacy_lookup_status],
+            cache_compare_reason: cache_compare_reason(fetch_row),
+            statement_reason: statement_row[:reason],
+            export_reason: export_row[:reason]
+          }
+        end
+      end
+    end
+
+    def root_cause
+      @root_cause ||= begin
+        fetch_rows = url_matrix.select { |row| row[:condenser_fetch_result] == "Failed" }
+        legacy_rows = url_matrix.select { |row| row[:legacy_lookup_result] != "OK" }
+        compare_rows = url_matrix.select { |row| row[:cache_comparison_result].in?(%w[Failed Review Unknown Missing]) }
+
+        if fetch_rows.any?
+          {
+            failed_layer: "fetch",
+            concrete_reason: fetch_rows.first[:fetch_reason].to_s.humanize,
+            affected_url_count: fetch_rows.count,
+            next_operator_action: "Fetch/refresh Condenser cache for the affected URLs, then rerun the transition check."
+          }
+        elsif legacy_rows.any?
+          {
+            failed_layer: "legacy lookup",
+            concrete_reason: legacy_rows.first[:legacy_lookup_reason].to_s.humanize,
+            affected_url_count: legacy_rows.count,
+            next_operator_action: "Open the active Wringer cache or fix the legacy lookup configuration before rerunning the transition check."
+          }
+        elsif compare_rows.any?
+          {
+            failed_layer: "cache compare",
+            concrete_reason: compare_rows.first[:cache_compare_reason].to_s.humanize,
+            affected_url_count: compare_rows.count,
+            next_operator_action: "Compare Condenser vs Wringer for the affected URLs and review the parity differences."
+          }
+        elsif transition_status.statements == :failed || transition_status.statements == :inconclusive
+          {
+            failed_layer: "statements",
+            concrete_reason: transition_evidence_explanations.find { |explanation| explanation.key == "statement_delta" }&.headline,
+            affected_url_count: checked_scope[:representative_webpage_count],
+            next_operator_action: transition_status.primary_action
+          }
+        elsif transition_status.export == :failed || transition_status.export == :blocked_by_fetch || transition_status.export == :inconclusive
+          {
+            failed_layer: "export",
+            concrete_reason: transition_evidence_explanations.find { |explanation| explanation.key == "export_diff" }&.headline,
+            affected_url_count: checked_scope[:representative_webpage_count],
+            next_operator_action: transition_status.primary_action
+          }
+        else
+          {
+            failed_layer: "evidence missing",
+            concrete_reason: "No failing layer is currently recorded for the sampled URLs.",
+            affected_url_count: 0,
+            next_operator_action: transition_status.primary_action
+          }
+        end
       end
     end
 
@@ -154,6 +244,135 @@ module Distillator
       return transition_status.warnings.presence if transition_status.warnings.any?
 
       ["All transition checks are currently passing."]
+    end
+
+    def symbolize_row(row)
+      row.respond_to?(:to_h) ? row.to_h.symbolize_keys : {}
+    end
+
+    def condenser_fetch_label(row)
+      return "Missing" if row.blank?
+      return "Failed" if row[:fetch_status] == "failed"
+
+      "Passed"
+    end
+
+    def legacy_lookup_label(row)
+      status = row[:legacy_lookup_status].to_s
+      return "OK" if status.blank? || status == "ok"
+      return "Missing config" if status == "missing_config"
+      return "Unreachable" if status == "unreachable"
+      return "Body omitted" if status == "body_omitted"
+
+      status.humanize
+    end
+
+    def cache_comparison_label(row)
+      case row[:comparison_status].to_s
+      when "passed", ""
+        "Passed"
+      when "metadata_only"
+        "Passed with metadata notes"
+      when "review"
+        "Review"
+      when "unknown", "not_performed"
+        "Unknown"
+      when "missing"
+        "Missing"
+      else
+        "Failed"
+      end
+    end
+
+    def statement_check_label(row)
+      case row[:status].to_s
+      when "passed"
+        "Passed"
+      when "failed"
+        "Failed"
+      when "blocked_by_fetch"
+        "Blocked by fetch"
+      when "inconclusive"
+        "Inconclusive"
+      else
+        transition_status.statements.to_s.humanize
+      end
+    end
+
+    def export_impact_label(row)
+      case row[:status].to_s
+      when "checked"
+        "Passed"
+      when "failed"
+        "Failed"
+      when "blocked_by_fetch"
+        "Blocked by fetch"
+      when "inconclusive"
+        "Inconclusive"
+      else
+        transition_status.export.to_s.humanize
+      end
+    end
+
+    def cache_compare_reason(row)
+      return row[:comparison_status] if row[:comparison_status].present? && row[:comparison_status] != "passed"
+      return "metadata_only_difference" if row[:comparison_status] == "metadata_only"
+
+      "ok"
+    end
+
+    def fallback_fetch_row(url)
+      details = transition_evidence_by_kind["fetch_parity"]&.details.to_h || {}
+      {
+        url: url,
+        webpage_id: website.webpages.find_by(url: url)&.id,
+        fetch_status: transition_status.fetch == :failed ? "failed" : "passed",
+        fetch_reason: details["reason"] || details[:reason] || "ok",
+        legacy_lookup_status: details["legacy_lookup_status"] || details[:legacy_lookup_status] || "ok",
+        legacy_lookup_error: details["legacy_lookup_error"] || details[:legacy_lookup_error],
+        comparison_status: fallback_comparison_status(details)
+      }
+    end
+
+    def fallback_statement_row(url)
+      details = transition_evidence_by_kind["statement_delta"]&.details.to_h || {}
+      {
+        url: url,
+        status: case transition_status.statements
+                when :passed then "passed"
+                when :failed then "failed"
+                when :not_evaluated then "blocked_by_fetch"
+                when :inconclusive then "inconclusive"
+                else transition_status.statements.to_s
+                end,
+        reason: details["reason"] || details[:reason]
+      }
+    end
+
+    def fallback_export_row(url)
+      details = transition_evidence_by_kind["export_diff"]&.details.to_h || {}
+      {
+        url: url,
+        status: case transition_status.export
+                when :passed then "checked"
+                when :failed then "failed"
+                when :blocked_by_fetch then "blocked_by_fetch"
+                when :inconclusive then "inconclusive"
+                else transition_status.export.to_s
+                end,
+        reason: details["reason"] || details[:reason]
+      }
+    end
+
+    def fallback_comparison_status(details)
+      reason = details["reason"] || details[:reason]
+      return "failed" if reason == "cache_compare_blocking_regression"
+      return "missing" if reason == "cache_compare_missing"
+      return "unknown" if reason == "cache_compare_unknown"
+      return "review" if reason == "review_needed_difference"
+      return "metadata_only" if reason == "metadata_only_difference"
+
+      "passed"
     end
   end
 end

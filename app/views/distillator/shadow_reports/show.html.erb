@@ -9,10 +9,6 @@
   <p><strong>Confidence:</strong> <%= @detail.transition_status.confidence.to_s.humanize %></p>
   <p><strong>Why:</strong> <%= @detail.decision[:why].first %></p>
   <p><strong>Recommended action:</strong> <%= @detail.decision[:recommended_action] %></p>
-</section>
-
-<section class="website-rollout-panel">
-  <h2>Current checks</h2>
   <ul>
     <% @detail.transition_status.checks.each do |check| %>
       <li><%= shadow_report_check_icon(check[:state]) %> <strong><%= check[:label] %></strong> — <%= shadow_report_check_label(check[:state]) %></li>
@@ -21,28 +17,71 @@
 </section>
 
 <section class="website-rollout-panel">
-  <h2>Primary blocker</h2>
-  <% if @detail.primary_blocker.present? %>
-    <p>This is the selected blocker among the sampled representative URLs.</p>
-    <p><strong><%= shadow_report_primary_blocker_heading(@detail.primary_blocker) %>:</strong> <%= @detail.primary_blocker.headline %></p>
-    <% if shadow_report_primary_blocker_details(@detail).any? %>
-      <ul>
-        <% shadow_report_primary_blocker_details(@detail).each do |detail| %>
-          <li><%= detail %></li>
+  <h2>Representative URL Matrix</h2>
+  <% if @detail.url_matrix.any? %>
+    <table class="cache-table cache-compare-table">
+      <thead>
+        <tr>
+          <th>URL</th>
+          <th>Condenser fetch result</th>
+          <th>Legacy lookup result</th>
+          <th>Cache comparison result</th>
+          <th>Statement check result</th>
+          <th>Export impact</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @detail.url_matrix.each do |row| %>
+          <tr>
+            <td><%= external_website_link(row[:url]) %></td>
+            <td>
+              <%= row[:condenser_fetch_result] %>
+              <% if shadow_report_matrix_reason(row, :fetch_reason).present? %>
+                <div class="sources-secondary-text"><%= shadow_report_matrix_reason(row, :fetch_reason) %></div>
+              <% end %>
+            </td>
+            <td>
+              <%= row[:legacy_lookup_result] %>
+              <% if shadow_report_matrix_reason(row, :legacy_lookup_reason).present? %>
+                <div class="sources-secondary-text"><%= shadow_report_matrix_reason(row, :legacy_lookup_reason) %></div>
+              <% end %>
+            </td>
+            <td>
+              <%= row[:cache_comparison_result] %>
+              <% if shadow_report_matrix_reason(row, :cache_compare_reason).present? %>
+                <div class="sources-secondary-text"><%= shadow_report_matrix_reason(row, :cache_compare_reason) %></div>
+              <% end %>
+            </td>
+            <td>
+              <%= row[:statement_check_result] %>
+              <% if shadow_report_matrix_reason(row, :statement_reason).present? %>
+                <div class="sources-secondary-text"><%= shadow_report_matrix_reason(row, :statement_reason) %></div>
+              <% end %>
+            </td>
+            <td>
+              <%= row[:export_impact] %>
+              <% if shadow_report_matrix_reason(row, :export_reason).present? %>
+                <div class="sources-secondary-text"><%= shadow_report_matrix_reason(row, :export_reason) %></div>
+              <% end %>
+            </td>
+            <td><%= shadow_report_url_matrix_actions(row, @website) %></td>
+          </tr>
         <% end %>
-      </ul>
-    <% end %>
-    <% if shadow_report_primary_blocker_links(@detail).any? %>
-      <p><%= safe_join(shadow_report_primary_blocker_links(@detail), " | ") %></p>
-    <% end %>
+      </tbody>
+    </table>
   <% else %>
-    <p>No primary blocker is currently recorded.</p>
+    <p>No sampled representative URLs were recorded.</p>
   <% end %>
 </section>
 
 <section class="website-rollout-panel">
-  <h2>Next action</h2>
-  <p><%= @detail.primary_blocker&.next_action || @detail.decision[:recommended_action] %></p>
+  <h2>Root cause</h2>
+  <ul>
+    <% shadow_report_root_cause_lines(@detail.root_cause).each do |line| %>
+      <li><%= line %></li>
+    <% end %>
+  </ul>
 
   <% contract = website_transition_contract(@website) %>
   <% primary_action = contract[:primary_action] %>
@@ -76,43 +115,10 @@
   <% end %>
 </section>
 
-<section class="website-rollout-panel">
-  <h2>Sampled representative URLs</h2>
-  <% sampled_webpages = shadow_report_sampled_webpages(@detail) %>
-  <% if sampled_webpages.any? %>
-    <table class="harmonized-table-shell">
-      <thead>
-        <tr>
-          <th>URL</th>
-          <th>Result</th>
-          <th>Key issue</th>
-          <th>Links</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% sampled_webpages.each do |sample| %>
-          <tr>
-            <td>
-              <%= external_website_link(sample[:url]) %>
-              <% if sample[:primary_blocker] %>
-                <div class="rollout-note">Primary blocker</div>
-              <% end %>
-            </td>
-            <td><%= sample[:result] %></td>
-            <td><%= sample[:key_issue].presence || "None recorded" %></td>
-            <td><%= safe_join(sample[:links].map { |link| link_to(link[:label], link[:url]) }, " | ") %></td>
-          </tr>
-        <% end %>
-      </tbody>
-    </table>
-  <% else %>
-    <p>No sampled representative URLs were recorded.</p>
-  <% end %>
-</section>
-
 <% if @detail.transition_status.review_activation_eligible %>
   <section class="website-rollout-panel">
     <h2>Review checklist</h2>
+    <% sampled_webpages = shadow_report_sampled_webpages(@detail) %>
     <% first_sample = sampled_webpages.first %>
     <ul>
       <li><%= link_to "Open source website", first_sample[:links].find { |link| link[:label] == "Source website" }[:url], target: "_blank", rel: "noopener" if first_sample.present? && first_sample[:links].any? { |link| link[:label] == "Source website" } %></li>
@@ -129,7 +135,7 @@
 <% end %>
 
 <details class="website-rollout-panel">
-  <summary>Diagnostics</summary>
+  <summary>Audit</summary>
   <p><strong>Website:</strong> <%= @website.name %></p>
   <p><strong>Seedurl:</strong> <%= @website.seedurl %></p>
   <p><strong>Cohort:</strong> <%= @detail.summary.cohort_label.presence || "Other" %></p>
@@ -141,10 +147,6 @@
   <p><strong>Health:</strong> <%= @detail.summary.health_summary %></p>
   <p><strong>Issue:</strong> <%= @detail.summary.issue_key.presence || "None" %></p>
   <p><strong>Cache links:</strong> <%= shadow_report_cache_diagnostic_links(@detail.summary) %></p>
-</details>
-
-<details class="website-rollout-panel">
-  <summary>Audit</summary>
   <h3>Check explanations</h3>
   <% @detail.transition_evidence_explanations.each do |explanation| %>
     <section class="website-rollout-panel">

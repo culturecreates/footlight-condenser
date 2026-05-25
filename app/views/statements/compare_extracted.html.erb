@@ -1,7 +1,9 @@
+<% property_scope_text = @statement_parity.property_ids.map(&:to_s).to_sentence(words_connector: ", ", two_words_connector: " and ", last_word_connector: ", and ") %>
+
 <h1>Extracted Statement Comparison</h1>
 
 <p class="cache-page-notice cache-compare-warning">Read-only diagnostic only. No statements, webpages, caches, or rollout state were changed.</p>
-<p class="cache-page-notice">This comparison is limited to properties <%= @statement_parity.property_ids.join(", ") %>.</p>
+<p class="cache-page-notice">This comparison is limited to essential properties <%= property_scope_text %>.</p>
 
 <p><strong>URL:</strong> <%= external_website_link(@statement_parity.url) %></p>
 <p><strong>Website:</strong> <%= link_to @webpage.website.name, website_path(@webpage.website) %></p>
@@ -11,7 +13,7 @@
 <section class="website-rollout-panel">
   <h2>Summary</h2>
   <p><strong>Sources checked:</strong> <%= @statement_parity.sources_count %></p>
-  <p><strong>Property scope:</strong> Essential properties <%= @statement_parity.property_ids.join(", ") %></p>
+  <p><strong>Property scope:</strong> Essential properties <%= property_scope_text %></p>
   <p><strong>Legacy HTML present:</strong> <%= @statement_parity.legacy_html_present ? "yes" : "no" %></p>
   <p><strong>Condenser HTML present:</strong> <%= @statement_parity.condenser_html_present ? "yes" : "no" %></p>
   <p><strong>Same:</strong> <%= @statement_parity.counts[:same] %></p>

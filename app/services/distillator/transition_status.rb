@@ -123,6 +123,7 @@ module Distillator
     def confidence
       return :not_checked unless cache.present? || any_evidence_present?
       return :low if review_needed_difference? || legacy_lookup_missing_config? || legacy_lookup_unreachable? || legacy_lookup_body_omitted?
+      return :low if cache_compare_unknown?
       return :low if [fetch_status, statements_status, export_status].any? { |status| %i[missing stale inconclusive not_evaluated blocked_by_fetch].include?(status) }
       return :medium if metadata_only_difference?
 
@@ -131,7 +132,7 @@ module Distillator
 
     def blockers
       reasons = []
-      reasons << "Cannot activate yet: fetch check failed." if fetch_status == :failed
+      reasons << fetch_failure_blocker if fetch_status == :failed
       reasons << "Cannot activate yet: fetch check is stale." if fetch_status == :stale && lavitrine_pipeline?
       reasons << "Cannot activate yet: statements check failed." if statements_status == :failed
       reasons << "Cannot activate yet: statements could not be evaluated until fetch/cache is fixed." if statements_status == :not_evaluated && fetch_status != :failed
@@ -150,6 +151,7 @@ module Distillator
       reasons = []
       reasons << legacy_lookup_warning if legacy_lookup_warning.present?
       reasons << "Needs review: Condenser and Wringer differ in fields that need manual verification." if review_needed_difference?
+      reasons << "Needs review: Condenser and Wringer comparison is still inconclusive." if cache_compare_unknown?
       reasons << "Needs review: fetch check is stale." if fetch_status == :stale && !lavitrine_pipeline?
       reasons << "Needs review: statements check is missing." if !lavitrine_pipeline? && statements_status == :missing
       reasons << "Needs review: statements check is stale." if !lavitrine_pipeline? && statements_status == :stale
@@ -178,6 +180,7 @@ module Distillator
       return :missing if lavitrine_pipeline? && !evidence.present?
       return signal_status("statement_count_delta_acceptable") unless evidence.present?
       return :not_evaluated if fetch_prevented_statement_refresh?(evidence)
+      return :inconclusive if partial_fetch_prevented_statement_refresh?(evidence)
       return :inconclusive if no_selected_statements?(evidence)
       return :missing if evidence.status.to_s == "pending"
       return :failed if evidence.status.to_s.in?(%w[failed blocked rejected]) || evidence.acceptable_statement_delta? == false
@@ -192,6 +195,7 @@ module Distillator
       return :missing if lavitrine_pipeline? && !evidence.present?
       return export_status_from_cache unless evidence.present?
       return :blocked_by_fetch if fetch_prevented_export_comparison?(evidence)
+      return :inconclusive if partial_fetch_prevented_export_comparison?(evidence)
       return :inconclusive if export_diff_not_available?(evidence)
       return :missing if evidence.status.to_s == "pending"
       return :failed if evidence.status.to_s.in?(%w[failed blocked rejected]) || explicit_false?(evidence.export_diff_checked)
@@ -326,12 +330,13 @@ module Distillator
     end
 
     def activation_next_action
-      return "Fix fetch/cache first, then rerun the transition check." if fetch_status == :failed
+      return fetch_failure_next_action if fetch_status == :failed
       return "Configure the Wringer endpoint for staging, then rerun the transition check." if legacy_lookup_missing_config?
       return "Fix the legacy Wringer endpoint, then rerun the transition check." if legacy_lookup_unreachable?
       return "Verify the legacy Wringer body endpoint or compare using the legacy inspection link." if legacy_lookup_body_omitted?
       return "Review the checklist, then activate with a recorded reason." if review_activation_eligible?
       return "Metadata notes only. Promote to active when you are satisfied with the evidence." if metadata_only_difference?
+      return "Review the unknown comparison results, then rerun the transition check if needed." if cache_compare_unknown?
       return "Review the parity differences, then rerun the transition check if needed." if review_needed_difference?
       return "Verify selected sources/statements for the sampled webpages." if statements_status == :inconclusive
       return "Fix the blocking check, then rerun the transition check." if blockers.any?
@@ -345,6 +350,7 @@ module Distillator
       return :missing unless evidence.present?
       return :not_evaluated if fetch_prevented_statement_refresh?(evidence)
       return :blocked_by_fetch if fetch_prevented_export_comparison?(evidence)
+      return :inconclusive if partial_fetch_prevented_statement_refresh?(evidence) || partial_fetch_prevented_export_comparison?(evidence)
       return :inconclusive if no_selected_statements?(evidence) || export_diff_not_available?(evidence)
       return :missing if evidence.status.to_s == "pending"
       return :failed if evidence.status.to_s.in?(%w[failed blocked rejected])
@@ -419,6 +425,10 @@ module Distillator
       fetch_parity_evidence&.detail_reason == "metadata_only_difference"
     end
 
+    def cache_compare_unknown?
+      fetch_parity_evidence&.detail_reason == "cache_compare_unknown"
+    end
+
     def review_activation_eligible?
       overall_status == :review &&
         blockers.blank? &&
@@ -449,7 +459,7 @@ module Distillator
     end
 
     def primary_blocker_reason
-      return "Cannot activate yet: fetch check failed." if fetch_status == :failed
+      return fetch_failure_blocker if fetch_status == :failed
       return "Cannot activate yet: fetch check is stale." if fetch_status == :stale && lavitrine_pipeline?
       return "Cannot activate yet: statements could not be evaluated until fetch/cache is fixed." if statements_status == :not_evaluated
       return "Cannot activate yet: statements check is inconclusive." if statements_status == :inconclusive
@@ -457,6 +467,29 @@ module Distillator
       return "Cannot activate yet: export comparison could not be evaluated until fetch/cache is fixed." if export_status == :blocked_by_fetch
       return "Cannot activate yet: export check is inconclusive." if export_status == :inconclusive
       return "Cannot activate yet: export check failed." if export_status == :failed
+    end
+
+    def fetch_failure_blocker
+      return "Cannot activate yet: cache comparison failed." if cache_compare_failure?
+      return "Cannot activate yet: cache comparison is missing." if cache_compare_missing?
+      return "Cannot activate yet: cache comparison is inconclusive." if cache_compare_unknown?
+
+      "Cannot activate yet: fetch check failed."
+    end
+
+    def fetch_failure_next_action
+      return "Review the compare page for the affected URLs, then rerun the transition check." if cache_compare_failure?
+      return "Re-run the comparison for the affected URLs, then rerun the transition check." if cache_compare_missing? || cache_compare_unknown?
+
+      "Fix fetch/cache first, then rerun the transition check."
+    end
+
+    def cache_compare_failure?
+      fetch_parity_evidence&.detail_reason == "cache_compare_blocking_regression"
+    end
+
+    def cache_compare_missing?
+      fetch_parity_evidence&.detail_reason == "cache_compare_missing"
     end
 
     def evidence_reason(evidence)
@@ -467,12 +500,20 @@ module Distillator
       evidence_reason(evidence) == "fetch_failed_before_statement_refresh"
     end
 
+    def partial_fetch_prevented_statement_refresh?(evidence)
+      evidence_reason(evidence) == "partial_fetch_failed_before_statement_refresh"
+    end
+
     def no_selected_statements?(evidence)
       evidence_reason(evidence) == "no_selected_statements"
     end
 
     def fetch_prevented_export_comparison?(evidence)
       evidence_reason(evidence) == "fetch_failed_before_export_comparison"
+    end
+
+    def partial_fetch_prevented_export_comparison?(evidence)
+      evidence_reason(evidence) == "partial_fetch_failed_before_export_comparison"
     end
 
     def export_diff_not_available?(evidence)
