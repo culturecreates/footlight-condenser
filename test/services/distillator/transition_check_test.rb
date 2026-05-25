@@ -143,35 +143,55 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
     assert_equal comparison, result.comparison
   end
 
-  test "representative webpages prefer nearest future event and keep sample limit at three" do
+  test "publishable representative webpages prefer nearest future then recently updated then recent past" do
     website = build_website("future-event-order")
-    past_event = create_event_webpage(
-      website,
-      suffix: "past-event",
-      url: "https://future-event-order.example/past-event",
-      archive_date: Time.zone.parse("2026-01-29 19:00:00"),
-      updated_at: Time.zone.parse("2026-05-10 09:00:00")
-    )
-    nearest_future = create_event_webpage(
+    nearest_future = create_publishable_event_webpage(
       website,
       suffix: "nearest-future",
       url: "https://future-event-order.example/nearest-future",
       archive_date: Time.zone.parse("2026-06-01 12:00:00"),
-      updated_at: Time.zone.parse("2026-05-24 10:00:00")
+      updated_at: Time.zone.parse("2026-05-24 10:00:00"),
+      start_at: "2026-06-01T12:00:00-04:00"
     )
-    later_future = create_event_webpage(
+    later_future = create_publishable_event_webpage(
       website,
       suffix: "later-future",
       url: "https://future-event-order.example/later-future",
       archive_date: Time.zone.parse("2026-06-12 12:00:00"),
-      updated_at: Time.zone.parse("2026-05-24 11:00:00")
+      updated_at: Time.zone.parse("2026-05-24 11:00:00"),
+      start_at: "2026-06-12T12:00:00-04:00"
     )
-    nil_archive_event = create_event_webpage(
+    newest_nil_archive = create_publishable_event_webpage(
       website,
-      suffix: "nil-archive-event",
-      url: "https://future-event-order.example/nil-archive-event",
+      suffix: "newest-nil-archive-event",
+      url: "https://future-event-order.example/newest-nil-archive-event",
       archive_date: nil,
-      updated_at: Time.zone.parse("2026-05-24 12:00:00")
+      updated_at: Time.zone.parse("2026-05-24 13:00:00"),
+      start_at: "2026-06-20T20:00:00-04:00"
+    )
+    older_nil_archive = create_publishable_event_webpage(
+      website,
+      suffix: "older-nil-archive-event",
+      url: "https://future-event-order.example/older-nil-archive-event",
+      archive_date: nil,
+      updated_at: Time.zone.parse("2026-05-24 12:00:00"),
+      start_at: "2026-06-21T20:00:00-04:00"
+    )
+    recent_past = create_publishable_event_webpage(
+      website,
+      suffix: "recent-past",
+      url: "https://future-event-order.example/recent-past",
+      archive_date: Time.zone.parse("2026-03-15 19:00:00"),
+      updated_at: Time.zone.parse("2026-05-22 09:00:00"),
+      start_at: "2026-03-15T19:00:00-04:00"
+    )
+    create_publishable_event_webpage(
+      website,
+      suffix: "older-past",
+      url: "https://future-event-order.example/older-past",
+      archive_date: Time.zone.parse("2026-01-29 19:00:00"),
+      updated_at: Time.zone.parse("2026-05-10 09:00:00"),
+      start_at: "2026-01-29T19:00:00-05:00"
     )
     create_non_event_webpage(
       website,
@@ -183,46 +203,40 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
     result = Distillator::TransitionCheck.call(website: website)
 
     assert_equal nearest_future, result.representative_webpage
-    assert_equal [nearest_future, later_future], result.representative_webpages
+    assert_equal [nearest_future, later_future, newest_nil_archive, older_nil_archive, recent_past], result.representative_webpages
     assert_equal "https://future-event-order.example/nearest-future", result.representative_url
-    assert_equal 5, result.candidate_webpage_count
-    assert_equal 2, result.selected_candidate_tier_count
+    assert_equal 7, result.candidate_webpage_count
+    assert_equal 6, result.publishable_event_page_count
+    assert_equal 6, result.selected_candidate_tier_count
     assert_equal Distillator::TransitionCheck::SELECTION_RULE, result.selection_rule
   end
 
-  test "representative webpages fall back to most recent past events when no future events exist" do
-    website = build_website("past-event-fallback")
-    oldest_past = create_event_webpage(
-      website,
-      suffix: "oldest-past",
-      url: "https://past-event-fallback.example/oldest-past",
-      archive_date: Time.zone.parse("2026-01-29 19:00:00"),
-      updated_at: Time.zone.parse("2026-05-10 09:00:00")
-    )
-    recent_past = create_event_webpage(
-      website,
-      suffix: "recent-past",
-      url: "https://past-event-fallback.example/recent-past",
-      archive_date: Time.zone.parse("2026-03-15 19:00:00"),
-      updated_at: Time.zone.parse("2026-05-12 09:00:00")
-    )
-    nil_archive_event = create_event_webpage(
-      website,
-      suffix: "nil-archive",
-      url: "https://past-event-fallback.example/nil-archive",
-      archive_date: nil,
-      updated_at: Time.zone.parse("2026-05-20 09:00:00")
-    )
+  test "publishable representative sampling follows the target matrix" do
+    {
+      1 => 1,
+      3 => 3,
+      5 => 5,
+      20 => 5,
+      26 => 6,
+      50 => 10,
+      100 => 20,
+      125 => 25,
+      300 => 25
+    }.each do |publishable_count, expected_sample_size|
+      website = build_website("sampling-#{publishable_count}")
+      create_publishable_event_pages(website, publishable_count)
 
-    result = Distillator::TransitionCheck.call(website: website)
+      result = Distillator::TransitionCheck.call(website: website)
 
-    assert_equal recent_past, result.representative_webpage
-    assert_equal [recent_past, oldest_past], result.representative_webpages
-    assert_equal 3, result.candidate_webpage_count
-    assert_equal 2, result.selected_candidate_tier_count
+      assert_equal publishable_count, result.publishable_event_page_count
+      assert_equal expected_sample_size, result.representative_webpage_count
+      assert_equal expected_sample_size, result.representative_webpages.count
+      assert_equal publishable_count, result.selected_candidate_tier_count
+      assert result.representative_webpages.all? { |webpage| webpage.rdfs_class.name == "Event" }, "expected only event pages for #{publishable_count}"
+    end
   end
 
-  test "representative webpages fall back to generic webpages in deterministic recency order" do
+  test "representative webpages fall back to generic webpages in deterministic recency order when no publishable event pages exist" do
     website = build_website("generic-page-fallback")
     newest_page = create_non_event_webpage(
       website,
@@ -248,75 +262,49 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
       url: "https://generic-page-fallback.example/fourth-page",
       updated_at: Time.zone.parse("2026-05-24 09:00:00")
     )
+    create_event_webpage(
+      website,
+      suffix: "unpublishable-event",
+      url: "https://generic-page-fallback.example/unpublishable-event",
+      archive_date: Time.zone.parse("2026-05-24 08:00:00"),
+      updated_at: Time.zone.parse("2026-05-24 08:00:00")
+    )
 
     result = Distillator::TransitionCheck.call(website: website)
 
     assert_equal newest_page, result.representative_webpage
     assert_equal 3, result.representative_webpages.count
-    assert_equal 4, result.candidate_webpage_count
-    assert_equal 4, result.selected_candidate_tier_count
-  end
-
-  test "nil archive date event pages are chosen deterministically before generic pages once dated event tiers are exhausted" do
-    website = build_website("nil-date-vs-generic")
-    newest_nil_date_event = create_event_webpage(
-      website,
-      suffix: "newest-nil-archive-event",
-      url: "https://nil-date-vs-generic.example/newest-nil-archive-event",
-      archive_date: nil,
-      updated_at: Time.zone.parse("2026-05-24 16:00:00")
-    )
-    older_nil_date_event = create_event_webpage(
-      website,
-      suffix: "older-nil-archive-event",
-      url: "https://nil-date-vs-generic.example/older-nil-archive-event",
-      archive_date: nil,
-      updated_at: Time.zone.parse("2026-05-24 13:00:00")
-    )
-    create_non_event_webpage(
-      website,
-      suffix: "newest-generic",
-      url: "https://nil-date-vs-generic.example/newest-generic",
-      updated_at: Time.zone.parse("2026-05-24 15:00:00")
-    )
-    create_non_event_webpage(
-      website,
-      suffix: "older-generic",
-      url: "https://nil-date-vs-generic.example/older-generic",
-      updated_at: Time.zone.parse("2026-05-24 14:00:00")
-    )
-
-    result = Distillator::TransitionCheck.call(website: website)
-
-    assert_equal newest_nil_date_event, result.representative_webpage
-    assert_equal [newest_nil_date_event, older_nil_date_event], result.representative_webpages
-    assert_equal 4, result.candidate_webpage_count
-    assert_equal 2, result.selected_candidate_tier_count
+    assert_equal 5, result.candidate_webpage_count
+    assert_equal 0, result.publishable_event_page_count
+    assert_equal 5, result.selected_candidate_tier_count
   end
 
   test "candidate webpage count reflects all transition candidates, not only the selected tier" do
     website = build_website("candidate-count-honest")
-    create_event_webpage(
+    create_publishable_event_webpage(
       website,
       suffix: "future-one",
       url: "https://candidate-count-honest.example/future-one",
       archive_date: Time.zone.parse("2026-06-01 12:00:00"),
-      updated_at: Time.zone.parse("2026-05-24 10:00:00")
+      updated_at: Time.zone.parse("2026-05-24 10:00:00"),
+      start_at: "2026-06-01T12:00:00-04:00"
     )
-    create_event_webpage(
+    create_publishable_event_webpage(
       website,
       suffix: "future-two",
       url: "https://candidate-count-honest.example/future-two",
       archive_date: Time.zone.parse("2026-06-03 12:00:00"),
-      updated_at: Time.zone.parse("2026-05-24 09:00:00")
+      updated_at: Time.zone.parse("2026-05-24 09:00:00"),
+      start_at: "2026-06-03T12:00:00-04:00"
     )
     4.times do |index|
-      create_event_webpage(
+      create_publishable_event_webpage(
         website,
         suffix: "past-#{index}",
         url: "https://candidate-count-honest.example/past-#{index}",
         archive_date: Time.zone.parse("2026-02-#{index + 10} 12:00:00"),
-        updated_at: Time.zone.parse("2026-05-2#{index} 08:00:00")
+        updated_at: Time.zone.parse("2026-05-2#{index} 08:00:00"),
+        start_at: "2026-02-#{index + 10}T12:00:00-05:00"
       )
     end
     3.times do |index|
@@ -330,9 +318,10 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
 
     result = Distillator::TransitionCheck.call(website: website)
 
-    assert_operator result.representative_webpage_count, :<=, 3
+    assert_equal 5, result.representative_webpage_count
     assert_equal 9, result.candidate_webpage_count
-    assert_equal 2, result.selected_candidate_tier_count
+    assert_equal 6, result.publishable_event_page_count
+    assert_equal 6, result.selected_candidate_tier_count
   end
 
   test "latest successful condenser fetch stays passed when legacy lookup is incomplete" do
@@ -392,7 +381,7 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
 
     assert_equal :passed, result.fetch
     assert_equal :review, result.status
-    assert_includes result.warnings, "Needs review: legacy Wringer lookup failed during the latest transition check."
+    assert_includes result.warnings, "Needs review: legacy Wringer lookup failed during the latest transition batch check."
   end
 
   test "run fetch skips compare when no representative webpage exists" do
@@ -501,6 +490,49 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
     webpage.reload
   end
 
+  def create_publishable_event_webpage(website, suffix:, url:, archive_date:, updated_at:, start_at:)
+    webpage = create_event_webpage(
+      website,
+      suffix: suffix,
+      url: url,
+      archive_date: archive_date,
+      updated_at: updated_at
+    )
+    create_publishable_statements_for(webpage, start_at: start_at)
+    webpage
+  end
+
+  def create_publishable_event_pages(website, count)
+    count.times.map do |index|
+      archive_date, updated_at =
+        if index < 10
+          [
+            Time.zone.parse("2026-06-#{format('%02d', index + 1)} 12:00:00"),
+            Time.zone.parse("2026-05-24 10:#{format('%02d', index)}:00")
+          ]
+        elsif index < 20
+          [
+            nil,
+            Time.zone.parse("2026-05-23 10:#{format('%02d', index - 10)}:00")
+          ]
+        else
+          [
+            Time.zone.parse("2026-02-#{format('%02d', ((index - 20) % 28) + 1)} 12:00:00"),
+            Time.zone.parse("2026-05-22 10:#{format('%02d', index % 60)}:00")
+          ]
+        end
+
+      create_publishable_event_webpage(
+        website,
+        suffix: "publishable-#{index}",
+        url: "https://#{website.seedurl}.example/publishable-#{index}",
+        archive_date: archive_date,
+        updated_at: updated_at,
+        start_at: "2026-06-#{format('%02d', (index % 28) + 1)}T12:00:00-04:00"
+      )
+    end
+  end
+
   def create_publishable_statements_for(webpage, start_at:)
     [
       [properties(:four), "Representative title"],
@@ -521,6 +553,7 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
         cache: cache,
         status: "ok"
       )
+      Statement.where(webpage: webpage, source: source).update_all(status: "ok")
     end
   end
 end

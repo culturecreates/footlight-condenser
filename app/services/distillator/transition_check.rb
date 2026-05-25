@@ -1,6 +1,10 @@
 module Distillator
   class TransitionCheck
-    SELECTION_RULE = "Future/current event pages first, then event pages by archive date, then recent webpages.".freeze
+    PUBLISHABLE_SAMPLE_PERCENT = 0.20
+    MINIMUM_PUBLISHABLE_SAMPLE_SIZE = 5
+    MAXIMUM_PUBLISHABLE_SAMPLE_SIZE = 25
+    FALLBACK_REPRESENTATIVE_SAMPLE_SIZE = 3
+    SELECTION_RULE = "20% of publishable event pages, minimum 5, capped at 25, or all pages when fewer than 5 exist.".freeze
 
     Result = Struct.new(
       :website_id,
@@ -23,6 +27,7 @@ module Distillator
       :representative_url,
       :representative_webpage_count,
       :candidate_webpage_count,
+      :publishable_event_page_count,
       :selected_candidate_tier_count,
       :selection_rule,
       :attempted_condenser_fetch,
@@ -83,6 +88,7 @@ module Distillator
         representative_url: representative_webpage&.url,
         representative_webpage_count: representative_webpages.count,
         candidate_webpage_count: candidate_webpage_count,
+        publishable_event_page_count: publishable_event_page_count,
         selected_candidate_tier_count: selected_candidate_tier_count,
         selection_rule: SELECTION_RULE,
         attempted_condenser_fetch: fetch_attempt[:attempted],
@@ -141,34 +147,71 @@ module Distillator
     end
 
     def representative_webpages
-      representative_scope.limit(3).to_a
+      if publishable_event_page_count.positive?
+        publishable_representative_webpages
+      else
+        generic_representative_scope.limit(FALLBACK_REPRESENTATIVE_SAMPLE_SIZE).to_a
+      end
     end
 
     def candidate_webpage_count
       website.webpages.transition_candidates.count
     end
 
-    def selected_candidate_tier_count
-      representative_scope.count
+    def publishable_event_page_count
+      @publishable_event_page_count ||= publishable_event_scope.count
     end
 
-    def representative_scope
-      current_event_scope = website.webpages.event_pages
+    def selected_candidate_tier_count
+      publishable_event_page_count.positive? ? publishable_event_page_count : generic_representative_scope.count
+    end
+
+    def publishable_representative_webpages
+      remaining = publishable_sample_size
+      pages = []
+
+      [future_publishable_event_scope, nil_archive_publishable_event_scope, past_publishable_event_scope].each do |scope|
+        break if remaining <= 0
+
+        selected = scope.limit(remaining).to_a
+        pages.concat(selected)
+        remaining -= selected.length
+      end
+
+      pages
+    end
+
+    def publishable_sample_size
+      count = publishable_event_page_count
+      return 0 if count.zero?
+
+      [count, [[(count * PUBLISHABLE_SAMPLE_PERCENT).ceil, MINIMUM_PUBLISHABLE_SAMPLE_SIZE].max, MAXIMUM_PUBLISHABLE_SAMPLE_SIZE].min].min
+    end
+
+    def publishable_event_scope
+      website.webpages.publishable.event_pages
+    end
+
+    def future_publishable_event_scope
+      publishable_event_scope
         .where("archive_date >= ?", Time.current.beginning_of_day)
         .reorder(archive_date: :asc, updated_at: :desc, id: :asc)
-      return current_event_scope if current_event_scope.exists?
+    end
 
-      past_event_scope = website.webpages.event_pages
+    def past_publishable_event_scope
+      publishable_event_scope
         .where.not(archive_date: nil)
         .where("archive_date < ?", Time.current.beginning_of_day)
         .reorder(archive_date: :desc, updated_at: :desc, id: :asc)
-      return past_event_scope if past_event_scope.exists?
+    end
 
-      nil_date_event_scope = website.webpages.event_pages
+    def nil_archive_publishable_event_scope
+      publishable_event_scope
         .where(archive_date: nil)
         .reorder(updated_at: :desc, created_at: :desc, id: :asc)
-      return nil_date_event_scope if nil_date_event_scope.exists?
+    end
 
+    def generic_representative_scope
       website.webpages.reorder(updated_at: :desc, created_at: :desc, id: :asc)
     end
 

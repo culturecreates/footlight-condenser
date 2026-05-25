@@ -1,5 +1,8 @@
 module Distillator
   class TransitionCheckRunner
+    REQUEST_BUDGET_SECONDS = 20
+    TIMEOUT_GUARD_SECONDS = 3
+
     Result = Struct.new(:website, :records, keyword_init: true) do
       def flash_message
         prefix = complete? ? "Transition check recorded:" : "Transition check incomplete:"
@@ -25,6 +28,7 @@ module Distillator
           export_diff_not_available
           partial_fetch_failed_before_statement_refresh
           partial_fetch_failed_before_export_comparison
+          transition_check_timeout_budget_exceeded
         ].include?(reason)
 
         case record.status.to_s
@@ -57,7 +61,10 @@ module Distillator
       export_service: ExportArtsdataService,
       transition_check_service: Distillator::TransitionCheck,
       fetch_cache_store: Distillator::FetchCacheStore,
-      cache_compare: Distillator::CacheCompare
+      cache_compare: Distillator::CacheCompare,
+      budget_seconds: nil,
+      timeout_guard_seconds: TIMEOUT_GUARD_SECONDS,
+      clock: nil
     )
       @website = website.is_a?(Website) ? website : Website.find(website)
       @refresh_helper = refresh_helper || StatementsHelper.build_refresh_proxy(cookies: {})
@@ -66,14 +73,17 @@ module Distillator
       @transition_check_service = transition_check_service
       @fetch_cache_store = fetch_cache_store
       @cache_compare = cache_compare
+      @budget_seconds = budget_seconds
+      @timeout_guard_seconds = timeout_guard_seconds
+      @clock = clock || -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
+      @started_at = monotonic_now
+      @representative_result_cache = {}
     end
 
     def call
       transition_check = transition_check_service.call(website: website, run_fetch: false)
       representative_webpages = Array(transition_check.representative_webpages)
-      representative_url_results = representative_webpages.map do |webpage|
-        representative_url_result_for(webpage, transition_check.comparison_policy)
-      end
+      representative_url_results = collect_representative_url_results(representative_webpages, transition_check.comparison_policy)
 
       Result.new(
         website: website,
@@ -87,7 +97,8 @@ module Distillator
 
     private
 
-    attr_reader :website, :refresh_helper, :refresh_runner, :export_service, :transition_check_service, :fetch_cache_store, :cache_compare
+    attr_reader :website, :refresh_helper, :refresh_runner, :export_service, :transition_check_service, :fetch_cache_store, :cache_compare,
+                :budget_seconds, :timeout_guard_seconds
 
     def record_fetch_check(transition_check, representative_url_results)
       latest_cache = representative_url_results.first&.dig(:cache) || transition_check.cache
@@ -110,6 +121,10 @@ module Distillator
       return record_missing_representatives(latest_cache, :statement_delta, transition_check) if representative_webpages.blank?
 
       fetched_webpages, failed_fetch_results = partition_representative_webpages(representative_webpages, representative_url_results)
+      if timeout_budget_exceeded?
+        return pending_statement_timeout_record(latest_cache, transition_check, representative_webpages, fetched_webpages, failed_fetch_results)
+      end
+
       statements_scope = representative_statement_scope(fetched_webpages)
       if representative_url_results.all? { |result| result[:fetch_status] == "failed" }
         return Distillator::TransitionEvidenceRecorder.call(
@@ -160,7 +175,7 @@ module Distillator
         refresh_runner.call(
           webpage: webpage,
           refresh_helper: refresh_helper,
-          scrape_options: { force_scrape_every_hrs: 0 }
+          scrape_options: {}
         )
       end
       failing_statements = representative_problem_statements(fetched_webpages)
@@ -213,7 +228,11 @@ module Distillator
     def record_export_check(transition_check, representative_webpages, representative_url_results)
       latest_cache = representative_url_results.first&.dig(:cache) || transition_check.cache
       return record_missing_representatives(latest_cache, :export_diff, transition_check) if representative_webpages.blank?
-      _fetched_webpages, failed_fetch_results = partition_representative_webpages(representative_webpages, representative_url_results)
+      fetched_webpages, failed_fetch_results = partition_representative_webpages(representative_webpages, representative_url_results)
+
+      if timeout_budget_exceeded?
+        return pending_export_timeout_record(latest_cache, transition_check, representative_webpages, fetched_webpages, failed_fetch_results)
+      end
 
       if representative_url_results.all? { |result| result[:fetch_status] == "failed" }
         return Distillator::TransitionEvidenceRecorder.call(
@@ -379,6 +398,8 @@ module Distillator
     def fetch_failure_reason_from_result(result)
       return "missing_condenser_attempt" unless result.present?
       return "empty_body" if truthy?(cache_signal(result.cache, :empty_body))
+      return "captcha_detected" if captcha_result?(result)
+      return missing_renderer_reason(result) if missing_renderer_reason(result).present?
 
       result.blocking_issue_key.presence ||
         cache_signal(result.cache, :primary_issue_key).presence ||
@@ -463,17 +484,22 @@ module Distillator
     end
 
     def scope_details(transition_check, representative_webpages)
+      publishable_event_page_count = transition_check.publishable_event_page_count.to_i
       {
         representative_webpages: representative_webpages.map(&:url),
         representative_webpage_count: representative_webpages.count,
         candidate_webpage_count: transition_check.candidate_webpage_count,
+        publishable_event_page_count: publishable_event_page_count,
         selected_candidate_tier_count: transition_check.selected_candidate_tier_count,
         selection_rule: transition_check.selection_rule,
-        sample_small: transition_check.candidate_webpage_count.to_i > representative_webpages.count
+        sample_small: (publishable_event_page_count.positive? ? publishable_event_page_count : transition_check.candidate_webpage_count.to_i) > representative_webpages.count
       }
     end
 
     def representative_url_result_for(webpage, comparison_policy)
+      cached = @representative_result_cache[webpage.url]
+      return cached.merge(url: webpage.url, webpage_id: webpage.id) if cached.present?
+
       fetch_result = fetch_cache_store.fetch(
         uri: webpage.url,
         force_scrape: true,
@@ -491,7 +517,9 @@ module Distillator
         comparison_policy: comparison_policy
       )
 
-      build_representative_url_result(webpage, fetch_result, comparison)
+      built = build_representative_url_result(webpage, fetch_result, comparison)
+      @representative_result_cache[webpage.url] = built
+      built
     end
 
     def build_representative_url_result(webpage, fetch_result, comparison)
@@ -517,6 +545,20 @@ module Distillator
         compare_summary: comparison&.dig(:summary),
         comparison_status: comparison_status(comparison)
       }
+    end
+
+    def collect_representative_url_results(representative_webpages, comparison_policy)
+      collected = []
+
+      representative_webpages.each_with_index do |webpage, index|
+        if timeout_budget_exceeded?
+          return collected + representative_webpages.drop(index).map { |remaining| timed_out_representative_url_result(remaining) }
+        end
+
+        collected << representative_url_result_for(webpage, comparison_policy)
+      end
+
+      collected
     end
 
     def comparison_status(comparison)
@@ -605,6 +647,128 @@ module Distillator
       fetched_webpages = representative_webpages.select { |webpage| results_by_url.fetch(webpage.url, {})[:fetch_status] != "failed" }
       failed_fetch_results = representative_url_results.select { |result| result[:fetch_status] == "failed" }
       [fetched_webpages, failed_fetch_results]
+    end
+
+    def pending_statement_timeout_record(latest_cache, transition_check, representative_webpages, fetched_webpages, failed_fetch_results)
+      Distillator::TransitionEvidenceRecorder.call(
+        website: website,
+        url: cache_or_seed_url(latest_cache),
+        check_kind: :statement_delta,
+        status: :pending,
+        statement_delta: 0,
+        statement_count_delta_acceptable: nil,
+        details: scope_details(transition_check, representative_webpages).merge(
+          source: "statement_refresh",
+          representative_url_statement_results: representative_statement_timeout_results(fetched_webpages, failed_fetch_results),
+          statements_refreshed_count: 0,
+          statements_failed_count: 0,
+          failing_statement_ids: [],
+          failing_statements: [],
+          reason: "transition_check_timeout_budget_exceeded"
+        )
+      )
+    end
+
+    def pending_export_timeout_record(latest_cache, transition_check, representative_webpages, fetched_webpages, failed_fetch_results)
+      Distillator::TransitionEvidenceRecorder.call(
+        website: website,
+        url: cache_or_seed_url(latest_cache),
+        check_kind: :export_diff,
+        status: :pending,
+        export_diff_checked: false,
+        export_diff_status: "pending",
+        details: scope_details(transition_check, representative_webpages).merge(
+          source: "export_comparison",
+          export_compared: false,
+          export_basis: "current export vs production-equivalent export",
+          representative_url_export_results: representative_export_timeout_results(fetched_webpages, failed_fetch_results),
+          reason: "transition_check_timeout_budget_exceeded"
+        )
+      )
+    end
+
+    def representative_statement_timeout_results(fetched_webpages, failed_fetch_results)
+      fetched_webpages.map do |webpage|
+        {
+          url: webpage.url,
+          status: "inconclusive",
+          reason: "transition_check_timeout_budget_exceeded"
+        }
+      end + failed_fetch_results.map do |result|
+        {
+          url: result[:url],
+          status: "blocked_by_fetch",
+          reason: result[:fetch_reason]
+        }
+      end
+    end
+
+    def representative_export_timeout_results(fetched_webpages, failed_fetch_results)
+      fetched_webpages.map do |webpage|
+        {
+          url: webpage.url,
+          status: "inconclusive",
+          reason: "transition_check_timeout_budget_exceeded"
+        }
+      end + failed_fetch_results.map do |result|
+        {
+          url: result[:url],
+          status: "blocked_by_fetch",
+          reason: result[:fetch_reason]
+        }
+      end
+    end
+
+    def timed_out_representative_url_result(webpage)
+      {
+        url: webpage.url,
+        webpage_id: webpage.id,
+        cache: nil,
+        attempted_condenser_fetch: false,
+        condenser_fetch_success: false,
+        http_response_code: nil,
+        cache_health_status: nil,
+        stored_html: false,
+        stored_body_bytes: 0,
+        fetch_status: "failed",
+        fetch_reason: "transition_check_timeout_budget_exceeded",
+        comparison_performed: false,
+        legacy_source: nil,
+        legacy_lookup_status: nil,
+        legacy_lookup_error: nil,
+        condenser_source: nil,
+        compare_missing: nil,
+        compare_summary: nil,
+        comparison_status: "not_performed"
+      }
+    end
+
+    def timeout_budget_exceeded?
+      return false unless budget_seconds.present?
+
+      elapsed = monotonic_now - @started_at
+      elapsed >= [budget_seconds.to_f - timeout_guard_seconds.to_f, 0].max
+    end
+
+    def monotonic_now
+      @clock.call.to_f
+    end
+
+    def captcha_result?(result)
+      issue_key = result.blocking_issue_key.presence || cache_signal(result.cache, :primary_issue_key).presence
+      return true if issue_key.to_s == "system_captcha"
+
+      Array(result.respond_to?(:hints) ? result.hints : nil).map(&:to_s).any? { |hint| hint.include?("captcha") }
+    end
+
+    def missing_renderer_reason(result)
+      return nil unless truthy?(cache_signal(result.cache, :renderer_unavailable))
+
+      if truthy?(cache_signal(result.cache, :use_phantomjs)) && ENV["PHANTOMJS_API_KEY"].blank?
+        "phantomjs_api_key_missing"
+      else
+        "renderer_unavailable"
+      end
     end
   end
 end

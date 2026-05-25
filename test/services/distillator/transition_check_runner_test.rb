@@ -14,9 +14,13 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
   class FakeRefreshRunner
     def initialize(result = [])
       @result = result
+      @calls = []
     end
 
-    def call(...)
+    attr_reader :calls
+
+    def call(**kwargs)
+      @calls << kwargs
       @result
     end
   end
@@ -425,6 +429,147 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal "Transition check incomplete: fetch failed, statements inconclusive, export inconclusive", result.flash_message
   end
 
+  test "timeout budget records incomplete evidence and preserves partial representative rows" do
+    website = build_website(with_webpage: false)
+    first = website.webpages.create!(url: "https://runner-site.example/one", language: "en", rdf_uri: "rdf:one", rdfs_class: rdfs_classes(:one))
+    second = website.webpages.create!(url: "https://runner-site.example/two", language: "en", rdf_uri: "rdf:two", rdfs_class: rdfs_classes(:one))
+    third = website.webpages.create!(url: "https://runner-site.example/three", language: "en", rdf_uri: "rdf:three", rdfs_class: rdfs_classes(:one))
+    cache = create_fetch_cache_for_url(first.url, signals: { "transport_success" => true, "content_success" => true })
+    create_selected_statement(first, status: "ok")
+    create_selected_statement(second, status: "ok")
+    create_selected_statement(third, status: "ok")
+    refresh_runner = FakeRefreshRunner.new
+    clock_values = [0.0, 0.0, 17.5, 17.5, 17.5]
+
+    result = Distillator::TransitionCheckRunner.new(
+      website: website,
+      refresh_runner: refresh_runner,
+      export_service: FakeExportService.new(actual: "[]", expected: "[]"),
+      transition_check_service: fake_transition_check_service(
+        website: website,
+        cache: cache,
+        representative_webpages: [first, second, third]
+      ),
+      fetch_cache_store: FakeFetchCacheStore.new(
+        first.url => fetch_result_for(cache: cache)
+      ),
+      cache_compare: fake_cache_compare_for(website),
+      budget_seconds: 20,
+      timeout_guard_seconds: 3,
+      clock: -> { clock_values.shift || 17.5 }
+    ).call
+
+    assert_equal "failed", result.records[:fetch_parity].status
+    assert_equal "transition_check_timeout_budget_exceeded", result.records[:fetch_parity].details["reason"]
+    assert_equal 2, result.records[:fetch_parity].details["affected_url_count"]
+
+    assert_equal "pending", result.records[:statement_delta].status
+    assert_equal "transition_check_timeout_budget_exceeded", result.records[:statement_delta].details["reason"]
+    assert_equal(
+      {
+        first.url => "inconclusive",
+        second.url => "blocked_by_fetch",
+        third.url => "blocked_by_fetch"
+      },
+      result.records[:statement_delta].details["representative_url_statement_results"].to_h { |row| [row["url"], row["status"]] }
+    )
+
+    assert_equal "pending", result.records[:export_diff].status
+    assert_equal false, result.records[:export_diff].export_diff_checked
+    assert_equal "pending", result.records[:export_diff].export_diff_status
+    assert_equal "transition_check_timeout_budget_exceeded", result.records[:export_diff].details["reason"]
+    assert_equal false, result.records[:export_diff].details["export_compared"]
+    assert_equal(
+      {
+        first.url => "inconclusive",
+        second.url => "blocked_by_fetch",
+        third.url => "blocked_by_fetch"
+      },
+      result.records[:export_diff].details["representative_url_export_results"].to_h { |row| [row["url"], row["status"]] }
+    )
+    assert_empty refresh_runner.calls
+  end
+
+  test "captcha fetch failure is recorded explicitly" do
+    website = build_website(with_webpage: false)
+    cache = create_fetch_cache_for_url(
+      "https://runner-site.example/captcha",
+      signals: { "transport_success" => false, "content_success" => false, "blocking_issue_key" => "system_captcha" },
+      health_status: "attempt_failed"
+    )
+    webpage = website.webpages.create!(url: cache.normalized_url, language: "en", rdf_uri: "rdf:captcha", rdfs_class: rdfs_classes(:one))
+
+    result = Distillator::TransitionCheckRunner.new(
+      website: website,
+      transition_check_service: fake_transition_check_service(website: website, cache: cache, representative_webpages: [webpage], fetch: :failed),
+      fetch_cache_store: FakeFetchCacheStore.new(
+        webpage.url => fetch_result_for(cache: cache, transport_success: false, content_success: false, blocking_issue_key: "system_captcha")
+      ),
+      cache_compare: fake_cache_compare_for(website)
+    ).call
+
+    assert_equal "failed", result.records[:fetch_parity].status
+    assert_equal "captcha_detected", result.records[:fetch_parity].details["reason"]
+    assert_equal "fetch", result.records[:fetch_parity].details["failed_layer"]
+    assert_equal "captcha_detected", result.records[:statement_delta].details["representative_url_statement_results"].first["reason"]
+    assert_equal "captcha_detected", result.records[:export_diff].details["representative_url_export_results"].first["reason"]
+  end
+
+  test "missing phantomjs api key is recorded explicitly for rendered fetch failure" do
+    website = build_website(with_webpage: false)
+    url = "https://runner-site.example/rendered"
+    cache = create_fetch_cache_for_url(
+      url,
+      signals: {
+        "transport_success" => false,
+        "content_success" => false,
+        "renderer_unavailable" => true,
+        "use_phantomjs" => true
+      },
+      health_status: "attempt_failed"
+    )
+    webpage = website.webpages.create!(url: url, language: "en", rdf_uri: "rdf:rendered", rdfs_class: rdfs_classes(:one))
+    original_api_key = ENV["PHANTOMJS_API_KEY"]
+    ENV["PHANTOMJS_API_KEY"] = nil
+
+    result = Distillator::TransitionCheckRunner.new(
+      website: website,
+      transition_check_service: fake_transition_check_service(website: website, cache: cache, representative_webpages: [webpage], fetch: :failed),
+      fetch_cache_store: FakeFetchCacheStore.new(
+        webpage.url => fetch_result_for(cache: cache, transport_success: false, content_success: false)
+      ),
+      cache_compare: fake_cache_compare_for(website)
+    ).call
+
+    assert_equal "phantomjs_api_key_missing", result.records[:fetch_parity].details["reason"]
+  ensure
+    ENV["PHANTOMJS_API_KEY"] = original_api_key
+  end
+
+  test "statement refresh reuses the representative cache instead of forcing another immediate scrape" do
+    website = build_website(with_webpage: false)
+    cache = create_fetch_cache_for_url("https://runner-site.example/event", signals: { "transport_success" => true, "content_success" => true })
+    webpage = website.webpages.create!(url: cache.normalized_url, language: "en", rdf_uri: "rdf:runner-site", rdfs_class: rdfs_classes(:one))
+    create_selected_statement(webpage, status: "initial")
+    create_selected_statement(webpage, status: "initial")
+    refresh_runner = FakeRefreshRunner.new
+    export_json = '[{"@id":"event:1","name":"Title"}]'
+
+    Distillator::TransitionCheckRunner.new(
+      website: website,
+      refresh_runner: refresh_runner,
+      export_service: FakeExportService.new(actual: export_json, expected: export_json),
+      transition_check_service: fake_transition_check_service(website: website, cache: cache, representative_webpages: [webpage]),
+      fetch_cache_store: FakeFetchCacheStore.new(
+        webpage.url => fetch_result_for(cache: cache)
+      ),
+      cache_compare: fake_cache_compare_for(website)
+    ).call
+
+    assert_equal 1, refresh_runner.calls.size
+    assert_equal({}, refresh_runner.calls.first[:scrape_options])
+  end
+
   private
 
   def build_website(with_webpage: true)
@@ -442,6 +587,10 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
   def create_cache(website, signals:, health_status: "healthy")
     url = "https://runner-site.example/event"
     website.webpages.create!(url: url, language: "en", rdf_uri: "rdf:runner-site", rdfs_class: rdfs_classes(:one))
+    create_fetch_cache_for_url(url, signals: signals, health_status: health_status)
+  end
+
+  def create_fetch_cache_for_url(url, signals:, health_status: "healthy")
     Distillator::FetchCache.create!(
       uri_key: CGI.escape(url),
       normalized_url: url,
@@ -518,7 +667,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     FakeCacheCompare.new(defaults.transform_keys(&:url).merge(overrides))
   end
 
-  def fake_transition_check_service(website:, cache:, fetch: :passed, representative_webpages: nil, representative_webpage_count: nil, candidate_webpage_count: nil, comparison: nil)
+  def fake_transition_check_service(website:, cache:, fetch: :passed, representative_webpages: nil, representative_webpage_count: nil, candidate_webpage_count: nil, publishable_event_page_count: nil, comparison: nil)
     representative_webpages = representative_webpages.nil? ? Array(website.webpages.first).compact : representative_webpages
     representative_webpage = representative_webpages.first
 
@@ -544,6 +693,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
         representative_url: representative_webpage&.url,
         representative_webpage_count: representative_webpage_count || representative_webpages.count,
         candidate_webpage_count: candidate_webpage_count || representative_webpages.count,
+        publishable_event_page_count: publishable_event_page_count || representative_webpages.count,
         selection_rule: Distillator::TransitionCheck::SELECTION_RULE,
         attempted_condenser_fetch: false,
         condenser_fetch_result: nil,
@@ -551,7 +701,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
         comparison_policy: :operator,
         cache: cache,
         cache_link_payload: {},
-        primary_action: "Run transition check."
+        primary_action: "Run transition batch check."
       )
     )
   end
