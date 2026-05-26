@@ -179,23 +179,58 @@ module Distillator
         )
       end
       failing_statements = representative_problem_statements(fetched_webpages)
+      critical_failing_statements, optional_failing_statements = partition_statement_failures(failing_statements)
       scope_statements = statements_scope.to_a
-      reported_failing_statements = refresh_errors.present? ? scope_statements : failing_statements
-      statement_delta = failing_statements.count
-      statement_results_by_url = representative_statement_results(fetched_webpages, failed_fetch_results, refresh_errors, failing_statements)
+      inferred_critical_failing_statements = if critical_failing_statements.any?
+        critical_failing_statements
+      elsif refresh_errors.present? && failing_statements.blank?
+        scope_statements.select { |statement| blocking_statement_failure?(statement) }
+      else
+        []
+      end
+      inferred_optional_failing_statements = if optional_failing_statements.any?
+        optional_failing_statements
+      elsif refresh_errors.present? && failing_statements.blank? && inferred_critical_failing_statements.blank?
+        scope_statements.reject { |statement| blocking_statement_failure?(statement) }
+      else
+        []
+      end
+      reported_failing_statements = if critical_failing_statements.any? || optional_failing_statements.any?
+        critical_failing_statements + optional_failing_statements
+      elsif refresh_errors.present?
+        scope_statements
+      else
+        []
+      end
+      statement_delta = inferred_critical_failing_statements.count
+      statement_results_by_url = representative_statement_results(
+        fetched_webpages,
+        failed_fetch_results,
+        refresh_errors,
+        inferred_critical_failing_statements,
+        inferred_optional_failing_statements
+      )
       details = scope_details(transition_check, representative_webpages).merge(
         source: "statement_refresh",
         representative_url_statement_results: statement_results_by_url,
         statements_refreshed_count: statements_scope.count,
         statements_failed_count: [statement_delta, reported_failing_statements.count].max,
+        critical_statements_failed_count: inferred_critical_failing_statements.count,
+        optional_statements_failed_count: inferred_optional_failing_statements.count,
         failing_statement_ids: reported_failing_statements.map(&:id),
-        failing_statements: failing_statement_details(reported_failing_statements)
+        failing_statements: failing_statement_details(reported_failing_statements),
+        critical_failing_statement_ids: inferred_critical_failing_statements.map(&:id),
+        critical_failing_statements: failing_statement_details(inferred_critical_failing_statements),
+        optional_failing_statement_ids: inferred_optional_failing_statements.map(&:id),
+        optional_failing_statements: failing_statement_details(inferred_optional_failing_statements)
       )
 
-      if refresh_errors.present?
+      if inferred_critical_failing_statements.any?
         status = :failed
-        details[:reason] = "statement_refresh_failed"
-        details[:refresh_errors] = compact_refresh_errors(refresh_errors)
+        details[:reason] = inferred_optional_failing_statements.any? ? "critical_and_optional_statement_refresh_failed" : "critical_statement_refresh_failed"
+      elsif refresh_errors.present? || inferred_optional_failing_statements.any?
+        status = :warning
+        details[:reason] = "optional_statement_refresh_warning"
       elsif failed_fetch_results.any?
         status = :pending
         details[:reason] = "partial_fetch_failed_before_statement_refresh"
@@ -204,6 +239,7 @@ module Distillator
       else
         status = :failed
       end
+      details[:refresh_errors] = compact_refresh_errors(refresh_errors) if refresh_errors.present?
 
       Distillator::TransitionEvidenceRecorder.call(
         website: website,
@@ -211,7 +247,7 @@ module Distillator
         check_kind: :statement_delta,
         status: status,
         statement_delta: statement_delta,
-        statement_count_delta_acceptable: status == :checked ? true : false,
+        statement_count_delta_acceptable: inferred_critical_failing_statements.empty?,
         details: details
       )
     rescue StandardError => error
@@ -451,12 +487,23 @@ module Distillator
         .select(&:transition_problem?)
     end
 
+    def partition_statement_failures(statements)
+      Array(statements).partition { |statement| blocking_statement_failure?(statement) }
+    end
+
+    def blocking_statement_failure?(statement)
+      return false unless statement&.webpage&.rdfs_class&.name == "Event"
+
+      Webpage.publishable_required_property_labels.include?(statement.source&.property&.label)
+    end
+
     def failing_statement_details(statements)
       statements.map do |statement|
         {
           id: statement.id,
           webpage_url: statement.webpage&.url,
-          source: [statement.source&.property&.label, statement.source&.language].compact.join(" / ")
+          source: [statement.source&.property&.label, statement.source&.language].compact.join(" / "),
+          severity: blocking_statement_failure?(statement) ? "blocker" : "warning"
         }
       end
     end
@@ -592,28 +639,29 @@ module Distillator
       0
     end
 
-    def representative_statement_results(representative_webpages, failed_fetch_results, refresh_errors, failing_statements)
-      failing_ids = failing_statements.map(&:id)
+    def representative_statement_results(representative_webpages, failed_fetch_results, refresh_errors, critical_failing_statements, optional_failing_statements)
+      critical_failing_ids = critical_failing_statements.map(&:id)
+      optional_failing_ids = optional_failing_statements.map(&:id)
       rows = representative_webpages.map do |webpage|
         webpage_statements = Statement.selected_for_transition.where(webpage_id: webpage.id).to_a
         status =
-          if refresh_errors.present?
-            "failed"
-          elsif webpage_statements.empty?
+          if webpage_statements.empty?
             "inconclusive"
-          elsif webpage_statements.any? { |statement| failing_ids.include?(statement.id) }
+          elsif webpage_statements.any? { |statement| critical_failing_ids.include?(statement.id) }
             "failed"
+          elsif refresh_errors.present? || webpage_statements.any? { |statement| optional_failing_ids.include?(statement.id) }
+            "warning"
           else
             "passed"
           end
 
         reason =
-          if refresh_errors.present?
-            "statement_refresh_failed"
-          elsif webpage_statements.empty?
+          if webpage_statements.empty?
             "no_selected_statements"
           elsif status == "failed"
-            "statement_delta"
+            "critical_statement_refresh_failed"
+          elsif status == "warning"
+            "optional_statement_refresh_warning"
           else
             "ok"
           end
@@ -622,7 +670,9 @@ module Distillator
           url: webpage.url,
           status: status,
           reason: reason,
-          failing_statement_ids: webpage_statements.select { |statement| failing_ids.include?(statement.id) }.map(&:id)
+          failing_statement_ids: webpage_statements.select { |statement| critical_failing_ids.include?(statement.id) || optional_failing_ids.include?(statement.id) }.map(&:id),
+          critical_failing_statement_ids: webpage_statements.select { |statement| critical_failing_ids.include?(statement.id) }.map(&:id),
+          optional_failing_statement_ids: webpage_statements.select { |statement| optional_failing_ids.include?(statement.id) }.map(&:id)
         }
       end
       rows + failed_fetch_results.map do |result|

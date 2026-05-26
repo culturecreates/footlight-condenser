@@ -51,6 +51,8 @@ module Distillator
       return "warning" if check_kind == "fetch_parity" && %w[legacy_lookup_missing_config legacy_lookup_unreachable legacy_lookup_body_omitted review_needed_difference].include?(reason)
 
       case state
+      when :warning
+        "warning"
       when :failed, :blocked_by_fetch, :not_evaluated
         "blocker"
       when :stale, :missing, :inconclusive
@@ -106,7 +108,9 @@ module Distillator
       return "Some representative URLs could not be fetched, so statement coverage is incomplete." if reason == "partial_fetch_failed_before_statement_refresh"
       return "Transition check reached its runtime budget before statement coverage completed." if reason == "transition_check_timeout_budget_exceeded"
       return "No selected statements were found for the representative webpages." if state == :inconclusive || reason == "no_selected_statements"
-      return "Statement refresh failed for #{pluralize(failing_statement_count, 'statement')}." if reason == "statement_refresh_failed" && failing_statement_count.positive?
+      return "Critical statements passed; optional statement refresh warnings need review." if state == :warning || reason == "optional_statement_refresh_warning"
+      return "Critical statement refresh failed for #{pluralize(critical_failing_statement_count, 'statement')}." if reason == "critical_statement_refresh_failed" && critical_failing_statement_count.positive?
+      return "Critical statement refresh failed for #{pluralize(critical_failing_statement_count, 'statement')}; optional statement warnings also need review." if reason == "critical_and_optional_statement_refresh_failed" && critical_failing_statement_count.positive?
       return "Statement refresh found #{pluralize(failing_statement_count, 'failing statement')}." if state == :failed
       return "Statements check is stale." if state == :stale
       return "Statement check not yet recorded." if state == :missing
@@ -161,11 +165,19 @@ module Distillator
 
     def statement_details
       details = []
+      details << "Critical statement failures: #{critical_failing_statement_count}" if critical_failing_statement_count.positive?
+      details << "Optional statement warnings: #{optional_failing_statement_count}" if optional_failing_statement_count.positive?
       representative_webpages.each do |url|
         details << "Webpage: #{url}"
       end
 
-      failing_statements.each do |statement|
+      critical_failing_statements.each do |statement|
+        details << "Critical statement ID: #{statement[:id]}"
+        details << "Critical source: #{statement[:source]}" if statement[:source].present?
+        details << "Critical webpage: #{statement[:webpage_url]}" if statement[:webpage_url].present? && !representative_webpages.include?(statement[:webpage_url])
+      end
+
+      optional_failing_statements.each do |statement|
         details << "Statement ID: #{statement[:id]}"
         details << "Source: #{statement[:source]}" if statement[:source].present?
         details << "Webpage: #{statement[:webpage_url]}" if statement[:webpage_url].present? && !representative_webpages.include?(statement[:webpage_url])
@@ -215,6 +227,8 @@ module Distillator
           "Fetch the missing representative URLs, then rerun the transition batch check to complete statement coverage."
         elsif state == :inconclusive || reason == "no_selected_statements"
           "Verify selected sources/statements for the sampled webpages."
+        elsif state == :warning || reason == "optional_statement_refresh_warning"
+          "Review the optional statement refresh warnings before activating."
         elsif reason == "no_representative_webpages"
           "Confirm this website has representative event webpages before activating."
         else
@@ -277,6 +291,21 @@ module Distillator
       end
     end
 
+    def critical_failing_statements
+      Array(details_hash["critical_failing_statements"] || details_hash[:critical_failing_statements]).map do |entry|
+        entry.respond_to?(:to_h) ? entry.to_h.symbolize_keys : {}
+      end
+    end
+
+    def optional_failing_statements
+      explicit = Array(details_hash["optional_failing_statements"] || details_hash[:optional_failing_statements]).map do |entry|
+        entry.respond_to?(:to_h) ? entry.to_h.symbolize_keys : {}
+      end
+      return explicit if explicit.any?
+
+      failing_statements.reject { |entry| entry[:severity].to_s == "blocker" }
+    end
+
     def refresh_errors
       Array(details_hash["refresh_errors"] || details_hash[:refresh_errors]).map(&:to_s)
     end
@@ -287,6 +316,21 @@ module Distillator
       return failing_statements.count if failing_statements.any?
 
       evidence&.statement_delta.to_i
+    end
+
+    def critical_failing_statement_count
+      explicit_count = details_hash["critical_statements_failed_count"] || details_hash[:critical_statements_failed_count]
+      return explicit_count.to_i if explicit_count.present?
+      return critical_failing_statements.count if critical_failing_statements.any?
+
+      evidence&.statement_delta.to_i
+    end
+
+    def optional_failing_statement_count
+      explicit_count = details_hash["optional_statements_failed_count"] || details_hash[:optional_statements_failed_count]
+      return explicit_count.to_i if explicit_count.present?
+
+      optional_failing_statements.count
     end
 
     def rdf_added_count

@@ -1,6 +1,7 @@
 class Webpage < ApplicationRecord
   PUBLIC_SOURCE_URL_SQL = "(webpages.url LIKE 'http://%' OR webpages.url LIKE 'https://%')".freeze
   PUBLISHABLE_STATUSES = %w[ok updated].freeze
+  PUBLISHABLE_REQUIRED_PROPERTY_LABELS = %w[Title Location Dates].freeze
 
   belongs_to :rdfs_class
   belongs_to :website
@@ -49,6 +50,10 @@ class Webpage < ApplicationRecord
       .where(id: title_statement_webpage_ids)
       .where(id: location_statement_webpage_ids)
       .where(id: dates_statement_webpage_ids)
+  end
+
+  def self.publishable_required_property_labels
+    PUBLISHABLE_REQUIRED_PROPERTY_LABELS
   end
 
   def self.publishable_statement_webpage_ids_for(property_label)

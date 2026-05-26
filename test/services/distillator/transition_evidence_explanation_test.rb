@@ -113,4 +113,36 @@ class Distillator::TransitionEvidenceExplanationTest < ActiveSupport::TestCase
     assert_equal "Transition check reached its runtime budget before export coverage completed.", explanation.headline
     assert_equal "Rerun the transition batch check with enough runtime budget to finish export coverage.", explanation.next_action
   end
+
+  test "statement explanation distinguishes optional warnings from blocking failures" do
+    website = websites(:one)
+    evidence = Distillator::TransitionEvidence.new(
+      website: website,
+      url: "https://example.org/event",
+      check_kind: "statement_delta",
+      status: "warning",
+      checked_at: Time.current,
+      details: {
+        reason: "optional_statement_refresh_warning",
+        critical_statements_failed_count: 0,
+        optional_statements_failed_count: 2,
+        optional_failing_statements: [
+          { id: 201, source: "Description / en", webpage_url: "https://example.org/event", severity: "warning" }
+        ],
+        refresh_errors: ["Property id 5: {:cache=>[\"abort_update\"]}"]
+      }
+    )
+
+    explanation = Distillator::TransitionEvidenceExplanation.call(
+      check_kind: "statement_delta",
+      evidence: evidence,
+      website: website,
+      state: :warning
+    )
+
+    assert_equal "warning", explanation.severity
+    assert_equal "Critical statements passed; optional statement refresh warnings need review.", explanation.headline
+    assert_includes explanation.details, "Optional statement warnings: 2"
+    assert_equal "Review the optional statement refresh warnings before activating.", explanation.next_action
+  end
 end

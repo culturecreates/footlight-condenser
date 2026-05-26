@@ -92,6 +92,8 @@ module Distillator
           selected_candidate_tier_count: (statement_details["selected_candidate_tier_count"] || export_details["selected_candidate_tier_count"] || fetch_details["selected_candidate_tier_count"]).to_i,
           statements_refreshed_count: (statement_details["statements_refreshed_count"] || 0).to_i,
           statements_failed_count: (statement_details["statements_failed_count"] || transition_evidence_by_kind["statement_delta"]&.statement_delta || 0).to_i,
+          critical_statements_failed_count: (statement_details["critical_statements_failed_count"] || 0).to_i,
+          optional_statements_failed_count: (statement_details["optional_statements_failed_count"] || 0).to_i,
           export_compared: export_details["export_compared"] == true,
           export_basis: export_details["export_basis"].presence || "current export vs production-equivalent export",
           sample_small: (
@@ -201,20 +203,20 @@ module Distillator
     def statement_failure_groups
       @statement_failure_groups ||= begin
         details = transition_evidence_by_kind["statement_delta"]&.details.to_h || {}
-        failing_statements = Array(details["failing_statements"] || details[:failing_statements]).map do |entry|
-          entry.respond_to?(:to_h) ? entry.to_h.symbolize_keys : {}
-        end
+        failing_statements = statement_failure_entries(details)
         statements_failed_count = (details["statements_failed_count"] || details[:statements_failed_count] || 0).to_i
         reasons = Array(details["refresh_errors"] || details[:refresh_errors]).map(&:to_s)
         normalized_reason = normalize_statement_failure_reason(reasons.first.presence || details["reason"] || details[:reason])
 
         grouped = failing_statements.group_by do |statement|
           [
+            statement[:severity].presence || "blocker",
             normalized_reason,
             statement[:source].presence || "Unknown source"
           ]
-        end.map do |(reason, source), entries|
+        end.map do |(severity, reason, source), entries|
           {
+            severity: severity.presence || entries.first[:severity].presence || "blocker",
             reason: reason,
             source: source,
             count: entries.count,
@@ -224,6 +226,7 @@ module Distillator
 
         if grouped.blank? && statements_failed_count.positive?
           grouped = [{
+            severity: details["optional_statements_failed_count"].to_i.positive? && details["critical_statements_failed_count"].to_i.zero? ? "warning" : "blocker",
             reason: normalized_reason,
             source: nil,
             count: statements_failed_count,
@@ -231,7 +234,7 @@ module Distillator
           }]
         end
 
-        grouped.sort_by { |group| [-group[:count].to_i, group[:reason].to_s, group[:source].to_s] }
+        grouped.sort_by { |group| [group[:severity] == "blocker" ? 0 : 1, -group[:count].to_i, group[:reason].to_s, group[:source].to_s] }
       end
     end
 
@@ -345,6 +348,8 @@ module Distillator
       case row[:status].to_s
       when "passed"
         "Passed"
+      when "warning"
+        "Warning"
       when "failed"
         "Failed"
       when "blocked_by_fetch"
@@ -377,8 +382,31 @@ module Distillator
       return "Blank DSL result" if reason.match?(/blank/i)
       return "Captcha during URL step" if reason.match?(/captcha/i)
       return "Invalid URL from json_url" if reason.match?(/invalid url/i) || reason.match?(/json_url/i)
+      return "Optional statement warning" if reason == "optional_statement_refresh_warning"
+      return "Critical statement failure" if reason.in?(%w[critical_statement_refresh_failed critical_and_optional_statement_refresh_failed])
 
       reason.sub(/\AReason:\s*/i, "").strip.humanize
+    end
+
+    def statement_failure_entries(details)
+      explicit = []
+      explicit.concat(Array(details["critical_failing_statements"] || details[:critical_failing_statements]).map do |entry|
+        normalize_statement_failure_entry(entry, "blocker")
+      end)
+      explicit.concat(Array(details["optional_failing_statements"] || details[:optional_failing_statements]).map do |entry|
+        normalize_statement_failure_entry(entry, "warning")
+      end)
+      return explicit if explicit.any?
+
+      Array(details["failing_statements"] || details[:failing_statements]).map do |entry|
+        normalize_statement_failure_entry(entry, nil)
+      end
+    end
+
+    def normalize_statement_failure_entry(entry, severity)
+      hash = entry.respond_to?(:to_h) ? entry.to_h.symbolize_keys : {}
+      hash[:severity] = severity.presence || hash[:severity].presence || "blocker"
+      hash
     end
 
     def cache_compare_reason(row)
@@ -407,6 +435,7 @@ module Distillator
         url: url,
         status: case transition_status.statements
                 when :passed then "passed"
+                when :warning then "warning"
                 when :failed then "failed"
                 when :not_evaluated then "blocked_by_fetch"
                 when :inconclusive then "inconclusive"

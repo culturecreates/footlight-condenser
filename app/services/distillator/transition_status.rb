@@ -1,6 +1,6 @@
 module Distillator
   class TransitionStatus
-    CHECK_RESULTS = %i[passed failed missing stale not_evaluated blocked_by_fetch inconclusive].freeze
+    CHECK_RESULTS = %i[passed warning failed missing stale not_evaluated blocked_by_fetch inconclusive].freeze
     STATUSES = %i[ready review blocked not_checked].freeze
     SAFETY_LEVELS = %i[safe review unsafe unknown].freeze
     CONFIDENCE_LEVELS = %i[high medium low not_checked].freeze
@@ -125,6 +125,7 @@ module Distillator
       return :low if review_needed_difference? || legacy_lookup_missing_config? || legacy_lookup_unreachable? || legacy_lookup_body_omitted?
       return :low if cache_compare_unknown?
       return :low if [fetch_status, statements_status, export_status].any? { |status| %i[missing stale inconclusive not_evaluated blocked_by_fetch].include?(status) }
+      return :medium if statements_status == :warning
       return :medium if metadata_only_difference?
 
       :high
@@ -156,6 +157,7 @@ module Distillator
       reasons << "Needs review: statements check is missing." if !lavitrine_pipeline? && statements_status == :missing
       reasons << "Needs review: statements check is stale." if !lavitrine_pipeline? && statements_status == :stale
       reasons << "Needs review: statements check is inconclusive." if !lavitrine_pipeline? && statements_status == :inconclusive
+      reasons << optional_statement_warning if optional_statement_warning.present?
       reasons << "Needs review: export check is missing." if !lavitrine_pipeline? && export_status == :missing
       reasons << "Needs review: export check is stale." if !lavitrine_pipeline? && export_status == :stale
       reasons << "Needs review: export check is inconclusive." if !lavitrine_pipeline? && export_status == :inconclusive
@@ -183,6 +185,7 @@ module Distillator
       return :inconclusive if partial_fetch_prevented_statement_refresh?(evidence)
       return :inconclusive if no_selected_statements?(evidence)
       return :missing if evidence.status.to_s == "pending"
+      return :warning if evidence.status.to_s == "warning" || optional_statement_warning_evidence?(evidence)
       return :failed if evidence.status.to_s.in?(%w[failed blocked rejected]) || evidence.acceptable_statement_delta? == false
       return :stale if evidence.checked_at < now - evidence_stale_after
       return :passed if evidence.acceptable_statement_delta?
@@ -338,6 +341,7 @@ module Distillator
       return "Metadata notes only. Promote to active when you are satisfied with the evidence." if metadata_only_difference?
       return "Review the unknown comparison results, then rerun the transition batch check if needed." if cache_compare_unknown?
       return "Review the parity differences, then rerun the transition batch check if needed." if review_needed_difference?
+      return "Review the optional statement refresh warnings before activating." if statements_status == :warning
       return "Verify selected sources/statements for the sampled webpages." if statements_status == :inconclusive
       return "Fix the blocking check, then rerun the transition batch check." if blockers.any?
       return "Review the warning and rerun the transition batch check if needed." if warnings.any?
@@ -353,6 +357,7 @@ module Distillator
       return :inconclusive if partial_fetch_prevented_statement_refresh?(evidence) || partial_fetch_prevented_export_comparison?(evidence)
       return :inconclusive if no_selected_statements?(evidence) || export_diff_not_available?(evidence)
       return :missing if evidence.status.to_s == "pending"
+      return :warning if evidence.status.to_s == "warning"
       return :failed if evidence.status.to_s.in?(%w[failed blocked rejected])
       return :stale if evidence.checked_at < now - evidence_stale_after
 
@@ -506,6 +511,22 @@ module Distillator
 
     def no_selected_statements?(evidence)
       evidence_reason(evidence) == "no_selected_statements"
+    end
+
+    def optional_statement_warning
+      return unless statements_status == :warning
+
+      "Critical statements passed; optional statement refresh warnings need review."
+    end
+
+    def optional_statement_warning_evidence?(evidence)
+      evidence_reason(evidence) == "optional_statement_refresh_warning" ||
+        (details_count(evidence, "optional_statements_failed_count") > 0 && details_count(evidence, "critical_statements_failed_count").zero?)
+    end
+
+    def details_count(evidence, key)
+      details = evidence&.details.to_h || {}
+      (details[key.to_s] || details[key.to_sym] || 0).to_i
     end
 
     def fetch_prevented_export_comparison?(evidence)
