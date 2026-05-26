@@ -280,6 +280,43 @@ module SourcesHelper
     "Statement ##{statement.id} on webpage ##{statement.webpage_id}"
   end
 
+  def source_latest_statement_for_display(source)
+    source_latest_statement(source)
+  end
+
+  def source_latest_result_pairs(source)
+    statement = source_latest_statement(source)
+    webpage = statement&.webpage
+
+    [
+      ["Source id", source.id],
+      ["Property / language", source_property_language_text(source)],
+      ["Website", source.website.present? ? link_to("#{source.website.seedurl} (##{source.website_id})", website_path(source.website)) : "No website"],
+      ["Latest statement id", statement.present? ? link_to("##{statement.id}", statement_path(statement)) : "None yet"],
+      ["Latest statement status", statement.present? ? statement.status.to_s.titleize : "Needs test"],
+      ["Cache refreshed", statement&.cache_refreshed.present? ? l(statement.cache_refreshed, format: :short) : "Not available"],
+      ["Cache changed", statement&.cache_changed.present? ? l(statement.cache_changed, format: :short) : "Not available"],
+      ["Updated", statement&.updated_at.present? ? l(statement.updated_at, format: :short) : "Not available"],
+      ["Webpage URL", webpage.present? ? link_to(webpage.url, webpage_path(webpage)) : "No webpage yet"]
+    ]
+  end
+
+  def source_latest_statement_cache_text(source)
+    statement = source_latest_statement(source)
+    statement&.cache.presence || "No statement cache/value yet."
+  end
+
+  def source_show_test_action(source)
+    statement = source_latest_statement(source)
+    if statement
+      button_to "Test / Refresh latest statement", refresh_statement_path(statement), method: :patch, form_class: "inline", class: "as-link"
+    elsif (webpage = source_target_webpage(source))
+      button_to "Test / Refresh latest statement", refresh_rdf_uri_statements_path(rdf_uri: webpage.rdf_uri), method: :patch, form_class: "inline", class: "as-link"
+    else
+      content_tag(:span, "Test / Refresh latest statement unavailable", class: "source-action-disabled")
+    end
+  end
+
   def source_inline_test_action(source)
     statement = source_latest_statement(source)
     if statement
@@ -349,6 +386,14 @@ module SourcesHelper
     return website_sources_path(id: source.website_id) if params[:from] == "website"
 
     sources_path(seedurl: params[:seedurl].presence)
+  end
+
+  def source_diagnostics_actions(source)
+    source_action_group_section("Diagnostics", source_more_action_items(source)[:diagnostics])
+  end
+
+  def source_danger_zone_actions(source)
+    source_action_group_section("Danger zone", source_more_action_items(source)[:danger], extra_class: "source-action-group-danger")
   end
 
   def source_form_identity_pairs(source)

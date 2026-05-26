@@ -2,104 +2,84 @@
 
 <h1>Source <%= @source.id %></h1>
 
-<p class="sources-page-note">
-  Review source status first, then open DSL, cache, and compatibility details only when needed.
-</p>
+<section class="source-show-section source-latest-result">
+  <h2>Latest result</h2>
 
-<p class="rollout-note">
-  <%= source_rollout_badge(@source) %>
-  <span><%= source_rollout_explanation(@source) %></span>
-</p>
-
-<div class="cache-detail-cards">
-  <section class="cache-detail-card">
-    <h2>Status / rollout</h2>
-    <p><%= source_status_badge(@source) %></p>
-    <p><strong>Website default:</strong> <%= @source.selected %></p>
-    <p><strong>Selected by:</strong> <%= @source.selected_by.presence || "Not recorded" %></p>
-    <p><strong>Last test:</strong> <%= source_last_test_summary(@source) %></p>
-    <p class="sources-secondary-text"><%= source_rollout_explanation(@source) %></p>
-  </section>
-
-  <section class="cache-detail-card">
-    <h2>Extraction rule</h2>
-    <p><strong>Raw extraction DSL:</strong> <%= source_extraction_rule_summary(@source) %></p>
-    <p><strong>Property / Language:</strong> <%= source_property_language_text(@source) %></p>
-    <p><strong>Context:</strong> <%= source_property_context(@source).presence || "No additional context" %></p>
-    <p class="sources-secondary-text">Use pipeline steps such as <code>url=</code>, <code>xpath=</code>, and <code>ruby=</code>. Test with trace before activating.</p>
-  </section>
-
-  <section class="cache-detail-card">
-    <h2>Pipeline</h2>
-    <p><strong>Pipeline steps:</strong> <%= source_pipeline_summary(@source).join(" • ") %></p>
-    <p><strong>Auto review:</strong> <%= @source.auto_review %></p>
-    <p><strong>Last test detail:</strong> <%= source_last_test_detail(@source) %></p>
-  </section>
-
-  <section class="cache-detail-card">
-    <h2>Fetch strategy</h2>
-    <p><strong>Strategy:</strong> <%= source_fetch_strategy(@source)[:label] %></p>
-    <p><strong>Rendered fetch:</strong> <%= @source.render_js %></p>
-    <p class="sources-secondary-text"><%= source_fetch_strategy(@source)[:detail] %></p>
-  </section>
-
-  <section class="cache-detail-card">
-    <h2>Impact</h2>
-    <p><strong>Website:</strong> <%= @source.website.seedurl %> (#<%= @source.website_id %>)</p>
-    <p><strong>Scope:</strong> <%= source_impact_summary(@source) %></p>
-    <div class="sources-impact-panel">
-      <p><strong>Activation impact:</strong> <%= source_activation_impact(@source) %></p>
-      <p class="sources-secondary-text"><%= source_activation_detail(@source) %></p>
-    </div>
-    <p>
-      <%= source_inline_test_action(@source) %>
-      <%= link_to "Edit", edit_source_path(@source) %>
-      <%= source_inline_trace_action(@source) %>
-    </p>
-  </section>
-
-  <section class="cache-detail-card">
-    <h2>Compatibility</h2>
-    <% if source_cache_rollout_badge(@source).present? %>
-      <p><%= source_cache_rollout_badge(@source) %></p>
+  <dl class="sources-show-list">
+    <% source_latest_result_pairs(@source).each do |label, value| %>
+      <dt><%= label %></dt>
+      <dd><%= value %></dd>
     <% end %>
-    <p class="sources-secondary-text"><%= source_cache_note(@source) %></p>
-    <div class="cache-action-group">
-      <strong>Secondary actions</strong>
-      <%= source_more_actions(@source) %>
-    </div>
-  </section>
-  
-  <section class="cache-detail-card">
-    <h2>Raw diagnostics</h2>
+  </dl>
+
+  <p><strong>Latest statement cache / value</strong></p>
+  <pre class="sources-show-pre"><%= source_latest_statement_cache_text(@source) %></pre>
+</section>
+
+<section class="source-show-section source-primary-actions">
+  <h2>Primary actions</h2>
+  <p>
+    <%= source_show_test_action(@source) %> |
+    <%= link_to "Edit source", edit_source_path(@source) %> |
+    <%= link_to "Report", source_reports_path(source_id: @source.id) %> |
+    <%= link_to "Back", source_show_back_path(@source) %>
+  </p>
+</section>
+
+<section class="source-show-section source-algorithm-dsl">
+  <h2>Raw extraction DSL</h2>
+  <pre class="sources-show-pre"><%= source_algorithm_text(@source) %></pre>
+</section>
+
+<details class="source-show-details">
+  <summary>Diagnostics</summary>
+  <div class="source-show-section">
     <dl class="sources-detail-list">
       <% source_diagnostics_pairs(@source).each do |label, value| %>
         <dt><%= label %></dt>
         <dd><%= value %></dd>
       <% end %>
     </dl>
-  </section>
-</div>
-
-<details class="cache-detail-details" open>
-  <summary>Raw extraction DSL</summary>
-  <div class="cache-detail-card">
-    <p class="sources-secondary-text">Use pipeline steps such as <code>url=</code>, <code>xpath=</code>, and <code>ruby=</code>. Test with trace before activating.</p>
-    <pre><%= @source.algorithm_value %></pre>
   </div>
 </details>
 
-<details class="cache-detail-details">
-  <summary>Additional compatibility details</summary>
-  <div class="cache-detail-card">
+<details class="source-show-details">
+  <summary>Compatibility / rollout</summary>
+  <div class="source-show-section">
+    <p><%= source_status_badge(@source) %></p>
+
+    <% if source_cache_rollout_badge(@source).present? %>
+      <p><%= source_cache_rollout_badge(@source) %></p>
+    <% end %>
+
     <p class="sources-secondary-text"><%= source_rollout_explanation(@source) %></p>
-    <p>
-      <strong>Website default:</strong> <%= @source.selected %><br>
-      <strong>Activation impact:</strong> <%= source_activation_impact(@source) %>
-    </p>
+    <p class="sources-secondary-text"><%= source_cache_note(@source) %></p>
+
+    <dl class="sources-show-list">
+      <dt>Website default</dt>
+      <dd><%= source_boolean_text(@source.selected?) %></dd>
+      <dt>Selected by</dt>
+      <dd><%= @source.selected_by.presence || "Not recorded" %></dd>
+      <dt>Fetch strategy</dt>
+      <dd><%= source_fetch_strategy(@source)[:label] %></dd>
+      <dt>Last test</dt>
+      <dd><%= source_last_test_summary(@source) %></dd>
+      <dt>Last test detail</dt>
+      <dd><%= source_last_test_detail(@source) %></dd>
+    </dl>
+
+    <div class="sources-impact-panel">
+      <p><strong>Activation impact:</strong> <%= source_activation_impact(@source) %></p>
+      <p class="sources-secondary-text"><%= source_activation_detail(@source) %></p>
+    </div>
+
+    <%= source_diagnostics_actions(@source) %>
   </div>
 </details>
 
-<p>
-  <%= link_to "Back", source_show_back_path(@source) %>
-</p>
+<details class="source-show-details source-danger-zone">
+  <summary>Danger zone</summary>
+  <div class="source-show-section">
+    <%= source_danger_zone_actions(@source) %>
+  </div>
+</details>

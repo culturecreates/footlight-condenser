@@ -222,18 +222,24 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Active"
     assert_includes @response.body, "Condenser serves production while Wringer stays available for diagnostics."
     assert_includes @response.body, "Production: Condenser"
-    assert_match "Status / rollout", @response.body
-    assert_match "Extraction rule", @response.body
-    assert_match "Pipeline", @response.body
-    assert_match "Fetch strategy", @response.body
-    assert_match "Impact", @response.body
-    assert_match "Compatibility", @response.body
-    assert_match "Raw diagnostics", @response.body
-    assert_match "Primary", @response.body
+    assert_match "Latest result", @response.body
+    assert_match "Primary actions", @response.body
+    assert_match "Compatibility / rollout", @response.body
     assert_match "Diagnostics", @response.body
     assert_match "Danger zone", @response.body
     assert_match "This source is the website default for this property/language.", @response.body
     assert_match "Raw extraction DSL", @response.body
+    assert_match "Latest statement cache / value", @response.body
+    assert_match "Test / Refresh latest statement", @response.body
+    assert_select "section.source-latest-result", 1
+    assert_select "section.source-latest-result pre.sources-show-pre", text: /MyString/
+    assert_select "section.source-algorithm-dsl pre.sources-show-pre", text: /MyString/
+    assert_select "details.source-show-details summary", text: "Diagnostics"
+    assert_select "details.source-show-details summary", text: "Compatibility / rollout"
+    assert_select "details.source-danger-zone summary", text: "Danger zone"
+    assert_operator @response.body.index("Latest result"), :<, @response.body.index("Compatibility / rollout")
+    assert_operator @response.body.index("Latest statement cache / value"), :<, @response.body.index("Compatibility / rollout")
+    assert_operator @response.body.index("Raw extraction DSL"), :<, @response.body.index("Danger zone")
   end
 
   test "show source explains activation impact for alternative source" do
