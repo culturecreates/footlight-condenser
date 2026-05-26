@@ -83,7 +83,7 @@ class Distillator::ShadowSiteDetailTest < ActiveSupport::TestCase
     detail = Distillator::ShadowSiteDetail.call(website: website)
 
     assert_equal "statements", detail.root_cause[:failed_layer]
-    assert_equal "Statement refresh failed for 1 statement.", detail.root_cause[:concrete_reason]
+    assert_equal "Statement refresh found 1 failing statement.", detail.root_cause[:concrete_reason]
     assert_equal "Invalid URL from json_url", detail.statement_failure_groups.first[:reason]
     assert_equal "json_url / en", detail.statement_failure_groups.first[:source]
   end

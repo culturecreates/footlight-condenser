@@ -296,7 +296,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       statement_count_delta_acceptable: false,
       checked_at: 1.hour.ago,
       details: {
-        reason: "statement_refresh_failed",
+        reason: "critical_statement_refresh_failed",
         representative_webpages: [url],
         representative_webpage_count: 1,
         candidate_webpage_count: 4,
@@ -304,8 +304,10 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
         selection_rule: Distillator::TransitionCheck::SELECTION_RULE,
         statements_refreshed_count: 1,
         statements_failed_count: 1,
-        failing_statement_ids: [statement.id],
-        failing_statements: [{ id: statement.id, webpage_url: url, source: "Dates / fr" }],
+        critical_statements_failed_count: 1,
+        optional_statements_failed_count: 0,
+        critical_failing_statement_ids: [statement.id],
+        critical_failing_statements: [{ id: statement.id, webpage_url: url, source: "Dates / fr", severity: "blocker" }],
         refresh_errors: ["DSL returned blank result"]
       }
     )
@@ -324,9 +326,10 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match "Blocked", @response.body
     assert_match %r{<strong>Export</strong> — Passed}m, @response.body
-    assert_match "Statement refresh failed for 1 statement.", @response.body
+    assert_match "Critical statement refresh failed for 1 statement.", @response.body
     visible_html = @response.body.split('<summary>Audit</summary>').first
     assert_includes visible_html, "Statement failure summary"
+    assert_includes visible_html, "Blocking statement failures"
     assert_includes visible_html, "Blank DSL result - Dates / fr - 1 affected"
     assert_not_includes visible_html, "Statement ID: #{statement.id}"
     assert_match "Open the statement trace and fix the source before activating.", @response.body
@@ -336,6 +339,87 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match Distillator::TransitionCheck::SELECTION_RULE, @response.body
     assert_match "This check used a limited sample of representative webpages.", @response.body
     assert_match "Do not activate yet", @response.body
+  end
+
+  test "shadow report detail shows optional statement warnings separately without blocking activation" do
+    website = create_shadow_website(name: "Optional statement warning detail", seedurl: "optional-statement-warning-detail")
+    url = "https://optional-statement-warning-detail.example/event"
+    create_cache_for(
+      website,
+      url: url,
+      signals: { "transport_success" => true, "content_success" => true }
+    )
+    webpage = website.webpages.find_by!(url: url)
+    statement = Statement.create!(
+      cache: "",
+      status: "problem",
+      status_origin: "shadow_reports_controller_test",
+      cache_refreshed: 1.hour.ago,
+      cache_changed: 1.hour.ago,
+      source: Source.create!(
+        algorithm_value: "manual=Optional warning description",
+        selected: true,
+        selected_by: "test",
+        language: "en",
+        render_js: false,
+        property: properties(:five),
+        website: website
+      ),
+      webpage: webpage,
+      selected_individual: true
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "statement_delta",
+      status: "warning",
+      statement_delta: 0,
+      statement_count_delta_acceptable: true,
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "optional_statement_refresh_warning",
+        representative_webpages: [url],
+        representative_webpage_count: 1,
+        candidate_webpage_count: 4,
+        publishable_event_page_count: 4,
+        selection_rule: Distillator::TransitionCheck::SELECTION_RULE,
+        statements_refreshed_count: 4,
+        statements_failed_count: 1,
+        critical_statements_failed_count: 0,
+        optional_statements_failed_count: 1,
+        optional_failing_statement_ids: [statement.id],
+        optional_failing_statements: [{ id: statement.id, webpage_url: url, source: "Description / en", severity: "warning" }],
+        refresh_errors: ["DSL returned blank result"]
+      }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "export_diff",
+      status: "checked",
+      export_diff_checked: true,
+      checked_at: 1.hour.ago,
+      details: { export_compared: true, export_basis: "current export vs production-equivalent export" }
+    )
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Review before activating", @response.body
+    assert_match "Critical statements passed; optional statement refresh warnings need review.", @response.body
+    assert_includes @response.body, "Optional statement warnings"
+    assert_includes @response.body, "Blank DSL result - Description / en - 1 affected"
+    assert_no_match "Critical statement refresh failed", @response.body
+    assert_no_match "Cannot activate yet: statements check failed.", @response.body
+    assert_no_match "Blocking statement failures", @response.body
+    assert_no_match "Do not activate yet", @response.body
   end
 
   test "shadow report detail shows statements not evaluated when fetch failed before statement refresh" do

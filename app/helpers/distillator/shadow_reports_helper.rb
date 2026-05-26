@@ -128,6 +128,8 @@ module Distillator::ShadowReportsHelper
       "Passed"
     when :checked
       "Passed"
+    when :warning
+      "Warning"
     when :failed
       "Failed"
     when :not_evaluated
@@ -202,6 +204,8 @@ module Distillator::ShadowReportsHelper
     case status.to_sym
     when :passed, :checked
       "passed"
+    when :warning
+      "warning"
     when :failed
       "failed"
     when :not_evaluated
@@ -233,6 +237,8 @@ module Distillator::ShadowReportsHelper
     case state.to_sym
     when :passed
       "✓"
+    when :warning
+      "!"
     when :failed
       "✗"
     when :not_evaluated, :blocked_by_fetch, :inconclusive
@@ -271,8 +277,11 @@ module Distillator::ShadowReportsHelper
     end
   end
 
-  def shadow_report_statement_failure_groups(detail)
-    Array(detail.statement_failure_groups)
+  def shadow_report_statement_failure_groups(detail, severity: nil)
+    groups = Array(detail.statement_failure_groups)
+    return groups if severity.blank?
+
+    groups.select { |group| group[:severity].to_s == severity.to_s }
   end
 
   def shadow_report_primary_blocker_details(detail)
@@ -315,7 +324,15 @@ module Distillator::ShadowReportsHelper
     lines << "Sampled count: #{sampled_count}"
     lines << "Sampling rule: #{scope[:selection_rule]}"
     lines << "Statements refreshed: #{scope[:statements_refreshed_count]}"
-    lines << "Statements failed: #{scope[:statements_failed_count]}"
+    if scope[:critical_statements_failed_count].to_i.positive?
+      lines << "Critical statement failures: #{scope[:critical_statements_failed_count]}"
+    end
+    if scope[:optional_statements_failed_count].to_i.positive?
+      lines << "Optional statement warnings: #{scope[:optional_statements_failed_count]}"
+    end
+    if scope[:critical_statements_failed_count].to_i.zero? && scope[:optional_statements_failed_count].to_i.zero?
+      lines << "Statement failures: 0"
+    end
     lines << "Export compared: #{scope[:export_compared] ? 'yes' : 'no'}"
     lines << "Export basis: #{scope[:export_basis]}"
     lines
