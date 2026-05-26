@@ -8,7 +8,11 @@
   <p><strong>Primary blocker:</strong> <%= @detail.primary_blocker&.headline.presence || "No blocking issue is currently recorded." %></p>
   <p><strong>Latest transition evidence:</strong> <%= shadow_report_timestamp(@detail.latest_transition_evidence_checked_at) %></p>
   <% if @detail.pending_transition_batch_check %>
-    <p>New batch check requested; this report still shows previous evidence.</p>
+    <p>
+      Batch check requested <%= time_ago_in_words(@detail.transition_check_requested_at) %> ago.
+      Latest evidence is still from <%= shadow_report_timestamp(@detail.latest_transition_evidence_checked_at) %>.
+    </p>
+    <p>Refresh this page to check again.</p>
   <% end %>
   <p><strong>Checked scope:</strong> <%= shadow_report_checked_pages_summary(@detail.checked_scope) %></p>
   <p><strong>Links:</strong>
