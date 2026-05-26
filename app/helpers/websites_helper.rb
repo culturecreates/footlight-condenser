@@ -247,6 +247,20 @@ module WebsitesHelper
     summary.join(" | ")
   end
 
+  def website_transition_verdict_line(website)
+    status = website_transition_status(website)
+    "#{status.readiness_label}: #{website_transition_verdict_reason(status)}"
+  end
+
+  def website_transition_secondary_status_line(website)
+    status = website_transition_status(website)
+    [
+      "Statements #{website_transition_check_state_label(status.statements)}",
+      "Export #{website_transition_check_state_label(status.export)}",
+      "Fetch #{website_transition_check_state_label(status.fetch)}"
+    ].join(" | ")
+  end
+
   def website_transition_evidence_summary(website)
     evidence = website.latest_transition_evidences_by_kind.with_indifferent_access
     return "No transition evidence recorded yet." if evidence.blank?
@@ -284,6 +298,17 @@ module WebsitesHelper
 
   def website_transition_batch_status_path(website)
     website_path(website, anchor: "website-batch-jobs-transition")
+  end
+
+  def website_transition_drill_down_links(website)
+    [
+      link_to("Latest transition report", website_transition_report_path(website)),
+      link_to("Open cache diagnostics", website_cache_diagnostics_path(website)),
+      link_to(
+        "Inspect publishable event pages (#{website_publishable_event_page_count(website)} publishable / #{website_important_page_count(website)} important)",
+        website_publishable_event_pages_path(website)
+      )
+    ]
   end
 
   def website_cache_diagnostics_path(website)
@@ -349,6 +374,41 @@ module WebsitesHelper
   end
 
   private
+
+  def website_transition_verdict_reason(status)
+    return "all transition checks passed." if status.status == :ready
+    return compact_transition_reason(status.primary_blocker) if status.primary_blocker.present?
+    return compact_transition_reason(status.warnings.first) if status.warnings.any?
+
+    "run transition batch check."
+  end
+
+  def compact_transition_reason(reason)
+    reason.to_s.sub(/\ACannot activate yet:\s*/i, "")
+      .sub(/\ANeeds review:\s*/i, "")
+      .presence || "run transition batch check."
+  end
+
+  def website_transition_check_state_label(state)
+    case state.to_sym
+    when :passed, :checked
+      "passed"
+    when :warning
+      "warning"
+    when :failed
+      "failed"
+    when :not_evaluated
+      "not evaluated"
+    when :blocked_by_fetch
+      "blocked by fetch"
+    when :inconclusive
+      "inconclusive"
+    when :stale
+      "stale"
+    else
+      "missing"
+    end
+  end
 
   def website_webpage_class_summary_links(website, by_class)
     labels = [

@@ -119,11 +119,9 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
     assert_response :success
     assert_select 'details[data-operator-context-card]', 0
-    assert_includes @response.body, "Transition"
-    assert_includes @response.body, "Transition mode:"
-    assert_includes @response.body, "Latest batch check:"
-    assert_includes @response.body, "Important pages:"
-    assert_includes @response.body, "Publishable event pages:"
+    assert_includes @response.body, "Transition verdict"
+    assert_includes @response.body, "Not checked: statements check is missing."
+    assert_includes @response.body, "Statements missing | Export missing | Fetch missing"
     assert_includes @response.body, "Shadow"
     assert_includes @response.body, "Latest transition report"
     assert_includes @response.body, "Run transition batch check"
@@ -134,9 +132,10 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, CGI.escapeHTML(website_path(@website, anchor: "website-batch-jobs-transition"))
     assert_includes @response.body, distillator_shadow_report_site_path(@website, anchor: "transition-report-summary")
     assert_includes @response.body, "Operations"
-    assert_includes @response.body, "Batch jobs"
-    assert_match %r{Batch jobs.*Transition batch check.*Run transition batch check}m, @response.body
-    assert_equal 2, @response.body.scan("Run transition batch check").size
+    assert_includes @response.body, "Drill-down links"
+    assert_equal 1, @response.body.scan("Run transition batch check").size
+    assert_equal 1, @response.body.scan("Transition checks are run by batch job. This page displays the latest result.").size
+    assert_equal 1, @response.body.scan("Latest transition report").size
     assert_not_includes @response.body, "Queue transition check"
     assert_includes @response.body, "Danger zone"
     assert_includes @response.body, "Edit"
@@ -263,6 +262,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes @response.body, "Run transition batch check"
     assert_includes @response.body, "Latest transition report"
+    assert_includes @response.body, "Drill-down links"
   end
 
   test "website show displays latest transition evidence timestamp when recorded" do
@@ -271,7 +271,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(website)
 
     assert_response :success
-    assert_includes @response.body, "Latest transition evidence:"
+    assert_equal 1, @response.body.scan("Latest transition evidence:").size
     refute_includes @response.body, "Batch check requested. Waiting for new transition evidence."
   end
 
@@ -310,7 +310,8 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes @response.body, "Promote to active"
-    assert_includes @response.body, "Ready | fetch passed | statements passed | export passed"
+    assert_includes @response.body, "Ready: all transition checks passed."
+    assert_includes @response.body, "Statements passed | Export passed | Fetch passed"
     assert_not_includes @response.body, "Cannot promote yet"
   end
 
@@ -1165,11 +1166,11 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
 
     assert_response :success
-    assert_includes @response.body, "Transition"
-    assert_includes @response.body, "Transition mode:</strong> Legacy"
-    assert_includes @response.body, "Latest batch check:</strong>"
+    assert_includes @response.body, "Transition verdict"
+    assert_includes @response.body, "Not checked: statements check is missing."
+    assert_includes @response.body, "Statements missing | Export missing | Fetch missing"
     assert_includes @response.body, "Move to shadow"
-    assert_match %r{Batch jobs.*Transition batch check.*Run transition batch check}m, @response.body
+    assert_includes @response.body, "Blocking reason / promote control"
     assert_not_includes @response.body, "Queue transition check"
   end
 
@@ -1181,11 +1182,11 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(website)
 
     assert_response :success
-    assert_includes @response.body, "Transition mode:</strong> Shadow"
-    assert_includes @response.body, "Latest batch check:</strong>"
+    assert_includes @response.body, "Transition verdict"
+    assert_includes @response.body, "Ready: all transition checks passed."
+    assert_includes @response.body, "Statements passed | Export passed | Fetch passed"
     assert_includes @response.body, "Promote to active"
     assert_includes @response.body, "Run transition batch check"
-    assert_match %r{Batch jobs.*Transition batch check.*Run transition batch check}m, @response.body
   end
 
   test "website detail shows rollout panel for active website" do
@@ -1195,8 +1196,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
 
     assert_response :success
-    assert_includes @response.body, "Transition mode:</strong> Active"
-    assert_includes @response.body, "Latest batch check:</strong>"
+    assert_includes @response.body, "Transition verdict"
     assert_includes @response.body, "Rollback to Legacy Wringer"
   end
 

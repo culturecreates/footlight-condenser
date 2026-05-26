@@ -154,6 +154,18 @@ class WebsitesHelperTest < ActionView::TestCase
     assert_includes summary, "export passed"
   end
 
+  test "transition verdict line renders compact blocker text once" do
+    website = blocked_shadow_website(seedurl: "summary-transition-blocked-verdict")
+
+    assert_equal "Blocked: statements check failed.", website_transition_verdict_line(website)
+  end
+
+  test "transition secondary status line uses statements export fetch order" do
+    website = ready_shadow_website(seedurl: "summary-transition-secondary-order")
+
+    assert_equal "Statements passed | Export passed | Fetch passed", website_transition_secondary_status_line(website)
+  end
+
   test "transition evidence summary mentions recorded evidence and report path" do
     website = ready_shadow_website(seedurl: "summary-transition-evidence")
 
@@ -187,6 +199,17 @@ class WebsitesHelperTest < ActionView::TestCase
     website.transition_evidences.update_all(checked_at: 10.minutes.ago)
 
     assert_equal "Batch check requested. Waiting for new transition evidence.", website_transition_evidence_freshness_text(website.reload)
+  end
+
+  test "transition drill down links render report cache and webpage targets once" do
+    website = ready_shadow_website(seedurl: "summary-transition-drilldown")
+
+    links = website_transition_drill_down_links(website)
+
+    assert_equal 3, links.length
+    assert_includes links.first, "Latest transition report"
+    assert_includes links.second, "Open cache diagnostics"
+    assert_includes links.third, "Inspect publishable event pages"
   end
 
   test "website transition secondary actions do not expose run transition check labels" do

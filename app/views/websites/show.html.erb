@@ -20,25 +20,13 @@
 <% transition_contract = website_transition_contract(@website) %>
 
 <section id="website-transition" class="website-rollout-panel website-show-section">
-  <h2>Transition</h2>
-  <p><strong>Transition mode:</strong> <%= transition_contract[:current_mode_label] %></p>
-  <p><strong>Latest batch check:</strong> <%= website_transition_status_summary(@website) %></p>
-  <p><strong>Important pages:</strong> <%= website_important_page_count(@website) %></p>
-  <p><strong>Publishable event pages:</strong> <%= website_publishable_event_page_count(@website) %></p>
-  <p><strong>Latest transition report:</strong> <%= link_to "Latest transition report", website_transition_report_path(@website) %></p>
-  <p><strong>Cache diagnostics:</strong> <%= link_to "Open cache diagnostics", website_cache_diagnostics_path(@website) %></p>
-  <p><strong>Webpages inspection:</strong> <%= link_to "Inspect publishable event pages", website_publishable_event_pages_path(@website) %></p>
-  <p><%= website_transition_batch_check_copy %></p>
-  <%= button_to "Run transition batch check",
-                website_transition_batch_check_path,
-                method: :post,
-                params: website_transition_batch_check_params(@website, return_to: website_transition_batch_status_path(@website)),
-                class: "website-transition-button" %>
-  <p><%= website_transition_evidence_freshness_text(@website) %></p>
+  <h2>Transition verdict</h2>
+  <p><strong><%= website_transition_verdict_line(@website) %></strong></p>
+  <p><%= website_transition_secondary_status_line(@website) %></p>
 </section>
 
 <section class="website-rollout-panel website-show-section">
-  <h2>Mode controls</h2>
+  <h2>Blocking reason / promote control</h2>
   <% primary_action = transition_contract[:primary_action] %>
   <% if primary_action[:enabled] %>
     <%= button_to primary_action[:label], primary_action[:path], method: primary_action[:method], params: primary_action[:params], class: "website-transition-button" %>
@@ -63,6 +51,39 @@
       </details>
     <% end %>
   <% end %>
+
+  <section id="website-batch-jobs-transition" class="website-rollout-panel">
+    <h3>Transition batch check</h3>
+    <p><%= website_transition_batch_check_copy %></p>
+    <%= button_to "Run transition batch check",
+                  website_transition_batch_check_path,
+                  method: :post,
+                  params: website_transition_batch_check_params(@website, return_to: website_transition_batch_status_path(@website)),
+                  class: "website-transition-button" %>
+    <p><%= website_transition_evidence_freshness_text(@website) %></p>
+  </section>
+</section>
+
+<section class="website-rollout-panel website-show-section">
+  <h2>Drill-down links</h2>
+  <ul class="website-show-link-list">
+    <% website_transition_drill_down_links(@website).each do |link| %>
+      <li><%= link %></li>
+    <% end %>
+  </ul>
+</section>
+
+<section class="website-show-section">
+  <h2>Operations</h2>
+  <ul class="website-show-link-list">
+    <li><%= link_to "Edit", edit_website_path(@website) %></li>
+    <li><%= link_to "View resources with lists", lists_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Export step-by-step", graphs_website_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Refresh upcoming events", refresh_upcoming_events_batch_jobs_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Refresh lists and add webpages", check_for_new_webpages_batch_jobs_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Refresh all Webpages (all classes, all dates)", refresh_webpages_batch_jobs_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Export Events to Artsdata", graphs_website_queue_path(seedurl: @website.seedurl) %></li>
+  </ul>
 </section>
 
 <section class="website-rollout-panel website-show-section">
@@ -84,38 +105,6 @@
   <% else %>
     <p>No rollout events recorded yet.</p>
   <% end %>
-</section>
-
-<section class="website-show-section">
-  <h2>Operations</h2>
-  <ul class="website-show-link-list">
-    <li><%= link_to "Edit", edit_website_path(@website) %></li>
-    <li><%= link_to "View resources with lists", lists_path(seedurl: @website.seedurl) %></li>
-    <li><%= link_to "Export step-by-step", graphs_website_path(seedurl: @website.seedurl) %></li>
-  </ul>
-</section>
-
-<section id="website-batch-jobs" class="website-show-section">
-  <h2>Batch jobs</h2>
-  <ul class="website-show-link-list">
-    <li><%= link_to "Refresh upcoming events", refresh_upcoming_events_batch_jobs_path(seedurl: @website.seedurl) %></li>
-    <li><%= link_to "Refresh lists and add webpages", check_for_new_webpages_batch_jobs_path(seedurl: @website.seedurl) %></li>
-    <li><%= link_to "Refresh all Webpages (all classes, all dates)", refresh_webpages_batch_jobs_path(seedurl: @website.seedurl) %></li>
-    <li><%= link_to "Export Events to Artsdata", graphs_website_queue_path(seedurl: @website.seedurl) %></li>
-  </ul>
-
-  <section id="website-batch-jobs-transition" class="website-rollout-panel">
-    <h3>Transition batch check</h3>
-    <p><%= website_transition_batch_check_copy %></p>
-    <p>It may fetch representative URLs, compare Condenser and Wringer cache output, refresh selected statements, and compare exports.</p>
-    <p><%= link_to "Latest transition report", website_transition_report_path(@website) %></p>
-    <%= button_to "Run transition batch check",
-                  website_transition_batch_check_path,
-                  method: :post,
-                  params: website_transition_batch_check_params(@website, return_to: website_transition_batch_status_path(@website)),
-                  class: "website-transition-button" %>
-    <p><%= website_transition_evidence_freshness_text(@website) %></p>
-  </section>
 </section>
 
 <details class="website-danger-zone website-show-section">
