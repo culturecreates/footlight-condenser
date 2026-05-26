@@ -273,6 +273,8 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     get edit_source_url(@source)
 
     assert_response :success
+    assert_select ".source-form-cards .source-algorithm-card", 1
+    assert_select ".source-form-cards .source-diagnostics-card", 1
     assert_match "Identity", @response.body
     assert_match "Activation", @response.body
     assert_match "Fetch strategy", @response.body
@@ -281,6 +283,7 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     assert_match "Website default", @response.body
     assert_match "Raw extraction DSL", @response.body
     assert_match "Use pipeline steps such as", @response.body
+    assert_operator @response.body.index("source-algorithm-card"), :<, @response.body.index("source-diagnostics-card")
   end
 
   test "index exposes new source entry points and edit form contains grouped operator sections" do

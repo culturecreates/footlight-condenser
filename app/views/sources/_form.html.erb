@@ -74,7 +74,7 @@
       <p class="sources-secondary-text"><%= source_form_fetch_strategy_note(source) %></p>
     </section>
 
-    <section class="cache-detail-card">
+    <section class="cache-detail-card source-algorithm-card">
       <h2>Extraction algorithm</h2>
 
       <div class="field">
@@ -85,7 +85,7 @@
       <p class="sources-secondary-text">Use pipeline steps such as <code>url=</code>, <code>xpath=</code>, <code>ruby=</code>. Test with trace before activating.</p>
     </section>
 
-    <section class="cache-detail-card">
+    <section class="cache-detail-card source-diagnostics-card">
       <h2>Diagnostics</h2>
       <dl class="sources-detail-list">
         <% source_diagnostics_pairs(source).each do |label, value| %>
