@@ -422,6 +422,127 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Do not activate yet", @response.body
   end
 
+  test "shadow report detail shows legacy generic statement failure without fake split counts" do
+    website = create_shadow_website(name: "Legacy statement detail", seedurl: "legacy-statement-detail")
+    url = "https://legacy-statement-detail.example/event"
+    create_cache_for(
+      website,
+      url: url,
+      signals: { "transport_success" => true, "content_success" => true }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "statement_delta",
+      status: "failed",
+      statement_delta: 99,
+      statement_count_delta_acceptable: false,
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "statement_refresh_failed",
+        representative_webpages: [url],
+        representative_webpage_count: 1,
+        statements_failed_count: 99,
+        refresh_errors: ["InvalidURL from json_url"]
+      }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "export_diff",
+      status: "checked",
+      export_diff_checked: true,
+      checked_at: 1.hour.ago
+    )
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Legacy statement check failed before critical/optional classification was available.", @response.body
+    assert_match "Rerun the transition batch check to record current statement evidence with critical/optional classification.", @response.body
+    assert_match "Legacy statement failures recorded: 99", @response.body
+    assert_no_match "Statement failures: 0", @response.body
+    assert_no_match "Critical statement failures: 0", @response.body
+    assert_no_match "Optional statement warnings: 99", @response.body
+  end
+
+  test "shadow report detail shows split optional warning evidence without blocked wording" do
+    website = create_shadow_website(name: "Split warning detail", seedurl: "split-warning-detail")
+    url = "https://split-warning-detail.example/event"
+    create_cache_for(
+      website,
+      url: url,
+      signals: { "transport_success" => true, "content_success" => true }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "statement_delta",
+      status: "warning",
+      statement_delta: 0,
+      statement_count_delta_acceptable: true,
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "optional_statement_refresh_warning",
+        representative_webpages: [url],
+        representative_webpage_count: 1,
+        statements_failed_count: 99,
+        critical_statements_failed_count: 0,
+        optional_statements_failed_count: 99
+      }
+    )
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "export_diff",
+      status: "checked",
+      export_diff_checked: true,
+      checked_at: 1.hour.ago
+    )
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Review before activating", @response.body
+    assert_match "Optional statement warnings: 99", @response.body
+    assert_no_match "Do not activate yet", @response.body
+    assert_no_match "Statement refresh found 99 failing statements.", @response.body
+  end
+
+  test "shadow report detail shows previous evidence warning when a newer batch check was requested" do
+    website = create_shadow_website(name: "Pending report detail", seedurl: "pending-report-detail")
+    url = "https://pending-report-detail.example/event"
+    create_cache_for(website, url: url)
+    website.transition_evidences.create!(
+      id: next_id,
+      url: url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: Time.zone.parse("2026-05-25 12:00:00")
+    )
+    website.update!(transition_check_requested_at: Time.zone.parse("2026-05-25 12:15:00"))
+
+    get distillator_shadow_report_site_path(website)
+
+    assert_response :success
+    assert_match "Latest transition evidence:", @response.body
+    assert_match "New batch check requested; this report still shows previous evidence.", @response.body
+  end
+
   test "shadow report detail shows statements not evaluated when fetch failed before statement refresh" do
     website = create_shadow_website(name: "Fetch blocked detail", seedurl: "fetch-blocked-detail")
     url = "https://fetch-blocked-detail.example/event"

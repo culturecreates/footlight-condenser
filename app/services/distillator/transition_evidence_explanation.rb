@@ -108,6 +108,7 @@ module Distillator
       return "Some representative URLs could not be fetched, so statement coverage is incomplete." if reason == "partial_fetch_failed_before_statement_refresh"
       return "Transition check reached its runtime budget before statement coverage completed." if reason == "transition_check_timeout_budget_exceeded"
       return "No selected statements were found for the representative webpages." if state == :inconclusive || reason == "no_selected_statements"
+      return "Legacy statement check failed before critical/optional classification was available." if legacy_generic_statement_failure?
       return "Critical statements passed; optional statement refresh warnings need review." if state == :warning || reason == "optional_statement_refresh_warning"
       return "Critical statement refresh failed for #{pluralize(critical_failing_statement_count, 'statement')}." if reason == "critical_statement_refresh_failed" && critical_failing_statement_count.positive?
       return "Critical statement refresh failed for #{pluralize(critical_failing_statement_count, 'statement')}; optional statement warnings also need review." if reason == "critical_and_optional_statement_refresh_failed" && critical_failing_statement_count.positive?
@@ -165,8 +166,13 @@ module Distillator
 
     def statement_details
       details = []
-      details << "Critical statement failures: #{critical_failing_statement_count}" if critical_failing_statement_count.positive?
-      details << "Optional statement warnings: #{optional_failing_statement_count}" if optional_failing_statement_count.positive?
+      if legacy_generic_statement_failure?
+        details << "Legacy statement failures recorded: #{failing_statement_count}" if failing_statement_count.positive?
+        details << "Critical/optional split: not recorded"
+      else
+        details << "Critical statement failures: #{critical_failing_statement_count}" if critical_failing_statement_count.positive?
+        details << "Optional statement warnings: #{optional_failing_statement_count}" if optional_failing_statement_count.positive?
+      end
       representative_webpages.each do |url|
         details << "Webpage: #{url}"
       end
@@ -227,6 +233,8 @@ module Distillator
           "Fetch the missing representative URLs, then rerun the transition batch check to complete statement coverage."
         elsif state == :inconclusive || reason == "no_selected_statements"
           "Verify selected sources/statements for the sampled webpages."
+        elsif legacy_generic_statement_failure?
+          "Rerun the transition batch check to record current statement evidence with critical/optional classification."
         elsif state == :warning || reason == "optional_statement_refresh_warning"
           "Review the optional statement refresh warnings before activating."
         elsif reason == "no_representative_webpages"
@@ -355,6 +363,19 @@ module Distillator
       return "1 #{noun}" if amount == 1
 
       "#{amount} #{noun}s"
+    end
+
+    def legacy_generic_statement_failure?
+      return false unless state == :failed && failing_statement_count.positive?
+
+      !statement_failure_split_recorded?
+    end
+
+    def statement_failure_split_recorded?
+      details_hash.key?("critical_statements_failed_count") ||
+        details_hash.key?(:critical_statements_failed_count) ||
+        details_hash.key?("optional_statements_failed_count") ||
+        details_hash.key?(:optional_statements_failed_count)
     end
   end
 end

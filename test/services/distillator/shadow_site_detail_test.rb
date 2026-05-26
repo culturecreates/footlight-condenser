@@ -83,8 +83,49 @@ class Distillator::ShadowSiteDetailTest < ActiveSupport::TestCase
     detail = Distillator::ShadowSiteDetail.call(website: website)
 
     assert_equal "statements", detail.root_cause[:failed_layer]
-    assert_equal "Statement refresh found 1 failing statement.", detail.root_cause[:concrete_reason]
+    assert_equal "Legacy statement check failed before critical/optional classification was available.", detail.root_cause[:concrete_reason]
+    assert_equal true, detail.checked_scope[:legacy_statement_failure]
+    assert_equal 1, detail.checked_scope[:statements_failed_count]
+    assert_nil detail.checked_scope[:critical_statements_failed_count]
+    assert_nil detail.checked_scope[:optional_statements_failed_count]
+    assert_equal "unknown", detail.statement_failure_groups.first[:severity]
     assert_equal "Invalid URL from json_url", detail.statement_failure_groups.first[:reason]
     assert_equal "json_url / en", detail.statement_failure_groups.first[:source]
+  end
+
+  test "detail reports pending batch check until newer evidence is recorded" do
+    website = Website.create!(
+      name: "Pending freshness",
+      seedurl: "pending-freshness",
+      graph_name: "https://example.org/pending-freshness",
+      default_language: "en",
+      distillator_mode: "shadow",
+      transition_check_requested_at: Time.zone.parse("2026-05-25 12:15:00")
+    )
+    url = "https://example.org/pending-freshness/event"
+    website.transition_evidences.create!(
+      url: url,
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: Time.zone.parse("2026-05-25 12:00:00")
+    )
+
+    pending_detail = Distillator::ShadowSiteDetail.call(website: website)
+
+    assert_equal true, pending_detail.pending_transition_batch_check
+    assert_equal Time.zone.parse("2026-05-25 12:00:00"), pending_detail.latest_transition_evidence_checked_at
+
+    website.transition_evidences.create!(
+      url: url,
+      check_kind: "statement_delta",
+      status: "checked",
+      statement_count_delta_acceptable: true,
+      checked_at: Time.zone.parse("2026-05-25 12:20:00")
+    )
+
+    fresh_detail = Distillator::ShadowSiteDetail.call(website: website.reload)
+
+    assert_equal false, fresh_detail.pending_transition_batch_check
+    assert_equal Time.zone.parse("2026-05-25 12:20:00"), fresh_detail.latest_transition_evidence_checked_at
   end
 end

@@ -8,6 +8,10 @@
   <p><strong>Is this site ready?</strong> <%= shadow_report_decision_label(@detail.decision) %></p>
   <p><strong>What is blocking it?</strong> <%= @detail.primary_blocker&.headline.presence || "No blocking issue is currently recorded." %></p>
   <p><strong>When was it checked?</strong> <%= shadow_report_timestamp(@detail.summary.latest_refresh || @detail.summary.latest_successful_refresh) %></p>
+  <p><strong>Latest transition evidence:</strong> <%= shadow_report_timestamp(@detail.latest_transition_evidence_checked_at) %></p>
+  <% if @detail.pending_transition_batch_check %>
+    <p>New batch check requested; this report still shows previous evidence.</p>
+  <% end %>
   <p><strong>How many pages were checked?</strong> <%= shadow_report_checked_pages_summary(@detail.checked_scope) %></p>
   <p><strong>Links:</strong>
     <%= link_to "Website batch jobs", website_path(@website, anchor: "website-batch-jobs-transition") %> |

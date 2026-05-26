@@ -5,6 +5,9 @@ module Distillator
       :transition_status,
       :transition_evidence_by_kind,
       :transition_evidence_explanations,
+      :latest_transition_evidence_checked_at,
+      :transition_check_requested_at,
+      :pending_transition_batch_check,
       :primary_blocker,
       :statement_failure_groups,
       :url_matrix,
@@ -31,6 +34,9 @@ module Distillator
         transition_status: transition_status,
         transition_evidence_by_kind: transition_evidence_by_kind,
         transition_evidence_explanations: transition_evidence_explanations,
+        latest_transition_evidence_checked_at: website.latest_transition_evidence_checked_at,
+        transition_check_requested_at: website.transition_check_requested_at,
+        pending_transition_batch_check: website.pending_transition_batch_check?,
         primary_blocker: primary_blocker,
         statement_failure_groups: statement_failure_groups,
         url_matrix: url_matrix,
@@ -92,8 +98,10 @@ module Distillator
           selected_candidate_tier_count: (statement_details["selected_candidate_tier_count"] || export_details["selected_candidate_tier_count"] || fetch_details["selected_candidate_tier_count"]).to_i,
           statements_refreshed_count: (statement_details["statements_refreshed_count"] || 0).to_i,
           statements_failed_count: (statement_details["statements_failed_count"] || transition_evidence_by_kind["statement_delta"]&.statement_delta || 0).to_i,
-          critical_statements_failed_count: (statement_details["critical_statements_failed_count"] || 0).to_i,
-          optional_statements_failed_count: (statement_details["optional_statements_failed_count"] || 0).to_i,
+          critical_statements_failed_count: integer_detail(statement_details, "critical_statements_failed_count"),
+          optional_statements_failed_count: integer_detail(statement_details, "optional_statements_failed_count"),
+          legacy_statement_failure: legacy_statement_failure_details?(statement_details),
+          statement_failure_reason: statement_details["reason"] || statement_details[:reason],
           export_compared: export_details["export_compared"] == true,
           export_basis: export_details["export_basis"].presence || "current export vs production-equivalent export",
           sample_small: (
@@ -226,7 +234,7 @@ module Distillator
 
         if grouped.blank? && statements_failed_count.positive?
           grouped = [{
-            severity: details["optional_statements_failed_count"].to_i.positive? && details["critical_statements_failed_count"].to_i.zero? ? "warning" : "blocker",
+            severity: legacy_statement_failure_details?(details) ? "unknown" : (details["optional_statements_failed_count"].to_i.positive? && details["critical_statements_failed_count"].to_i.zero? ? "warning" : "blocker"),
             reason: normalized_reason,
             source: nil,
             count: statements_failed_count,
@@ -398,8 +406,9 @@ module Distillator
       end)
       return explicit if explicit.any?
 
+      default_severity = legacy_statement_failure_details?(details) ? "unknown" : nil
       Array(details["failing_statements"] || details[:failing_statements]).map do |entry|
-        normalize_statement_failure_entry(entry, nil)
+        normalize_statement_failure_entry(entry, default_severity)
       end
     end
 
@@ -469,6 +478,26 @@ module Distillator
       return "metadata_only" if reason == "metadata_only_difference"
 
       "passed"
+    end
+
+    def legacy_statement_failure_details?(details)
+      return false unless (details["statements_failed_count"] || details[:statements_failed_count] || 0).to_i.positive?
+
+      reason = details["reason"] || details[:reason]
+      return false if reason.to_s.in?(%w[fetch_failed_before_statement_refresh partial_fetch_failed_before_statement_refresh transition_check_timeout_budget_exceeded no_selected_statements optional_statement_refresh_warning])
+
+      !detail_key_present?(details, "critical_statements_failed_count") &&
+        !detail_key_present?(details, "optional_statements_failed_count")
+    end
+
+    def integer_detail(details, key)
+      return nil unless detail_key_present?(details, key)
+
+      (details[key.to_s] || details[key.to_sym]).to_i
+    end
+
+    def detail_key_present?(details, key)
+      details.key?(key.to_s) || details.key?(key.to_sym)
     end
   end
 end

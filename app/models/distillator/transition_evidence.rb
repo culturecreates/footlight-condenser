@@ -3,6 +3,7 @@ module Distillator
     self.table_name = "distillator_transition_evidence"
 
     CHECK_KINDS = %w[fetch_parity statement_delta export_diff cache_key manual_acceptance].freeze
+    REPORT_CHECK_KINDS = %w[fetch_parity statement_delta export_diff].freeze
     STATUSES = %w[pending checked accepted rejected failed warning blocked].freeze
 
     belongs_to :website

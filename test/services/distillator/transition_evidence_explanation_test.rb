@@ -145,4 +145,65 @@ class Distillator::TransitionEvidenceExplanationTest < ActiveSupport::TestCase
     assert_includes explanation.details, "Optional statement warnings: 2"
     assert_equal "Review the optional statement refresh warnings before activating.", explanation.next_action
   end
+
+  test "statement explanation keeps stale generic failures legacy and asks for rerun" do
+    website = websites(:one)
+    evidence = Distillator::TransitionEvidence.new(
+      website: website,
+      url: "https://example.org/event",
+      check_kind: "statement_delta",
+      status: "failed",
+      statement_delta: 99,
+      checked_at: Time.current,
+      details: {
+        reason: "statement_refresh_failed",
+        statements_failed_count: 99,
+        refresh_errors: ["InvalidURL from json_url"]
+      }
+    )
+
+    explanation = Distillator::TransitionEvidenceExplanation.call(
+      check_kind: "statement_delta",
+      evidence: evidence,
+      website: website,
+      state: :failed
+    )
+
+    assert_equal "Legacy statement check failed before critical/optional classification was available.", explanation.headline
+    assert_includes explanation.details, "Legacy statement failures recorded: 99"
+    assert_includes explanation.details, "Critical/optional split: not recorded"
+    assert_equal "Rerun the transition batch check to record current statement evidence with critical/optional classification.", explanation.next_action
+    refute_includes explanation.details, "Critical statement failures: 99"
+    refute_includes explanation.details, "Critical statement failures: 0"
+  end
+
+  test "statement explanation uses split warning copy when only optional failures remain" do
+    website = websites(:one)
+    evidence = Distillator::TransitionEvidence.new(
+      website: website,
+      url: "https://example.org/event",
+      check_kind: "statement_delta",
+      status: "warning",
+      statement_delta: 0,
+      checked_at: Time.current,
+      details: {
+        reason: "optional_statement_refresh_warning",
+        statements_failed_count: 99,
+        critical_statements_failed_count: 0,
+        optional_statements_failed_count: 99
+      }
+    )
+
+    explanation = Distillator::TransitionEvidenceExplanation.call(
+      check_kind: "statement_delta",
+      evidence: evidence,
+      website: website,
+      state: :warning
+    )
+
+    assert_equal "Critical statements passed; optional statement refresh warnings need review.", explanation.headline
+    assert_includes explanation.details, "Optional statement warnings: 99"
+    refute_includes explanation.details, "Critical statement failures: 0"
+    refute_match(/Statement refresh found 99 failing statements\./, explanation.headline)
+  end
 end

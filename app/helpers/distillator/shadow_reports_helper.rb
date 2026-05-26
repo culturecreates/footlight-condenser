@@ -324,13 +324,16 @@ module Distillator::ShadowReportsHelper
     lines << "Sampled count: #{sampled_count}"
     lines << "Sampling rule: #{scope[:selection_rule]}"
     lines << "Statements refreshed: #{scope[:statements_refreshed_count]}"
-    if scope[:critical_statements_failed_count].to_i.positive?
+    if scope[:legacy_statement_failure]
+      lines << "Legacy statement check failed before critical/optional classification was available."
+      lines << "Legacy statement failures recorded: #{scope[:statements_failed_count]}"
+    elsif scope[:critical_statements_failed_count].to_i.positive?
       lines << "Critical statement failures: #{scope[:critical_statements_failed_count]}"
     end
-    if scope[:optional_statements_failed_count].to_i.positive?
+    if !scope[:legacy_statement_failure] && scope[:optional_statements_failed_count].to_i.positive?
       lines << "Optional statement warnings: #{scope[:optional_statements_failed_count]}"
     end
-    if scope[:critical_statements_failed_count].to_i.zero? && scope[:optional_statements_failed_count].to_i.zero?
+    if !scope[:legacy_statement_failure] && scope[:critical_statements_failed_count].to_i.zero? && scope[:optional_statements_failed_count].to_i.zero?
       lines << "Statement failures: 0"
     end
     lines << "Export compared: #{scope[:export_compared] ? 'yes' : 'no'}"

@@ -265,6 +265,43 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Latest transition report"
   end
 
+  test "website show displays latest transition evidence timestamp when recorded" do
+    website = ready_shadow_website(seedurl: "website-show-latest-evidence")
+
+    get website_url(website)
+
+    assert_response :success
+    assert_includes @response.body, "Latest transition evidence:"
+    refute_includes @response.body, "Batch check requested. Waiting for new transition evidence."
+  end
+
+  test "website show displays not recorded when no transition evidence exists" do
+    website = Website.create!(
+      name: "No evidence website",
+      seedurl: "no-evidence-website",
+      graph_name: "https://example.org/no-evidence-website",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+
+    get website_url(website)
+
+    assert_response :success
+    assert_includes @response.body, "Latest transition evidence: Not recorded yet."
+  end
+
+  test "website show displays pending batch check message until newer evidence exists" do
+    website = ready_shadow_website(seedurl: "website-show-pending-evidence")
+    website.transition_evidences.update_all(checked_at: 10.minutes.ago)
+    website.update!(transition_check_requested_at: 5.minutes.ago)
+
+    get website_url(website)
+
+    assert_response :success
+    assert_includes @response.body, "Batch check requested. Waiting for new transition evidence."
+    refute_includes @response.body, "Latest transition evidence:"
+  end
+
   test "website show for shadow ready site shows promote to active action" do
     assert_read_only_page_does_not_fetch
     website = ready_shadow_website(seedurl: "shadow-ready-show")

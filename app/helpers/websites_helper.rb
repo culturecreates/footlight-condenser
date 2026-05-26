@@ -273,6 +273,15 @@ module WebsitesHelper
     "Transition checks are run by batch job. This page displays the latest result."
   end
 
+  def website_transition_evidence_freshness_text(website)
+    return "Batch check requested. Waiting for new transition evidence." if website.pending_transition_batch_check?
+
+    latest_checked_at = website.latest_transition_evidence_checked_at
+    return "Latest transition evidence: Not recorded yet." if latest_checked_at.blank?
+
+    "Latest transition evidence: #{latest_checked_at}"
+  end
+
   def website_transition_batch_status_path(website)
     website_path(website, anchor: "website-batch-jobs-transition")
   end

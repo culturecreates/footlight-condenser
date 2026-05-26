@@ -58,6 +58,20 @@ class Website < ApplicationRecord
     @latest_transition_evidences_by_kind ||= transition_evidences.latest_first.group_by(&:check_kind).transform_values(&:first)
   end
 
+  def latest_transition_evidence_checked_at
+    transition_evidences.where(check_kind: Distillator::TransitionEvidence::REPORT_CHECK_KINDS).maximum(:checked_at)
+  end
+
+  def pending_transition_batch_check?
+    return false if transition_check_requested_at.blank?
+
+    latest_transition_evidence_checked_at.blank? || latest_transition_evidence_checked_at <= transition_check_requested_at
+  end
+
+  def request_transition_batch_check!(requested_at: Time.current)
+    update!(transition_check_requested_at: requested_at)
+  end
+
   private
 
   def auto_set_monitorable

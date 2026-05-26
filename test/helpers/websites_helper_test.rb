@@ -166,6 +166,29 @@ class WebsitesHelperTest < ActionView::TestCase
     assert_equal distillator_shadow_report_site_path(website, anchor: "transition-report-summary"), path
   end
 
+  test "transition evidence freshness text shows latest timestamp when evidence exists" do
+    website = ready_shadow_website(seedurl: "summary-transition-freshness")
+
+    text = website_transition_evidence_freshness_text(website)
+
+    assert_includes text, "Latest transition evidence:"
+    refute_includes text, "Waiting for new transition evidence"
+  end
+
+  test "transition evidence freshness text shows not recorded when no evidence exists" do
+    website = build_website("shadow", seedurl: "summary-transition-no-evidence")
+
+    assert_equal "Latest transition evidence: Not recorded yet.", website_transition_evidence_freshness_text(website)
+  end
+
+  test "transition evidence freshness text prefers pending message over stale timestamp" do
+    website = ready_shadow_website(seedurl: "summary-transition-pending")
+    website.update!(transition_check_requested_at: 5.minutes.ago)
+    website.transition_evidences.update_all(checked_at: 10.minutes.ago)
+
+    assert_equal "Batch check requested. Waiting for new transition evidence.", website_transition_evidence_freshness_text(website.reload)
+  end
+
   test "website transition secondary actions do not expose run transition check labels" do
     website = ready_shadow_website(seedurl: "summary-transition-secondary-actions")
 

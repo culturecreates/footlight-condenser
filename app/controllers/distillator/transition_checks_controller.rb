@@ -2,6 +2,7 @@ module Distillator
   class TransitionChecksController < ApplicationController
     def create
       website = Website.find(params[:website_id])
+      website.request_transition_batch_check!
       Distillator::TransitionCheckJob.perform_later(website.id)
 
       redirect_to transition_check_return_path(website), notice: "Transition batch check queued. The latest transition report will update as evidence is recorded."

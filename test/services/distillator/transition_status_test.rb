@@ -187,6 +187,38 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     assert_equal "Review the optional statement refresh warnings before activating.", status.activation_recommendation[:next_action]
   end
 
+  test "legacy generic statement refresh failure stays blocked without pretending critical split exists" do
+    website = build_website("Tout Culture", "outside-seed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true })
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "statement_delta",
+      status: "failed",
+      statement_delta: 99,
+      statement_count_delta_acceptable: false,
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "statement_refresh_failed",
+        statements_failed_count: 99,
+        refresh_errors: ["InvalidURL from json_url"]
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "export_diff",
+      status: "checked",
+      export_diff_checked: true,
+      checked_at: 1.hour.ago
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :blocked, status.status
+    assert_equal :failed, status.statements
+    assert_includes status.blockers, "Cannot activate yet: statements check failed."
+    refute_includes status.warnings, "Critical statements passed; optional statement refresh warnings need review."
+  end
+
   test "title failure remains blocked even when export passes" do
     website = build_website("Tout Culture", "outside-seed")
     cache = build_cache(signals: { "transport_success" => true, "content_success" => true })

@@ -34,6 +34,7 @@
                 method: :post,
                 params: website_transition_batch_check_params(@website, return_to: website_transition_batch_status_path(@website)),
                 class: "website-transition-button" %>
+  <p><%= website_transition_evidence_freshness_text(@website) %></p>
 </section>
 
 <section class="website-rollout-panel website-show-section">
@@ -113,6 +114,7 @@
                   method: :post,
                   params: website_transition_batch_check_params(@website, return_to: website_transition_batch_status_path(@website)),
                   class: "website-transition-button" %>
+    <p><%= website_transition_evidence_freshness_text(@website) %></p>
   </section>
 </section>
 

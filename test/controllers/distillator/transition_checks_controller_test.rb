@@ -39,6 +39,7 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
     assert_redirected_to distillator_shadow_report_site_path(target)
     assert_equal "shadow", target.reload.distillator_mode
     assert_equal "legacy", other.reload.distillator_mode
+    assert_not_nil target.reload.transition_check_requested_at
     assert_equal 0, target.transition_evidences.count
     assert_equal 0, other.transition_evidences.count
   end
