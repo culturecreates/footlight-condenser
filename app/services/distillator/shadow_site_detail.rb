@@ -70,9 +70,10 @@ module Distillator
 
     def transition_evidence_explanations
       @transition_evidence_explanations ||= transition_status.checks.map do |check|
+        evidence_key = evidence_key_for(check)
         Distillator::TransitionEvidenceExplanation.call(
-          check_kind: check.fetch(:key),
-          evidence: transition_evidence_by_kind[check.fetch(:key)],
+          check_kind: evidence_key,
+          evidence: transition_evidence_by_kind[evidence_key],
           website: website,
           state: check.fetch(:state)
         )
@@ -262,10 +263,11 @@ module Distillator
           label: decision_label,
           why: decision_reasons,
           evidence: transition_status.checks.map do |check|
+            evidence_key = evidence_key_for(check)
             {
               label: check.fetch(:label),
               state: check.fetch(:state),
-              checked_at: transition_evidence_by_kind[check.fetch(:key)]&.checked_at
+              checked_at: transition_evidence_by_kind[evidence_key]&.checked_at
             }
           end,
           recommended_action: action
@@ -280,9 +282,9 @@ module Distillator
     def rollout_notes
       notes = [Distillator::RolloutCopy.description(website.distillator_mode)]
       if website.lavitrine_pipeline?
-        notes << "La Vitrine pipeline requires all three checks before activation: Fetch, Statements, and Export."
+        notes << "La Vitrine pipeline requires statement equivalence before activation. Export confirmation and fetch diagnostics are supporting evidence."
       else
-        notes << "Fetch, Statements, and Export checks should be reviewed before activation."
+        notes << "Statement equivalence is the activation gate. Export confirmation and fetch diagnostics are supporting evidence."
       end
       notes
     end
@@ -305,6 +307,19 @@ module Distillator
       return transition_status.warnings.presence if transition_status.warnings.any?
 
       ["All sampled transition checks are currently passing."]
+    end
+
+    def evidence_key_for(check)
+      case check.fetch(:key).to_s
+      when "statement_equivalence"
+        "statement_delta"
+      when "export_confirmation"
+        "export_diff"
+      when "fetch_diagnostic"
+        "fetch_parity"
+      else
+        check.fetch(:key).to_s
+      end
     end
 
     def symbolize_row(row)
