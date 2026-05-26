@@ -1,18 +1,16 @@
 <h1>Transition Report Detail</h1>
 
-<p class="cache-page-note">This page is read-only. It reflects the current rollout state without triggering fetches.</p>
-<p class="cache-page-note">Transition checks are run by batch job. This page displays the latest result.</p>
+<p class="cache-page-note">This page is read-only. Transition checks are run by batch job; this page displays the latest recorded result.</p>
 
 <section id="transition-report-summary" class="website-rollout-panel">
   <h2>Summary</h2>
   <p><strong>Is this site ready?</strong> <%= shadow_report_decision_label(@detail.decision) %></p>
-  <p><strong>What is blocking it?</strong> <%= @detail.primary_blocker&.headline.presence || "No blocking issue is currently recorded." %></p>
-  <p><strong>When was it checked?</strong> <%= shadow_report_timestamp(@detail.summary.latest_refresh || @detail.summary.latest_successful_refresh) %></p>
+  <p><strong>Primary blocker:</strong> <%= @detail.primary_blocker&.headline.presence || "No blocking issue is currently recorded." %></p>
   <p><strong>Latest transition evidence:</strong> <%= shadow_report_timestamp(@detail.latest_transition_evidence_checked_at) %></p>
   <% if @detail.pending_transition_batch_check %>
     <p>New batch check requested; this report still shows previous evidence.</p>
   <% end %>
-  <p><strong>How many pages were checked?</strong> <%= shadow_report_checked_pages_summary(@detail.checked_scope) %></p>
+  <p><strong>Checked scope:</strong> <%= shadow_report_checked_pages_summary(@detail.checked_scope) %></p>
   <p><strong>Links:</strong>
     <%= link_to "Website batch jobs", website_path(@website, anchor: "website-batch-jobs-transition") %> |
     <%= link_to "Inspect publishable event pages", webpages_path(seedurl: @website.seedurl) %> |
@@ -29,63 +27,72 @@
   <p><strong>Recommended action:</strong> <%= @detail.decision[:recommended_action] %></p>
   <ul>
     <% @detail.transition_status.checks.each do |check| %>
-      <li><%= shadow_report_check_icon(check[:state]) %> <strong><%= check[:label] %></strong> — <%= shadow_report_check_label(check[:state]) %></li>
+      <li>
+        <%= shadow_report_check_icon(check[:state]) %>
+        <strong><%= check[:label] %></strong>
+        <% if check[:role].present? %>
+          (<%= check[:role].to_s.humanize.downcase %>)
+        <% end %>
+        — <%= shadow_report_check_label(check[:state]) %>
+      </li>
     <% end %>
   </ul>
 </section>
 
-<section class="website-rollout-panel">
-  <h2>Main blocker</h2>
-  <p><strong><%= shadow_report_primary_blocker_heading(@detail.primary_blocker) %></strong></p>
-  <% shadow_report_main_blocker_lines(@detail).each do |line| %>
-    <p><%= line %></p>
-  <% end %>
-  <% blocking_groups = shadow_report_statement_failure_groups(@detail, severity: :blocker) %>
-  <% warning_groups = shadow_report_statement_failure_groups(@detail, severity: :warning) %>
-  <% if blocking_groups.any? || warning_groups.any? %>
-    <h3>Statement failure summary</h3>
-    <% if blocking_groups.any? %>
-      <p><strong>Blocking statement failures</strong></p>
-      <ul>
-        <% blocking_groups.each do |group| %>
-          <li>
-            <%= [group[:reason], group[:source], "#{group[:count]} affected"].compact.join(" - ") %>
-            <% if group[:statement_ids].any? %>
-              <details>
-                <summary>Raw statement IDs</summary>
-                <p><%= group[:statement_ids].join(", ") %></p>
-              </details>
-            <% end %>
-          </li>
-        <% end %>
-      </ul>
+<% if @detail.primary_blocker.present? || shadow_report_statement_failure_groups(@detail, severity: :blocker).any? || shadow_report_statement_failure_groups(@detail, severity: :warning).any? %>
+  <section class="website-rollout-panel">
+    <h2>Main blocker</h2>
+    <p><strong><%= shadow_report_primary_blocker_heading(@detail.primary_blocker) %></strong></p>
+    <% shadow_report_main_blocker_lines(@detail).each do |line| %>
+      <p><%= line %></p>
     <% end %>
-    <% if warning_groups.any? %>
-      <p><strong>Optional statement warnings</strong></p>
-      <ul>
-        <% warning_groups.each do |group| %>
-          <li>
-            <%= [group[:reason], group[:source], "#{group[:count]} affected"].compact.join(" - ") %>
-            <% if group[:statement_ids].any? %>
-              <details>
-                <summary>Raw statement IDs</summary>
-                <p><%= group[:statement_ids].join(", ") %></p>
-              </details>
-            <% end %>
-          </li>
-        <% end %>
-      </ul>
+    <% blocking_groups = shadow_report_statement_failure_groups(@detail, severity: :blocker) %>
+    <% warning_groups = shadow_report_statement_failure_groups(@detail, severity: :warning) %>
+    <% if blocking_groups.any? || warning_groups.any? %>
+      <h3>Statement failure summary</h3>
+      <% if blocking_groups.any? %>
+        <p><strong>Blocking statement failures</strong></p>
+        <ul>
+          <% blocking_groups.each do |group| %>
+            <li>
+              <%= [group[:reason], group[:source], "#{group[:count]} affected"].compact.join(" - ") %>
+              <% if group[:statement_ids].any? %>
+                <details>
+                  <summary>Raw statement IDs</summary>
+                  <p><%= group[:statement_ids].join(", ") %></p>
+                </details>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+      <% if warning_groups.any? %>
+        <p><strong>Optional statement warnings</strong></p>
+        <ul>
+          <% warning_groups.each do |group| %>
+            <li>
+              <%= [group[:reason], group[:source], "#{group[:count]} affected"].compact.join(" - ") %>
+              <% if group[:statement_ids].any? %>
+                <details>
+                  <summary>Raw statement IDs</summary>
+                  <p><%= group[:statement_ids].join(", ") %></p>
+                </details>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
     <% end %>
-  <% end %>
-  <% blocker_links = shadow_report_primary_blocker_links(@detail) %>
-  <% if blocker_links.any? %>
-    <p><strong>Next diagnostic links:</strong> <%= safe_join(blocker_links, " | ") %></p>
-  <% end %>
-  <p><%= link_to "Open website batch jobs", website_path(@website, anchor: "website-batch-jobs-transition") %></p>
-</section>
+    <% blocker_links = shadow_report_primary_blocker_links(@detail) %>
+    <% if blocker_links.any? %>
+      <p><strong>Next diagnostic links:</strong> <%= safe_join(blocker_links, " | ") %></p>
+    <% end %>
+    <p><%= link_to "Open website batch jobs", website_path(@website, anchor: "website-batch-jobs-transition") %></p>
+  </section>
+<% end %>
 
-<section class="website-rollout-panel">
-  <h2>Representative URL Matrix</h2>
+<details class="website-rollout-panel">
+  <summary>Sampled URL diagnostics</summary>
   <% if @detail.url_matrix.any? %>
     <table class="cache-table cache-compare-table">
       <thead>
@@ -141,7 +148,7 @@
   <% else %>
     <p>No sampled representative URLs were recorded.</p>
   <% end %>
-</section>
+</details>
 
 <section class="website-rollout-panel">
   <h2>Checked scope</h2>
@@ -168,6 +175,7 @@
   <p><strong>Health:</strong> <%= @detail.summary.health_summary %></p>
   <p><strong>Issue:</strong> <%= @detail.summary.issue_key.presence || "None" %></p>
   <p><strong>Cache links:</strong> <%= shadow_report_cache_diagnostic_links(@detail.summary) %></p>
+
   <h3>Check explanations</h3>
   <% @detail.transition_evidence_explanations.each do |explanation| %>
     <details class="website-rollout-panel">
@@ -175,11 +183,15 @@
       <p><strong>State:</strong> <%= explanation.state %></p>
       <p><strong>Headline:</strong> <%= explanation.headline %></p>
       <% if explanation.details.any? %>
+        <% visible_details = explanation.details.first(10) %>
         <ul>
-          <% explanation.details.each do |line| %>
+          <% visible_details.each do |line| %>
             <li><%= line %></li>
           <% end %>
         </ul>
+        <% if explanation.details.size > visible_details.size %>
+          <p><%= explanation.details.size - visible_details.size %> additional detail lines hidden from this summary.</p>
+        <% end %>
       <% end %>
       <p><strong>Next action:</strong> <%= explanation.next_action %></p>
       <% if explanation.links.any? %>
@@ -187,6 +199,7 @@
       <% end %>
     </details>
   <% end %>
+
   <h3>Recent rollout events</h3>
   <% if @detail.recent_rollout_events.any? %>
     <ul>
@@ -220,51 +233,57 @@
     </ul>
   <% end %>
 
-  <h3>Transition evidence</h3>
-  <table class="harmonized-table-shell">
-    <thead>
-      <tr>
-        <th>Check</th>
-        <th>Status</th>
-        <th>Checked at</th>
-        <th>URL used</th>
-        <th>Headline</th>
-        <th>Relevant fields</th>
-        <th>Next action</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% shadow_report_transition_evidence_rows(@detail).each do |row| %>
+  <details>
+    <summary>Raw legacy transition evidence</summary>
+    <table class="harmonized-table-shell">
+      <thead>
         <tr>
-          <td><%= row[:label] %></td>
-          <td><%= row[:status] %></td>
-          <td><%= row[:checked_at] %></td>
-          <td><%= external_website_link(row[:url], max: 120) %></td>
-          <td><%= row[:headline] %></td>
-          <td>
-            <% if row[:details].any? %>
-              <details>
-                <summary>Show details</summary>
-                <ul>
-                  <% row[:details].each do |detail| %>
-                    <li><%= detail %></li>
-                  <% end %>
-                </ul>
-              </details>
-            <% else %>
-              Recorded
-            <% end %>
-          </td>
-          <td>
-            <p><%= row[:next_action] %></p>
-            <% if row[:links].any? %>
-              <p><%= safe_join(row[:links], " | ") %></p>
-            <% end %>
-          </td>
+          <th>Check</th>
+          <th>Status</th>
+          <th>Checked at</th>
+          <th>URL used</th>
+          <th>Headline</th>
+          <th>Relevant fields</th>
+          <th>Next action</th>
         </tr>
-      <% end %>
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        <% shadow_report_transition_evidence_rows(@detail).each do |row| %>
+          <tr>
+            <td><%= row[:label] %></td>
+            <td><%= row[:status] %></td>
+            <td><%= row[:checked_at] %></td>
+            <td><%= external_website_link(row[:url], max: 120) %></td>
+            <td><%= row[:headline] %></td>
+            <td>
+              <% if row[:details].any? %>
+                <details>
+                  <summary>Show details</summary>
+                  <% visible_details = row[:details].first(10) %>
+                  <ul>
+                    <% visible_details.each do |detail| %>
+                      <li><%= detail %></li>
+                    <% end %>
+                  </ul>
+                  <% if row[:details].size > visible_details.size %>
+                    <p><%= row[:details].size - visible_details.size %> additional detail lines hidden from this summary.</p>
+                  <% end %>
+                </details>
+              <% else %>
+                Recorded
+              <% end %>
+            </td>
+            <td>
+              <p><%= row[:next_action] %></p>
+              <% if row[:links].any? %>
+                <p><%= safe_join(row[:links], " | ") %></p>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </details>
 </details>
 
 <% if @website.distillator_mode == "active" %>
