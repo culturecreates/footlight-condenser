@@ -222,7 +222,6 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Active"
     assert_includes @response.body, "Condenser serves production while Wringer stays available for diagnostics."
     assert_includes @response.body, "Production: Condenser"
-    assert_match "Latest result", @response.body
     assert_match "Primary actions", @response.body
     assert_match "Compatibility / rollout", @response.body
     assert_match "Diagnostics", @response.body
@@ -231,15 +230,25 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     assert_match "Raw extraction DSL", @response.body
     assert_match "Latest statement cache / value", @response.body
     assert_match "Test / Refresh latest statement", @response.body
-    assert_select "section.source-latest-result", 1
-    assert_select "section.source-latest-result pre.sources-show-pre", text: /MyString/
+    assert_select "section.source-primary-summary", 1
+    assert_select "section.source-primary-summary dt", text: "Website"
+    assert_select "section.source-primary-summary dt", text: "Property"
+    assert_select "section.source-primary-summary dt", text: "Label"
+    assert_select "section.source-primary-summary dt", text: "Language"
+    assert_select "section.source-primary-summary dt", text: "Selected"
+    assert_select "section.source-primary-summary dt", text: "Render JS"
+    assert_select "section.source-primary-summary dt", text: "Auto review"
     assert_select "section.source-algorithm-dsl pre.sources-show-pre", text: /MyString/
+    assert_select "details.source-show-usage", 1
+    assert_select "details.source-show-usage[open]", 0
+    assert_select "details.source-show-usage summary", text: "Latest result"
+    assert_select "details.source-show-usage pre.sources-show-pre", text: /MyString/
     assert_select "details.source-show-details summary", text: "Diagnostics"
     assert_select "details.source-show-details summary", text: "Compatibility / rollout"
+    assert_select "details.source-show-details[open]", 0
     assert_select "details.source-danger-zone summary", text: "Danger zone"
-    assert_operator @response.body.index("Latest result"), :<, @response.body.index("Compatibility / rollout")
-    assert_operator @response.body.index("Latest statement cache / value"), :<, @response.body.index("Compatibility / rollout")
-    assert_operator @response.body.index("Raw extraction DSL"), :<, @response.body.index("Danger zone")
+    assert_operator @response.body.index("Primary actions"), :<, @response.body.index("Latest result")
+    assert_operator @response.body.index("Raw extraction DSL"), :<, @response.body.index("Compatibility / rollout")
   end
 
   test "show source explains activation impact for alternative source" do
@@ -289,7 +298,39 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     assert_match "Website default", @response.body
     assert_match "Raw extraction DSL", @response.body
     assert_match "Use pipeline steps such as", @response.body
+    assert_select "details.source-edit-instructions", 1
+    assert_select "details.source-edit-instructions[open]", 0
+    assert_select "details.source-edit-instructions summary", text: "Instructions"
+    assert_select "details.source-edit-instructions h1", text: "DSL"
+    assert_select 'a', text: "Show"
+    assert_select 'a', text: "Back"
+    assert_select 'form', 1
+    assert_operator @response.body.index("<form"), :<, @response.body.index("Show")
+    assert_operator @response.body.index("Show"), :<, @response.body.index("Instructions")
+    assert_operator @response.body.index("Back"), :<, @response.body.index("Instructions")
     assert_operator @response.body.index("source-algorithm-card"), :<, @response.body.index("source-diagnostics-card")
+  end
+
+  test "show source suppresses empty latest result section when there is no usage context" do
+    assert_read_only_page_does_not_fetch
+    source = Source.create!(
+      algorithm_value: "manual=no usage yet",
+      label: "No usage source",
+      selected: false,
+      selected_by: "Operator",
+      language: "en",
+      render_js: false,
+      property: properties(:one),
+      website: websites(:one),
+      auto_review: false
+    )
+
+    get source_url(source)
+
+    assert_response :success
+    assert_select "details.source-show-usage", 0
+    assert_select "section.source-primary-summary", 1
+    assert_select "section.source-algorithm-dsl", 1
   end
 
   test "index exposes new source entry points and edit form contains grouped operator sections" do

@@ -2,18 +2,26 @@
 
 <h1>Source <%= @source.id %></h1>
 
-<section class="source-show-section source-latest-result">
-  <h2>Latest result</h2>
+<%
+  primary_summary_pairs = [
+    ["Website", @source.website.present? ? link_to(@source.website.seedurl, website_path(@source.website)) : "No website"],
+    ["Property", source_property_name(@source)],
+    ["Label", source_label_text(@source)],
+    ["Language", @source.language.presence || "Language-independent"],
+    ["Selected", source_boolean_text(@source.selected?)],
+    ["Render JS", source_boolean_text(@source.render_js?)],
+    ["Auto review", source_boolean_text(@source.auto_review?)]
+  ]
+  usage_context_present = source_latest_statement_for_display(@source).present? || source_statement_count(@source).positive?
+%>
 
+<section class="source-show-section source-primary-summary">
   <dl class="sources-show-list">
-    <% source_latest_result_pairs(@source).each do |label, value| %>
+    <% primary_summary_pairs.each do |label, value| %>
       <dt><%= label %></dt>
       <dd><%= value %></dd>
     <% end %>
   </dl>
-
-  <p><strong>Latest statement cache / value</strong></p>
-  <pre class="sources-show-pre"><%= source_latest_statement_cache_text(@source) %></pre>
 </section>
 
 <section class="source-show-section source-primary-actions">
@@ -31,17 +39,39 @@
   <pre class="sources-show-pre"><%= source_algorithm_text(@source) %></pre>
 </section>
 
-<details class="source-show-details">
-  <summary>Diagnostics</summary>
-  <div class="source-show-section">
-    <dl class="sources-detail-list">
-      <% source_diagnostics_pairs(@source).each do |label, value| %>
-        <dt><%= label %></dt>
-        <dd><%= value %></dd>
-      <% end %>
-    </dl>
-  </div>
-</details>
+<% if usage_context_present %>
+  <details class="source-show-details source-show-usage">
+    <summary>Latest result</summary>
+    <div class="source-show-section">
+      <dl class="sources-show-list">
+        <% source_latest_result_pairs(@source).each do |label, value| %>
+          <dt><%= label %></dt>
+          <dd><%= value %></dd>
+        <% end %>
+        <dt>Statement count</dt>
+        <dd><%= source_statement_count(@source) %></dd>
+      </dl>
+
+      <p><strong>Latest statement cache / value</strong></p>
+      <pre class="sources-show-pre"><%= source_latest_statement_cache_text(@source) %></pre>
+    </div>
+  </details>
+<% end %>
+
+<% diagnostics_pairs = source_diagnostics_pairs(@source) %>
+<% if diagnostics_pairs.any? %>
+  <details class="source-show-details">
+    <summary>Diagnostics</summary>
+    <div class="source-show-section">
+      <dl class="sources-detail-list">
+        <% diagnostics_pairs.each do |label, value| %>
+          <dt><%= label %></dt>
+          <dd><%= value %></dd>
+        <% end %>
+      </dl>
+    </div>
+  </details>
+<% end %>
 
 <details class="source-show-details">
   <summary>Compatibility / rollout</summary>
@@ -77,9 +107,12 @@
   </div>
 </details>
 
-<details class="source-show-details source-danger-zone">
-  <summary>Danger zone</summary>
-  <div class="source-show-section">
-    <%= source_danger_zone_actions(@source) %>
-  </div>
-</details>
+<% danger_zone_actions = source_danger_zone_actions(@source) %>
+<% if danger_zone_actions.present? %>
+  <details class="source-show-details source-danger-zone">
+    <summary>Danger zone</summary>
+    <div class="source-show-section">
+      <%= danger_zone_actions %>
+    </div>
+  </details>
+<% end %>
