@@ -1,40 +1,37 @@
-<details class="operator-context-card" data-operator-context-card>
-  <summary>Context</summary>
+<% domains = operator_context_domains(context) %>
+<% if domains.any? %>
+  <details class="operator-context-card" data-operator-context-card>
+    <summary>Context</summary>
 
-  <div class="operator-context-card-body">
-    <details class="operator-context-domain" data-context-domain="status" open>
-      <summary>Status</summary>
-      <div class="operator-context-domain-body">
-        <% operator_context_status_rows(context).each do |label, value| %>
-          <p>
-            <strong><%= label %>:</strong>
-            <%= value %>
-          </p>
-        <% end %>
-      </div>
-    </details>
-
-    <details class="operator-context-domain" data-context-domain="actions">
-      <summary>Actions</summary>
-      <div class="operator-context-domain-body">
-        <ul class="source-more-actions-list">
-          <% operator_context_action_links(context).each do |link| %>
-            <li><%= link_to link[:label], link[:url] %></li>
-          <% end %>
-        </ul>
-      </div>
-    </details>
-
-    <details class="operator-context-domain" data-context-domain="details">
-      <summary>Details</summary>
-      <div class="operator-context-domain-body">
-        <dl class="sources-detail-list">
-          <% operator_context_detail_rows(context).each do |label, value| %>
-            <dt><%= label %></dt>
-            <dd><%= value %></dd>
-          <% end %>
-        </dl>
-      </div>
-    </details>
-  </div>
-</details>
+    <div class="operator-context-card-body">
+      <% domains.each do |domain| %>
+        <details class="operator-context-domain" data-context-domain="<%= domain[:key] %>" <%= "open" if domain[:open] %>>
+          <summary><%= domain[:label] %></summary>
+          <div class="operator-context-domain-body">
+            <% if domain[:links].present? %>
+              <ul class="source-more-actions-list">
+                <% domain[:links].each do |link| %>
+                  <li><%= link_to link[:label], link[:url] %></li>
+                <% end %>
+              </ul>
+            <% elsif domain[:key] == "details" %>
+              <dl class="sources-detail-list">
+                <% domain[:rows].each do |label, value| %>
+                  <dt><%= label %></dt>
+                  <dd><%= value %></dd>
+                <% end %>
+              </dl>
+            <% else %>
+              <% domain[:rows].each do |label, value| %>
+                <p>
+                  <strong><%= label %>:</strong>
+                  <%= value %>
+                </p>
+              <% end %>
+            <% end %>
+          </div>
+        </details>
+      <% end %>
+    </div>
+  </details>
+<% end %>

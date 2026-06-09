@@ -1,4 +1,25 @@
 module OperatorContextHelper
+  def operator_context_domains(context)
+    domains = []
+
+    status_rows = operator_context_status_rows(context)
+    if status_rows.any?
+      domains << { key: "status", label: "Status", rows: status_rows, open: true }
+    end
+
+    action_links = operator_context_action_links(context)
+    if action_links.any?
+      domains << { key: "actions", label: "Actions", links: action_links }
+    end
+
+    detail_rows = operator_context_detail_rows(context)
+    if detail_rows.any?
+      domains << { key: "details", label: "Details", rows: detail_rows }
+    end
+
+    domains
+  end
+
   def operator_context_payload
     website = operator_context_website
     webpage = operator_context_webpage
@@ -36,6 +57,8 @@ module OperatorContextHelper
   end
 
   def operator_context_status_rows(context)
+    return [] if suppress_source_show_operator_context_domain?
+
     rows = []
 
     if context[:cache_payload].present?
@@ -56,6 +79,8 @@ module OperatorContextHelper
   end
 
   def operator_context_action_links(context)
+    return [] if suppress_source_show_operator_context_domain?
+
     links = []
     cache_links = context[:cache_links] || {}
 
@@ -83,6 +108,8 @@ module OperatorContextHelper
   end
 
   def operator_context_detail_rows(context)
+    return [] if suppress_source_show_operator_context_domain?
+
     website = context[:website]
     webpage = context[:webpage]
     source = context[:source]
@@ -184,5 +211,9 @@ module OperatorContextHelper
     diagnostics << ["Cache id", cache.id] if cache.present?
     diagnostics << ["Cache warning", cache_links[:warning]] if cache_links.present? && cache_links[:warning].present?
     diagnostics
+  end
+
+  def suppress_source_show_operator_context_domain?
+    controller_name == "sources" && action_name == "show"
   end
 end

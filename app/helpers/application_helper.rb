@@ -108,7 +108,7 @@ module ApplicationHelper
   end
 
   def show_transition_context?
-    transition_context_website.present? && !(%w[websites webpages].include?(controller_name) && action_name == "show")
+    transition_context_website.present? && !(%w[websites webpages sources].include?(controller_name) && action_name == "show")
   end
 
   def suppress_operator_context_card?

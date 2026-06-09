@@ -58,7 +58,7 @@
   </details>
 <% end %>
 
-<% diagnostics_pairs = source_diagnostics_pairs(@source) %>
+<% diagnostics_pairs = source_show_diagnostics_pairs(@source) %>
 <% if diagnostics_pairs.any? %>
   <details class="source-show-details">
     <summary>Diagnostics</summary>
@@ -103,16 +103,27 @@
       <p class="sources-secondary-text"><%= source_activation_detail(@source) %></p>
     </div>
 
-    <%= source_diagnostics_actions(@source) %>
+    <% rollout_links = source_show_rollout_links(@source) %>
+    <% if rollout_links.any? %>
+      <ul class="source-more-actions-list">
+        <% rollout_links.each do |item| %>
+          <li><%= item %></li>
+        <% end %>
+      </ul>
+    <% end %>
   </div>
 </details>
 
-<% danger_zone_actions = source_danger_zone_actions(@source) %>
+<% danger_zone_actions = source_show_danger_actions(@source) %>
 <% if danger_zone_actions.present? %>
   <details class="source-show-details source-danger-zone">
     <summary>Danger zone</summary>
     <div class="source-show-section">
-      <%= danger_zone_actions %>
+      <ul class="source-more-actions-list">
+        <% danger_zone_actions.each do |item| %>
+          <li><%= item %></li>
+        <% end %>
+      </ul>
     </div>
   </details>
 <% end %>

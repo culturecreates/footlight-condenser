@@ -289,9 +289,7 @@ module SourcesHelper
     webpage = statement&.webpage
 
     [
-      ["Source id", source.id],
-      ["Property / language", source_property_language_text(source)],
-      ["Website", source.website.present? ? link_to("#{source.website.seedurl} (##{source.website_id})", website_path(source.website)) : "No website"],
+      ["Website", source.website.present? ? link_to(source.website.seedurl, website_path(source.website)) : "No website"],
       ["Latest statement id", statement.present? ? link_to("##{statement.id}", statement_path(statement)) : "None yet"],
       ["Latest statement status", statement.present? ? statement.status.to_s.titleize : "Needs test"],
       ["Cache refreshed", statement&.cache_refreshed.present? ? l(statement.cache_refreshed, format: :short) : "Not available"],
@@ -351,6 +349,18 @@ module SourcesHelper
     ]
   end
 
+  def source_show_diagnostics_pairs(source)
+    statement = source_latest_statement(source)
+
+    [
+      ["Raw selected value", source.selected.inspect],
+      ["Created", source.created_at.present? ? l(source.created_at, format: :short) : "Unknown"],
+      ["Updated", source.updated_at.present? ? l(source.updated_at, format: :short) : "Unknown"],
+      ["Statement count", source_statement_count(source)],
+      ["Latest statement", statement.present? ? "##{statement.id} (#{statement.status})" : "None yet"]
+    ].reject { |_label, value| value.blank? }
+  end
+
   def source_diagnostics_pairs(source)
     pairs = source_metadata_pairs(source)
     statement = source_latest_statement(source)
@@ -390,6 +400,21 @@ module SourcesHelper
 
   def source_diagnostics_actions(source)
     source_action_group_section("Diagnostics", source_more_action_items(source)[:diagnostics])
+  end
+
+  def source_show_rollout_links(source)
+    links = source_cache_links(source)
+
+    [
+      link_or_disabled("Open active cache", links&.dig(:active_cache_url)),
+      link_or_disabled(Distillator::RolloutCopy.condenser_cache_label, links&.dig(:distillator_cache_url)),
+      link_or_disabled(Distillator::RolloutCopy.compare_label, links&.dig(:compare_url)),
+      link_or_disabled(Distillator::RolloutCopy.legacy_inspection_label, links&.dig(:legacy_cache_url))
+    ]
+  end
+
+  def source_show_danger_actions(source)
+    source_more_action_items(source)[:danger]
   end
 
   def source_danger_zone_actions(source)

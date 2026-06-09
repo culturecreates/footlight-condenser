@@ -215,11 +215,12 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     get source_url(@source)
 
     assert_response :success
-    assert_select 'details[data-operator-context-card]'
-    assert_select 'details[data-context-domain="status"]'
-    assert_select 'details[data-context-domain="actions"]'
-    assert_select 'details[data-context-domain="details"]'
-    assert_includes @response.body, "Active"
+    assert_select '[data-transition-context]', 0
+    assert_select 'details[data-operator-context-card]', 0
+    assert_select 'details[data-context-domain="status"]', 0
+    assert_select 'details[data-context-domain="actions"]', 0
+    assert_select 'details[data-context-domain="details"]', 0
+    assert_includes @response.body, "Manual-sensitive"
     assert_includes @response.body, "Condenser serves production while Wringer stays available for diagnostics."
     assert_includes @response.body, "Production: Condenser"
     assert_match "Primary actions", @response.body
@@ -247,6 +248,10 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     assert_select "details.source-show-details summary", text: "Compatibility / rollout"
     assert_select "details.source-show-details[open]", 0
     assert_select "details.source-danger-zone summary", text: "Danger zone"
+    assert_select "details.source-danger-zone strong", text: "Danger zone", count: 0
+    assert_select 'a', text: "Report", count: 1
+    assert_select "details.source-show-details .sources-detail-list dt", text: "Source ID", count: 0
+    assert_operator @response.body.scan("Wringer serves production.").size, :<=, 1
     assert_operator @response.body.index("Primary actions"), :<, @response.body.index("Latest result")
     assert_operator @response.body.index("Raw extraction DSL"), :<, @response.body.index("Compatibility / rollout")
   end
@@ -331,6 +336,8 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     assert_select "details.source-show-usage", 0
     assert_select "section.source-primary-summary", 1
     assert_select "section.source-algorithm-dsl", 1
+    assert_select '[data-transition-context]', 0
+    assert_select 'details[data-operator-context-card]', 0
   end
 
   test "index exposes new source entry points and edit form contains grouped operator sections" do
