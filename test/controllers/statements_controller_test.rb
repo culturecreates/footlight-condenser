@@ -209,9 +209,27 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_read_only_page_does_not_fetch
     get statement_url(@statement)
     assert_response :success
+    assert_select "[data-transition-context]", 0
+    assert_select "details[data-operator-context-card]", 0
+    assert_select ".statement-show-primary-review", 1
+    assert_select ".statement-show-primary-review .statement-show-status", 1
+    assert_select ".statement-show-primary-review pre.statement-show-cache", text: /MyString/
+    assert_select ".statement-show-primary-actions", 1
+    assert_select ".statement-show-details summary", text: "Webpage"
+    assert_select ".statement-show-details summary", text: "Trace"
+    assert_select ".statement-show-details summary", text: "Change status"
+    assert_select ".statement-show-details summary", text: "Activate"
+    assert_select ".statement-show-details summary", text: "Manual update"
+    assert_select "details.statement-show-trace", 1
+    assert_select "details.statement-show-trace[open]", 0
+    assert_select ".statement-show-details[open]", 0
+    assert_select ".trace-diagnosis", 0
+    assert_select "p > strong", text: "manual:", count: 0
+    assert_select "p > strong", text: "selected_individual:", count: 0
+    assert_select "p > strong", text: "updated:", count: 0
   end
 
-  test "statement show renders harmonized card hooks and preserves operator context" do
+  test "statement show renders harmonized card hooks with collapsed secondary context" do
     assert_read_only_page_does_not_fetch
 
     get statement_url(@statement)
@@ -222,7 +240,9 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".harmonized-card-title", minimum: 1
     assert_select ".harmonized-card-value", minimum: 1
     assert_select ".harmonized-card-actions", minimum: 1
-    assert_select 'details[data-operator-context-card]'
+    assert_select "details[data-operator-context-card]", 0
+    assert_select ".statement-show-context", 1
+    assert_select ".statement-show-trace", 1
   end
 
   test "statement pages render cache links without fetching" do
@@ -260,16 +280,16 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
 
     get statement_url(statement)
     assert_response :success
-    assert_select 'details[data-operator-context-card]'
-    assert_select 'details[data-context-domain="status"]'
-    assert_select 'details[data-context-domain="actions"]'
-    assert_select 'details[data-context-domain="details"]'
+    assert_select "[data-transition-context]", 0
+    assert_select "details[data-operator-context-card]", 0
+    assert_select "details.statement-show-context", 1
+    assert_select "details.statement-show-context[open]", 0
     assert_includes @response.body, "Active"
     assert_includes @response.body, "Condenser serves production while Wringer stays available for diagnostics."
     assert_includes @response.body, "Open active cache"
     assert_includes @response.body, "Production: Condenser"
     assert_includes @response.body, "Inspect legacy Wringer"
-    assert_operator @response.body.scan("Inspect legacy Wringer").size, :>=, 2
+    assert_equal 1, @response.body.scan("Inspect legacy Wringer").size
     assert_includes @response.body, "Diagnose refresh"
 
     get webpage_statements_url(url: webpage.url)
@@ -901,6 +921,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Statement was successfully refreshed\./, response.body)
     assert_no_match(/Statement Error:/, response.body)
     assert_match(/Algorithm Trace/, response.body)
+    assert_select ".trace-diagnosis", 1
     assert_match(/Step 1/, response.body)
     assert_match(/Step 1 — manual/, response.body)
     assert_match(/Traceable value/, response.body)
@@ -1184,9 +1205,10 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Statement Error: failure/, response.body)
     assert_no_match(/Statement was successfully refreshed\./, response.body)
     assert_error_alert_if_present
-    assert_match(/Algorithm Trace/, response.body)
+    assert_select "details.statement-show-trace", 1
+    assert_select ".trace-diagnosis", 0
+    assert_no_match(/Algorithm Trace/, response.body)
     body = response.body
-    assert body.index("Statement Error") < body.index("Algorithm Trace")
     assert_not_nil session[:dsl_trace]
   end
 
@@ -1259,6 +1281,8 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
 
     follow_redirect_with_trace_visibility
     assert_response :success
+    assert_select "details.statement-show-trace", 1
+    assert_select ".trace-diagnosis", 0
     assert_no_match(/Algorithm Trace/, response.body)
   end
 

@@ -108,11 +108,11 @@ module ApplicationHelper
   end
 
   def show_transition_context?
-    transition_context_website.present? && !(%w[websites webpages sources].include?(controller_name) && action_name == "show")
+    transition_context_website.present? && !(%w[websites webpages sources statements].include?(controller_name) && action_name == "show")
   end
 
   def suppress_operator_context_card?
-    (%w[websites webpages].include?(controller_name) && action_name == "show") ||
+    (%w[websites webpages statements].include?(controller_name) && action_name == "show") ||
       (controller_path == "distillator/shadow_reports" && action_name == "show")
   end
 
