@@ -1,0 +1,82 @@
+<%
+  website = local_assigns.fetch(:website)
+  contract = local_assigns.fetch(:contract)
+  compact = local_assigns.fetch(:compact, false)
+  transition_status_summary = local_assigns.fetch(:transition_status_summary, nil)
+  transition_evidence_summary = local_assigns.fetch(:transition_evidence_summary, nil)
+  transition_report_path = local_assigns.fetch(:transition_report_path, nil)
+%>
+
+<section class="transition-context-card <%= compact ? 'transition-context-card-compact' : 'transition-context-card-full' %>" data-transition-context>
+  <h2><%= compact ? "Transition context" : "Transition" %></h2>
+  <% cache_links = contract[:cache_links] || {} %>
+  <% has_diagnostics = cache_links[:active_cache_url].present? || Array(cache_links[:secondary_links]).any? || cache_links[:warning].present? %>
+
+  <p><strong>Website:</strong> <%= website.name %> <span class="transition-context-seedurl">(<%= website.seedurl %>)</span></p>
+  <p><strong>Current mode:</strong> <%= contract[:current_mode_label] %></p>
+  <p><strong>Production backend:</strong> <%= contract[:backend_label] %></p>
+  <% unless compact %>
+    <p><strong>Next recommended action:</strong> <%= contract[:next_recommended_action] %></p>
+    <p><strong>Readiness:</strong> <%= contract[:readiness_summary] %></p>
+    <p><strong>Latest rollout event:</strong> <%= contract[:latest_rollout_event_summary] %></p>
+    <% if transition_status_summary.present? %>
+      <p><strong>Latest transition status:</strong> <%= transition_status_summary %></p>
+    <% end %>
+    <% if transition_evidence_summary.present? %>
+      <p><strong>Latest evidence summary:</strong> <%= transition_evidence_summary %></p>
+    <% end %>
+    <% if transition_report_path.present? %>
+      <p><strong>Latest transition report:</strong> <%= link_to "Latest transition report", transition_report_path %></p>
+    <% end %>
+  <% end %>
+
+  <% if compact %>
+    <ul class="transition-context-links">
+      <% contract[:navigation_links].each do |link| %>
+        <li><%= link_to link[:label], link[:path] %></li>
+      <% end %>
+    </ul>
+  <% else %>
+    <% if cache_links[:active_cache_url].present? %>
+      <p><strong>Primary cache link:</strong> <%= link_to cache_links[:label], cache_links[:active_cache_url] %></p>
+    <% end %>
+    <% if has_diagnostics %>
+      <details class="website-rollout-panel">
+        <summary>Diagnostics</summary>
+        <%= render "shared/cache_link_panel", cache_links: cache_links, diagnose_url: nil %>
+      </details>
+    <% end %>
+  <% end %>
+
+  <% unless compact %>
+    <div class="transition-context-actions">
+      <% primary_action = contract[:primary_action] %>
+      <% if primary_action[:enabled] %>
+        <%= button_to primary_action[:label], primary_action[:path], method: primary_action[:method], params: primary_action[:params], class: "website-transition-button" %>
+      <% else %>
+        <p class="transition-context-disabled-action">
+          <strong><%= primary_action[:label] %>:</strong>
+          <%= primary_action[:message] %>
+          <%= link_to "See latest transition report", distillator_shadow_report_site_path(website) %>
+        </p>
+      <% end %>
+
+      <% contract[:secondary_actions].each do |action| %>
+        <% if action[:kind] == :button %>
+          <%= button_to action[:label], action[:path], method: action[:method], params: action[:params], class: "website-transition-button" %>
+        <% elsif action[:kind] == :override %>
+          <details class="website-transition-override">
+            <summary><%= action[:label] %></summary>
+            <p><%= action[:copy] %></p>
+            <%= form_with url: action[:path], method: action[:method], local: true, class: "website-transition-override-form" do |form| %>
+              <%= form.label :reason, "Reason" %>
+              <%= form.text_field :reason, required: true %>
+              <%= form.submit action[:label] %>
+            <% end %>
+          </details>
+        <% end %>
+      <% end %>
+
+    </div>
+  <% end %>
+</section>

@@ -1,50 +1,92 @@
 class WebpagesController < ApplicationController
+  include HarmonizedIndexParams
+
   skip_before_action :verify_authenticity_token
   before_action :set_webpage, only: [:show, :edit, :update, :destroy]
+  before_action :set_return_to, only: [:show, :new, :edit]
 
   # GET /webpages
   # GET /webpages.json
   def index
-    params[:page] ||= 1
+    @seedurl, website = normalized_seedurl_website
+    @current_website = website
+    cookies[:seedurl] = @seedurl if @seedurl.present?
 
-    seedurl = params[:seedurl] || cookies[:seedurl]
-    website = Website.find_by(seedurl: seedurl)
+    index_params = harmonized_index_params(
+      allowed_filters: Webpages::IndexQuery::FILTER_KEYS,
+      allowed_sorts: Webpages::IndexQuery::SORT_COLUMNS.keys,
+      default_sort: Webpages::IndexQuery::DEFAULT_SORT,
+      default_direction: Webpages::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Webpages::IndexQuery::DEFAULT_PER_PAGE,
+      max_per_page: Webpages::IndexQuery::MAX_PER_PAGE
+    )
+    index_params = index_params.merge(
+      filters: normalized_webpages_filters(index_params[:filters], website: website),
+      page: 1,
+      per_page: Webpages::IndexQuery::DEFAULT_PER_PAGE
+    )
 
-    cookies[:seedurl] = seedurl if seedurl
+    canonical = harmonized_index_canonical_params(
+      index_params,
+      default_sort: Webpages::IndexQuery::DEFAULT_SORT,
+      default_direction: Webpages::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Webpages::IndexQuery::DEFAULT_PER_PAGE,
+      preserve: @seedurl.present? ? { seedurl: @seedurl } : {}
+    )
+    canonical.except!("website_id")
 
-    if website
-      @webpages = website.webpages.order(:archive_date)
-    else
-      @webpages = Webpage.all
+    raw = harmonized_index_raw_params(
+      allowed_filters: Webpages::IndexQuery::FILTER_KEYS,
+      preserve: %w[seedurl sort direction page per_page]
+    )
+    raw.except!("website_id")
+
+    return redirect_to(webpages_path(canonical)) if canonical != raw
+
+    @filters = index_params[:filters]
+
+    @sort = index_params[:sort]
+    @direction = index_params[:direction]
+
+    filtered_scope = Webpages::IndexQuery.scope(website: website, filters: @filters)
+
+    @webpages = Webpages::IndexQuery.call(
+      website: website,
+      filters: @filters,
+      sort: @sort,
+      direction: @direction,
+      page: nil,
+      per_page: nil,
+      paginate: false
+    )
+
+    @sortable_filters = @filters.except(:website_id)
+    @sortable_filters[:seedurl] = @seedurl if @seedurl.present?
+    @return_to = request.fullpath
+
+    @total_webpages_count = Webpage.count
+    @website_webpages_total_count = website.present? ? website.webpages.count : nil
+    @filtered_webpages_count = filtered_scope.count
+    @visible_webpages_count = @webpages.length
+
+    @webpage_summary = nil
+    if website.present?
+      @webpage_summary = Distillator::WebsiteWebpageSummary.for_websites([website.id])[website.id]
     end
 
-    @locations = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Location", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri,  :cache, :status)
-    @locations_hash = @locations.map{ |l| l = l[0],[l[1],l[2]] }.to_h
-    ####### locaton data structures
-    # example 1: ["scraped name", "Place", ["name","uri"]]
-    # example 2 with multiple places: [["scraped name", "Place", ["name","uri"]],["scraped name 2", "Place", ["name","uri"]]]
-
-    @startDates = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Dates", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri, :cache, :status)
-    @startDates_hash = @startDates.map{ |l| l = l[0],[(l[1]),l[2]] }.to_h
-
-    @titles = Statement.joins({source: [:property, :website]},:webpage).where({sources:{selected: true, properties:{label: "Title", rdfs_class: 1},websites:  {id: website_id}}  }  ).pluck(:rdf_uri, :cache, :status, "webpages.language")
-    @titles_hash = @titles.map{ |l| l = l[0],[l[1],l[2],l[3]] }.to_h
-
-    @publishable = {}
-    @webpages.each do |wp|
-      if wp.rdfs_class_id == 1
-        begin
-          @publishable[wp.id] =
-                (@locations_hash[wp.rdf_uri][1] == "ok" || @locations_hash[wp.rdf_uri][1] == "updated") &&
-                (@startDates_hash[wp.rdf_uri][1] == "ok" || @startDates_hash[wp.rdf_uri][1] == "updated") &&
-                @startDates_hash[wp.rdf_uri][0].chars.count > 3 &&
-                (@titles_hash[wp.rdf_uri][1] == "ok" || @titles_hash[wp.rdf_uri][1] == "updated")  ? "Yes" : "No"
-        rescue
-            @publishable[wp.id] = "No"
-        end
-      end
+    @webpage_cache_link_rows = @webpages.each_with_object({}) do |webpage, rows|
+      rows[webpage.id] = helpers.webpage_cache_links(webpage)
     end
 
+    @show_distillator_cache_column = false
+    @webpage_table_headers = HarmonizedTableHeaders.webpages(
+      show_distillator_cache_column: @show_distillator_cache_column
+    )
+
+    publishable_ids = Webpage.publishable.where(id: @webpages.map(&:id)).pluck(:id).to_set
+    @publishable = @webpages.each_with_object({}) do |webpage, values|
+      values[webpage.id] = publishable_ids.include?(webpage.id) ? "Yes" : "No"
+    end
   end
 
   # GET /webpages/1
@@ -72,11 +114,12 @@ class WebpagesController < ApplicationController
    
     respond_to do |format|
       if @webpage.save
-        format.html { redirect_to @webpage, notice: 'Webpage was successfully created.' }
+        format.html { redirect_to(safe_return_to_param || @webpage, notice: "Webpage was successfully created.") }
         format.json { render :show, status: :created, location: @webpage }
       else
         @rdfs_classes = RdfsClass.all
         @jsonld_outputs = JsonldOutput.all
+        @return_to = fallback_collection_return_path
         format.html { render :new }
         format.json { render json: @webpage.errors, status: :unprocessable_entity }
       end
@@ -111,9 +154,12 @@ class WebpagesController < ApplicationController
     end
     respond_to do |format|
       if @webpage.update(webpage_params)
-        format.html { redirect_to @webpage, notice: 'Webpage was successfully updated.' }
+        format.html { redirect_to(safe_return_to_param || @webpage, notice: "Webpage was successfully updated.") }
         format.json { render :show, status: :ok, location: @webpage }
       else
+        @rdfs_classes = RdfsClass.all
+        @jsonld_outputs = JsonldOutput.all
+        @return_to = safe_return_to_param || fallback_collection_return_path(@webpage.website)
         format.html { render :edit }
         format.json { render json: @webpage.errors, status: :unprocessable_entity }
       end
@@ -123,9 +169,10 @@ class WebpagesController < ApplicationController
   # DELETE /webpages/1
   # DELETE /webpages/1.json
   def destroy
+    redirect_path = safe_return_to_param || fallback_collection_return_path(@webpage.website)
     @webpage.destroy
     respond_to do |format|
-      format.html { redirect_to webpages_url, notice: 'Webpage was successfully destroyed.' }
+      format.html { redirect_to redirect_path, notice: "Webpage was successfully destroyed." }
       format.json { head :no_content }
     end
   end
@@ -145,4 +192,43 @@ class WebpagesController < ApplicationController
   def webpage_api_params
     params.require(:webpage).permit(:url, :language, :rdf_uri, :rdfs_class, :seedurl)
   end
+
+  def normalized_webpages_filters(filters, website:)
+    Webpages::IndexQuery.normalize_filters(
+      filters: filters,
+      website: website
+    )
+  end
+
+  def set_return_to
+    @return_to = safe_return_to_param || fallback_collection_return_path(@webpage&.website)
+  end
+
+  def fallback_collection_return_path(website = nil)
+    seedurl = params[:seedurl].presence || website&.seedurl.presence || cookies[:seedurl].presence
+    webpages_path({ seedurl: seedurl, scope: params[:scope].presence }.compact_blank)
+  end
+
+  def normalized_seedurl_website
+    return website_id_pair if params[:website_id].present?
+
+    seedurl =
+      if params.key?(:seedurl)
+        params[:seedurl].presence
+      else
+        cookies[:seedurl].presence
+      end
+    return [nil, nil] if seedurl.blank? || seedurl == "all"
+
+    website = Website.find_by(seedurl: seedurl)
+    website.present? ? [seedurl, website] : [nil, nil]
+  end
+
+  def website_id_pair
+    website = Website.find_by(id: params[:website_id])
+    return [nil, nil] unless website.present?
+
+    [website.seedurl, website]
+  end
+
 end

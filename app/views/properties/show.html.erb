@@ -1,30 +1,24 @@
 
-
-<p>
-  <strong>Label:</strong>
-  <%= @property.label %>
-</p>
-
-<p>
-  <strong>Value datatype:</strong>
-  <%= @property.value_datatype %>
-</p>
-
-<p>
-  <strong>Expected Class:</strong>
-  <%= @property.expected_class %>
-</p>
-
-
-<p>
-  <strong>Uri:</strong>
-  <%= @property.uri %>
-</p>
-
-<p>
-  <strong>Rdfs class:</strong>
-  <%= @property.rdfs_class.name %> (<%= @property.rdfs_class.id %>)
-</p>
-
-<%= link_to 'Edit', edit_property_path(@property) %> |
-<%= link_to 'Back', properties_path %>
+<%= render "shared/cards/card_grid",
+           cards: [
+             {
+               title: @property.label,
+               rows: [
+                 { label: "Value datatype", value: @property.value_datatype },
+                 { label: "Expected Class", value: @property.expected_class },
+                 { label: "Uri", value: @property.uri },
+                 { label: "Rdfs class", value: "#{@property.rdfs_class.name} (#{@property.rdfs_class.id})" }
+               ],
+               actions: [
+                 {
+                   title: "Actions",
+                   links: [
+                     { label: "Edit", url: edit_property_path(@property) },
+                     { label: "Back", url: properties_path }
+                   ]
+                 }
+               ]
+             }
+           ],
+           variant: :record,
+           css_class: "property-detail-cards" %>

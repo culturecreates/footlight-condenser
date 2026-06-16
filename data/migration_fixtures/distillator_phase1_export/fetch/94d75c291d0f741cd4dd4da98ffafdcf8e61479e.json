@@ -1,0 +1,21 @@
+{
+  "url": "https://phase1.example/jsonld-event",
+  "recorded_at": "2026-04-27T00:00:00Z",
+  "response": {
+    "status": "ok",
+    "body": "{\"@context\":\"https://schema.org\",\"@type\":\"Event\",\"name\":\"JSON-LD Fixture Event\"}",
+    "headers": {
+      "content_type": "application/ld+json"
+    },
+    "final_url": "https://phase1.example/jsonld-event",
+    "redirect_chain": [],
+    "wringer": {
+      "signals": {
+        "network_status": "ok",
+        "content_type": "json"
+      },
+      "hints": []
+    },
+    "duration_ms": 11.0
+  }
+}

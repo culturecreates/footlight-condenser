@@ -1,7 +1,173 @@
 module ApplicationHelper
+  include AdminTableHelper
 
   def list_of_websites
     @list_of_websites ||= Website.all.order(:name)
+  end
+
+  def active_cache_links_for(url, include_fragment: false, mode: nil, website: nil, website_id: nil)
+    Distillator::CacheLinkResolver.call(
+      url: url,
+      include_fragment: include_fragment,
+      mode: mode,
+      website: website,
+      website_id: website_id
+    )
+  end
+
+  def distillator_refresh_preview_url_for(url, include_fragment: false)
+    params = { uri: url.to_s }
+    params[:include_fragment] = true if include_fragment
+    "/distillator/cache/preview?#{params.to_query}"
+  end
+
+  def sortable(column, label = nil)
+    admin_sortable(column, label)
+  end
+
+  def contextual_seedurl_params
+    website = transition_context_website
+    return {} unless website.present?
+
+    { seedurl: website.seedurl }
+  end
+
+  def contextual_webpages_path
+    webpages_path(contextual_seedurl_params)
+  end
+
+  def contextual_sources_path
+    sources_path(contextual_seedurl_params)
+  end
+
+  def contextual_statements_path
+    statements_path(contextual_seedurl_params)
+  end
+
+  def operator_return_to_params(path = request.fullpath)
+    preserved_return_to_params(path)
+  end
+
+  def operator_rollout_badge(website_or_mode)
+    state = operator_rollout_state(website_or_mode)
+    content_tag(:span, state[:label], class: "rollout-badge #{state[:css_class]}")
+  end
+
+  def operator_rollout_explanation(website_or_mode)
+    operator_rollout_state(website_or_mode)[:description]
+  end
+
+  def operator_active_backend_badge(rollout_or_cache)
+    state = operator_active_backend_state(rollout_or_cache)
+    content_tag(:span, state[:label], class: "active-backend-badge #{state[:css_class]}")
+  end
+
+  def operator_active_backend_label(rollout_or_cache)
+    Distillator::RolloutCopy.active_backend_label(normalize_rollout_state(rollout_or_cache))
+  end
+
+  def operator_rollout_next_step(rollout_or_cache)
+    Distillator::RolloutCopy.next_step(normalize_rollout_state(rollout_or_cache))
+  end
+
+  def operator_active_backend_state(rollout_or_cache)
+    rollout_key = normalize_rollout_state(rollout_or_cache)
+
+    case rollout_key
+    when :active
+      { key: :active, label: "Production: Condenser", css_class: "active-backend-badge-active" }
+    when :shadow
+      { key: :shadow, label: "Production: Wringer", css_class: "active-backend-badge-shadow" }
+    when :replay
+      { key: :replay, label: "Production: Condenser", css_class: "active-backend-badge-replay" }
+    else
+      { key: :legacy, label: "Production: Wringer", css_class: "active-backend-badge-legacy" }
+    end
+  end
+
+  def operator_rollout_state(website_or_mode)
+    key = normalize_rollout_state(website_or_mode)
+    Distillator::RolloutCopy.state(key).merge(key: key)
+  end
+
+  def transition_context_website
+    @transition_context_website ||=
+      begin
+        direct = current_transition_website
+        if direct.present?
+          direct
+        else
+          seedurl = params[:seedurl].presence || cookies[:seedurl].presence
+          if seedurl.blank? || seedurl == "all"
+            nil
+          else
+            Website.find_by(seedurl: seedurl)
+          end
+        end
+      end
+  end
+
+  def show_transition_context?
+    transition_context_website.present? && !(%w[websites webpages sources statements].include?(controller_name) && action_name == "show")
+  end
+
+  def suppress_operator_context_card?
+    (%w[websites webpages statements].include?(controller_name) && action_name == "show") ||
+      (controller_path == "distillator/shadow_reports" && action_name == "show")
+  end
+
+  def current_wringer_status_text
+    [current_wringer_status.status_label, current_wringer_status.status_detail].compact.join(" - ")
+  end
+
+  private
+
+  def current_transition_website
+    return @website if instance_variable_defined?(:@website) && @website&.persisted?
+    return @webpage.website if instance_variable_defined?(:@webpage) && @webpage&.website&.persisted?
+    return @source.website if instance_variable_defined?(:@source) && @source&.website&.persisted?
+    return @statement.webpage.website if instance_variable_defined?(:@statement) && @statement&.webpage&.website&.persisted?
+
+    nil
+  end
+
+  def normalize_rollout_state(website_or_mode)
+    raw_mode =
+      case website_or_mode
+      when nil
+        nil
+      when Hash
+        website_or_mode[:rollout_mode] ||
+          website_or_mode["rollout_mode"] ||
+          website_or_mode[:mode] ||
+          website_or_mode["mode"]
+      else
+        if website_or_mode.respond_to?(:distillator_mode)
+          website_or_mode.distillator_mode
+        elsif website_or_mode.respond_to?(:rollout_mode)
+          website_or_mode.rollout_mode
+        elsif website_or_mode.respond_to?(:mode)
+          website_or_mode.mode
+        else
+          website_or_mode
+        end
+      end
+
+    Distillator::RolloutCopy.normalize(raw_mode)
+  end
+
+  def current_wringer_status
+    @current_wringer_status ||= begin
+      latest_lookup_error = Distillator::TransitionEvidence.latest_legacy_lookup_error
+      details = latest_lookup_error&.details.to_h || {}
+      reason = details["reason"] || details[:reason]
+      lookup_status = details["legacy_lookup_status"] || details[:legacy_lookup_status]
+      last_error =
+        if reason == "legacy_lookup_unreachable" || lookup_status == "unreachable"
+          details["legacy_lookup_error"] || details[:legacy_lookup_error]
+        end
+      Distillator::WringerEndpoint.current(last_error: last_error)
+    end
   end
 
 end

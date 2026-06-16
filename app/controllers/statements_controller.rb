@@ -1,22 +1,22 @@
 class StatementsController < ApplicationController
+  include HarmonizedIndexParams
+
   before_action :set_statement, only: [:refresh, :show, :edit, :update, :destroy, :add_linked_data, :remove_linked_data, :activate]
   skip_before_action :verify_authenticity_token
   skip_before_action :authenticate, only: [:show, :index]
+  helper_method :expand_trace_for_view, :trace_steps_for_view, :trace_presenter
 
   MANUALLY_ADDED = "Manually added"
-
-# :nocov:
-  def trace_demo
-    algorithm = 'xpath=//title | //div[contains(@class,\'about-content\')]/h2 ;ruby=$array.kind_of?(Array) ? $array.map{|e| e.squish} : ($array.length > 1 ? $array.squish : $array) ;if_xpath=//ul[@class=\'performances\']//a/@href ;ruby=$array.select{|e| e =~ /billet/} ;url=\'https://lepointdevente.com\' + $array.first + \'?lang=fr\' ;ruby=$array.clear ;xpath=//title | //div[contains(@class,\'about-content\')]/h2 ;ruby=$array.kind_of?(Array) ? $array.map{|e| e.squish} : ($array.length > 1 ? $array.squish : $array)'
-    url = "https://lepointdevente.com/billets/el2240907001?lang=fr"
-    @result, @trace = helpers.process_algorithm_with_trace(algorithm: algorithm, url: url)
-  end
-# :nocov:
+  TRACE_CODE_DEFAULT = 140
+  TRACE_OUTPUT_DEFAULT = 140
+  TRACE_ERROR_DEFAULT = 160
 
   # GET /statements/webpage.json?url=http://
   def webpage
     @statements = []
     webpage = Webpage.where(url: params[:url]).first
+    return render_missing_webpage_listing if webpage.blank?
+
     webpage.statements.each do |statement|
       @statements << statement
     end
@@ -26,26 +26,46 @@ class StatementsController < ApplicationController
   # PATCH /statements/refresh_webpage.json?url=http://
   def refresh_webpage
     webpage = Webpage.includes(:website).where(url: params[:url]).first
+    return render_missing_refresh_webpage if webpage.blank?
+
     error_list = refresh_webpage_statements(webpage,  webpage.website.default_language)
+    redirect_path = safe_return_to_param || webpage_statements_path(url: params[:url])
     respond_to do |format|
-        format.html {redirect_to webpage_statements_path(url: params[:url]), notice:"Refresh result: #{error_list}" }
-        format.json {render json: {message:"statements refreshed. #{error_list}"}.to_json }
+        format.html { redirect_to redirect_path, notice: refresh_summary_notice(success_message: "Webpage statements refreshed.", errors: error_list, error_prefix: "Refresh completed") }
+        format.json { render json: { message: refresh_summary_notice(success_message: "Webpage statements refreshed.", errors: error_list, error_prefix: "Refresh completed"), errors: compact_refresh_error_list(error_list) }.to_json }
     end
+  end
+
+  # GET /statements/compare_extracted?url=http://
+  def compare_extracted
+    @webpage = statement_compare_webpage
+    return render_missing_compare_extracted if @webpage.blank?
+
+    @cache_comparison = Distillator::CacheCompare.call(uri: params[:url])
+    @statement_parity = Statements::ExtractedParityComparisonService.call(
+      webpage: @webpage,
+      default_language: @webpage.website.default_language,
+      legacy_html: @cache_comparison.dig(:legacy_cache, :html),
+      condenser_html: @cache_comparison.dig(:condenser_cache, :html),
+      property_ids: statement_compare_property_ids,
+      refresh_helper: statement_refresh_helper_proxy
+    )
   end
 
   # PATCH /statements/refresh_rdf_uri.json?rdf_uri=
   # PATCH /statements/refresh_rdf_uri.json?rdf_uri=&force_scrape_every_hrs=24
   def refresh_rdf_uri
-    params[:force_scrape_every_hrs] ||= nil
     error_list = []
     webpages = Webpage.includes(:website).where(rdf_uri: params[:rdf_uri])
+    return render_missing_refresh_rdf_uri if webpages.blank?
+
     webpages.each do |webpage|
-      errors = refresh_webpage_statements(webpage, webpage.website.default_language, {:force_scrape_every_hrs => params[:force_scrape_every_hrs]})
+      errors = refresh_webpage_statements(webpage, webpage.website.default_language, refresh_rdf_uri_scrape_options)
       error_list << {"Webpage id: #{webpage.id}" => errors}
     end
     respond_to do |format|
-      format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri]), notice:"Refresh results: #{error_list}"  }
-      format.json { render json: {message:"URI refreshed. Refresh results: #{error_list}"}.to_json }
+      format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri]), notice: refresh_summary_notice(success_message: "URI refreshed.", errors: error_list, item_label: "webpage errors", error_prefix: "URI refreshed") }
+      format.json { render json: { message: refresh_summary_notice(success_message: "URI refreshed.", errors: error_list, item_label: "webpage errors", error_prefix: "URI refreshed"), errors: compact_refresh_error_list(error_list) }.to_json }
     end
   end
 
@@ -53,14 +73,75 @@ class StatementsController < ApplicationController
   # PATCH /statements/1/refresh
   # PATCH /statements/1/refresh.json
   def refresh
-    helpers.refresh_statement_helper(@statement)
+    result = statement_refresh_helper_proxy.refresh_statement_helper(@statement)
+    trace_enabled = cookies[:dsl_trace] == "true"
+    data = result[:data]
+    abort_payload = extract_abort_payload(data)
+
+    if trace_enabled
+      if Rails.env.development? || ENV["DSL_TRACE_DEBUG"]
+        Rails.logger.debug do
+          "[DSL TRACE FULL]\n#{JSON.pretty_generate(result[:trace] || [])}"
+        end
+      end
+
+      trace_for_session = Dsl::Tracing::TraceFormatter.for_session_v2(result[:trace] || [])
+      trace_for_session[:statement_id] = @statement.id if trace_for_session.is_a?(Hash)
+
+      session[:dsl_trace] = trace_for_session
+      Rails.logger.debug { "[DSL TRACE SESSION SIZE] #{JSON.generate(session[:dsl_trace]).bytesize}" }
+    else
+      session.delete(:dsl_trace)
+    end
+
     respond_to do |format|
-      if @statement.errors.any?
-        format.html { redirect_to @statement, alert: "Statement Error: " + @statement.errors.full_messages.to_sentence }
-        format.json { render json: @statement.errors, status: :unprocessable_entity }
+      if abort_payload.present?
+        compact_error = helpers.compact_refresh_error(abort_payload)
+        error_type = abort_payload[:error_type].presence || "DslAbort"
+        error_message = abort_payload[:error].presence || "DSL runner aborted"
+
+        format.html do
+          flash[:alert] = "Statement Error: #{compact_error}"
+          redirect_to @statement
+        end
+        format.json do
+          render json: {
+            status: "error",
+            kind: "dsl_abort",
+            error: error_message,
+            error_type: error_type,
+            step: abort_payload[:step],
+            source: abort_payload[:source]
+          }, status: :unprocessable_entity
+        end
+      elsif result[:errors].present?
+        format.html do
+          flash[:alert] = "Statement Error: " + Array(result[:errors]).join(". ")
+          redirect_to @statement
+        end
+        format.json do
+          render json: {
+            status: "error",
+            kind: "refresh_error",
+            error: Array(result[:errors]).join(". "),
+            error_type: "RefreshError",
+            step: nil,
+            source: "statements_controller"
+          }, status: :unprocessable_entity
+        end
       else
-        format.html { redirect_to @statement, notice: 'Statement was successfully refreshed.' }
-        format.json { render :show, status: :refreshed, location: @statement }
+        format.html do
+          flash[:notice] = "Statement was successfully refreshed."
+          redirect_to @statement
+        end
+        format.json do
+          render json: {
+            status: "ok",
+            statement_id: @statement.id,
+            result_present: data.present?,
+            trace_present: result[:trace].present?
+          }
+        end
       end
     end
   end
@@ -69,36 +150,152 @@ class StatementsController < ApplicationController
   # GET /statements?rdf_uri=&seedurl=&prop=&status=
   # GET /statements.json
   def index
-    @statements = build_query
-    # Paginate
-    @statements = @statements.paginate(page: params[:page], per_page: params[:per_page])
+    index_params = harmonized_index_params(
+      allowed_filters: Statements::IndexQuery::FILTER_KEYS,
+      allowed_sorts: Statements::IndexQuery::SORT_COLUMNS.keys,
+      default_sort: Statements::IndexQuery::DEFAULT_SORT,
+      default_direction: Statements::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Statements::IndexQuery::DEFAULT_PER_PAGE,
+      max_per_page: Statements::IndexQuery::MAX_PER_PAGE
+    )
+
+    canonical = harmonized_index_canonical_params(
+      index_params,
+      default_sort: Statements::IndexQuery::DEFAULT_SORT,
+      default_direction: Statements::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Statements::IndexQuery::DEFAULT_PER_PAGE
+    )
+    raw = harmonized_index_raw_params(allowed_filters: Statements::IndexQuery::FILTER_KEYS, preserve: %w[sort direction page per_page])
+    return redirect_to(statements_path(canonical)) if request.format.html? && canonical != raw
+
+    @filters = index_params[:filters]
+    @sort = index_params[:sort]
+    @direction = index_params[:direction]
+    @pagination = { page: index_params[:page], per_page: index_params[:per_page] }
+    @sortable_filters = @filters.merge(per_page: @pagination[:per_page])
+    @statement_table_headers = HarmonizedTableHeaders.statements(
+      show_seedurl_col: @filters[:seedurl].blank? || @filters[:seedurl] == "all"
+    )
+    @statements = Statements::IndexQuery.call(
+      filters: @filters,
+      sort: @sort,
+      direction: @direction,
+      page: @pagination[:page],
+      per_page: @pagination[:per_page]
+    )
   end
 
   # GET /statements/1
   # GET /statements/1.json
   def show
-    @statement = Statement.find(params[:id])
+    trace = scoped_session_trace_for(@statement)
+    @trace = safe_trace_copy(trace)
+    @trace ||= []
+    @trace_presenter = TracePresenter.new(@trace)
+    @trace_view_mode = @trace_presenter.mode(cookies)
+    code_len = (cookies[:trace_code_display_length].presence || TRACE_CODE_DEFAULT).to_i
+    output_len = (cookies[:trace_output_display_length].presence || TRACE_OUTPUT_DEFAULT).to_i
+    error_len = (cookies[:trace_error_display_length].presence || TRACE_ERROR_DEFAULT).to_i
 
-    if cookies[:dsl_trace] == "true"
-      @result, @trace = helpers.run_dsl(
-        algorithm: @statement.source.algorithm_value,
-        render_js: @statement.source.render_js,
-        language: @statement.webpage.language,
-        url: @statement.webpage.url,
-        scrape_options: {},
-        trace: true
-      )
-    else
-      @trace = nil
-      @result = nil
+    @trace_code_length = code_len.positive? ? code_len : TRACE_CODE_DEFAULT
+    @trace_output_length = output_len.positive? ? output_len : TRACE_OUTPUT_DEFAULT
+    @trace_error_length = error_len.positive? ? error_len : TRACE_ERROR_DEFAULT
+
+    @show_trace = @trace_presenter.visible?(cookies)
+    @result = nil
+  end
+
+  attr_reader :trace_presenter
+
+  def expand_trace_for_view(compact_trace)
+    return [] if compact_trace.nil?
+    return compact_trace if compact_trace.is_a?(Array)
+
+    raw = compact_trace.respond_to?(:to_h) ? compact_trace.to_h : compact_trace
+    return [] unless raw.is_a?(Hash)
+
+    payload = raw.with_indifferent_access
+    return expand_trace_v2_for_view(payload) if payload[:version].to_i == 2
+
+    expand_trace_v1_for_view(payload)
+  end
+
+  def trace_steps_for_view(trace)
+    interpreter = Dsl::SemanticInterpreter.new
+    steps = expand_trace_for_view(trace).map { |step| normalize_trace_semantics(step) }
+    interpreter.annotate(steps)
+  end
+
+  def expand_trace_v1_for_view(payload)
+    urls = Array(payload[:urls]).map(&:to_s)
+
+    Array(payload[:events]).map do |event|
+      source = event.respond_to?(:to_h) ? event.to_h : event
+      e = source.is_a?(Hash) ? source.with_indifferent_access : {}
+
+      {
+        step: e[:s],
+        type: e[:t],
+        code: e[:c],
+        input: e[:i],
+        output: e[:o],
+        probe: expand_compact_probe(e[:p]),
+        wringer: expand_compact_wringer(e[:w]),
+        url_before: resolve_trace_url(urls, e[:ub]),
+        url_after: resolve_trace_url(urls, e[:ua]),
+        duration_ms: e[:d],
+        error: e[:e]
+      }
+    end
+  end
+
+  def expand_trace_v2_for_view(payload)
+    urls = Array(payload[:urls]).map(&:to_s)
+    initial = (payload[:initial] || {}).with_indifferent_access
+
+    current_state = initial[:state]
+    current_url = initial[:url]
+
+    Array(payload[:steps]).map do |step|
+      source = step.respond_to?(:to_h) ? step.to_h : step
+      s = source.is_a?(Hash) ? source.with_indifferent_access : {}
+
+      output = s[:of] || s[:o]
+      next_url = s.key?(:ua) ? resolve_trace_url(urls, s[:ua]) : current_url
+      input = current_state
+      output = input if output.nil?
+      expanded = {
+        step: s[:s],
+        type: s[:t],
+        code: s[:cf] || s[:c],
+        input: input,
+        output: output,
+        probe: expand_compact_probe(s[:p]),
+        wringer: expand_compact_wringer(s[:w]),
+        url_before: current_url,
+        url_after: next_url,
+        duration_ms: s[:d],
+        error: s[:e]
+      }
+
+      current_state = output
+      current_url = next_url
+
+      expanded
     end
   end
 
 
   # GET /statements/search_name.json?str=expected_class=
   def search_name
+    webpage = Webpage.find_by(id: params[:webpage_id])
 
-    uris = helpers.search_everywhere(params["str"], params["expected_class"])
+    uris = helpers.search_everywhere(
+      params["str"],
+      params["expected_class"],
+      webpage
+    )
+
     render json: uris
   end
 
@@ -151,26 +348,33 @@ class StatementsController < ApplicationController
   # For INTERNAL use of Condenser admin webpages
   def batch_update 
     if params[:commit] == "View"
-      redirect_to statements_path(request.parameters.except(:authenticity_token))
+      redirect_to statements_path(batch_redirect_params)
     end
     if params[:commit] == "Update"
       @statements = build_query
       update_data = eval(params[:update_data])
       @statements.each do |stat|
         if !stat.update(update_data)
-          redirect_to statements_path(request.parameters.except(:authenticity_token), notice: 'Failed to update.')
+          return redirect_to statements_path(batch_redirect_params), notice: 'Failed to update.'
         end
       end
-      redirect_to statements_path(request.parameters.except(:authenticity_token))
+      redirect_to statements_path(batch_redirect_params)
     end
     if params[:commit] == "Refresh all listed"
       statements = build_query
       error_list = []
       statements.each do |stat|
-        helpers.refresh_statement_helper(stat)
-        error_list << {"Statement id #{stat.id}" => stat.errors.messages} if stat.errors.any?
+        result = helpers.refresh_statement_helper(stat)
+        compact_errors = Array(result[:errors]).presence || stat.errors.full_messages
+        error_list << "Statement id #{stat.id}: #{compact_errors.first}" if compact_errors.present?
       end
-      redirect_to statements_path(request.parameters.except(:authenticity_token)), notice: "Statements refreshed. #{error_list}"
+      notice =
+        if error_list.any?
+          "Refresh completed with #{error_list.size} errors. First: #{error_list.first}"
+        else
+          "Statements refreshed."
+        end
+      redirect_to statements_path(batch_redirect_params), notice: notice
     end
     if params[:commit] == "Review all listed" 
       statements = build_query
@@ -182,7 +386,7 @@ class StatementsController < ApplicationController
         statement.status_origin = status_origin
         statement.save
       end
-      redirect_to statements_path(request.parameters.except(:authenticity_token)), notice: 'Statements successfully reviewed.'
+      redirect_to statements_path(batch_redirect_params), notice: 'Statements successfully reviewed.'
     end
 
   end
@@ -326,47 +530,287 @@ class StatementsController < ApplicationController
   #   scrape_options = {} to pass to Footlight-wringer scrapping service
   #
   def refresh_webpage_statements(webpage, default_language = "en", scrape_options={})
-    error_list = []
-    languages = [webpage.language]
-    # if webpage is default_language then add sources with no language to list of languages [webpage.language,'']
-    if webpage.language == default_language
-      languages << ''
-    end
-    #get the properties for the rdfs_class of the webpage recursively
-    property_ids = extract_property_ids(webpage.rdfs_class.name, [])
-    property_ids.each do |property_id|
-      
-    
-      #get the source for each modelled property
-      sources = Source.where(website_id: webpage.website, language: languages, property_id: property_id)
-      sources.each do |src|
-        ##next if src.blank? # TODO: check why needed?
-        
-        statements = Statement.where(webpage_id: webpage.id, source_id: src.id)
-        if statements.blank? # create a new statement
-          source_is_manual = src.algorithm_value.start_with?("manual=") ? true : false
-          stat = statements.new(manual: source_is_manual, selected_individual: src.selected, status: 'initial', status_origin: 'condenser_create')
-        else
-          stat = statements.first
-          next if stat.manual && ['ok','updated'].include?(stat.status)
-
-        end
-        helpers.refresh_statement_helper(stat, scrape_options)
-        if src.auto_review && stat.status == 'initial'
-          stat.update(status: 'updated')
-        end
-        error_list << {"Property id #{property_id}" => stat.errors.messages} if stat.errors.any?
-      end
-    end
-    return error_list
+    Statements::RefreshWebpageStatementsService.new(
+      refresh_helper: statement_refresh_helper_proxy
+    ).call(
+      webpage: webpage,
+      default_language: default_language,
+      scrape_options: normalized_scrape_options(scrape_options)
+    )
   end
 
 
   private
 
+  def statement_refresh_helper_proxy
+    StatementsHelper.build_refresh_proxy(
+      context: helpers,
+      cookies: request_cookie_snapshot,
+      logger: logger
+    )
+  end
+
+  def request_cookie_snapshot
+    return {} unless request.respond_to?(:cookies)
+
+    source = request.cookies || {}
+
+    source.with_indifferent_access
+  rescue StandardError
+    {}
+  end
+
+  def safe_trace_copy(obj)
+    case obj
+    when Array
+      obj.map { |e| safe_trace_copy(e) }
+    when Hash
+      obj.transform_values do |v|
+        safe_trace_copy(v)
+      end
+    else
+      obj
+    end
+  end
+
+  # Must stay in sync with DSL runner abort contract:
+  # ["abort_update", payload]
+  def abort_structure?(obj)
+    obj.is_a?(Array) && obj.first == "abort_update"
+  end
+
+  def extract_abort_payload(data)
+    return nil unless abort_structure?(data)
+
+    payload = data.second
+    payload = payload.to_h if payload.respond_to?(:to_h)
+
+    unless payload.is_a?(Hash)
+      payload = {
+        error: "Malformed abort payload",
+        error_type: "InvalidAbortPayload",
+        source: "statements_controller"
+      }
+    end
+
+    payload = payload.with_indifferent_access if payload.respond_to?(:with_indifferent_access)
+    payload
+  end
+
+  def refresh_rdf_uri_scrape_options
+    { force_scrape_every_hrs: params[:force_scrape_every_hrs] }
+  end
+
+  def render_missing_refresh_webpage
+    message = "Webpage not found for URL: #{params[:url]}"
+    redirect_path = safe_return_to_param || webpage_statements_path(url: params[:url])
+
+    respond_to do |format|
+      format.html { redirect_to redirect_path, alert: message }
+      format.json { render json: { error: message, url: params[:url] }, status: :not_found }
+    end
+  end
+
+  def render_missing_refresh_rdf_uri
+    message = "No webpages found for RDF URI: #{params[:rdf_uri]}"
+
+    respond_to do |format|
+      format.html { redirect_to statements_path(rdf_uri: params[:rdf_uri]), alert: message }
+      format.json { render json: { error: message, rdf_uri: params[:rdf_uri] }, status: :not_found }
+    end
+  end
+
+  def render_missing_webpage_listing
+    message = "Webpage not found for URL: #{params[:url]}"
+
+    respond_to do |format|
+      format.html { render plain: message, status: :not_found }
+      format.json { render json: { error: message, url: params[:url] }, status: :not_found }
+    end
+  end
+
+  def render_missing_compare_extracted
+    message = "Webpage not found for URL: #{params[:url]}"
+
+    respond_to do |format|
+      format.html { render plain: message, status: :not_found }
+      format.json { render json: { error: message, url: params[:url] }, status: :not_found }
+    end
+  end
+
+  def normalized_scrape_options(scrape_options)
+    return {} unless scrape_options.respond_to?(:to_h)
+
+    scrape_options.to_h.symbolize_keys
+  end
+
+  def refresh_summary_notice(success_message:, errors:, item_label: "errors", error_prefix: nil)
+    compact_errors = compact_refresh_error_list(errors)
+    return success_message if compact_errors.empty?
+
+    prefix = error_prefix.presence || success_message.delete_suffix(".")
+    "#{prefix} with #{compact_errors.size} #{item_label}. First: #{compact_errors.first}"
+  end
+
+  def compact_refresh_error_list(errors)
+    Array(errors).flat_map { |entry| compact_refresh_entries(entry) }.reject(&:blank?)
+  end
+
+  def compact_refresh_entries(entry, prefix = nil)
+    case entry
+    when String
+      [prefix.present? ? "#{prefix}: #{entry}" : entry]
+    when Hash
+      if entry.key?(:error) || entry.key?("error") || entry.key?(:error_type) || entry.key?("error_type")
+        message = helpers.compact_refresh_error(entry)
+        [prefix.present? ? "#{prefix}: #{message}" : message]
+      else
+      entry.flat_map do |key, value|
+        compact_refresh_entries(value, [prefix, key].compact.join(": "))
+      end
+      end
+    when Array
+      if entry.size == 2 && (entry.first.is_a?(String) || entry.first.is_a?(Symbol))
+        compact_refresh_entries(entry.last, [prefix, entry.first].compact.join(": "))
+      else
+        entry.flat_map { |nested| compact_refresh_entries(nested, prefix) }
+      end
+    else
+      message = helpers.compact_refresh_error(entry)
+      [prefix.present? ? "#{prefix}: #{message}" : message]
+    end
+  end
+
+  def scoped_session_trace_for(statement)
+    raw_trace = session[:dsl_trace]
+    raw_trace = raw_trace.to_h if raw_trace.respond_to?(:to_h)
+    return nil if raw_trace.blank? || !raw_trace.is_a?(Hash)
+
+    trace = raw_trace.with_indifferent_access
+    stored_statement_id = trace[:statement_id].presence
+
+    if stored_statement_id.blank? || stored_statement_id.to_i != statement.id
+      session.delete(:dsl_trace)
+      return nil
+    end
+
+    trace.except(:statement_id)
+  end
+
+  def resolve_trace_url(urls, index)
+    return nil if index.nil?
+
+    urls[index.to_i]
+  rescue StandardError
+    nil
+  end
+
+  def expand_compact_probe(payload)
+    raw = payload.respond_to?(:to_h) ? payload.to_h : payload
+    return { skipped: true } unless raw.is_a?(Hash)
+
+    p = raw.with_indifferent_access
+    return { skipped: true } if p[:sk]
+    return { skipped: true } if p[:x].blank?
+
+    output = Array(p[:o]).compact.map(&:to_s).first(3)
+    status = p[:st].presence || "ok"
+
+    {
+      result: {
+        status: status,
+        xpath: p[:x],
+        output: output
+      },
+      ok: p.key?(:ok) ? p[:ok] : (status == "ok")
+    }
+  rescue StandardError
+    { skipped: true }
+  end
+
+  def expand_compact_wringer(payload)
+    raw = payload.respond_to?(:to_h) ? payload.to_h : payload
+    return { inherited: true } unless raw.is_a?(Hash)
+
+    w = raw.with_indifferent_access
+    return { inherited: true } if w[:i]
+
+    {
+      error_type: w[:et],
+      retry: w[:r],
+      cache: w[:c],
+      unreachable: w[:u],
+      received_404: w[:r404],
+      system_error: w[:se],
+      policy_action: w[:pa],
+      content_type: w[:ct],
+      final_url: w[:fu],
+      redirect_chain: w[:rc],
+      signals: w[:s],
+      hints: w[:h]
+    }.compact
+  rescue StandardError
+    { inherited: true }
+  end
+
+  def normalize_trace_semantics(step)
+    raw = step.respond_to?(:to_h) ? step.to_h : {}
+    s = raw.is_a?(Hash) ? raw.with_indifferent_access : {}.with_indifferent_access
+
+    normalized_probe =
+      if s[:probe].is_a?(Hash)
+        probe = s[:probe].with_indifferent_access
+        if probe[:skipped]
+          { skipped: true }
+        elsif probe[:result].is_a?(Hash)
+          { result: probe[:result], ok: probe[:ok] }
+        elsif probe[:xpath].present?
+          {
+            result: {
+              status: probe[:status],
+              xpath: probe[:xpath],
+              output: probe[:output]
+            }.compact,
+            ok: probe[:status].to_s == "ok"
+          }
+        else
+          { skipped: true }
+        end
+      else
+        { skipped: true }
+      end
+
+    normalized_wringer =
+      if s[:wringer].is_a?(Hash)
+        wringer = s[:wringer].with_indifferent_access
+        (wringer.presence || { inherited: true })
+      else
+        { inherited: true }
+      end
+
+    s.merge(
+      probe: normalized_probe,
+      wringer: normalized_wringer
+    )
+  end
+
   # Use callbacks to share common setup or constraints between actions.
   def set_statement
-    @statement = Statement.find(params[:id])
+    @statement = Statement.find_by(id: params[:id])
+
+    return if @statement
+
+    respond_to do |format|
+      format.html do
+        redirect_to statements_path, alert: "Statement not found"
+      end
+      format.json do
+        render json: {
+          error: "Statement not found",
+          id: params[:id]
+        }, status: :not_found
+      end
+    end
   end
 
   # Never trust parameters from the scary internet, only allow the white list through.
@@ -380,61 +824,57 @@ class StatementsController < ApplicationController
     class_list = rdfs_class_name.split(',')
     class_list.each do |c|
       rdfs_class = RdfsClass.where(name: c).first
-      if rdfs_class
-        rdfs_class.properties.each do |property|
-          property_ids << property.id
-         ### TODO: is skipping xsd:uri ok? if ((property.value_datatype == "bnode" || property.value_datatype == "xsd:anyURI") && property.expected_class != rdfs_class_name)
-          if (property.value_datatype == "bnode"  && property.expected_class != rdfs_class_name)
-            extract_property_ids property.expected_class, property_ids
-          end
+      next unless rdfs_class
+
+      rdfs_class.properties.each do |property|
+        property_ids << property.id
+        # TODO: keep xsd:anyURI handling aligned with statement refresh semantics.
+        if property.value_datatype == "bnode" && property.expected_class != rdfs_class_name
+          extract_property_ids property.expected_class, property_ids
         end
       end
     end
-    return property_ids
+
+    property_ids
   end
 
   def build_query
-    statements = Statement.all
+    Statements::IndexQuery.call(
+      filters: harmonized_index_filters(allowed: Statements::IndexQuery::FILTER_KEYS),
+      sort: params[:sort],
+      direction: params[:direction],
+      page: params[:page],
+      per_page: params[:per_page].presence || Statements::IndexQuery::DEFAULT_PER_PAGE,
+      paginate: true
+    )
+  end
 
-    # filter by a Resource URI
-    if params[:rdf_uri].present?
-      webpage = Webpage.where(rdf_uri: params[:rdf_uri])
-      statements = statements.joins(:source).where(webpage_id: webpage).order( "sources.selected DESC" , "sources.property_id" )
+  def batch_redirect_params
+    harmonized_index_filters(allowed: Statements::IndexQuery::FILTER_KEYS)
+      .merge(
+        sort: params[:sort].presence,
+        direction: params[:direction].presence,
+        page: params[:page].presence,
+        per_page: params[:per_page].presence
+      )
+      .compact
+  end
+
+  def statement_compare_webpage
+    scope = Webpage.includes(:website, :rdfs_class)
+    scope = scope.where(website_id: params[:website_id]) if params[:website_id].present?
+    scope.find_by(url: params[:url])
+  end
+
+  def statement_compare_property_ids
+    if params[:scope].to_s == "all"
+      return Statements::RefreshWebpageStatementsService.property_ids_for_class_name(@webpage.rdfs_class.name, [])
     end
-    # filter by seedurl
-    if params[:seedurl].present? && params[:seedurl] != 'all'
-      statements = statements.joins(webpage: :website).where(webpages: { websites: {seedurl:  params[:seedurl] }}).order(:id)
-    end
-    # filter by a property
-    if params[:prop].present?
-      statements = statements.joins(source: :property).where(sources: { properties: {id: params[:prop] }} )
-    end
-    # filter by source
-    if params[:source].present?
-      statements = statements.where(source: params[:source] )
-    end
-    # filter by cache
-    if params[:cache].present?
-      statements = statements.where("cache LIKE ?" , "%#{params[:cache]}%" )
-    end
-    # filter by status
-    if params[:status].present?
-      statements = statements.where(status: params[:status])
-    end
-    # filter by manual
-    if params[:manual].present?
-      statements = statements.where(manual: params[:manual])
-    end
-    # filter by selected
-    if params[:selected].present?
-      statements = statements.includes(:source).where(sources: { selected: params[:selected] } )
-    end
-     # filter by selected_individual
-    if params[:selected_individual].present?
-      statements = statements.where(selected_individual: params[:selected_individual] )
-    end
-    
-    statements
+
+    custom_ids = params[:property_ids].to_s.split(",").map(&:strip).reject(&:blank?)
+    return custom_ids if custom_ids.present?
+
+    Statements::ExtractedParityComparisonService::DEFAULT_PROPERTY_IDS
   end
 
 end

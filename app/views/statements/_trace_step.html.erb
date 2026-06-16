@@ -1,0 +1,180 @@
+<%
+  index = step_counter
+  warning_type = trace_presenter.compute_warning_type(step)
+  status = trace_presenter.compute_step_status(step)
+  error_details = trace_presenter.trace_error_details(step)
+  visible = visible_indices.include?(index)
+  collapsed = !visible
+  show_expand_block = collapsed && index == visible_indices.first.to_i - 1
+  previous_step = index.positive? ? steps[index - 1] : nil
+  explanation = trace_presenter.explain_step(step, previous_step)
+  suggestion = trace_presenter.suggest_fix(step, previous_step)
+
+  displayed_output =
+    if step[:output].nil?
+      step[:input]
+    elsif step[:output] == []
+      "[]"
+    else
+      step[:output]
+    end
+
+  full_output = step[:output_full] || step["output_full"] || displayed_output
+  truncated_output = truncate(displayed_output.to_s, length: @trace_output_length)
+  pretty_output =
+    if full_output.is_a?(Array) && full_output.size <= 3
+      "[" + full_output.map { |e| e.inspect }.join(", ") + "]"
+    else
+      truncated_output
+    end
+  full_output_text = "→ #{full_output}"
+  truncated_output_text = "→ #{pretty_output}"
+%>
+<% if show_expand_block %>
+  <div class="trace-expand-block" onclick="document.querySelectorAll('.trace-step.collapsed').forEach(function(e){ e.classList.remove('collapsed'); }); this.style.display='none';">
+    Show all (<%= hidden_count %> hidden steps)
+  </div>
+<% end %>
+
+<div class="trace-step <%= 'trace-error' if step[:error].present? %> <%= 'trace-first-error' if step[:step] == first_error_step %> <%= 'collapsed' if collapsed %>" data-warning-type="<%= warning_type %>" data-step="<%= step[:step] %>">
+  <!-- HEADER -->
+  <div class="trace-header">
+    <span class="trace-step-title trace-<%= status %>">
+      Step <%= step[:step] %> — <%= step[:type].presence || "unknown" %>
+    </span>
+    <% if index == first_error_index %>
+      <span class="trace-badge">FIRST FAILURE</span>
+    <% end %>
+  </div>
+
+  <!-- HINT -->
+  <% if warning_type == :empty %>
+    <div class="trace-hint">⚠ Empty result</div>
+  <% elsif warning_type == :probe %>
+    <div class="trace-hint">⚠ Probe used</div>
+  <% end %>
+  <% if explanation.present? %>
+    <div class="trace-explanation"><%= explanation %></div>
+  <% end %>
+  <% if suggestion.present? %>
+    <div class="dsl-suggestion">💡 <%= suggestion %></div>
+  <% end %>
+
+  <!-- CODE -->
+  <% if step[:code].present? %>
+    <% full_code = step[:code].to_s %>
+    <% truncated_code = truncate(full_code, length: @trace_code_length) %>
+    <div class="trace-code">
+      <code>
+        <span class="trace-code-toggle"
+              title="Click to expand"
+              onclick="event.stopPropagation(); toggleTraceExpandable(this)"
+              data-full="<%= h(full_code) %>"
+              data-truncated="<%= h(truncated_code) %>"><%= truncated_code %></span>
+      </code>
+    </div>
+  <% end %>
+
+  <!-- OUTPUT -->
+  <div class="trace-output <%= status %>">
+    <span class="trace-output-toggle"
+          title="<%= h(full_output_text.to_s) %>"
+          onclick="event.stopPropagation(); toggleTraceExpandable(this)"
+          data-full="<%= h(full_output_text.to_s) %>"
+          data-truncated="<%= h(truncated_output_text.to_s) %>"><%= truncated_output_text %></span>
+  </div>
+
+  <!-- META -->
+  <div class="trace-semantic">
+    <%= "#{step[:intent]} (#{trace_presenter.semantic(step)})" %>
+  </div>
+
+  <% if trace_presenter.semantic(step) == "Δ changed" && step[:delta].present? %>
+    <div class="trace-delta">
+      Δ <%= step[:delta] %>
+    </div>
+  <% end %>
+
+  <% detail_semantic = trace_presenter.semantic_label(step) %>
+  <% redirect_url = interactive_redirect_info(step) %>
+  <% links = wringer_links_for_step(step, website: @statement&.webpage&.website) %>
+
+  <% if redirect_url.present? && detail_semantic == "Navigation" %>
+  <div class="trace-subline trace-redirect">
+    <span>⚠ redirected →</span>
+    <span class="trace-redirect-url"><%= redirect_url %></span>
+  </div>
+  <% end %>
+
+  <% if detail_semantic == "Navigation" && links.present? %>
+    <div class="trace-navigation-links">
+      <% active_cache = links[:active_cache] || {} %>
+      <% if active_cache[:active_cache_url].present? %>
+        <a href="<%= active_cache[:active_cache_url] %>" target="_blank" rel="noopener noreferrer">🧭 <%= active_cache[:label] %></a>
+      <% end %>
+      <% active_cache.fetch(:secondary_links, []).each do |link| %>
+        <a href="<%= link[:url] %>" target="_blank" rel="noopener noreferrer">🔍 <%= link[:label] %></a>
+      <% end %>
+      <a href="<%= links[:raw_url] %>" target="_blank" rel="noopener noreferrer">🌐 View page</a>
+    </div>
+    <% if active_cache[:warning].present? %>
+      <div class="trace-subline trace-redirect"><span>⚠ <%= active_cache[:warning] %></span></div>
+    <% end %>
+  <% end %>
+
+  <hr class="trace-divider">
+
+  <div class="trace-meta">
+  <% wringer = step[:wringer].is_a?(Hash) ? step[:wringer].with_indifferent_access : {} %>
+  <div class="trace-wringer">
+    <% if wringer.blank? %>
+      ⚠ Missing wringer context
+    <% elsif wringer[:inherited] %>
+      ↪ Using previous page context
+    <% else %>
+      <% signals = wringer[:signals].is_a?(Hash) ? wringer[:signals].with_indifferent_access : {} %>
+      <% network = signals[:network_status].presence || "unknown" %>
+      <% content = signals[:content_type].presence || "unknown" %>
+      <% icon = network == "ok" ? "✔" : (network == "failed" ? "❌" : "⚠") %>
+      <%= "#{icon} Network: #{network.upcase} • Content: #{content.upcase}" %>
+    <% end %>
+  </div>
+
+  <% probe =
+       if step[:probe].nil?
+         { missing: true }
+       else
+         step[:probe]
+       end %>
+  <% probe = probe.with_indifferent_access if probe.is_a?(Hash) %>
+  <div class="trace-probe">
+    <% if probe[:missing] %>
+      ⚠ Missing probe data
+    <% elsif probe[:skipped] %>
+      ⏭ Probe skipped
+    <% else %>
+      <% probe_result = probe[:result].is_a?(Hash) ? probe[:result].with_indifferent_access : probe %>
+      <% probe_ok = probe.key?(:ok) ? probe[:ok] : (probe_result[:status].to_s == "ok") %>
+      <%= "#{probe_ok ? '✔' : '⚠'} Probe #{probe_result[:xpath]} → #{truncate(probe_result[:output].to_s, length: 100)}" %>
+    <% end %>
+  </div>
+  </div>
+
+  <% if step[:error].present? %>
+    <div class="trace-error-origin <%= error_details[:category] %>">
+      <strong><%= error_details[:label] %></strong>
+      <% if error_details[:source].present? || error_details[:error_type].present? %>
+        <span>[source: <%= error_details[:source] %><% if error_details[:error_type].present? %> • type: <%= error_details[:error_type] %><% end %>]</span>
+      <% end %>
+    </div>
+    <div class="trace-error-message">
+      ⚠ <%= truncate(step[:error].to_s, length: @trace_error_length) %>
+    </div>
+  <% end %>
+
+  <% if step[:url_after].present? && step[:url_after] != step[:url_before] %>
+    <div class="trace-url">
+      URL → <%= step[:url_after] %>
+    </div>
+  <% end %>
+</div>

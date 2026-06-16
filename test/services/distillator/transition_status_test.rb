@@ -1,0 +1,641 @@
+require "test_helper"
+
+class Distillator::TransitionStatusTest < ActiveSupport::TestCase
+  test "no cache or evidence returns not checked" do
+    website = build_website("Outside Feed", "outside-feed")
+
+    status = Distillator::TransitionStatus.call(website: website, cache: nil)
+
+    assert_equal :not_checked, status.status
+    assert_equal :missing, status.fetch
+    assert_equal :missing, status.statements
+    assert_equal :missing, status.export
+    assert_equal :unknown, status.safety
+    assert_equal :not_checked, status.confidence
+  end
+
+  test "failed transport returns blocked and fetch failed" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(signals: { "transport_success" => false, "content_success" => true }, health_status: "attempt_failed")
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :blocked, status.status
+    assert_equal :failed, status.fetch
+    assert_equal :unsafe, status.safety
+    assert_equal "Fix fetch/cache first, then rerun the transition batch check.", status.activation_recommendation[:next_action]
+  end
+
+  test "failed content returns blocked and fetch failed" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => false }, health_status: "attempt_failed")
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :blocked, status.status
+    assert_equal :failed, status.fetch
+  end
+
+  test "la vitrine missing statement evidence returns blocked" do
+    website = build_website("Tout Culture", "outside-seed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true, "export_diff_checked" => true })
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :blocked, status.status
+    assert_equal :missing, status.statements
+  end
+
+  test "la vitrine missing export evidence returns blocked" do
+    website = build_website("Tout Culture", "outside-seed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true, "statement_count_delta_acceptable" => true })
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :blocked, status.status
+    assert_equal :missing, status.export
+  end
+
+  test "la vitrine cache signals alone do not satisfy statements and export checks" do
+    website = build_website("Tout Culture", "outside-seed")
+    cache = build_cache(
+      signals: {
+        "transport_success" => true,
+        "content_success" => true,
+        "statement_count_delta_acceptable" => true,
+        "export_diff_checked" => true
+      }
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :blocked, status.status
+    assert_equal :missing, status.statements
+    assert_equal :missing, status.export
+  end
+
+  test "ordinary missing export evidence returns review" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true, "statement_count_delta_acceptable" => true })
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :review, status.status
+    assert_equal :missing, status.export
+  end
+
+  test "ordinary sites still fall back to cache signals for statements and export" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(
+      signals: {
+        "transport_success" => true,
+        "content_success" => true,
+        "statement_count_delta_acceptable" => true,
+        "export_diff_checked" => true
+      }
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :ready, status.status
+    assert_equal :passed, status.statements
+    assert_equal :passed, status.export
+    assert_equal :safe, status.safety
+    assert_equal :high, status.confidence
+  end
+
+  test "all required fresh evidence returns ready" do
+    website = build_website("Tout Culture", "outside-seed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true })
+    website.transition_evidences.create!(url: "https://example.org/event", check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(url: "https://example.org/event", check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :ready, status.status
+    assert_equal :passed, status.fetch
+    assert_equal :passed, status.statements
+    assert_equal :passed, status.export
+    assert_equal "Ready", status.activation_recommendation[:label]
+  end
+
+  test "evidence statuses expose checked missing failed and stale states" do
+    website = build_website("Tout Culture", "outside-seed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true })
+    website.transition_evidences.create!(url: "https://example.org/event", check_kind: "fetch_parity", status: "checked", checked_at: 1.hour.ago)
+    website.transition_evidences.create!(url: "https://example.org/event", check_kind: "statement_delta", status: "failed", statement_count_delta_acceptable: false, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(url: "https://example.org/event", check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 4.days.ago)
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :checked, status.evidence_statuses["fetch_parity"]
+    assert_equal :failed, status.evidence_statuses["statement_delta"]
+    assert_equal :stale, status.evidence_statuses["export_diff"]
+    assert_includes status.blockers, "Cannot activate yet: statements check failed."
+    assert_not_includes status.blockers, "Cannot activate yet: statements check is missing."
+    assert_equal "Blocked", status.activation_recommendation[:label]
+    assert_equal "Cannot activate yet: statements check failed.", status.activation_recommendation[:reason]
+  end
+
+  test "activation can be blocked while export still passes" do
+    website = build_website("Tout Culture", "outside-seed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true })
+    website.transition_evidences.create!(url: "https://example.org/event", check_kind: "statement_delta", status: "failed", statement_count_delta_acceptable: false, checked_at: 1.hour.ago)
+    website.transition_evidences.create!(url: "https://example.org/event", check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :blocked, status.status
+    assert_equal :failed, status.statements
+    assert_equal :passed, status.export
+    assert_equal "Blocked", status.activation_recommendation[:label]
+    assert_equal "Export", status.checks.last[:label]
+    assert_equal :passed, status.checks.last[:state]
+  end
+
+  test "optional statement warnings keep readiness in review instead of blocked" do
+    website = build_website("Tout Culture", "outside-seed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true })
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "statement_delta",
+      status: "warning",
+      statement_count_delta_acceptable: true,
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "optional_statement_refresh_warning",
+        critical_statements_failed_count: 0,
+        optional_statements_failed_count: 3
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "export_diff",
+      status: "checked",
+      export_diff_checked: true,
+      checked_at: 1.hour.ago
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :review, status.status
+    assert_equal :warning, status.statements
+    assert_equal :passed, status.export
+    assert_equal :review, status.safety
+    assert_not_includes status.blockers, "Cannot activate yet: statements check failed."
+    assert_includes status.warnings, "Critical statements passed; optional statement refresh warnings need review."
+    assert_equal "Review the optional statement refresh warnings before activating.", status.activation_recommendation[:next_action]
+  end
+
+  test "legacy generic statement refresh failure stays blocked without pretending critical split exists" do
+    website = build_website("Tout Culture", "outside-seed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true })
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "statement_delta",
+      status: "failed",
+      statement_delta: 99,
+      statement_count_delta_acceptable: false,
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "statement_refresh_failed",
+        statements_failed_count: 99,
+        refresh_errors: ["InvalidURL from json_url"]
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "export_diff",
+      status: "checked",
+      export_diff_checked: true,
+      checked_at: 1.hour.ago
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :blocked, status.status
+    assert_equal :failed, status.statements
+    assert_includes status.blockers, "Cannot activate yet: statements check failed."
+    refute_includes status.warnings, "Critical statements passed; optional statement refresh warnings need review."
+  end
+
+  test "title failure remains blocked even when export passes" do
+    website = build_website("Tout Culture", "outside-seed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true })
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "statement_delta",
+      status: "failed",
+      statement_count_delta_acceptable: false,
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "critical_statement_refresh_failed",
+        critical_statements_failed_count: 1,
+        optional_statements_failed_count: 0,
+        critical_failing_statements: [{ id: 101, source: "Title / en", severity: "blocker" }]
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "export_diff",
+      status: "checked",
+      export_diff_checked: true,
+      checked_at: 1.hour.ago
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :blocked, status.status
+    assert_equal :unsafe, status.safety
+    assert_equal :failed, status.statements
+    assert_includes status.blockers, "Cannot activate yet: statements check failed."
+  end
+
+  test "dates failure remains blocked even when export passes" do
+    website = build_website("Tout Culture", "outside-seed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true })
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "statement_delta",
+      status: "failed",
+      statement_count_delta_acceptable: false,
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "critical_statement_refresh_failed",
+        critical_statements_failed_count: 1,
+        optional_statements_failed_count: 2,
+        critical_failing_statements: [{ id: 102, source: "Dates / en", severity: "blocker" }],
+        optional_failing_statements: [{ id: 103, source: "Description / en", severity: "warning" }]
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "export_diff",
+      status: "checked",
+      export_diff_checked: true,
+      checked_at: 1.hour.ago
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :blocked, status.status
+    assert_equal :unsafe, status.safety
+    assert_equal :failed, status.statements
+    assert_includes status.blockers, "Cannot activate yet: statements check failed."
+    assert_not_includes status.warnings, "Critical statements passed; optional statement refresh warnings need review."
+  end
+
+  test "failed fetch with zero statement work marks statements not evaluated" do
+    website = build_website("Tout Culture", "outside-seed")
+    cache = build_cache(signals: { "transport_success" => false, "content_success" => false }, health_status: "empty_body")
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "statement_delta",
+      status: "pending",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "fetch_failed_before_statement_refresh",
+        statements_refreshed_count: 0,
+        statements_failed_count: 0
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "export_diff",
+      status: "checked",
+      export_diff_checked: true,
+      checked_at: 1.hour.ago
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :failed, status.fetch
+    assert_equal :not_evaluated, status.statements
+    assert_equal :passed, status.export
+    assert_equal "Cannot activate yet: fetch check failed.", status.activation_recommendation[:reason]
+    assert_equal "Fix fetch/cache first, then rerun the transition batch check.", status.activation_recommendation[:next_action]
+  end
+
+  test "no selected statements marks statements inconclusive" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true })
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "statement_delta",
+      status: "pending",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "no_selected_statements",
+        statements_refreshed_count: 0,
+        statements_failed_count: 0
+      }
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :inconclusive, status.statements
+    assert_equal "Verify selected sources/statements for the sampled webpages.", status.activation_recommendation[:next_action]
+  end
+
+  test "partial representative fetch failure keeps statements and export inconclusive" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true })
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "fetch_parity",
+      status: "failed",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "cache_health_failed",
+        failed_layer: "fetch",
+        affected_url_count: 1
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "statement_delta",
+      status: "pending",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "partial_fetch_failed_before_statement_refresh",
+        representative_url_statement_results: [
+          { url: "https://example.org/one", status: "passed", reason: "ok" },
+          { url: "https://example.org/two", status: "passed", reason: "ok" },
+          { url: "https://example.org/three", status: "blocked_by_fetch", reason: "cache_health_failed" }
+        ]
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "export_diff",
+      status: "pending",
+      export_diff_checked: false,
+      export_diff_status: "partial",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "partial_fetch_failed_before_export_comparison",
+        representative_url_export_results: [
+          { url: "https://example.org/one", status: "checked", reason: "ok" },
+          { url: "https://example.org/two", status: "checked", reason: "ok" },
+          { url: "https://example.org/three", status: "blocked_by_fetch", reason: "cache_health_failed" }
+        ]
+      }
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :blocked, status.status
+    assert_equal :unsafe, status.safety
+    assert_equal :failed, status.fetch
+    assert_equal :inconclusive, status.statements
+    assert_equal :inconclusive, status.export
+    assert_includes status.blockers, "Cannot activate yet: statements check is inconclusive."
+    assert_includes status.blockers, "Cannot activate yet: export check is inconclusive."
+  end
+
+  test "legacy lookup missing config keeps condenser fetch passed but marks review" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(
+      signals: {
+        "transport_success" => true,
+        "content_success" => true,
+        "statement_count_delta_acceptable" => true,
+        "export_diff_checked" => true
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: {
+        attempted_condenser_fetch: true,
+        condenser_fetch_success: true,
+        comparison_performed: false,
+        legacy_lookup_status: "missing_config",
+        legacy_lookup_error: "missing_config",
+        reason: "legacy_lookup_missing_config"
+      }
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :review, status.status
+    assert_equal :passed, status.fetch
+    assert_includes status.warnings, "Needs review: legacy Wringer endpoint is not configured for this environment."
+    assert_equal "Configure the Wringer endpoint for staging, then rerun the transition batch check.", status.activation_recommendation[:next_action]
+  end
+
+  test "legacy lookup unreachable keeps condenser fetch passed but marks review" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(
+      signals: {
+        "transport_success" => true,
+        "content_success" => true,
+        "statement_count_delta_acceptable" => true,
+        "export_diff_checked" => true
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: {
+        attempted_condenser_fetch: true,
+        condenser_fetch_success: true,
+        comparison_performed: false,
+        legacy_lookup_status: "unreachable",
+        legacy_lookup_error: "connection refused",
+        reason: "legacy_lookup_unreachable"
+      }
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :review, status.status
+    assert_equal :passed, status.fetch
+    assert_includes status.warnings, "Needs review: legacy Wringer lookup failed during the latest transition batch check."
+    assert_equal "Fix the legacy Wringer endpoint, then rerun the transition batch check.", status.activation_recommendation[:next_action]
+  end
+
+  test "legacy lookup body omitted keeps condenser fetch passed but marks review" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(
+      signals: {
+        "transport_success" => true,
+        "content_success" => true,
+        "statement_count_delta_acceptable" => true,
+        "export_diff_checked" => true
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: {
+        attempted_condenser_fetch: true,
+        condenser_fetch_success: true,
+        comparison_performed: false,
+        legacy_lookup_status: "body_omitted",
+        legacy_lookup_error: "legacy_body_omitted",
+        reason: "legacy_lookup_body_omitted"
+      }
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :review, status.status
+    assert_equal :passed, status.fetch
+    assert_includes status.warnings, "Needs review: legacy Wringer body was omitted from the comparison endpoint."
+    assert_not_includes status.blockers, "Cannot activate yet: fetch check failed."
+    assert_equal false, status.review_activation_eligible
+    assert_equal true, status.manual_review_required
+    assert_equal "Verify the legacy Wringer body endpoint or compare using the legacy inspection link.", status.activation_recommendation[:next_action]
+  end
+
+  test "review-needed parity difference stays in review without claiming fetch failure" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(
+      signals: {
+        "transport_success" => true,
+        "content_success" => true,
+        "statement_count_delta_acceptable" => true,
+        "export_diff_checked" => true
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: {
+        attempted_condenser_fetch: true,
+        condenser_fetch_success: true,
+        comparison_performed: true,
+        reason: "review_needed_difference"
+      }
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :review, status.status
+    assert_equal :passed, status.fetch
+    assert_not_includes status.blockers, "Cannot activate yet: fetch check failed."
+    assert_includes status.warnings, "Needs review: Condenser and Wringer differ in fields that need manual verification."
+    assert_equal :review, status.safety
+    assert_equal :low, status.confidence
+    assert_equal true, status.review_activation_eligible
+    assert_equal false, status.manual_review_required
+    assert_equal "Review the checklist, then activate with a recorded reason.", status.activation_recommendation[:next_action]
+  end
+
+  test "metadata only difference stays ready with medium confidence" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(
+      signals: {
+        "transport_success" => true,
+        "content_success" => true,
+        "statement_count_delta_acceptable" => true,
+        "export_diff_checked" => true
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "fetch_parity",
+      status: "checked",
+      checked_at: 1.hour.ago,
+      details: {
+        attempted_condenser_fetch: true,
+        condenser_fetch_success: true,
+        comparison_performed: true,
+        reason: "metadata_only_difference"
+      }
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :ready, status.status
+    assert_equal :safe, status.safety
+    assert_equal :medium, status.confidence
+    assert_equal false, status.review_activation_eligible
+    assert_equal false, status.manual_review_required
+    assert_equal "Metadata notes only. Promote to active when you are satisfied with the evidence.", status.activation_recommendation[:next_action]
+  end
+
+  test "timeout budget exceeded keeps statements and export inconclusive while fetch stays failed" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true })
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "fetch_parity",
+      status: "failed",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "transition_check_timeout_budget_exceeded",
+        failed_layer: "fetch",
+        affected_url_count: 1
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "statement_delta",
+      status: "pending",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "transition_check_timeout_budget_exceeded",
+        representative_url_statement_results: [
+          { url: "https://example.org/one", status: "inconclusive", reason: "transition_check_timeout_budget_exceeded" },
+          { url: "https://example.org/two", status: "blocked_by_fetch", reason: "transition_check_timeout_budget_exceeded" }
+        ]
+      }
+    )
+    website.transition_evidences.create!(
+      url: "https://example.org/event",
+      check_kind: "export_diff",
+      status: "pending",
+      export_diff_checked: false,
+      export_diff_status: "pending",
+      checked_at: 1.hour.ago,
+      details: {
+        reason: "transition_check_timeout_budget_exceeded",
+        representative_url_export_results: [
+          { url: "https://example.org/one", status: "inconclusive", reason: "transition_check_timeout_budget_exceeded" },
+          { url: "https://example.org/two", status: "blocked_by_fetch", reason: "transition_check_timeout_budget_exceeded" }
+        ]
+      }
+    )
+
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :blocked, status.status
+    assert_equal :unsafe, status.safety
+    assert_equal :failed, status.fetch
+    assert_equal :inconclusive, status.statements
+    assert_equal :inconclusive, status.export
+  end
+
+  private
+
+  def build_website(name, seedurl)
+    Website.create!(
+      name: name,
+      seedurl: seedurl,
+      graph_name: "https://example.org/#{seedurl}",
+      default_language: "en",
+      distillator_mode: "shadow"
+    )
+  end
+
+  def build_cache(signals:, health_status: "healthy")
+    Distillator::FetchCache.new(
+      uri_key: CGI.escape("https://example.org/event"),
+      normalized_url: "https://example.org/event",
+      signals: signals,
+      health_status: health_status,
+      successful_refresh: 1.hour.ago,
+      scrape_date: 1.hour.ago
+    )
+  end
+end

@@ -17,6 +17,8 @@
 # You MAY use ActiveRecord methods freely on Webpage, Statement, Property, etc.
 # =============================================================================
 class ResourcesController < ApplicationController
+  include HarmonizedIndexParams
+
   skip_before_action :verify_authenticity_token, :authenticate
 
   # === GET /recon
@@ -71,6 +73,27 @@ class ResourcesController < ApplicationController
     unless params[:seedurl].present?
       return render json: { error: "Missing seedurl param" }, status: :bad_request
     end
+    index_params = harmonized_index_params(
+      allowed_filters: Resources::IndexQuery::FILTER_KEYS,
+      allowed_sorts: Resources::IndexQuery::SORT_COLUMNS,
+      default_sort: Resources::IndexQuery::DEFAULT_SORT,
+      default_direction: Resources::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Resources::IndexQuery::DEFAULT_PER_PAGE,
+      max_per_page: Resources::IndexQuery::MAX_PER_PAGE
+    )
+    index_params[:filters] = index_params[:filters].merge(seedurl: params[:seedurl])
+
+    canonical = harmonized_index_canonical_params(
+      index_params,
+      default_sort: Resources::IndexQuery::DEFAULT_SORT,
+      default_direction: Resources::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Resources::IndexQuery::DEFAULT_PER_PAGE,
+      preserve: {},
+      exclude_filters: [:seedurl]
+    )
+    raw = harmonized_index_raw_params(allowed_filters: Resources::IndexQuery::FILTER_KEYS - [:seedurl], preserve: %w[sort direction page per_page])
+    return redirect_to(website_all_resources_path(canonical)) if request.format.html? && canonical != raw
+
     @resources = {}
     @resources["event"]         = helpers.get_uris(params[:seedurl], "Event")
     @resources["place"]         = helpers.get_uris(params[:seedurl], "Place")
@@ -78,6 +101,19 @@ class ResourcesController < ApplicationController
     @resources["person"]        = helpers.get_uris(params[:seedurl], "Person")
     @resources["event_type"]    = helpers.get_uris(params[:seedurl], "EventType")
     @resources["resource_list"] = helpers.get_uris(params[:seedurl], "ResourceList")
+    @filters = index_params[:filters]
+    @sort = index_params[:sort]
+    @direction = index_params[:direction]
+    @pagination = { page: index_params[:page], per_page: index_params[:per_page] }
+    @sortable_filters = @filters.except(:seedurl).merge(per_page: @pagination[:per_page])
+    @resource_table_headers = HarmonizedTableHeaders.resources
+    @resource_rows = Resources::IndexQuery.call(
+      filters: @filters,
+      sort: @sort,
+      direction: @direction,
+      page: @pagination[:page],
+      per_page: @pagination[:per_page]
+    )
     respond_to do |format|
       format.html # index.html.erb
       format.json { render json: @resources }

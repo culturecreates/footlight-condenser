@@ -1,0 +1,312 @@
+<%
+table_key = local_assigns[:table_key]
+view_mode = local_assigns[:view_mode]
+filters = local_assigns[:filters] || {}
+pagination = local_assigns[:pagination] || {}
+sort = local_assigns[:sort]
+direction = local_assigns[:direction]
+seedurl = local_assigns[:seedurl]
+source_id = local_assigns[:source_id]
+%>
+
+<% if table_key == :webpages %>
+  <details class="harmonized-table-filters webpage-advanced-filters" open>
+    <summary>Advanced filters</summary>
+    <%= form_with url: webpages_path, method: :get, local: true, html: { autocomplete: "off", class: "webpage-advanced-filters-form" } do %>
+      <%= hidden_field_tag :seedurl, seedurl if local_assigns[:seedurl].present? %>
+      <%= hidden_field_tag :scope, filters[:scope] if filters[:scope].present? %>
+      <%= hidden_field_tag :rdfs_class, filters[:rdfs_class] if filters[:rdfs_class].present? && webpages_selected_rdfs_class_id(filters).blank? %>
+      <%= hidden_field_tag :sort, sort if sort.present? %>
+      <%= hidden_field_tag :direction, direction if direction.present? %>
+      <div class="cache-filter-grid">
+        <div>
+          <%= label_tag :term, "Search" %>
+          <%= text_field_tag :term, filters[:term], autocomplete: "off" %>
+        </div>
+        <div>
+          <%= label_tag :language, "Language" %>
+          <%= select_tag :language, options_for_select([["Any", ""], ["en", "en"], ["fr", "fr"]], filters[:language]) %>
+        </div>
+        <div>
+          <%= label_tag :url_kind, "URL kind" %>
+          <%= select_tag :url_kind, options_for_select([["Any", ""], ["Public source URLs", "public"], ["Internal URIs", "internal"]], filters[:url_kind]) %>
+        </div>
+        <div>
+          <%= label_tag :rdfs_class_id, "Class" %>
+          <%= select_tag :rdfs_class_id, options_from_collection_for_select(RdfsClass.order(:name), :id, :name, webpages_selected_rdfs_class_id(filters)), include_blank: "Any" %>
+        </div>
+        <div>
+          <%= label_tag :publishable, "Publishable" %>
+          <%= select_tag :publishable, options_for_select([["Any", ""], ["Yes", "true"], ["No", "false"]], filters[:publishable]) %>
+        </div>
+        <div>
+          <%= label_tag :archive_state, "Archive state" %>
+          <%= select_tag :archive_state, options_for_select([["Any", ""], ["Active", "active"], ["Archived", "archived"]], filters[:archive_state]) %>
+        </div>
+      </div>
+      <p class="cache-filter-actions">
+        <%= submit_tag "Apply filters" %>
+        <%= link_to "Reset filters", webpages_path({ seedurl: seedurl.presence, scope: filters[:scope].presence }.compact_blank) %>
+      </p>
+    <% end %>
+  </details>
+<% elsif table_key == :properties %>
+  <details class="harmonized-table-filters property-advanced-filters" open>
+    <summary>Advanced filters</summary>
+    <%= form_with url: properties_path, method: :get, local: true, html: { autocomplete: "off", class: "property-advanced-filters-form" } do %>
+      <%= hidden_field_tag :sort, sort if sort.present? %>
+      <%= hidden_field_tag :direction, direction if direction.present? %>
+      <%= hidden_field_tag :per_page, pagination[:per_page] if pagination[:per_page].to_i != ::Properties::IndexQuery::DEFAULT_PER_PAGE %>
+      <div class="cache-filter-grid">
+        <div>
+          <%= label_tag :term, "Search" %>
+          <%= text_field_tag :term, filters[:term], autocomplete: "off" %>
+        </div>
+      </div>
+      <p class="cache-filter-actions">
+        <%= submit_tag "Apply filters" %>
+        <%= link_to "Reset filters", properties_path %>
+      </p>
+    <% end %>
+  </details>
+<% elsif table_key == :rdfs_classes %>
+  <details class="harmonized-table-filters rdfs-class-advanced-filters" open>
+    <summary>Advanced filters</summary>
+    <%= form_with url: rdfs_classes_path, method: :get, local: true, html: { autocomplete: "off", class: "rdfs-class-advanced-filters-form" } do %>
+      <%= hidden_field_tag :sort, sort if sort.present? %>
+      <%= hidden_field_tag :direction, direction if direction.present? %>
+      <%= hidden_field_tag :per_page, pagination[:per_page] if pagination[:per_page].to_i != ::RdfsClasses::IndexQuery::DEFAULT_PER_PAGE %>
+      <div class="cache-filter-grid">
+        <div>
+          <%= label_tag :term, "Search" %>
+          <%= text_field_tag :term, filters[:term], autocomplete: "off" %>
+        </div>
+      </div>
+      <p class="cache-filter-actions">
+        <%= submit_tag "Apply filters" %>
+        <%= link_to "Reset filters", rdfs_classes_path %>
+      </p>
+    <% end %>
+  </details>
+<% elsif table_key == :statements %>
+  <details class="harmonized-table-filters statement-advanced-filters" open>
+    <summary>Advanced filters</summary>
+    <%= form_with url: statements_path, method: :get, local: true, html: { autocomplete: "off", class: "statement-advanced-filters-form" } do %>
+      <%= hidden_field_tag :sort, sort if sort.present? %>
+      <%= hidden_field_tag :direction, direction if direction.present? %>
+      <%= hidden_field_tag :per_page, pagination[:per_page] if pagination[:per_page].to_i != ::Statements::IndexQuery::DEFAULT_PER_PAGE %>
+      <div class="source-filter-grid">
+        <div>
+          <%= label_tag :seedurl, "Seedurl" %>
+          <%= text_field_tag :seedurl, filters[:seedurl], autocomplete: "off" %>
+        </div>
+        <div>
+          <%= label_tag :rdf_uri, "Rdf uri" %>
+          <%= text_field_tag :rdf_uri, filters[:rdf_uri], autocomplete: "off" %>
+        </div>
+        <div>
+          <%= label_tag :prop, "Property" %>
+          <%= text_field_tag :prop, filters[:prop], autocomplete: "off" %>
+        </div>
+        <div>
+          <%= label_tag :source, "Source" %>
+          <%= text_field_tag :source, filters[:source], autocomplete: "off" %>
+        </div>
+        <div>
+          <%= label_tag :cache, "Cache" %>
+          <%= text_field_tag :cache, filters[:cache], autocomplete: "off" %>
+        </div>
+        <div>
+          <%= label_tag :status, "Status" %>
+          <%= select_tag :status, options_for_select([["Any", ""], ["initial", "initial"], ["missing", "missing"], ["ok", "ok"], ["problem", "problem"], ["updated", "updated"]], filters[:status]) %>
+        </div>
+        <div>
+          <%= label_tag :manual, "Manual" %>
+          <%= select_tag :manual, options_for_select([["Any", ""], ["true", "true"], ["false", "false"]], filters[:manual]) %>
+        </div>
+        <div>
+          <%= label_tag :selected, "Selected source" %>
+          <%= select_tag :selected, options_for_select([["Any", ""], ["true", "true"], ["false", "false"]], filters[:selected]) %>
+        </div>
+        <div>
+          <%= label_tag :selected_individual, "Selected individual" %>
+          <%= select_tag :selected_individual, options_for_select([["Any", ""], ["true", "true"], ["false", "false"]], filters[:selected_individual]) %>
+        </div>
+      </div>
+      <p class="sources-filter-actions">
+        <%= submit_tag "Apply filters" %>
+        <%= link_to "Reset filters", statements_path %>
+      </p>
+    <% end %>
+  </details>
+<% elsif table_key == :events %>
+  <details class="harmonized-table-filters event-advanced-filters" open>
+    <summary>Advanced filters</summary>
+    <%= form_with url: website_events_path(seedurl: seedurl), method: :get, local: true, html: { autocomplete: "off", class: "event-advanced-filters-form" } do %>
+      <%= hidden_field_tag :sort, sort if sort.present? %>
+      <%= hidden_field_tag :direction, direction if direction.present? %>
+      <%= hidden_field_tag :per_page, pagination[:per_page] if pagination[:per_page].to_i != ::Events::IndexQuery::DEFAULT_PER_PAGE %>
+      <div class="cache-filter-grid">
+        <div>
+          <%= label_tag :startDate, "Start date" %>
+          <%= text_field_tag :startDate, filters[:startDate], autocomplete: "off" %>
+        </div>
+        <div>
+          <%= label_tag :endDate, "End date" %>
+          <%= text_field_tag :endDate, filters[:endDate], autocomplete: "off" %>
+        </div>
+        <div>
+          <%= label_tag :term, "Search" %>
+          <%= text_field_tag :term, filters[:term], autocomplete: "off" %>
+        </div>
+      </div>
+      <p class="cache-filter-actions">
+        <%= submit_tag "Apply filters" %>
+        <%= link_to "Reset filters", website_events_path(seedurl: seedurl) %>
+      </p>
+    <% end %>
+  </details>
+<% elsif table_key == :reports %>
+  <details class="harmonized-table-filters report-advanced-filters" open>
+    <summary>Advanced filters</summary>
+    <%= form_with url: source_reports_path, method: :get, local: true, html: { autocomplete: "off", class: "report-advanced-filters-form" } do %>
+      <%= hidden_field_tag :source_id, source_id if local_assigns[:source_id].present? %>
+      <%= hidden_field_tag :sort, sort if sort.present? %>
+      <%= hidden_field_tag :direction, direction if direction.present? %>
+      <%= hidden_field_tag :per_page, pagination[:per_page] if pagination[:per_page].to_i != ::Reports::IndexQuery::DEFAULT_PER_PAGE %>
+      <div class="cache-filter-grid">
+        <div>
+          <%= label_tag :startDate, "Start date" %>
+          <%= text_field_tag :startDate, filters[:startDate], autocomplete: "off" %>
+        </div>
+        <div>
+          <%= label_tag :endDate, "End date" %>
+          <%= text_field_tag :endDate, filters[:endDate], autocomplete: "off" %>
+        </div>
+        <div>
+          <%= label_tag :term, "Search" %>
+          <%= text_field_tag :term, filters[:term], autocomplete: "off" %>
+        </div>
+      </div>
+      <p class="cache-filter-actions">
+        <%= submit_tag "Apply filters" %>
+        <%= link_to "Reset filters", source_reports_path(source_id: source_id) %>
+      </p>
+    <% end %>
+  </details>
+<% elsif table_key == :sources %>
+  <details class="harmonized-table-filters source-advanced-filters" open>
+    <summary>Advanced filters</summary>
+    <%= form_with url: sources_path, method: :get, local: true, html: { autocomplete: "off", class: "source-advanced-filters-form" } do %>
+      <%= hidden_field_tag :seedurl, seedurl if local_assigns[:seedurl].present? %>
+      <%= hidden_field_tag :sort, sort if sort.present? %>
+      <%= hidden_field_tag :direction, direction if direction.present? %>
+      <%= hidden_field_tag :per_page, pagination[:per_page] if pagination[:per_page].to_i != ::Sources::IndexQuery::DEFAULT_PER_PAGE %>
+      <div class="source-filter-grid">
+        <div>
+          <%= label_tag :term, "Search" %>
+          <%= text_field_tag :term, filters[:term], autocomplete: "off" %>
+        </div>
+        <div>
+          <%= label_tag :property_id, "Property" %>
+          <%= select_tag :property_id, options_from_collection_for_select(Property.order(:label), :id, :label, filters[:property_id]), include_blank: "Any" %>
+        </div>
+        <div>
+          <%= label_tag :language, "Language" %>
+          <%= select_tag :language, options_for_select([["Any", ""], ["en", "en"], ["fr", "fr"]], filters[:language]) %>
+        </div>
+        <div>
+          <%= label_tag :selected, "Selected" %>
+          <%= select_tag :selected, options_for_select([["Any", ""], ["true", "true"], ["false", "false"]], filters[:selected]) %>
+        </div>
+        <div>
+          <%= label_tag :auto_review, "Auto review" %>
+          <%= select_tag :auto_review, options_for_select([["Any", ""], ["true", "true"], ["false", "false"]], filters[:auto_review]) %>
+        </div>
+        <div>
+          <%= label_tag :render_js, "Rendered fetch" %>
+          <%= select_tag :render_js, options_for_select([["Any", ""], ["true", "true"], ["false", "false"]], filters[:render_js]) %>
+        </div>
+      </div>
+      <p class="sources-filter-actions">
+        <%= submit_tag "Apply filters" %>
+        <%= link_to "Reset filters", sources_path(seedurl: seedurl.presence) %>
+      </p>
+    <% end %>
+  </details>
+<% elsif view_mode == "parity" %>
+  <tr class="harmonized-table-filters">
+    <td><%= text_field_tag :term, filters[:term], autocomplete: "off" %></td>
+    <td class="cache-filter-stack">
+      <%= text_field_tag :http_response_code, filters[:http_response_code], autocomplete: "off", placeholder: "code" %>
+      <%= select_tag :status_group, options_for_select([["Any group", ""], ["2xx", "2xx"], ["3xx", "3xx"], ["4xx", "4xx"], ["5xx", "5xx"], ["nil", "nil"]], filters[:status_group]) %>
+    </td>
+    <td><%= select_tag :last_attempt, options_for_select([["Any", ""], ["never", "never"], ["last_hour", "last_hour"], ["last_24h", "last_24h"], ["last_7d", "last_7d"], ["older_7d", "older_7d"]], filters[:last_attempt]) %></td>
+    <td><%= select_tag :last_success, options_for_select([["Any", ""], ["never", "never"], ["last_hour", "last_hour"], ["last_24h", "last_24h"], ["last_7d", "last_7d"], ["older_7d", "older_7d"]], filters[:last_success]) %></td>
+    <td><%= select_tag :health, options_for_select([["Any", ""], ["healthy", "healthy"], ["preserved_after_failure", "preserved_after_failure"], ["never_fetched", "never_fetched"], ["network_failed", "network_failed"], ["blocked", "blocked"], ["empty_body", "empty_body"], ["redirect_changed", "redirect_changed"], ["stale", "stale"], ["unknown", "unknown"]], filters[:health]) %></td>
+    <td><%= select_tag :has_html, options_for_select([["Any", ""], ["true", "true"], ["false", "false"]], filters[:has_html]) %></td>
+    <td class="cache-filter-actions" colspan="2">
+      <%= submit_tag "Apply filters" %>
+      <%= link_to "Reset filters", distillator_cache_index_path(view: view_mode) %>
+    </td>
+  </tr>
+<% else %>
+  <details class="cache-advanced-filters harmonized-table-filters">
+    <summary>Advanced filters</summary>
+    <%= form_with url: distillator_cache_index_path, method: :get, local: true, html: { autocomplete: "off", class: "cache-advanced-filters-form" } do %>
+      <%= hidden_field_tag :sort, sort if sort.present? %>
+      <%= hidden_field_tag :direction, direction if direction.present? %>
+      <%= hidden_field_tag :per_page, pagination[:per_page] if pagination[:per_page].to_i != Distillator::CacheController::DEFAULT_PER_PAGE %>
+      <div class="cache-filter-grid">
+        <div>
+          <%= label_tag :term, "Term" %>
+          <%= text_field_tag :term, filters[:term], autocomplete: "off" %>
+        </div>
+        <div>
+          <%= label_tag :health, "Health" %>
+          <%= select_tag :health, options_for_select([["Any", ""], ["healthy", "healthy"], ["preserved_after_failure", "preserved_after_failure"], ["never_fetched", "never_fetched"], ["network_failed", "network_failed"], ["blocked", "blocked"], ["empty_body", "empty_body"], ["redirect_changed", "redirect_changed"], ["stale", "stale"], ["unknown", "unknown"]], filters[:health]) %>
+        </div>
+        <div>
+          <%= label_tag :http_response_code, "HTTP code" %>
+          <%= text_field_tag :http_response_code, filters[:http_response_code], autocomplete: "off", placeholder: "code" %>
+        </div>
+        <div>
+          <%= label_tag :status_group, "Status group" %>
+          <%= select_tag :status_group, options_for_select([["Any group", ""], ["2xx", "2xx"], ["3xx", "3xx"], ["4xx", "4xx"], ["5xx", "5xx"], ["nil", "nil"]], filters[:status_group]) %>
+        </div>
+        <div>
+          <%= label_tag :has_html, "Has HTML" %>
+          <%= select_tag :has_html, options_for_select([["Any", ""], ["true", "true"], ["false", "false"]], filters[:has_html]) %>
+        </div>
+        <div>
+          <%= label_tag :network_status, "Network status" %>
+          <%= text_field_tag :network_status, filters[:network_status], autocomplete: "off" %>
+        </div>
+        <div>
+          <%= label_tag :content_type, "Content type" %>
+          <%= select_tag :content_type, options_for_select([["Any", ""], ["html", "html"], ["json", "json"], ["unknown", "unknown"]], filters[:content_type]) %>
+        </div>
+        <div>
+          <%= label_tag :redirected, "Redirected" %>
+          <%= select_tag :redirected, options_for_select([["Any", ""], ["true", "true"], ["false", "false"]], filters[:redirected]) %>
+        </div>
+        <div>
+          <%= label_tag :hint, "Hint" %>
+          <%= text_field_tag :hint, filters[:hint], autocomplete: "off" %>
+        </div>
+        <div>
+          <%= label_tag :last_attempt, "Last attempt" %>
+          <%= select_tag :last_attempt, options_for_select([["Any", ""], ["never", "never"], ["last_hour", "last_hour"], ["last_24h", "last_24h"], ["last_7d", "last_7d"], ["older_7d", "older_7d"]], filters[:last_attempt]) %>
+        </div>
+        <div>
+          <%= label_tag :last_success, "Last success" %>
+          <%= select_tag :last_success, options_for_select([["Any", ""], ["never", "never"], ["last_hour", "last_hour"], ["last_24h", "last_24h"], ["last_7d", "last_7d"], ["older_7d", "older_7d"]], filters[:last_success]) %>
+        </div>
+      </div>
+      <p class="cache-filter-actions">
+        <%= submit_tag "Apply filters" %>
+        <%= link_to "Reset filters", distillator_cache_index_path(view: view_mode) %>
+      </p>
+    <% end %>
+  </details>
+<% end %>

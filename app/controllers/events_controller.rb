@@ -1,5 +1,6 @@
 
 class EventsController < ApplicationController
+  include HarmonizedIndexParams
   include ResourcesHelper
    
   ##
@@ -19,7 +20,9 @@ class EventsController < ApplicationController
     property_id = params[:property].to_i
     @property_ids = [Property.find_by(label: "Title")&.id].compact
     @property_ids << property_id if property_id.positive?
-    @property_labels =  @property_ids.map { |id| Property.find(id).label }
+    @property_labels = @property_ids.map do |id|
+      Property.find_by(id: id)&.label
+    end.compact
   
     # Get statements matching critria
     website_statements =
@@ -44,32 +47,40 @@ class EventsController < ApplicationController
   #     params[:startDate] # "2018-01-01"
   #     params[:endDate] # "2021-01-01"
   def index
-    seedurl = params[:seedurl]
-    time_span = create_timespan(params[:startDate], params[:endDate])
-    
-    @events = []
+    index_params = harmonized_index_params(
+      allowed_filters: Events::IndexQuery::FILTER_KEYS,
+      allowed_sorts: Events::IndexQuery::SORT_COLUMNS,
+      default_sort: Events::IndexQuery::DEFAULT_SORT,
+      default_direction: Events::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Events::IndexQuery::DEFAULT_PER_PAGE,
+      max_per_page: Events::IndexQuery::MAX_PER_PAGE
+    )
+    index_params[:filters] = index_params[:filters].merge(seedurl: params[:seedurl])
 
-    website_statements_by_event(seedurl, time_span).each do |k,v|
-      title = v.dig('title',:cache) || v.dig('title_fr',:cache) || v.dig('title_en',:cache)
-      title = 'Error' if title.blank? || title.include?('error:')
-      date =  helpers.parse_date_string_array(v.dig('dates', :cache)) || helpers.patch_invalid_date
-      @events << {
-        rdf_uri: k,
-        statements_status:
-          {
-            to_review: v.any? { |_a, b| b.flatten.include?('initial') },
-            updated: v.any? { |_a,b| b.flatten.include?('updated') },
-            problem: v.any? { |_a,b| b.flatten.include?('problem') },
-            publishable: event_publishable?(v)
-          },
-        photo: v.dig('photo',:cache),
-        title: title,
-        date: date,
-        archive_date: v.dig(:archive_date,:cache)
-      }
-    end
+    canonical = harmonized_index_canonical_params(
+      index_params,
+      default_sort: Events::IndexQuery::DEFAULT_SORT,
+      default_direction: Events::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: Events::IndexQuery::DEFAULT_PER_PAGE,
+      preserve: {},
+      exclude_filters: [:seedurl]
+    )
+    raw = harmonized_index_raw_params(allowed_filters: Events::IndexQuery::FILTER_KEYS - [:seedurl], preserve: %w[sort direction page per_page])
+    return redirect_to(website_events_path(canonical)) if request.format.html? && canonical != raw
 
-    @events.sort_by! { |item| item[:archive_date] }
+    @filters = index_params[:filters]
+    @sort = index_params[:sort]
+    @direction = index_params[:direction]
+    @pagination = { page: index_params[:page], per_page: index_params[:per_page] }
+    @sortable_filters = @filters.except(:seedurl).merge(per_page: @pagination[:per_page])
+    @event_table_headers = HarmonizedTableHeaders.events
+    @events = Events::IndexQuery.call(
+      filters: @filters,
+      sort: @sort,
+      direction: @direction,
+      page: @pagination[:page],
+      per_page: @pagination[:per_page]
+    )
     @total_events = @events.count
   end
 
@@ -77,8 +88,12 @@ class EventsController < ApplicationController
   def website_statements_by_event(seedurl, archive_date_range = [Time.zone.now - 3000.years..Time.zone.now + 3000.years])
     website_statements =
       Statement
+      .joins(:webpage, source: :website)
       .includes({ source: [:property, :website] }, :webpage)
-      .where({ sources: { websites: { seedurl: seedurl }, webpages: { archive_date: archive_date_range, rdfs_class_id: RdfsClass.where(name:'Event')  } } })
+      .where(
+        websites: { seedurl: seedurl },
+        webpages: { archive_date: archive_date_range, rdfs_class_id: RdfsClass.where(name: "Event") }
+      )
       .where(selected_individual: true)
     
     # Group by event URI
@@ -170,6 +185,24 @@ class EventsController < ApplicationController
                       alert: "Missing seedurl in URL (expected /websites/:seedurl/events_by_property)"
       end
     end
+  end
+
+  # GET /events/:id/pipeline_health.json
+  def pipeline_health
+    evaluation = Dsl::PipelineEvaluator.evaluate(event: params[:id])
+    diagnosis = evaluation[:diagnosis] || {}
+
+    render json: {
+      event_id: params[:id],
+      pipeline: {
+        status: diagnosis[:status],
+        category: diagnosis[:category],
+        message: diagnosis[:message],
+        suggested_action: diagnosis[:suggested_action],
+        metrics: evaluation[:metrics] || {},
+        details: diagnosis[:details] || {}
+      }
+    }
   end
   
 end

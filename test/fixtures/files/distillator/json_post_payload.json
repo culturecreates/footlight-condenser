@@ -1,0 +1,7 @@
+{
+  "query": "fixture-json-post",
+  "filters": {
+    "language": "en",
+    "mode": "legacy-only"
+  }
+}

@@ -1,10 +1,42 @@
 class RdfsClassesController < ApplicationController
+  include HarmonizedIndexParams
+
   before_action :set_rdfs_class, only: [:show, :edit, :update, :destroy]
 
   # GET /rdfs_classes
   # GET /rdfs_classes.json
   def index
-    @rdfs_classes = RdfsClass.all
+    index_params = harmonized_index_params(
+      allowed_filters: RdfsClasses::IndexQuery::FILTER_KEYS,
+      allowed_sorts: RdfsClasses::IndexQuery::SORT_COLUMNS.keys,
+      default_sort: RdfsClasses::IndexQuery::DEFAULT_SORT,
+      default_direction: RdfsClasses::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: RdfsClasses::IndexQuery::DEFAULT_PER_PAGE,
+      max_per_page: RdfsClasses::IndexQuery::MAX_PER_PAGE
+    )
+
+    canonical = harmonized_index_canonical_params(
+      index_params,
+      default_sort: RdfsClasses::IndexQuery::DEFAULT_SORT,
+      default_direction: RdfsClasses::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: RdfsClasses::IndexQuery::DEFAULT_PER_PAGE
+    )
+    raw = harmonized_index_raw_params(allowed_filters: RdfsClasses::IndexQuery::FILTER_KEYS, preserve: %w[sort direction page per_page])
+    return redirect_to(rdfs_classes_path(canonical)) if request.format.html? && canonical != raw
+
+    @filters = index_params[:filters]
+    @sort = index_params[:sort]
+    @direction = index_params[:direction]
+    @pagination = { page: index_params[:page], per_page: index_params[:per_page] }
+    @sortable_filters = @filters.merge(per_page: @pagination[:per_page])
+    @rdfs_class_table_headers = HarmonizedTableHeaders.rdfs_classes
+    @rdfs_classes = RdfsClasses::IndexQuery.call(
+      filters: @filters,
+      sort: @sort,
+      direction: @direction,
+      page: @pagination[:page],
+      per_page: @pagination[:per_page]
+    )
   end
 
   # GET /rdfs_classes/1

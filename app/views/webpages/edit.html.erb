@@ -2,5 +2,5 @@
 
 <%= render 'form', webpage: @webpage %>
 
-<%= link_to 'Show', @webpage %> |
-<%= link_to 'Back', webpages_path %>
+<%= link_to "Show", webpage_path(@webpage, return_to: @return_to) %> |
+<%= link_to "Back", @return_to %>

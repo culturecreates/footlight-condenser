@@ -1,0 +1,86 @@
+[
+  {
+    "@id": "http://kg.footlight.io/resource/distillator-full-event",
+    "@type": [
+      "http://schema.org/Event"
+    ],
+    "MyString": [
+      {
+        "@language": "en",
+        "@value": "Distillator Full Event"
+      }
+    ],
+    "http://schema.org/description": [
+      {
+        "@language": "en",
+        "@value": "A fixture-backed full event used to prove stable Artsdata export."
+      }
+    ],
+    "http://schema.org/url": [
+      {
+        "@value": "https://fixtures.example/distillator/event-full"
+      }
+    ],
+    "http://schema.org/startDate": [
+      {
+        "@type": "http://www.w3.org/2001/XMLSchema#dateTime",
+        "@value": "2026-05-10T19:30:00-04:00"
+      }
+    ],
+    "http://schema.org/endDate": [
+      {
+        "@type": "http://www.w3.org/2001/XMLSchema#dateTime",
+        "@value": "2026-05-10T21:15:00-04:00"
+      }
+    ],
+    "http://schema.org/photo": [
+      {
+        "@value": "https://fixtures.example/distillator/assets/poster.jpg"
+      }
+    ],
+    "http://schema.org/location": [
+      {
+        "@id": "http://kg.footlight.io/resource/distillator-main-hall"
+      }
+    ],
+    "http://schema.org/eventStatus": [
+      {
+        "@id": "http://schema.org/EventScheduled"
+      }
+    ],
+    "http://schema.org/eventAttendanceMode": [
+      {
+        "@id": "http://schema.org/OnlineEventAttendanceMode"
+      }
+    ],
+    "http://schema.org/additionalType": [
+      {
+        "@id": "http://schema.org/MusicEvent"
+      },
+      {
+        "@id": "http://ontology.artsdata.ca/Performance"
+      }
+    ],
+    "http://schema.org/offers": [
+      {
+        "@id": "http://kg.footlight.io/resource/distillator-full-event#Offer_0"
+      }
+    ]
+  },
+  {
+    "@id": "http://kg.footlight.io/resource/distillator-full-event#Offer_0",
+    "http://schema.org/url": [
+      {
+        "@value": "https://tickets.example.org/distillator-full-event"
+      }
+    ],
+    "@type": [
+      "http://schema.org/Offer"
+    ],
+    "http://schema.org/price": [
+      {
+        "@value": "15.00"
+      }
+    ]
+  }
+]

@@ -1,48 +1,119 @@
+<section class="website-show-section">
+  <h1>
+    <%= @website.name %>
+    <% if website_cohort_badge(@website).present? %>
+      <span class="rollout-inline"><%= website_cohort_badge(@website) %></span>
+    <% end %>
+    <span class="rollout-inline"><%= website_rollout_badge(@website) %></span>
+  </h1>
 
+  <dl class="website-identity-list">
+    <% website_identity_rows(@website).each do |label, value| %>
+      <dt><%= label %></dt>
+      <dd><%= value %></dd>
+    <% end %>
+  </dl>
 
-<p>
-  <strong>Name:</strong>
-  <%= @website.name %> 
-</p>
+  <p class="website-debug-id"><%= website_debug_id_label(@website) %></p>
+</section>
 
-<p>
-  <strong>Seedurl:</strong>
-  <%= @website.seedurl %>
-</p>
+<% transition_contract = website_transition_contract(@website) %>
 
-<p>
-  <strong>Default Language:</strong>
-  <%= @website.default_language %>
-</p>
+<section id="website-transition" class="website-rollout-panel website-show-section">
+  <h2>Transition verdict</h2>
+  <p><strong><%= website_transition_verdict_line(@website) %></strong></p>
+  <p><%= website_transition_secondary_status_line(@website) %></p>
+</section>
 
-<p>
-  <strong>graph_name:</strong>
-  <%= @website.graph_name %>
-</p>
+<section class="website-rollout-panel website-show-section">
+  <h2>Blocking reason / promote control</h2>
+  <% primary_action = transition_contract[:primary_action] %>
+  <% if primary_action[:enabled] %>
+    <%= button_to primary_action[:label], primary_action[:path], method: primary_action[:method], params: primary_action[:params], class: "website-transition-button" %>
+  <% else %>
+    <p class="transition-context-disabled-action">
+      <strong><%= primary_action[:label] %>:</strong>
+      <%= primary_action[:message] %>
+      <%= link_to "See latest transition report", distillator_shadow_report_site_path(@website) %>
+    </p>
+  <% end %>
 
+  <% transition_contract[:secondary_actions].each do |action| %>
+    <% if action[:kind] == :override %>
+      <details class="website-transition-override">
+        <summary><%= action[:label] %></summary>
+        <p><%= action[:copy] %></p>
+        <%= form_with url: action[:path], method: action[:method], local: true, class: "website-transition-override-form" do |form| %>
+          <%= form.label :reason, "Reason" %>
+          <%= form.text_field :reason, required: true %>
+          <%= form.submit action[:label] %>
+        <% end %>
+      </details>
+    <% end %>
+  <% end %>
 
-<%= link_to 'Edit', edit_website_path(@website) %> |
-<%= link_to 'Back', websites_path %>
-<hr>
-<h1> Jobs</h1>
-<%= link_to 'View resources with lists', lists_path(seedurl: @website.seedurl) %> 
-<br>
-<%= link_to 'Export step-by-step', graphs_website_path(seedurl: @website.seedurl) %>
+  <section id="website-batch-jobs-transition" class="website-rollout-panel">
+    <h3>Transition batch check</h3>
+    <p><%= website_transition_batch_check_copy %></p>
+    <%= button_to "Run transition batch check",
+                  website_transition_batch_check_path,
+                  method: :post,
+                  params: website_transition_batch_check_params(@website, return_to: website_transition_batch_status_path(@website)),
+                  class: "website-transition-button" %>
+    <p><%= website_transition_evidence_freshness_text(@website) %></p>
+  </section>
+</section>
 
+<section class="website-rollout-panel website-show-section">
+  <h2>Drill-down links</h2>
+  <ul class="website-show-link-list">
+    <% website_transition_drill_down_links(@website).each do |link| %>
+      <li><%= link %></li>
+    <% end %>
+  </ul>
+</section>
 
-<h1>Batch Jobs</h1>
-<%= link_to 'Refresh upcoming events', refresh_upcoming_events_batch_jobs_path(seedurl: @website.seedurl) %> 
-<br>
-<%= link_to 'Refresh lists and add webpages', check_for_new_webpages_batch_jobs_path(seedurl: params[:seedurl]) %>
-<br>
-<%= link_to 'Refresh all Webpages (all classes, all dates)', refresh_webpages_batch_jobs_path(seedurl: @website.seedurl) %> 
-<br>
-<%= link_to 'Export Events to Artsdata', graphs_website_queue_path(seedurl: @website.seedurl) %>
+<section class="website-show-section">
+  <h2>Operations</h2>
+  <ul class="website-show-link-list">
+    <li><%= link_to "Edit", edit_website_path(@website) %></li>
+    <li><%= link_to "View resources with lists", lists_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Export step-by-step", graphs_website_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Refresh upcoming events", refresh_upcoming_events_batch_jobs_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Refresh lists and add webpages", check_for_new_webpages_batch_jobs_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Refresh all Webpages (all classes, all dates)", refresh_webpages_batch_jobs_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Export Events to Artsdata", graphs_website_queue_path(seedurl: @website.seedurl) %></li>
+  </ul>
+</section>
 
+<section class="website-rollout-panel website-show-section">
+  <h2>Recent rollout events</h2>
+  <% if @website.rollout_events.order(created_at: :desc).limit(5).any? %>
+    <ul>
+      <% @website.rollout_events.order(created_at: :desc).limit(5).each do |event| %>
+        <li>
+          <%= [event.from_mode.presence || "unknown", "to", event.to_mode, event.created_at].join(" ") %>
+          <% if event.readiness_snapshot["blockers"].present? %>
+            | blockers: <%= Array(event.readiness_snapshot["blockers"]).join(", ") %>
+          <% end %>
+          <% if event.readiness_snapshot["warnings"].present? %>
+            | warnings: <%= Array(event.readiness_snapshot["warnings"]).join(", ") %>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p>No rollout events recorded yet.</p>
+  <% end %>
+</section>
 
-<h3 style="color:red">  DESTROY </h3>
-<div style="display:block;float: left">
- <%= button_to 'Destroy all statements', delete_all_statements_websites_path(id: @website.id), method: :delete, data: { confirm: 'Are you sure to delete all #{@website.seedurl} statements ?' } %>
- <%= button_to 'Destroy all webpages', delete_all_webpages_websites_path(id: @website.id), method: :delete, data: { confirm: 'Are you sure to delete all #{@website.seedurl} statements ?' } %>
- <%= button_to 'Destroy all EVENT webpages', delete_all_event_webpages_websites_path(id: @website.id), method: :delete, data: { confirm: 'Are you sure to delete all #{@website.seedurl} statements ?' } %>
+<details class="website-danger-zone website-show-section">
+  <summary>Danger zone</summary>
 
+  <div class="website-danger-zone-body">
+    <%= button_to "Destroy website", website_path(@website), method: :delete, data: { confirm: "Are you sure you want to destroy #{@website.seedurl}?", turbo: false } %>
+    <%= button_to "Destroy all statements", delete_all_statements_websites_path(id: @website.id), method: :delete, data: { confirm: "Are you sure to delete all #{@website.seedurl} statements ?" } %>
+    <%= button_to "Destroy all webpages", delete_all_webpages_websites_path(id: @website.id), method: :delete, data: { confirm: "Are you sure to delete all #{@website.seedurl} statements ?" } %>
+    <%= button_to "Destroy all EVENT webpages", delete_all_event_webpages_websites_path(id: @website.id), method: :delete, data: { confirm: "Are you sure to delete all #{@website.seedurl} statements ?" } %>
+  </div>
+</details>

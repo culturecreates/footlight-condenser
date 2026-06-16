@@ -1,3 +1,56 @@
 // Place all the styles related to the Sources controller here.
 // They will automatically be included in application.css.
 // You can use Sass (SCSS) here: http://sass-lang.com/
+
+.source-form-cards .source-algorithm-card,
+.source-form-cards .source-diagnostics-card {
+  grid-column: 1 / -1;
+}
+
+.source-form-cards .source-algorithm-card textarea {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+}
+
+.source-show-section {
+  max-width: 72rem;
+  margin: 0 0 1rem;
+}
+
+.source-primary-actions p {
+  margin: 0;
+}
+
+.sources-show-list {
+  display: grid;
+  grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+  gap: 0.35rem 1rem;
+  margin: 0 0 0.9rem;
+}
+
+.sources-show-list dt {
+  font-weight: 700;
+  color: #334155;
+}
+
+.sources-show-list dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.sources-show-pre {
+  margin: 0.35rem 0 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: #fcfcfd;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+.source-show-details {
+  max-width: 72rem;
+  margin: 0 0 1rem;
+}

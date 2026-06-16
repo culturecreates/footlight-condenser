@@ -6,19 +6,199 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "should get index" do
+    Distillator::FetchService.expects(:fetch).never
+
     get sources_url
+
     assert_response :success
+    assert_match "Quick filters", @response.body
+    assert_match "Advanced filters", @response.body
+    assert_match "name=\"term\"", @response.body
+    assert_match "name=\"property_id\"", @response.body
+    assert_match "name=\"language\"", @response.body
+    assert_match "name=\"selected\"", @response.body
+    assert_match "name=\"auto_review\"", @response.body
+    assert_match "name=\"render_js\"", @response.body
+
+    assert_operator @response.body.index("Quick filters"), :<, @response.body.index("Advanced filters")
+    assert_operator @response.body.index("Advanced filters"), :<, @response.body.index("sort=property_id")
+    assert_select "th a", text: /ID/
+    assert_select "th a", text: /Property/
+    assert_select "th a", text: /Label/
+    assert_select "th a", text: /Algorithm value/
+    assert_select "th a", text: /Selected/
+    assert_select "th a", text: /Render JS/
+    assert_select "th a", text: /Auto review/
+    assert_select "th a", text: /Last test/
+    assert_select "th", text: "Actions"
   end
 
-  # test "should get new" do
-  #   get new_source_url
-  #   assert_response :success
-  # end
-  #
-  # test "should get new of specific class rdfs_class :one" do
-  #   get new_source_url(rdfs_class_id: :one)
-  #   assert_response :success
-  # end
+  test "sources index renders harmonized table shell and filters" do
+    Distillator::FetchService.expects(:fetch).never
+
+    get sources_url
+
+    assert_response :success
+    assert_select ".harmonized-table-shell", 1
+    assert_select ".harmonized-table-filters", 1
+    assert_select 'form[action="/sources"][method="get"]', 1
+    assert_select 'input[type="submit"][value="Apply filters"]', 1
+    assert_select 'a', text: "Reset filters"
+  end
+
+  test "sources index renders sortable headers" do
+    Distillator::FetchService.expects(:fetch).never
+
+    get sources_url
+
+    assert_response :success
+    assert_select 'th a[href*="sort=id"]', text: /ID/
+    assert_select 'th a[href*="sort=property_id"]', text: /Property/
+    assert_select 'th a[href*="sort=algorithm_value"]', text: /Algorithm value/
+    assert_select 'th a[href*="sort=render_js"]', text: /Render JS/
+    assert_select 'th a[href*="sort=updated_at"]', text: /Last test/
+  end
+
+  test "sources index preserves active filters in sort links" do
+    Distillator::FetchService.expects(:fetch).never
+
+    get sources_url, params: { term: "query", selected: "true", language: "en", per_page: "10" }
+
+    assert_response :success
+    assert_sort_link_preserves_filters(
+      label: "Algorithm value",
+      sort_key: "algorithm_value",
+      params: {
+        term: "query",
+        selected: "true",
+        language: "en",
+        per_page: "10"
+      }
+    )
+  end
+
+  test "sources index filters through controller params using sources index query" do
+    Distillator::FetchService.expects(:fetch).never
+    matching = Source.create!(
+      algorithm_value: "controller query match",
+      selected: true,
+      selected_by: "Operator",
+      language: "fr",
+      render_js: true,
+      property: properties(:one),
+      website: websites(:one),
+      auto_review: true
+    )
+    non_matching = Source.create!(
+      algorithm_value: "controller query miss",
+      selected: false,
+      selected_by: "Operator",
+      language: "en",
+      render_js: false,
+      property: properties(:two),
+      website: websites(:two),
+      auto_review: false
+    )
+
+    get sources_url, params: { term: "controller query", language: "fr", render_js: "true" }
+
+    assert_response :success
+    assert_includes @response.body, matching.algorithm_value
+    assert_not_includes @response.body, non_matching.algorithm_value
+  end
+
+  test "sources index renders property label and visible dsl in main table" do
+    Distillator::FetchService.expects(:fetch).never
+    website = websites(:one)
+    property = properties(:one)
+
+    xpath_source = Source.create!(
+      algorithm_value: "xpath=//div[@class='event-title']",
+      label: "XPath title",
+      selected: true,
+      selected_by: "Operator",
+      language: "en",
+      render_js: false,
+      property: property,
+      website: website,
+      auto_review: false
+    )
+    ruby_source = Source.create!(
+      algorithm_value: "ruby=nodes.map(&:text)",
+      label: "Ruby title",
+      selected: false,
+      selected_by: "Operator",
+      language: "fr",
+      render_js: false,
+      property: property,
+      website: website,
+      auto_review: false
+    )
+    json_source = Source.create!(
+      algorithm_value: "json_url=https://example.test/events.json",
+      label: "JSON title",
+      selected: false,
+      selected_by: "Operator",
+      language: "",
+      render_js: true,
+      property: property,
+      website: website,
+      auto_review: true
+    )
+    manual_source = Source.create!(
+      algorithm_value: "manual=Festival Example",
+      label: "Manual title",
+      selected: false,
+      selected_by: "Operator",
+      language: "",
+      render_js: false,
+      property: property,
+      website: website,
+      auto_review: false
+    )
+
+    get sources_url, params: { seedurl: website.seedurl }
+
+    assert_response :success
+    assert_select "th a", text: /Property/
+    assert_select "th a", text: /Label/
+    assert_select "td.source-algorithm-cell pre", text: /xpath=/
+    assert_select "td.source-algorithm-cell pre", text: /ruby=/
+    assert_select "td.source-algorithm-cell pre", text: /json_url=/
+    assert_select "td.source-algorithm-cell pre", text: /manual=/
+    assert_includes @response.body, property.label
+    assert_includes @response.body, xpath_source.label
+    assert_includes @response.body, ruby_source.label
+    assert_includes @response.body, json_source.label
+    assert_includes @response.body, manual_source.label
+  end
+
+  test "sources index falls back safely for invalid sort and direction" do
+    Distillator::FetchService.expects(:fetch).never
+
+    get sources_url, params: { sort: "bogus", direction: "sideways" }
+
+    assert_response :redirect
+    assert_redirected_to "/sources"
+  end
+
+  test "sources index renders empty state" do
+    Distillator::FetchService.expects(:fetch).never
+
+    get sources_url, params: { term: "no-such-source-filter" }
+
+    follow_redirect! if response.redirect?
+    assert_response :success
+    assert_select ".harmonized-table-empty-state", 1
+  end
+
+  test "sources index does not fetch" do
+    assert_read_only_page_does_not_fetch
+
+    get sources_url
+
+    assert_response :success
+  end
 
   test "should create source" do
     assert_difference('Source.count') do
@@ -29,13 +209,154 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "should show source" do
+    assert_read_only_page_does_not_fetch
+    @source.website.update!(distillator_mode: "active")
+
     get source_url(@source)
+
     assert_response :success
+    assert_select '[data-transition-context]', 0
+    assert_select 'details[data-operator-context-card]', 0
+    assert_select 'details[data-context-domain="status"]', 0
+    assert_select 'details[data-context-domain="actions"]', 0
+    assert_select 'details[data-context-domain="details"]', 0
+    assert_includes @response.body, "Manual-sensitive"
+    assert_includes @response.body, "Condenser serves production while Wringer stays available for diagnostics."
+    assert_includes @response.body, "Production: Condenser"
+    assert_match "Primary actions", @response.body
+    assert_match "Compatibility / rollout", @response.body
+    assert_match "Diagnostics", @response.body
+    assert_match "Danger zone", @response.body
+    assert_match "This source is the website default for this property/language.", @response.body
+    assert_match "Raw extraction DSL", @response.body
+    assert_match "Latest statement cache / value", @response.body
+    assert_match "Test / Refresh latest statement", @response.body
+    assert_select "section.source-primary-summary", 1
+    assert_select "section.source-primary-summary dt", text: "Website"
+    assert_select "section.source-primary-summary dt", text: "Property"
+    assert_select "section.source-primary-summary dt", text: "Label"
+    assert_select "section.source-primary-summary dt", text: "Language"
+    assert_select "section.source-primary-summary dt", text: "Selected"
+    assert_select "section.source-primary-summary dt", text: "Render JS"
+    assert_select "section.source-primary-summary dt", text: "Auto review"
+    assert_select "section.source-algorithm-dsl pre.sources-show-pre", text: /MyString/
+    assert_select "details.source-show-usage", 1
+    assert_select "details.source-show-usage[open]", 0
+    assert_select "details.source-show-usage summary", text: "Latest result"
+    assert_select "details.source-show-usage pre.sources-show-pre", text: /MyString/
+    assert_select "details.source-show-details summary", text: "Diagnostics"
+    assert_select "details.source-show-details summary", text: "Compatibility / rollout"
+    assert_select "details.source-show-details[open]", 0
+    assert_select "details.source-danger-zone summary", text: "Danger zone"
+    assert_select "details.source-danger-zone strong", text: "Danger zone", count: 0
+    assert_select 'a', text: "Report", count: 1
+    assert_select "details.source-show-details .sources-detail-list dt", text: "Source ID", count: 0
+    assert_operator @response.body.scan("Wringer serves production.").size, :<=, 1
+    assert_operator @response.body.index("Primary actions"), :<, @response.body.index("Latest result")
+    assert_operator @response.body.index("Raw extraction DSL"), :<, @response.body.index("Compatibility / rollout")
+  end
+
+  test "show source explains activation impact for alternative source" do
+    assert_read_only_page_does_not_fetch
+
+    get source_url(sources(:two))
+
+    assert_response :success
+    assert_match "Activating this source will make it the website default for this property/language and replace the current default source for that scope.", @response.body
+  end
+
+  test "website view uses operator table without fetching" do
+    Distillator::FetchService.expects(:fetch).never
+    @source.website.update!(distillator_mode: "shadow")
+
+    get website_sources_url(id: @source.website_id)
+
+    assert_response :success
+    assert_includes @response.body, "Shadow"
+    assert_includes @response.body, "Wringer serves production while Condenser is checked in the background."
+    assert_includes @response.body, "Production: Wringer"
+    assert_match "Quick filters", @response.body
+    assert_match "Advanced filters", @response.body
+    assert_match "More", @response.body
+    assert_match "Primary", @response.body
+    assert_match "Diagnostics", @response.body
+    assert_match "Danger zone", @response.body
+    assert_match "Open active cache", @response.body
+    assert_match "Open Condenser cache", @response.body
+    assert_match "Inspect legacy Wringer", @response.body
+    assert_no_match "new cache", @response.body
   end
 
   test "should get edit" do
+    Distillator::FetchService.expects(:fetch).never
+
+    get edit_source_url(@source)
+
+    assert_response :success
+    assert_select ".source-form-cards .source-algorithm-card", 1
+    assert_select ".source-form-cards .source-diagnostics-card", 1
+    assert_match "Identity", @response.body
+    assert_match "Activation", @response.body
+    assert_match "Fetch strategy", @response.body
+    assert_match "Extraction algorithm", @response.body
+    assert_match "Diagnostics", @response.body
+    assert_match "Website default", @response.body
+    assert_match "Raw extraction DSL", @response.body
+    assert_match "Use pipeline steps such as", @response.body
+    assert_select "details.source-edit-instructions", 1
+    assert_select "details.source-edit-instructions[open]", 0
+    assert_select "details.source-edit-instructions summary", text: "Instructions"
+    assert_select "details.source-edit-instructions h1", text: "DSL"
+    assert_select 'a', text: "Show"
+    assert_select 'a', text: "Back"
+    assert_select 'form', 1
+    assert_operator @response.body.index("<form"), :<, @response.body.index("Show")
+    assert_operator @response.body.index("Show"), :<, @response.body.index("Instructions")
+    assert_operator @response.body.index("Back"), :<, @response.body.index("Instructions")
+    assert_operator @response.body.index("source-algorithm-card"), :<, @response.body.index("source-diagnostics-card")
+  end
+
+  test "show source suppresses empty latest result section when there is no usage context" do
+    assert_read_only_page_does_not_fetch
+    source = Source.create!(
+      algorithm_value: "manual=no usage yet",
+      label: "No usage source",
+      selected: false,
+      selected_by: "Operator",
+      language: "en",
+      render_js: false,
+      property: properties(:one),
+      website: websites(:one),
+      auto_review: false
+    )
+
+    get source_url(source)
+
+    assert_response :success
+    assert_select "details.source-show-usage", 0
+    assert_select "section.source-primary-summary", 1
+    assert_select "section.source-algorithm-dsl", 1
+    assert_select '[data-transition-context]', 0
+    assert_select 'details[data-operator-context-card]', 0
+  end
+
+  test "index exposes new source entry points and edit form contains grouped operator sections" do
+    Distillator::FetchService.expects(:fetch).never
+
+    get sources_url
+
+    assert_response :success
+    assert_match "New Event Source", @response.body
+
+    Distillator::FetchService.expects(:fetch).never
     get edit_source_url(@source)
     assert_response :success
+    assert_match "Identity", @response.body
+    assert_match "Activation", @response.body
+    assert_match "Fetch strategy", @response.body
+    assert_match "Extraction algorithm", @response.body
+    assert_match "Diagnostics", @response.body
+    assert_match "Raw extraction DSL", @response.body
   end
 
   test "should update source" do
@@ -49,5 +370,14 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_redirected_to sources_url
+  end
+
+  private
+
+  def assert_read_only_page_does_not_fetch
+    Distillator::FetchCacheStore.expects(:fetch).never
+    Distillator::FetchService.expects(:fetch).never
+    Distillator::NativeFetch.expects(:call).never
+    Distillator::FetchShadowComparator.expects(:call).never
   end
 end

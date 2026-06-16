@@ -8,18 +8,48 @@ Rails.application.routes.draw do
   require 'sidekiq/web'
   mount Sidekiq::Web => '/sidekiq'
 
+  get "websites/wring", to: "wringer_compatibility#show", as: :wring_websites
+
   resources :websites do
     # API: get /websites 
+    member do
+      post :activate_after_review
+      post :activate_anyway
+    end
     collection do
       get 'events'         # Internal Webpages Only
       get 'places'         # Internal Webpages Only
       get 'test_api'       # Internal Webpages Only
-
       delete 'delete_all_statements'     # Internal Webpages Only
       delete 'delete_all_webpages'       # Internal Webpages Only
       delete 'delete_all_event_webpages' # Internal Webpages Only
     end
   end
+
+  namespace :distillator do
+    get :capabilities, to: "capabilities#index", as: :capabilities
+    get :shadow_report, to: "shadow_reports#index", as: :shadow_report
+    get "shadow_report/:id", to: "shadow_reports#show", as: :shadow_report_site
+    resources :transition_checks, only: [:create]
+
+    resources :cache, only: [:index, :show], controller: "cache" do
+      collection do
+        get :preview
+        get :compare
+        post :fetch
+      end
+
+      member do
+        get :raw
+        get :raw_view
+        get :wring_json
+        get :wring_json_view
+      end
+    end
+  end
+
+  get "/condenser/cache", to: "distillator/cache#index", as: :condenser_cache_index
+  get "/condenser/cache/compare", to: "distillator/cache#compare", as: :condenser_cache_compare
 
   get 'websites/:seedurl/resources',
       to: "resources#index",
@@ -32,6 +62,10 @@ Rails.application.routes.draw do
   get 'websites/:seedurl/events_by_property',
       to: "events#index_by_property",
       as: :website_events_by_property
+
+  get 'events/:id/pipeline_health',
+      to: "events#pipeline_health",
+      as: :event_pipeline_health
 
   get 'resources/:rdf_uri',
       to: "resources#show",
@@ -74,6 +108,7 @@ Rails.application.routes.draw do
       patch 'refresh'                # Internal Webpages Only
     end
     collection do
+      get 'compare_extracted'        # Internal Webpages Only
       get 'webpage'                  # Internal Webpages Only
       get 'search_name'              # When manually adding links in Console
       patch 'refresh_webpage'        # Internal Webpages Only
@@ -100,6 +135,24 @@ Rails.application.routes.draw do
   get 'options', to: 'options#index', as: :options
   get 'options/wringer/:target', to: 'options#wringer', as: :set_wringer
   get 'options/set_dsl_trace/:state', to: 'options#set_dsl_trace', as: :set_dsl_trace_options
+  get 'options/set_trace_visibility/:state',
+      to: 'options#set_trace_visibility',
+      as: :set_trace_visibility_options
+  get 'options/set_trace_code_length/:length',
+      to: 'options#set_trace_code_length',
+      as: :set_trace_code_length_options
+  get 'options/set_trace_output_length/:length',
+      to: 'options#set_trace_output_length',
+      as: :set_trace_output_length_options
+  post "options/trace_view_mode/:mode",
+       to: "options#set_trace_view_mode",
+       as: :set_trace_view_mode
+  post "options/trace_preset/:preset",
+       to: "options#set_trace_preset",
+       as: :set_trace_preset
+  post "options/staging_rollout_repair",
+       to: "options#repair_staging_rollout",
+       as: :repair_staging_rollout_options
 
   post   'options', to: 'options#update'
   patch  'options', to: 'options#update'

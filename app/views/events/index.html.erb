@@ -1,10 +1,17 @@
-<h1> Events <%= @total_events %> </h1>
+<h1>Events <%= @total_events %></h1>
 
-<br>
-<% @events.each do |event| %>
-<%= event[:rdf_uri] %><br>
-<%= event[:statements_status] %><br>
-<%= event[:title] %><br>
-<%= event[:photo] %>
-  <br> <hr>
-<% end %>
+<%= render "shared/tables/table_shell",
+           table_key: :events,
+           records: @events,
+           row_partial: "events/harmonized_row",
+           row_name: :event_row,
+           headers: @event_table_headers,
+           filters: @filters,
+           pagination: @pagination,
+           sort: @sort,
+           direction: @direction,
+           sortable_filters: @sortable_filters.merge(seedurl: params[:seedurl]),
+           table_css_class: "cache-table events-table",
+           render_filters: true,
+           seedurl: params[:seedurl],
+           empty_message: "No events match the current filters." %>

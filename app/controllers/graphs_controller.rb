@@ -31,6 +31,9 @@ class GraphsController < ApplicationController
     @site = params[:seedurl]
     event_controller = EventsController.new
     @publishable = event_controller.publishable_events(@site)
+    if ENV["EXPORT_DEBUG"].present?
+      Rails.logger.warn("[EXPORT_DEBUG] GraphsController.website seedurl=#{@site} publishable_events_count=#{@publishable.size}")
+    end
     @dump = JsonldGenerator.dump_events(@publishable)
   end
 

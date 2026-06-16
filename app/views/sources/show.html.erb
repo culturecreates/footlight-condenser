@@ -1,54 +1,129 @@
 <p id="notice"><%= notice %></p>
 
-<p>
-  <strong>Algorithm value:</strong>
-  <%= @source.algorithm_value %>
-</p>
+<h1>Source <%= @source.id %></h1>
 
-<p>
-  <strong>Label:</strong>
-  <%= @source.label %>
-</p>
+<%
+  primary_summary_pairs = [
+    ["Website", @source.website.present? ? link_to(@source.website.seedurl, website_path(@source.website)) : "No website"],
+    ["Property", source_property_name(@source)],
+    ["Label", source_label_text(@source)],
+    ["Language", @source.language.presence || "Language-independent"],
+    ["Selected", source_boolean_text(@source.selected?)],
+    ["Render JS", source_boolean_text(@source.render_js?)],
+    ["Auto review", source_boolean_text(@source.auto_review?)]
+  ]
+  usage_context_present = source_latest_statement_for_display(@source).present? || source_statement_count(@source).positive?
+%>
 
-<p>
-  <strong>Language:</strong>
-  <%= @source.language %>
-</p>
+<section class="source-show-section source-primary-summary">
+  <dl class="sources-show-list">
+    <% primary_summary_pairs.each do |label, value| %>
+      <dt><%= label %></dt>
+      <dd><%= value %></dd>
+    <% end %>
+  </dl>
+</section>
 
-<p>
-  <strong>Selected:</strong>
-  <%= @source.selected %>
-</p>
+<section class="source-show-section source-primary-actions">
+  <h2>Primary actions</h2>
+  <p>
+    <%= source_show_test_action(@source) %> |
+    <%= link_to "Edit source", edit_source_path(@source) %> |
+    <%= link_to "Report", source_reports_path(source_id: @source.id) %> |
+    <%= link_to "Back", source_show_back_path(@source) %>
+  </p>
+</section>
 
-<p>
-  <strong>Selected by:</strong>
-  <%= @source.selected_by %>
-</p>
+<section class="source-show-section source-algorithm-dsl">
+  <h2>Raw extraction DSL</h2>
+  <pre class="sources-show-pre"><%= source_algorithm_text(@source) %></pre>
+</section>
 
-<p>
-  <strong>Render js:</strong>
-  <%= @source.render_js %>
-</p>
+<% if usage_context_present %>
+  <details class="source-show-details source-show-usage">
+    <summary>Latest result</summary>
+    <div class="source-show-section">
+      <dl class="sources-show-list">
+        <% source_latest_result_pairs(@source).each do |label, value| %>
+          <dt><%= label %></dt>
+          <dd><%= value %></dd>
+        <% end %>
+        <dt>Statement count</dt>
+        <dd><%= source_statement_count(@source) %></dd>
+      </dl>
 
-<p>
-  <strong>Property:</strong>
-  <%= @source.property.rdfs_class.name %> <%= @source.property.label %>
-</p>
-
-<p>
-  <strong>Website:</strong>
-  <%= @source.website.seedurl %>
-</p>
-
-<p>
-  <strong>Auto Review:</strong>
-  <%= @source.auto_review %>
-</p>
-
-<% if @source.statements.first.present? %>
-  <%= link_to 'Test', refresh_statement_path(@source.statements.first), method: :patch %> |
-<% elsif @source.website.webpages.where(website: @source.website, rdfs_class_id: @source.property.rdfs_class_id).present? %>
- <%= link_to 'Create',refresh_rdf_uri_statements_path(rdf_uri: @source.website.webpages.where(website: @source.website, rdfs_class_id: @source.property.rdfs_class_id).first.rdf_uri), method: :patch %> | 
+      <p><strong>Latest statement cache / value</strong></p>
+      <pre class="sources-show-pre"><%= source_latest_statement_cache_text(@source) %></pre>
+    </div>
+  </details>
 <% end %>
-<%= link_to 'Edit', edit_source_path(@source) %> |
-<%= link_to 'Back', sources_path %>
+
+<% diagnostics_pairs = source_show_diagnostics_pairs(@source) %>
+<% if diagnostics_pairs.any? %>
+  <details class="source-show-details">
+    <summary>Diagnostics</summary>
+    <div class="source-show-section">
+      <dl class="sources-detail-list">
+        <% diagnostics_pairs.each do |label, value| %>
+          <dt><%= label %></dt>
+          <dd><%= value %></dd>
+        <% end %>
+      </dl>
+    </div>
+  </details>
+<% end %>
+
+<details class="source-show-details">
+  <summary>Compatibility / rollout</summary>
+  <div class="source-show-section">
+    <p><%= source_status_badge(@source) %></p>
+
+    <% if source_cache_rollout_badge(@source).present? %>
+      <p><%= source_cache_rollout_badge(@source) %></p>
+    <% end %>
+
+    <p class="sources-secondary-text"><%= source_rollout_explanation(@source) %></p>
+    <p class="sources-secondary-text"><%= source_cache_note(@source) %></p>
+
+    <dl class="sources-show-list">
+      <dt>Website default</dt>
+      <dd><%= source_boolean_text(@source.selected?) %></dd>
+      <dt>Selected by</dt>
+      <dd><%= @source.selected_by.presence || "Not recorded" %></dd>
+      <dt>Fetch strategy</dt>
+      <dd><%= source_fetch_strategy(@source)[:label] %></dd>
+      <dt>Last test</dt>
+      <dd><%= source_last_test_summary(@source) %></dd>
+      <dt>Last test detail</dt>
+      <dd><%= source_last_test_detail(@source) %></dd>
+    </dl>
+
+    <div class="sources-impact-panel">
+      <p><strong>Activation impact:</strong> <%= source_activation_impact(@source) %></p>
+      <p class="sources-secondary-text"><%= source_activation_detail(@source) %></p>
+    </div>
+
+    <% rollout_links = source_show_rollout_links(@source) %>
+    <% if rollout_links.any? %>
+      <ul class="source-more-actions-list">
+        <% rollout_links.each do |item| %>
+          <li><%= item %></li>
+        <% end %>
+      </ul>
+    <% end %>
+  </div>
+</details>
+
+<% danger_zone_actions = source_show_danger_actions(@source) %>
+<% if danger_zone_actions.present? %>
+  <details class="source-show-details source-danger-zone">
+    <summary>Danger zone</summary>
+    <div class="source-show-section">
+      <ul class="source-more-actions-list">
+        <% danger_zone_actions.each do |item| %>
+          <li><%= item %></li>
+        <% end %>
+      </ul>
+    </div>
+  </details>
+<% end %>

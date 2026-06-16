@@ -147,3 +147,223 @@ prices:
   cache_changed: 2018-07-30 16:46:00 UTC
   source: priceSource
   webpage: eventPage2
+
+distillator_simple_title_statement:
+  cache: Simple Static Title Event
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_title_source
+  webpage: distillator_simple_title
+  selected_individual: true
+
+distillator_xpath_statement:
+  cache: XPath Fixture Event
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_title_source
+  webpage: distillator_xpath
+  selected_individual: true
+
+distillator_jsonld_script_statement:
+  cache: JSON-LD Script Fixture Event
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_title_source
+  webpage: distillator_jsonld_script
+  selected_individual: true
+
+distillator_redirected_statement:
+  cache: Redirected Fixture Event
+  status: updated
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_title_source
+  webpage: distillator_redirected
+  selected_individual: true
+
+distillator_timezone_dates_statement:
+  cache: "[\"2026-05-01T19:30:00-04:00\"]"
+  status: updated
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_dates_source
+  webpage: distillator_timezone_dates
+  selected_individual: true
+
+distillator_event_name_statement:
+  cache: Distillator Full Event
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_event_name_source
+  webpage: distillator_full_event
+  selected_individual: true
+
+distillator_event_description_statement:
+  cache: A fixture-backed full event used to prove stable Artsdata export.
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_event_description_source
+  webpage: distillator_full_event
+  selected_individual: true
+
+distillator_event_url_statement:
+  cache: https://fixtures.example/distillator/event-full
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_event_url_source
+  webpage: distillator_full_event
+  selected_individual: true
+
+distillator_event_start_date_statement:
+  cache: "[\"2026-05-10T19:30:00-04:00\"]"
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_event_start_date_source
+  webpage: distillator_full_event
+  selected_individual: true
+
+distillator_event_end_date_statement:
+  cache: "[\"2026-05-10T21:15:00-04:00\"]"
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_event_end_date_source
+  webpage: distillator_full_event
+  selected_individual: true
+
+distillator_event_image_statement:
+  cache: https://fixtures.example/distillator/assets/poster.jpg
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_event_image_source
+  webpage: distillator_full_event
+  selected_individual: true
+
+distillator_event_location_statement:
+  cache: "[\"Main Hall\",\"Place\",[\"Main Hall\",\"footlight:distillator-main-hall\"]]"
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_event_location_source
+  webpage: distillator_full_event
+  selected_individual: true
+
+distillator_event_offer_url_statement:
+  cache: https://tickets.example.org/distillator-full-event
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_event_offer_url_source
+  webpage: distillator_full_event
+  selected_individual: true
+
+distillator_event_price_statement:
+  cache: "[\"15.00\"]"
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_event_price_source
+  webpage: distillator_full_event
+  selected_individual: true
+
+distillator_event_status_statement:
+  cache: "[\"Scheduled\",\"EventStatusType\",[\"EventScheduled\",\"http://schema.org/EventScheduled\"]]"
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_event_status_source
+  webpage: distillator_full_event
+  selected_individual: true
+
+distillator_event_attendance_mode_statement:
+  cache: "[\"OnlineEventAttendanceMode\",\"EventAttendanceModeEnumeration\",[\"Online\",\"http://schema.org/OnlineEventAttendanceMode\"]]"
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_event_attendance_mode_source
+  webpage: distillator_full_event
+  selected_individual: true
+
+distillator_event_type_statement:
+  cache: "[\"Music Performance\",\"EventTypeEnumeration\",[\"MusicEvent\",\"http://schema.org/MusicEvent\"],[\"Performance\",\"http://ontology.artsdata.ca/Performance\"]]"
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_event_type_source
+  webpage: distillator_full_event
+  selected_individual: true
+
+distillator_place_name_statement:
+  cache: Main Hall
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: distillator_place_name_source
+  webpage: distillator_main_hall
+  selected_individual: true
+
+culture3r_refresh_statement:
+  cache: Old Fixture Title
+  status: initial
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-20 16:46:00 UTC
+  cache_changed: 2026-04-20 16:46:00 UTC
+  source: culture3r_refresh_source
+  webpage: culture3r_refresh_fixture
+  selected_individual: true
+
+resource_list_rdf_class_statement:
+  cache: Event
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: resource_list_rdf_class_source
+  webpage: resource_list_page
+  selected_individual: true
+
+resource_list_uri_list_statement:
+  cache: '["adr:event-1","adr:event-2"]'
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: resource_list_uri_list_source
+  webpage: resource_list_page
+  selected_individual: true
+
+resource_list_url_list_statement:
+  cache: '["https://example.org/events/1","https://example.org/events/2"]'
+  status: ok
+  status_origin: DistillatorFixture
+  cache_refreshed: 2026-04-27 16:46:00 UTC
+  cache_changed: 2026-04-27 16:46:00 UTC
+  source: resource_list_url_list_source
+  webpage: resource_list_page
+  selected_individual: true

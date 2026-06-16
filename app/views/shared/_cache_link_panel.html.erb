@@ -1,0 +1,18 @@
+<% cache_links = local_assigns[:cache_links] || {} %>
+<% diagnose_url = local_assigns[:diagnose_url] %>
+
+<ul class="cache-link-panel">
+  <% if cache_links[:active_cache_url].present? %>
+    <li><%= link_to cache_links[:label], cache_links[:active_cache_url] %></li>
+  <% end %>
+  <% cache_links[:secondary_links].each do |link| %>
+    <li><%= link_to link[:label], link[:url] %></li>
+  <% end %>
+  <% if diagnose_url.present? %>
+    <li><%= link_to "Diagnose refresh", diagnose_url %></li>
+  <% end %>
+</ul>
+
+<% if cache_links[:warning].present? %>
+  <p><strong>Note:</strong> <%= cache_links[:warning] %></p>
+<% end %>
