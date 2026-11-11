@@ -79,9 +79,11 @@ class EventsController < ApplicationController
       sort: @sort,
       direction: @direction,
       page: @pagination[:page],
-      per_page: @pagination[:per_page]
+      per_page: @pagination[:per_page],
+      # Console filters and paginates the complete JSON collection itself.
+      paginate: !request.format.json?
     )
-    @total_events = @events.count
+    @total_events = @events.respond_to?(:total_entries) ? @events.total_entries : @events.length
   end
 
   # Return a hash of event uris with grouped statements per event.

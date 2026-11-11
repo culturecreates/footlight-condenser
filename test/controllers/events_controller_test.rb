@@ -38,6 +38,57 @@ class EventsControllerTest < ActionDispatch::IntegrationTest
     assert_select 'th a[href*="sort=archive_date"]'
   end
 
+  test "events json returns the complete collection rather than its first page" do
+    stub_event_collection(125)
+    assert_read_only_page_does_not_fetch
+
+    get website_events_path(seedurl: "one", format: :json)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal 125, payload["total_events"]
+    assert_equal 125, payload["events"].length
+    assert_equal 125, payload["events"].map { |event| event["rdf_uri"] }.uniq.length
+    assert payload["events"].all? { |event| event.dig("statements_status", "publishable") }
+  end
+
+  test "events json ignores HTML pagination parameters while preserving filters and sorting" do
+    stub_event_collection(125)
+
+    get website_events_path(seedurl: "one", format: :json), params: {
+      page: 2, per_page: 100, term: "Event", sort: "title", direction: "desc",
+      startDate: "2020-01-01", endDate: "2035-01-01"
+    }
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal 125, payload["total_events"]
+    assert_equal 125, payload["events"].length
+    assert_equal "Event 125", payload["events"].first["title"]
+    assert_equal "Event 001", payload["events"].last["title"]
+  end
+
+  test "events json reports zero when the complete filtered collection is empty" do
+    stub_event_collection(125)
+
+    get website_events_path(seedurl: "one", format: :json), params: { term: "no matching event" }
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal 0, payload["total_events"]
+    assert_empty payload["events"]
+  end
+
+  test "events HTML retains its page size and full result total" do
+    stub_event_collection(125)
+
+    get website_events_path(seedurl: "one"), params: { page: "2" }
+
+    assert_response :success
+    assert_select "h1", text: "Events 125"
+    assert_select "tbody tr", count: 25
+  end
+
   test "events index preserves active filters in sort links" do
     get website_events_path(seedurl: "one"), params: { startDate: "2018-01-01", endDate: "2030-01-01", per_page: "10" }
 
@@ -127,6 +178,19 @@ class EventsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def stub_event_collection(count)
+    rows = (1..count).to_h do |id|
+      number = format("%03d", id)
+      ["event:#{number}", {
+        "title" => { cache: "Event #{number}", status: "ok" },
+        "dates" => { cache: "2030-01-01", status: "ok" },
+        "location" => { cache: "Venue", status: "ok" },
+        archive_date: { cache: Date.new(2030, 1, 2) }
+      }]
+    end
+    Events::IndexQuery.any_instance.stubs(:website_statements_by_event).returns(rows)
+  end
 
   def assert_read_only_page_does_not_fetch
     Distillator::FetchCacheStore.expects(:fetch).never

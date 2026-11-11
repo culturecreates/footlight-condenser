@@ -14,12 +14,13 @@ module Events
       new(...).call
     end
 
-    def initialize(filters:, sort:, direction:, page:, per_page:)
+    def initialize(filters:, sort:, direction:, page:, per_page:, paginate: true)
       @filters = filters.to_h.symbolize_keys
       @sort = SORT_COLUMNS.include?(sort.to_s) ? sort.to_s : DEFAULT_SORT
       @direction = %w[asc desc].include?(direction.to_s) ? direction.to_s : DEFAULT_DIRECTION
       @page = page.to_i
       @per_page = per_page.to_i
+      @paginate = paginate
     end
 
     def call
@@ -43,7 +44,7 @@ module Events
       rows = filter_term(rows)
       rows = rows.sort_by { |row| sortable_value(row[sort]) }
       rows.reverse! if direction == "desc"
-      paginate_rows(rows)
+      @paginate ? paginate_rows(rows) : rows
     end
 
     private
