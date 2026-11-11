@@ -122,6 +122,7 @@ module Distillator
 
     def confidence
       return :not_checked unless cache.present? || any_evidence_present?
+      return :low if fetch_status == :failed
       return :low if review_needed_difference? || legacy_lookup_missing_config? || legacy_lookup_unreachable? || legacy_lookup_body_omitted?
       return :low if cache_compare_unknown?
       return :low if [fetch_status, statements_status, export_status].any? { |status| %i[missing stale inconclusive not_evaluated blocked_by_fetch].include?(status) }
@@ -169,6 +170,9 @@ module Distillator
 
     def fetch_status
       evidence = fetch_parity_evidence
+      if evidence.present? && cache.present? && cache.scrape_date.present? && cache.scrape_date > evidence.checked_at && fetch_failed?
+        return :failed
+      end
       return fetch_status_from_evidence(evidence) if evidence.present?
       return :missing unless cache.present?
       return :failed if fetch_failed?

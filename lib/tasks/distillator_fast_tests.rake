@@ -6,6 +6,7 @@ namespace :test do
       test/services/distillator/fetch_mode_test.rb
       test/services/distillator/fetch_eligibility_test.rb
       test/services/distillator/fetch_service_test.rb
+      test/services/distillator/p0_transition_safety_test.rb
       test/services/distillator/fetch_response_contract_test.rb
       test/services/dsl/wringer_client_test.rb
       test/services/dsl_algorithm_runner_test.rb

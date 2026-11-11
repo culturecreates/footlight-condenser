@@ -129,6 +129,19 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
     assert_equal 4, logger.infos.first[:website_id]
   end
 
+  test "rollback replaces a persisted native body even while the cache is fresh" do
+    cache = create_cache(scrape_date: 5.minutes.ago, successful_refresh: 5.minutes.ago,
+      signals: { "body_profile" => { "backend" => "native", "request_method" => "GET", "render_js" => false, "absolute_src" => false } })
+    Distillator::FetchService.expects(:fetch_result).returns(success_result(body: "<html>Wringer</html>", fetch_path: "legacy"))
+
+    result = Distillator::FetchCacheStore.fetch(uri: cache.normalized_url, mode: :legacy)
+
+    assert_not result.cache_hit
+    assert_equal "<html>Wringer</html>", result.body
+    assert_equal "<html>Wringer</html>", cache.reload.body
+    assert_equal "legacy", cache.signals.dig("body_profile", "backend")
+  end
+
   test "force_scrape true refreshes even when cache exists" do
     cache = create_cache(scrape_date: 10.minutes.ago, successful_refresh: 10.minutes.ago, html: "<html>old</html>")
     Distillator::FetchService.expects(:fetch_result).returns(success_result(body: "<html><title>New</title></html>"))
@@ -1656,6 +1669,7 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
       uri: "http://127.0.0.1/events",
       html: "<html>last good blocked</html>",
       body: "<html>last good blocked</html>",
+      signals: { "body_profile" => { "backend" => "native", "request_method" => "GET", "render_js" => false, "absolute_src" => false } },
       scrape_date: 2.days.ago,
       successful_refresh: old_successful_refresh
     )
@@ -1702,7 +1716,7 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
       successful_refresh: successful_refresh,
       http_response_code: http_response_code,
       headers: headers,
-      signals: signals,
+      signals: { "body_profile" => { "backend" => "legacy", "request_method" => "GET", "render_js" => false, "absolute_src" => false } }.merge(signals),
       hints: hints,
       final_url: final_url,
       redirect_chain: redirect_chain

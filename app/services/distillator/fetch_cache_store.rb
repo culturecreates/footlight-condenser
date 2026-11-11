@@ -157,12 +157,14 @@ module Distillator
     def fetch
       key = Distillator::WringerUrlKey.call(uri, include_fragment: include_fragment)
       cache = Distillator::FetchCache.find_by(uri_key: key.uri_key)
+      profile_mismatch = cache.present? && stored_body_profile(cache) != requested_body_profile(key)
       decision = self.class.refresh_decision(
         cache: cache,
         force_scrape: force_scrape,
         force_scrape_every_hrs: force_scrape_every_hrs,
         clock: clock
       )
+      decision = { refresh: true, reason: :backend_profile_changed } if profile_mismatch && !decision[:refresh]
 
       unless decision[:refresh]
         result = build_result(cache, key, cache_hit: true, cache_write: false, cache_reason: decision[:reason], fetch_path: "cache")
@@ -175,6 +177,10 @@ module Distillator
 
       cache ||= Distillator::FetchCache.new(uri_key: key.uri_key)
       cache.normalized_url ||= key.normalized_url
+
+      # A body from another serving path is not a last-good fallback for this request.
+      # Clear it before fetching so failures cannot return content from the old engine.
+      cache.assign_attributes(html: nil, body: nil, successful_refresh: nil) if profile_mismatch
 
       fetch_result = Distillator::FetchService.fetch_result(
         url: key.normalized_url,
@@ -270,6 +276,7 @@ module Distillator
     end
 
     def write_fetch_result(cache, key, fetch_result)
+      previous_body_profile = stored_body_profile(cache)
       raw_body = raw_body_for(fetch_result)
       http_code = fetch_result[:http_code] || Distillator::FetchService.default_http_code_for(fetch_result)
       final_url = fetch_result[:final_url].presence || key.normalized_url
@@ -291,6 +298,7 @@ module Distillator
 
       if preserve_last_good_failure?(cache, http_code: http_code, raw_body: raw_body)
         cache.signals = (cache.signals || {}).to_h.merge("last_good_preserved_failure" => true)
+        cache.signals["body_profile"] = previous_body_profile unless previous_body_profile.empty?
         cache.hints = (Array(cache.hints) + ["last_good_preserved_failure"]).uniq
       end
 
@@ -306,7 +314,38 @@ module Distillator
         body: html,
         successful_refresh: now
       )
+      body_backend = if %w[legacy shadow replay].include?(fetch_result[:fetch_path].to_s)
+        fetch_backend_for(fetch_result, key: key)
+      else
+        cache.signals.to_h["fetch_backend"] || fetch_backend_for(fetch_result, key: key)
+      end
+      cache.signals = cache.signals.to_h.merge("body_profile" => requested_body_profile(key).merge("backend" => body_backend))
       cache.save!
+    end
+
+    def requested_body_profile(key)
+      resolved_mode = Distillator::FetchMode.resolve(
+        explicit_mode: mode, website: website, website_id: website_id, log_context: log_context
+      )
+      backend = if resolved_mode == :replay
+        "replay"
+      elsif resolved_mode == :active && client.nil?
+        rendered_fetch_for_key?(key) ? "phantomjs" : "native"
+      else
+        "legacy"
+      end
+      { "backend" => backend, "request_method" => request_method_for,
+        "render_js" => rendered_fetch_for_key?(key), "absolute_src" => absolute_src }
+    end
+
+    def stored_body_profile(cache)
+      return {} unless cache&.body.present? || cache&.html.present?
+
+      signals = cache.signals.to_h.stringify_keys
+      return signals["body_profile"].stringify_keys if signals["body_profile"].is_a?(Hash)
+
+      # Historical rows without explicit body provenance must be fetched once again.
+      {}
     end
 
     def scrape_options(key)
@@ -458,8 +497,10 @@ module Distillator
       case fetch_result[:fetch_path].to_s
       when "blocked"
         "blocked"
-      when "legacy"
+      when "legacy", "shadow"
         "legacy"
+      when "replay"
+        "replay"
       when "native"
         rendered_fetch_for_key?(key) ? "phantomjs" : "native"
       else

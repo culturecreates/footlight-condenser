@@ -391,37 +391,28 @@ module Distillator
         return [:failed, details.merge(reason: failed_result[:fetch_reason] || "cache_health_failed")]
       end
 
-      if representative_url_results.any? { |result| result[:legacy_lookup_status] == "missing_config" }
-        return [:checked, details.merge(reason: "legacy_lookup_missing_config", comparison_performed: false)]
+      # Aggregate blockers across the whole sample before considering review or
+      # unavailable legacy metadata on another URL.
+      if representative_url_results.any? { |result| result[:comparison_status] == "failed" }
+        return [:failed, details.merge(reason: "cache_compare_blocking_regression")]
       end
-
-      if representative_url_results.any? { |result| result[:legacy_lookup_status] == "unreachable" }
-        return [:checked, details.merge(reason: "legacy_lookup_unreachable", comparison_performed: false)]
-      end
-
-      if representative_url_results.any? { |result| result[:legacy_lookup_status] == "body_omitted" }
-        return [:checked, details.merge(reason: "legacy_lookup_body_omitted", comparison_performed: false)]
-      end
-
-      if representative_url_results.any? { |result| result[:comparison_status] == "review" }
-        return [:checked, details.merge(reason: "review_needed_difference")]
-      end
-
       if representative_url_results.any? { |result| result[:comparison_status] == "unknown" }
         return [:failed, details.merge(reason: "cache_compare_unknown")]
       end
-
-      if representative_url_results.any? { |result| result[:comparison_status] == "metadata_only" } &&
-         representative_url_results.none? { |result| %w[failed review unknown].include?(result[:comparison_status]) }
-        return [:checked, details.merge(reason: "metadata_only_difference")]
-      end
-
-      if representative_url_results.any? { |result| result[:comparison_status] == "missing" }
+      unavailable_legacy = %w[missing_config unreachable body_omitted]
+      if representative_url_results.any? { |result| result[:comparison_status] == "missing" && !unavailable_legacy.include?(result[:legacy_lookup_status]) }
         return [:failed, details.merge(reason: "cache_compare_missing")]
       end
-
-      if representative_url_results.any? { |result| result[:comparison_status] == "failed" }
-        return [:failed, details.merge(reason: "cache_compare_blocking_regression")]
+      unavailable_legacy.each do |lookup_status|
+        if representative_url_results.any? { |result| result[:legacy_lookup_status] == lookup_status }
+          return [:checked, details.merge(reason: "legacy_lookup_#{lookup_status}", comparison_performed: false)]
+        end
+      end
+      if representative_url_results.any? { |result| result[:comparison_status] == "review" }
+        return [:checked, details.merge(reason: "review_needed_difference")]
+      end
+      if representative_url_results.any? { |result| result[:comparison_status] == "metadata_only" }
+        return [:checked, details.merge(reason: "metadata_only_difference")]
       end
 
       [:checked, details.merge(reason: "ok")]
