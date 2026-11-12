@@ -7,6 +7,7 @@ namespace :test do
       test/services/distillator/fetch_eligibility_test.rb
       test/services/distillator/fetch_service_test.rb
       test/services/distillator/p0_transition_safety_test.rb
+      test/services/distillator/fetch_cache_encoding_test.rb
       test/models/distillator/transition_run_test.rb
       test/services/distillator/statement_parity_check_test.rb
       test/services/distillator/p1_persistence_test.rb

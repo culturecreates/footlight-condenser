@@ -281,6 +281,7 @@ module Distillator
       http_code = fetch_result[:http_code] || Distillator::FetchService.default_http_code_for(fetch_result)
       final_url = fetch_result[:final_url].presence || key.normalized_url
       headers = Distillator::FetchService.normalize_headers(fetch_result[:headers] || {})
+      raw_body = decode_html_body(raw_body, headers)
       signals = normalize_signals(fetch_result, key: key, headers: headers, body: raw_body, final_url: final_url)
       hints = normalize_hints(fetch_result, signals: signals, body: raw_body)
 
@@ -374,6 +375,22 @@ module Distillator
 
     def rendered_fetch_for_key?(key)
       render_js? || iframe_key?(key)
+    end
+
+    def decode_html_body(body, headers)
+      return body unless body.is_a?(String)
+
+      type = headers[:content_type].to_s
+      return body unless type.match?(/html/i)
+
+      charset = type[/charset\s*=\s*["']?([^;"'\s]+)/i, 1]
+      source = charset ? Encoding.find(charset) : Encoding::UTF_8
+      decoded = body.dup.force_encoding(source)
+      return body unless decoded.valid_encoding?
+
+      decoded.encode(Encoding::UTF_8)
+    rescue ArgumentError, EncodingError
+      body
     end
 
     def raw_body_for(fetch_result)
