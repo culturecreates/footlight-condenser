@@ -90,7 +90,7 @@ module OperatorContextHelper
 
     secondary = Array(cache_links[:secondary_links])
     secondary.each do |link|
-      links << link if %w[Compare Condenser vs Wringer Inspect legacy Wringer Open Condenser cache].include?(link[:label])
+      links << link if ["Compare Condenser vs Wringer", "Inspect legacy Wringer", "Open Condenser cache"].include?(link[:label])
     end
 
     url = operator_context_url(

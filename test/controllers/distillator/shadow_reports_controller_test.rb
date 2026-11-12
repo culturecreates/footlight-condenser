@@ -16,7 +16,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Shadow sites", @response.body
     assert_match "Active sites", @response.body
     assert_match "Promotable sites", @response.body
-    assert_match "Top blockers", @response.body
+    assert_match "Blockers across matching sites", @response.body
     assert_match "Failed fetch", @response.body
     assert_includes @response.body, "Transition checks are run by batch job. This page displays the latest result for each website."
     assert_no_cohort_source_requests
@@ -122,6 +122,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       health_severity: "high"
     )
 
+    publish_transition_fixture(review, defaults: { "fetch_parity" => { status: "checked" } })
     get distillator_shadow_report_path, params: { status: "review", term: "queue", sort: "website", direction: "asc", limit: "1" }
     follow_redirect! if response.redirect?
 
@@ -152,10 +153,11 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     ExportArtsdataService.expects(:call).never
     ExportArtsdataService.expects(:production_equivalent).never
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
-    assert_match "This page is read-only. Transition checks are run by batch job; this page displays the latest recorded result.", @response.body
+    assert_match "This page is read-only. Transition checks are run by batch job; this page displays the last completed result.", @response.body
     assert_match "Summary", @response.body
     assert_match "Decision", @response.body
     assert_match "Statement equivalence", @response.body
@@ -202,13 +204,14 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     website.transition_evidences.create!(id: next_id, url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
     website.transition_evidences.create!(id: next_id, url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
     assert_match "Promote to active", @response.body
     assert_match "Safe to promote", @response.body
     decision_html = @response.body[%r{<section class="website-rollout-panel">\s*<h2>Decision</h2>.*?</section>}m]
-    assert_match "Export confirmation", decision_html
+    assert_match "Export serializer compatibility", decision_html
     assert_match "Passed", decision_html
   end
 
@@ -243,6 +246,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     website.transition_evidences.create!(id: next_id, url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
     website.transition_evidences.create!(id: next_id, url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -324,6 +328,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       details: { export_compared: true, export_basis: "current export vs production-equivalent export" }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -414,6 +419,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       details: { export_compared: true, export_basis: "current export vs production-equivalent export" }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -467,6 +473,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       checked_at: 1.hour.ago
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -519,6 +526,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       checked_at: 1.hour.ago
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -539,13 +547,15 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       status: "checked",
       checked_at: Time.zone.parse("2026-05-25 12:00:00")
     )
-    website.update!(transition_check_requested_at: Time.zone.parse("2026-05-25 12:15:00"))
+    publish_transition_fixture(website, at: Time.zone.parse("2026-05-25 12:00:00"))
+    Distillator::TransitionRun.request!(website: website)
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
     assert_match "Latest transition evidence:", @response.body
-    assert_match "New batch check requested; this report still shows previous evidence.", @response.body
+    assert_match "Transition check queued; requested", @response.body
   end
 
   test "shadow report detail shows statements not evaluated when fetch failed before statement refresh" do
@@ -587,6 +597,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       details: { export_compared: true, export_basis: "current export vs production-equivalent export" }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -680,6 +691,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -731,6 +743,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -765,6 +778,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -800,6 +814,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -836,6 +851,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -920,6 +936,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -1013,6 +1030,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -1095,6 +1113,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -1170,6 +1189,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -1244,6 +1264,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -1309,6 +1330,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -1321,6 +1343,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     url = "https://diagnostics-detail.example/event"
     create_cache_for(website, url: url)
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -1335,6 +1358,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     website = create_shadow_website(name: "Context detail", seedurl: "context-detail")
     create_cache_for(website, url: "https://context-detail.example/event")
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -1348,6 +1372,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     create_cache_for(website, url: url)
     website.rollout_events.create!(from_mode: "legacy", to_mode: "shadow", reason: "test", readiness_snapshot: { warnings: ["manual review"] })
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -1385,6 +1410,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       details: { reason: "export_generation_failed" }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -1398,6 +1424,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
 
     assert_read_only_page_does_not_fetch
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
@@ -1517,6 +1544,18 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, 'name="mode"'
     assert_match "Active site", @response.body
     assert_no_match %r{<tbody>.*Shadow site.*</tbody>}m, @response.body
+  end
+
+  test "All rollout modes displays Legacy Shadow and Active in one filtered report" do
+    %w[legacy shadow active].each do |mode|
+      create_regular_website(name: "P1 all #{mode}", seedurl: "p1-all-#{mode}", mode: mode)
+    end
+    assert_read_only_page_does_not_fetch
+    get distillator_shadow_report_path, params: { mode: "all", term: "P1 all" }
+    assert_response :success
+    %w[legacy shadow active].each { |mode| assert_includes response.body, "P1 all #{mode}" }
+    assert_select 'select[name="mode"] option[value="all"][selected]'
+    assert_includes response.body, "across every page"
   end
 
   private

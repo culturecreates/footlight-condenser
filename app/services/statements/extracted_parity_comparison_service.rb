@@ -32,8 +32,16 @@ module Statements
         default_language: default_language,
         property_ids: scoped_property_ids
       )
-      rows = source_list.sort_by { |source| [source.property_id.to_i, source.id.to_i] }.map do |source|
-        compare_source(source, webpage, legacy_html: legacy_html, condenser_html: condenser_html)
+      comparison = Distillator::MigrationComparator.new(website: webpage.website, webpage: webpage,
+        legacy_html: legacy_html, condenser_html: condenser_html, sources: source_list, refresh_helper: refresh_helper).compare_statements
+      groups_by_verdict = {
+        "MATCH" => :same, "EXTRA_STATEMENT" => :added, "MISSING_STATEMENT" => :removed,
+        "DIFFERENT_VALUE" => :changed, "PARSE_ERROR" => :extraction_errors
+      }
+      rows = comparison.artifacts.map do |artifact|
+        artifact.merge(group: groups_by_verdict.fetch(artifact[:verdict]),
+          statement_id: Statement.find_by(webpage_id: webpage.id, source_id: artifact[:source_id])&.id,
+          source_label: "#{artifact[:property_label]} (source ##{artifact[:source_id]})")
       end
       groups = rows.group_by { |row| row[:group] }
 
@@ -64,137 +72,6 @@ module Statements
     private
 
     attr_reader :refresh_helper, :source_resolver
-
-    def compare_source(source, webpage, legacy_html:, condenser_html:)
-      legacy = extract_value(source, webpage, html: legacy_html, side: :legacy)
-      condenser = extract_value(source, webpage, html: condenser_html, side: :condenser)
-
-      {
-        source_id: source.id,
-        statement_id: Statement.find_by(webpage_id: webpage.id, source_id: source.id)&.id,
-        property_label: source.property.label,
-        source_label: source_label(source),
-        legacy: legacy[:value],
-        condenser: condenser[:value],
-        legacy_error: legacy[:error],
-        condenser_error: condenser[:error],
-        group: classify_group(legacy, condenser)
-      }
-    end
-
-    def extract_value(source, webpage, html:, side:)
-      if html.blank?
-        return {
-          value: nil,
-          error: {
-            error: "#{side.to_s.humanize} HTML is not available for comparison",
-            error_type: "MissingComparisonHtml",
-            source: "statement_parity_compare"
-          }
-        }
-      end
-
-      runner = Dsl::Core::AlgorithmRunner.new(
-        url: webpage.url,
-        render_js: source.render_js,
-        scrape_options: refresh_helper.statement_scrape_options(
-          source: source,
-          webpage: webpage,
-          scrape_options: { force_scrape_every_hrs: 0 }
-        ),
-        tracer: Dsl::Tracing::NullTracer.new
-      )
-      runner.instance_variable_set(:@html, html)
-      runner.instance_variable_set(:@page, Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s))
-      runner.define_singleton_method(:fetch_result_for) do |url:, render_js:, scrape_options:|
-        {
-          status: :abort,
-          body: [
-            "abort_update",
-            {
-              error: "Read-only statement parity comparison cannot fetch additional URLs",
-              error_type: "StatementParityFetchUnsupported",
-              source: "statement_parity_compare",
-              step: "url"
-            }
-          ],
-          headers: {},
-          final_url: url,
-          redirect_chain: [url],
-          wringer: {
-            error_type: "StatementParityFetchUnsupported",
-            source: "statement_parity_compare",
-            signals: {},
-            hints: ["read_only_compare"],
-            final_url: url,
-            redirect_chain: [url]
-          },
-          duration_ms: 0
-        }
-      end
-
-      raw = runner.run(source.algorithm_value)
-      return { value: nil, error: raw.second.to_h } if abort_structure?(raw)
-
-      formatted = refresh_helper.format_datatype(raw, source.property, webpage, statement_status: "initial")
-      return { value: nil, error: formatted.second.to_h } if abort_structure?(formatted)
-
-      value = blank_value?(formatted) ? nil : formatted
-      { value: value, error: nil }
-    rescue StandardError => error
-      {
-        value: nil,
-        error: {
-          error: error.message,
-          error_type: error.class.to_s,
-          source: "statement_parity_compare"
-        }
-      }
-    end
-
-    def classify_group(legacy, condenser)
-      return :extraction_errors if legacy[:error].present? || condenser[:error].present?
-      return :same if values_equal?(legacy[:value], condenser[:value])
-      return :added if blank_value?(legacy[:value]) && present_value?(condenser[:value])
-      return :removed if present_value?(legacy[:value]) && blank_value?(condenser[:value])
-
-      :changed
-    end
-
-    def values_equal?(left, right)
-      normalize_value(left) == normalize_value(right)
-    end
-
-    def normalize_value(value)
-      case value
-      when Array
-        value.map { |entry| normalize_value(entry) }
-      when Hash
-        value.transform_values { |entry| normalize_value(entry) }
-      else
-        value
-      end
-    end
-
-    def blank_value?(value)
-      return true if value.blank?
-      return value.all? { |entry| blank_value?(entry) } if value.is_a?(Array)
-      return value.values.all? { |entry| blank_value?(entry) } if value.is_a?(Hash)
-
-      false
-    end
-
-    def present_value?(value)
-      !blank_value?(value)
-    end
-
-    def abort_structure?(value)
-      value.is_a?(Array) && value.first == "abort_update" && value.second.respond_to?(:to_h)
-    end
-
-    def source_label(source)
-      "#{source.property.label} (source ##{source.id})"
-    end
 
     def normalized_property_ids(property_ids)
       ids = Array(property_ids).filter_map do |value|

@@ -1,18 +1,24 @@
 <h1>Transition Report Detail</h1>
 
-<p class="cache-page-note">This page is read-only. Transition checks are run by batch job; this page displays the latest recorded result.</p>
+<p class="cache-page-note">This page is read-only. Transition checks are run by batch job; this page displays the last completed result. Checks compare extracted values without updating stored statements.</p>
 
 <section id="transition-report-summary" class="website-rollout-panel">
   <h2>Summary</h2>
   <p><strong>Is this site ready?</strong> <%= shadow_report_decision_label(@detail.decision) %></p>
-  <p><strong>Primary blocker:</strong> <%= @detail.primary_blocker&.headline.presence || "No blocking issue is currently recorded." %></p>
+  <p><strong>Primary blocker:</strong> <%= @detail.primary_blocker&.headline.presence || @detail.summary.primary_blocker.presence || "No blocking issue is currently recorded." %></p>
+  <% if @detail.completed_transition_run_id %>
+    <p><strong>Completed transition run:</strong> #<%= @detail.completed_transition_run_id %></p>
+  <% end %>
   <p><strong>Latest transition evidence:</strong> <%= shadow_report_timestamp(@detail.latest_transition_evidence_checked_at) %></p>
   <% if @detail.pending_transition_batch_check %>
     <p>
-      Batch check requested <%= time_ago_in_words(@detail.transition_check_requested_at) %> ago.
-      Latest evidence is still from <%= shadow_report_timestamp(@detail.latest_transition_evidence_checked_at) %>.
+      Transition check <%= @detail.transition_run_status %>; requested <%= time_ago_in_words(@detail.transition_check_requested_at) %> ago.
+      Run #<%= @detail.transition_run_id %>. Latest evidence is still from <%= shadow_report_timestamp(@detail.latest_transition_evidence_checked_at) %>.
     </p>
     <p>Refresh this page to check again.</p>
+  <% end %>
+  <% if @detail.transition_run_status == "failed" %>
+    <p class="cache-page-notice"><strong>Latest run failed:</strong> <%= @detail.transition_run_error %></p>
   <% end %>
   <p><strong>Checked scope:</strong> <%= shadow_report_checked_pages_summary(@detail.checked_scope) %></p>
   <p><strong>Links:</strong>

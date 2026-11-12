@@ -26,6 +26,7 @@ module Distillator
         entries: [
           database_entry,
           queue_adapter_entry,
+          queue_health_entry,
           rollout_modes_entry,
           default_mode_entry,
           staging_rollout_modes_entry,
@@ -52,6 +53,11 @@ module Distillator
     def queue_adapter_entry
       adapter = ActiveJob::Base.queue_adapter_name.to_s.presence || "unknown"
       Entry.new(label: "Queue adapter", value: adapter, ok: adapter != "unknown")
+    end
+
+    def queue_health_entry
+      health = Distillator::TransitionQueueHealth.call
+      Entry.new(label: "Transition worker", value: health.message, ok: health.ok?)
     end
 
     def rollout_modes_entry

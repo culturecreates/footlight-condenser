@@ -288,8 +288,10 @@ module WebsitesHelper
   end
 
   def website_transition_evidence_freshness_text(website)
-    return "Batch check requested. Waiting for new transition evidence." if website.pending_transition_batch_check?
+    return "Transition check #{website.latest_transition_run.status}. Waiting for all phases to finish." if website.pending_transition_batch_check?
 
+    run = website.latest_transition_run
+    return run.error_message if run&.status == "failed"
     latest_checked_at = website.latest_transition_evidence_checked_at
     return "Latest transition evidence: Not recorded yet." if latest_checked_at.blank?
 

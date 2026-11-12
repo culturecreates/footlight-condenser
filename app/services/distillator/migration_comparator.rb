@@ -145,8 +145,7 @@ module Distillator
                 :default_language, :sources, :refresh_helper, :source_resolver, :export_service
 
     def resolved_sources
-      explicit_sources = Array(sources).presence
-      return explicit_sources if explicit_sources
+      return Array(sources) unless sources.nil?
 
       source_resolver
         .sources_for_webpage(webpage, default_language: default_language)
@@ -263,7 +262,6 @@ module Distillator
           end
       when Array
         value.map { |entry| normalize_statement_value(entry) }
-             .sort_by { |entry| JSON.generate(entry) }
       when String
         value.gsub(/\s+/, " ").strip
       else
@@ -272,9 +270,9 @@ module Distillator
     end
 
     def normalized_error(error)
-      return nil unless error.respond_to?(:to_h)
+      return nil if error.blank? || !error.respond_to?(:to_h)
 
-      error.to_h.slice("error", "error_type", "source", "step").transform_keys(&:to_s)
+      error.to_h.stringify_keys.slice("error", "error_type", "source", "step")
     end
 
     def blank_value?(value)

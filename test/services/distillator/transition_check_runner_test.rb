@@ -43,9 +43,13 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
   class FakeFetchCacheStore
     def initialize(results_by_url)
       @results_by_url = results_by_url
+      @calls = []
     end
 
-    def fetch(uri:, **)
+    attr_reader :calls
+
+    def fetch(uri:, **options)
+      @calls << options.merge(uri: uri)
       @results_by_url.fetch(uri)
     end
   end
@@ -88,16 +92,19 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal 1, result.records[:statement_delta].details["representative_webpage_count"]
     assert_equal 1, result.records[:statement_delta].details["candidate_webpage_count"]
     assert_equal ["https://runner-site.example/event"], result.records[:statement_delta].details["representative_webpages"]
-    assert_equal 1, result.records[:statement_delta].details["statements_refreshed_count"]
+    assert_equal 0, result.records[:statement_delta].details["statements_refreshed_count"]
+    assert_equal "paired_dsl", result.records[:statement_delta].details["comparison_basis"]
+    assert_equal "completed", website.latest_transition_run.status
     assert_equal "current export vs production-equivalent export", result.records[:export_diff].details["export_basis"]
     assert_equal true, result.records[:export_diff].details["export_compared"]
 
-    assert_no_difference("Distillator::TransitionEvidence.count") do
+    assert_difference("Distillator::TransitionEvidence.count", 3) do
       Distillator::TransitionCheckRunner.new(
         website: website,
         refresh_runner: FakeRefreshRunner.new,
         export_service: FakeExportService.new(actual: export_json, expected: export_json),
-        transition_check_service: fake_transition_check_service(website: website, cache: cache)
+        transition_check_service: fake_transition_check_service(website: website, cache: cache),
+        fetch_cache_store: fake_fetch_cache_store_for(website, cache), cache_compare: fake_cache_compare_for(website)
       ).call
     end
   end
@@ -120,102 +127,6 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal "pending", result.records[:export_diff].status
     assert_equal "fetch_failed_before_export_comparison", result.records[:export_diff].details["reason"]
     assert_equal "Transition check incomplete: fetch failed, statements not evaluated, export blocked by fetch", result.flash_message
-  end
-
-  test "statement check records failed reason when refresh fails" do
-    website = build_website(with_webpage: false)
-    cache = create_cache(website, signals: { "transport_success" => true, "content_success" => true })
-    create_selected_statement(website.webpages.first, status: "ok")
-    export_json = '[{"@id":"event:1","name":"Title"}]'
-
-    result = Distillator::TransitionCheckRunner.new(
-      website: website,
-      refresh_runner: FakeRefreshRunner.new([{ "Property id 1" => { cache: ["abort_update"] } }]),
-      export_service: FakeExportService.new(actual: export_json, expected: export_json),
-      transition_check_service: fake_transition_check_service(website: website, cache: cache),
-      fetch_cache_store: fake_fetch_cache_store_for(website, cache),
-      cache_compare: fake_cache_compare_for(website)
-    ).call
-
-    assert_equal "failed", result.records[:statement_delta].status
-    assert_equal "critical_statement_refresh_failed", result.records[:statement_delta].details["reason"]
-    assert_equal 1, result.records[:statement_delta].details["statements_failed_count"]
-    assert_equal ["https://runner-site.example/event"], result.records[:statement_delta].details["representative_webpages"]
-  end
-
-  test "optional statement refresh failures record warning without blocking critical readiness" do
-    website = build_website(with_webpage: false)
-    cache = create_cache(website, signals: { "transport_success" => true, "content_success" => true })
-    webpage = website.webpages.first
-    create_selected_statement(webpage, status: "ok", property: properties(:four), cache: "Runner Title")
-    create_selected_statement(webpage, status: "ok", property: properties(:location), cache: "https://example.org/place")
-    create_selected_statement(webpage, status: "ok", property: properties(:ten), cache: '["2026-06-01T19:30:00Z"]')
-    optional_statement = create_selected_statement(webpage, status: "problem", property: properties(:five), cache: "")
-    export_json = '[{"@id":"event:1","name":"Title"}]'
-
-    result = Distillator::TransitionCheckRunner.new(
-      website: website,
-      refresh_runner: FakeRefreshRunner.new([{ "Property id 5" => { cache: ["abort_update"] } }]),
-      export_service: FakeExportService.new(actual: export_json, expected: export_json),
-      transition_check_service: fake_transition_check_service(website: website, cache: cache),
-      fetch_cache_store: fake_fetch_cache_store_for(website, cache),
-      cache_compare: fake_cache_compare_for(website)
-    ).call
-
-    assert_equal "warning", result.records[:statement_delta].status
-    assert_equal "optional_statement_refresh_warning", result.records[:statement_delta].details["reason"]
-    assert_equal 0, result.records[:statement_delta].statement_delta
-    assert_equal true, result.records[:statement_delta].statement_count_delta_acceptable
-    assert_equal 0, result.records[:statement_delta].details["critical_statements_failed_count"]
-    assert_equal 1, result.records[:statement_delta].details["optional_statements_failed_count"]
-    assert_equal [optional_statement.id], result.records[:statement_delta].details["optional_failing_statement_ids"]
-  end
-
-  test "title failure remains a blocking statement failure" do
-    website = build_website(with_webpage: false)
-    cache = create_cache(website, signals: { "transport_success" => true, "content_success" => true })
-    webpage = website.webpages.first
-    title_statement = create_selected_statement(webpage, status: "problem", property: properties(:four), cache: "")
-    create_selected_statement(webpage, status: "ok", property: properties(:location), cache: "https://example.org/place")
-    create_selected_statement(webpage, status: "ok", property: properties(:ten), cache: '["2026-06-01T19:30:00Z"]')
-    export_json = '[{"@id":"event:1","name":"Title"}]'
-
-    result = Distillator::TransitionCheckRunner.new(
-      website: website,
-      refresh_runner: FakeRefreshRunner.new,
-      export_service: FakeExportService.new(actual: export_json, expected: export_json),
-      transition_check_service: fake_transition_check_service(website: website, cache: cache),
-      fetch_cache_store: fake_fetch_cache_store_for(website, cache),
-      cache_compare: fake_cache_compare_for(website)
-    ).call
-
-    assert_equal "failed", result.records[:statement_delta].status
-    assert_equal "critical_statement_refresh_failed", result.records[:statement_delta].details["reason"]
-    assert_equal 1, result.records[:statement_delta].statement_delta
-    assert_equal [title_statement.id], result.records[:statement_delta].details["critical_failing_statement_ids"]
-  end
-
-  test "dates failure remains a blocking statement failure" do
-    website = build_website(with_webpage: false)
-    cache = create_cache(website, signals: { "transport_success" => true, "content_success" => true })
-    webpage = website.webpages.first
-    create_selected_statement(webpage, status: "ok", property: properties(:four), cache: "Runner Title")
-    create_selected_statement(webpage, status: "ok", property: properties(:location), cache: "https://example.org/place")
-    dates_statement = create_selected_statement(webpage, status: "problem", property: properties(:ten), cache: "")
-    export_json = '[{"@id":"event:1","name":"Title"}]'
-
-    result = Distillator::TransitionCheckRunner.new(
-      website: website,
-      refresh_runner: FakeRefreshRunner.new,
-      export_service: FakeExportService.new(actual: export_json, expected: export_json),
-      transition_check_service: fake_transition_check_service(website: website, cache: cache),
-      fetch_cache_store: fake_fetch_cache_store_for(website, cache),
-      cache_compare: fake_cache_compare_for(website)
-    ).call
-
-    assert_equal "failed", result.records[:statement_delta].status
-    assert_equal "critical_statement_refresh_failed", result.records[:statement_delta].details["reason"]
-    assert_equal [dates_statement.id], result.records[:statement_delta].details["critical_failing_statement_ids"]
   end
 
   test "export diff records failed counts when comparison differs" do
@@ -281,7 +192,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     ).call
 
     assert_equal "pending", result.records[:statement_delta].status
-    assert_equal "no_selected_statements", result.records[:statement_delta].details["reason"]
+    assert_equal "paired_extraction_inconclusive", result.records[:statement_delta].details["reason"]
     assert_equal 0, result.records[:statement_delta].details["statements_refreshed_count"]
     assert_equal 0, result.records[:statement_delta].details["statements_failed_count"]
     assert_equal "Transition check incomplete: fetch checked, statements inconclusive, export checked", result.flash_message
@@ -301,7 +212,8 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
         website: website,
         cache: cache,
         comparison: {
-          legacy_source: "remote_wringer",
+          legacy_cache: { html: "<html>ok</html>" },
+        legacy_source: "remote_wringer",
           legacy_lookup_status: "ok",
           legacy_lookup_error: nil,
           condenser_source: "local_fetch_cache",
@@ -316,6 +228,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
       ),
       fetch_cache_store: fake_fetch_cache_store_for(website, cache),
       cache_compare: fake_cache_compare_for(website, website.webpages.first.url => {
+        legacy_cache: { html: "<html>ok</html>" },
         legacy_source: "remote_wringer",
         legacy_lookup_status: "ok",
         legacy_lookup_error: nil,
@@ -349,7 +262,8 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
         website: website,
         cache: cache,
         comparison: {
-          legacy_source: "remote_wringer",
+          legacy_cache: { html: "<html>ok</html>" },
+        legacy_source: "remote_wringer",
           legacy_lookup_status: "ok",
           legacy_lookup_error: nil,
           condenser_source: "local_fetch_cache",
@@ -364,6 +278,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
       ),
       fetch_cache_store: fake_fetch_cache_store_for(website, cache),
       cache_compare: fake_cache_compare_for(website, website.webpages.first.url => {
+        legacy_cache: { html: "<html>ok</html>" },
         legacy_source: "remote_wringer",
         legacy_lookup_status: "ok",
         legacy_lookup_error: nil,
@@ -428,9 +343,9 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
 
     representative_results = result.records[:fetch_parity].details["representative_url_results"]
     assert_equal 3, representative_results.size
-    assert_equal %w[passed failed checked].sort, [result.records[:fetch_parity].details["representative_url_results"][0]["comparison_status"], result.records[:fetch_parity].details["representative_url_results"][1]["comparison_status"], result.records[:fetch_parity].status].map(&:to_s).sort
-    assert_equal "legacy_lookup_unreachable", result.records[:fetch_parity].details["reason"]
-    assert_equal "legacy_lookup", result.records[:fetch_parity].details["failed_layer"]
+    assert_equal %w[passed failed failed].sort, [result.records[:fetch_parity].details["representative_url_results"][0]["comparison_status"], result.records[:fetch_parity].details["representative_url_results"][1]["comparison_status"], result.records[:fetch_parity].status].map(&:to_s).sort
+    assert_equal "cache_compare_blocking_regression", result.records[:fetch_parity].details["reason"]
+    assert_equal "cache_compare", result.records[:fetch_parity].details["failed_layer"]
     assert_equal 1, result.records[:fetch_parity].details["affected_url_count"]
     refute_equal "cache_health_failed", result.records[:fetch_parity].details["reason"]
   end
@@ -621,7 +536,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     ENV["PHANTOMJS_API_KEY"] = original_api_key
   end
 
-  test "statement refresh reuses the representative cache instead of forcing another immediate scrape" do
+  test "paired checks reuse snapshots without refreshing stored statements" do
     website = build_website(with_webpage: false)
     cache = create_fetch_cache_for_url("https://runner-site.example/event", signals: { "transport_success" => true, "content_success" => true })
     webpage = website.webpages.create!(url: cache.normalized_url, language: "en", rdf_uri: "rdf:runner-site", rdfs_class: rdfs_classes(:one))
@@ -641,8 +556,21 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
       cache_compare: fake_cache_compare_for(website)
     ).call
 
-    assert_equal 1, refresh_runner.calls.size
-    assert_equal({}, refresh_runner.calls.first[:scrape_options])
+    assert_empty refresh_runner.calls
+  end
+
+  test "rendered sources request a rendered candidate snapshot for paired extraction" do
+    website = build_website
+    create_selected_statement(website.webpages.first, status: "ok")
+    website.sources.update_all(render_js: true)
+    cache = Distillator::FetchCache.find_by!(normalized_url: website.webpages.first.url)
+    store = fake_fetch_cache_store_for(website, cache)
+    result = Distillator::TransitionCheckRunner.new(website: website,
+      fetch_cache_store: store, cache_compare: fake_cache_compare_for(website),
+      export_service: FakeExportService.new(actual: '[{"@id":"event:1"}]', expected: '[{"@id":"event:1"}]'),
+      transition_check_service: fake_transition_check_service(website: website, cache: cache)).call
+    assert_equal true, store.calls.first[:render_js]
+    assert_equal "checked", result.records[:statement_delta].status
   end
 
   private
@@ -681,6 +609,12 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
   end
 
   def create_selected_statement(webpage, status:, property: properties(:four), cache: "Runner Title")
+    # Paired extraction needs required sources, independent of existing statements.
+    %w[Title Dates Location].each do |label|
+      next if webpage.website.sources.joins(:property).where(properties: { label: label }).exists?
+      definition = Property.create!(label: label, value_datatype: "MyString", uri: "https://example.org/#{label}", rdfs_class: rdfs_classes(:one))
+      webpage.website.sources.create!(property: definition, algorithm_value: "manual=Required #{label}", selected: true, language: "en", render_js: false)
+    end
     source = Source.create!(
       algorithm_value: "manual=Runner Title",
       selected: true,
@@ -733,6 +667,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
   def fake_cache_compare_for(website, overrides = {})
     defaults = website.webpages.index_with do
       {
+        legacy_cache: { html: "<html>ok</html>" },
         legacy_source: "remote_wringer",
         legacy_lookup_status: "ok",
         legacy_lookup_error: nil,

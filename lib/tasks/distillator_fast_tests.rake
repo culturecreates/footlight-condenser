@@ -7,6 +7,15 @@ namespace :test do
       test/services/distillator/fetch_eligibility_test.rb
       test/services/distillator/fetch_service_test.rb
       test/services/distillator/p0_transition_safety_test.rb
+      test/models/distillator/transition_run_test.rb
+      test/services/distillator/statement_parity_check_test.rb
+      test/services/distillator/p1_persistence_test.rb
+      test/services/distillator/p1_navigation_test.rb
+      test/services/distillator/p1_queue_health_test.rb
+      test/services/distillator/production_preflight_test.rb
+      test/services/distillator/transition_check_runner_test.rb
+      test/services/distillator/rollout_transition_test.rb
+      test/controllers/distillator/transition_checks_controller_test.rb
       test/services/distillator/fetch_response_contract_test.rb
       test/services/dsl/wringer_client_test.rb
       test/services/dsl_algorithm_runner_test.rb

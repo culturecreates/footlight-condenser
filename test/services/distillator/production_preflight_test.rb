@@ -2,6 +2,7 @@ require "test_helper"
 
 class Distillator::ProductionPreflightTest < ActiveSupport::TestCase
   setup do
+    Distillator::TransitionQueueHealth.stubs(:call).returns(Distillator::TransitionQueueHealth::Result.new(ok?: true, message: "Live test worker"))
     @old_runtime = ENV["DISTILLATOR_RUNTIME"]
     @old_rails_env = ENV["RAILS_ENV"]
     ApplicationController.helpers.stubs(:get_wringer_url_per_environment).returns("http://wringer.example")
@@ -56,6 +57,15 @@ class Distillator::ProductionPreflightTest < ActiveSupport::TestCase
     assert_equal true, entry.ok
     assert_includes entry.value, "Staging requires every website to be Shadow or Active."
     assert_includes entry.value, "OK"
+  end
+
+  test "preflight fails when no worker consumes the transition queue" do
+    Distillator::TransitionQueueHealth.stubs(:call).returns(Distillator::TransitionQueueHealth::Result.new(ok?: false, message: "No live worker"))
+    result = Distillator::ProductionPreflight.call
+    entry = result.entries.find { |item| item.label == "Transition worker" }
+    assert_not entry.ok
+    assert_equal "No live worker", entry.value
+    assert_not result.ok?
   end
 
   test "production preflight does not add staging rollout entry" do

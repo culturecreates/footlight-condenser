@@ -27,7 +27,7 @@ class Distillator::TransitionEvidenceRecorderTest < ActiveSupport::TestCase
     assert_match %r{\Ahttp://hector-charland-com/events/1\z}, evidence.url
   end
 
-  test "updates the latest matching evidence record instead of duplicating it" do
+  test "appends a new evidence record without rewriting previous attempts" do
     website = Website.create!(
       name: "Recorder site",
       seedurl: "outside-feed",
@@ -43,7 +43,7 @@ class Distillator::TransitionEvidenceRecorderTest < ActiveSupport::TestCase
       status: :pending
     )
 
-    assert_no_difference("Distillator::TransitionEvidence.count") do
+    assert_difference("Distillator::TransitionEvidence.count", 1) do
       second = Distillator::TransitionEvidenceRecorder.call(
         website: website,
         url: "outside-feed/events/1",
@@ -52,7 +52,8 @@ class Distillator::TransitionEvidenceRecorderTest < ActiveSupport::TestCase
         statement_delta: 4,
         statement_count_delta_acceptable: true
       )
-      assert_equal first.id, second.id
+      assert_not_equal first.id, second.id
+      assert_equal "pending", first.reload.status
       assert_equal "checked", second.status
       assert_equal 4, second.statement_delta
     end

@@ -3,6 +3,7 @@ require "rake"
 
 class DistillatorTransitionTaskTest < ActiveSupport::TestCase
   setup do
+    Distillator::TransitionQueueHealth.stubs(:call).returns(Distillator::TransitionQueueHealth::Result.new(ok?: true, message: "Live test worker"))
     Distillator::TransitionEvidence.delete_all
     Distillator::FetchCache.delete_all
     Website.where(seedurl: "task-runner-site").find_each(&:destroy)
@@ -68,6 +69,7 @@ class DistillatorTransitionTaskTest < ActiveSupport::TestCase
 
     assert_includes stdout, "Database: OK"
     assert_includes stdout, "Queue adapter:"
+    assert_includes stdout, "Transition worker: Live test worker"
     assert_includes stdout, "Rollout modes: legacy/shadow/active available"
     assert_includes stdout, "Default mode: legacy"
     assert_includes stdout, "Cache table: OK"

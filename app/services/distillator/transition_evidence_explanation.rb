@@ -103,6 +103,10 @@ module Distillator
     end
 
     def statement_headline
+      return "Wringer and Condenser differ in critical extracted values." if reason == "critical_statement_parity_failed"
+      return "Optional extracted values differ and need review." if reason == "optional_statement_parity_warning"
+      return "Paired extraction is incomplete: missing snapshots, required sources, mixed fetch profiles, or unsupported nested fetches." if reason == "paired_extraction_inconclusive"
+      return "Sampled Wringer and Condenser extracted values match." if reason == "paired_statements_match"
       return "No representative event webpages were available." if reason == "no_representative_webpages"
       return "Fetch failed before statements could be refreshed." if state == :not_evaluated || reason == "fetch_failed_before_statement_refresh"
       return "Some representative URLs could not be fetched, so statement coverage is incomplete." if reason == "partial_fetch_failed_before_statement_refresh"
@@ -165,6 +169,13 @@ module Distillator
     end
 
     def statement_details
+      if details_hash["comparison_basis"] == "paired_dsl"
+        entries = Array(details_hash["statement_artifacts"]).map(&:symbolize_keys)
+        differences = entries.reject { |entry| entry[:verdict] == "MATCH" }
+        return ["Sources compared: #{entries.length}"] + differences.first(10).map do |entry|
+          "#{entry[:property_label]} / #{entry[:language]}: Wringer #{entry[:legacy].inspect}; Condenser #{entry[:condenser].inspect} (#{entry[:verdict]})"
+        end
+      end
       details = []
       if legacy_generic_statement_failure?
         details << "Legacy statement failures recorded: #{failing_statement_count}" if failing_statement_count.positive?
@@ -223,7 +234,13 @@ module Distillator
 
         state == :passed ? "No fetch action is needed right now." : "Fix the fetch/cache failure first, then rerun the transition batch check."
       when "statement_delta"
-        if state == :passed
+        if reason == "critical_statement_parity_failed"
+          "Compare the differing values and fix the affected sources before activating."
+        elsif reason == "optional_statement_parity_warning"
+          "Review optional value differences before activating."
+        elsif reason == "paired_extraction_inconclusive"
+          "Verify paired snapshots, required sources and nested-resource support, then rerun the check."
+        elsif state == :passed
           "No statement refresh action is needed right now."
         elsif state == :not_evaluated || reason == "fetch_failed_before_statement_refresh"
           "Fix the fetch/cache failure first, then rerun the transition batch check."

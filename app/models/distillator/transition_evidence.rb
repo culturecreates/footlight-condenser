@@ -7,11 +7,13 @@ module Distillator
     STATUSES = %w[pending checked accepted rejected failed warning blocked].freeze
 
     belongs_to :website
+    belongs_to :transition_run, class_name: "Distillator::TransitionRun", optional: true
 
     validates :url, presence: true
     validates :check_kind, presence: true, inclusion: { in: CHECK_KINDS }
     validates :status, presence: true, inclusion: { in: STATUSES }
     validates :checked_at, presence: true
+    validate :matching_run_website
 
     scope :latest_first, -> { order(checked_at: :desc, id: :desc) }
     scope :for_website, ->(website) { where(website_id: website.is_a?(Website) ? website.id : website) }
@@ -26,12 +28,11 @@ module Distillator
     def self.latest_for_website_ids(website_ids)
       return {} if Array(website_ids).blank?
 
-      rows = select("DISTINCT ON (website_id, check_kind) *")
-        .where(website_id: Array(website_ids))
-        .order(Arel.sql("website_id, check_kind, checked_at DESC, id DESC"))
-
+      run_ids = Distillator::TransitionRun.completed.where(website_id: Array(website_ids))
+        .select("DISTINCT ON (website_id) id").order(Arel.sql("website_id, completed_at DESC, id DESC"))
+      rows = where(transition_run_id: run_ids).order(checked_at: :desc, id: :desc)
       rows.each_with_object(Hash.new { |hash, key| hash[key] = {} }) do |row, grouped|
-        grouped[row.website_id][row.check_kind] = row
+        grouped[row.website_id][row.check_kind] ||= row
       end
     end
 
@@ -73,6 +74,12 @@ module Distillator
     end
 
     private
+
+    def matching_run_website
+      return unless transition_run && transition_run.website_id != website_id
+
+      errors.add(:transition_run, "must belong to this website")
+    end
 
     def truthy_detail?(key)
       value = details.to_h[key.to_s] || details.to_h[key.to_sym]

@@ -19,6 +19,7 @@ class Distillator::FetchRolloutSmokeTest < ActiveSupport::TestCase
   end
 
   setup do
+    Resolv.stubs(:getaddresses).with("example.com").returns(["93.184.215.14"])
     @old_fetch_mode = ENV["DISTILLATOR_FETCH_MODE"]
     @old_replay_fetch = ENV["REPLAY_FETCH"]
     ENV["REPLAY_FETCH"] = nil

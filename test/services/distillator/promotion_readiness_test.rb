@@ -5,6 +5,7 @@ class Distillator::PromotionReadinessTest < ActiveSupport::TestCase
     website = build_website(name: "Tout Culture", seedurl: "outside-seed")
     cache = build_cache(signals: { "representative_urls_checked" => true, "statement_count_delta_acceptable" => true })
 
+    isolate_transition_policy(website)
     result = Distillator::PromotionReadiness.call(website: website, cache: cache)
 
     assert_includes result.blockers, "Cannot activate yet: export check is missing."
@@ -15,6 +16,7 @@ class Distillator::PromotionReadinessTest < ActiveSupport::TestCase
     website = build_website(name: "Outside Feed", seedurl: "outside-feed")
     cache = build_cache(signals: { "representative_urls_checked" => true, "statement_count_delta_acceptable" => true })
 
+    isolate_transition_policy(website)
     result = Distillator::PromotionReadiness.call(website: website, cache: cache)
 
     assert_equal [], result.blockers
@@ -46,6 +48,7 @@ class Distillator::PromotionReadinessTest < ActiveSupport::TestCase
       checked_at: 1.hour.ago
     )
 
+    isolate_transition_policy(website)
     result = Distillator::PromotionReadiness.call(website: website, cache: cache)
 
     assert_equal [], result.blockers
@@ -78,6 +81,7 @@ class Distillator::PromotionReadinessTest < ActiveSupport::TestCase
       checked_at: 8.days.ago
     )
 
+    isolate_transition_policy(website)
     result = Distillator::PromotionReadiness.call(website: website, cache: cache)
 
     assert_includes result.blockers, "Cannot activate yet: export check is stale."

@@ -16,13 +16,26 @@ module Distillator
     end
 
     def call
-      record = existing_record || Distillator::TransitionEvidence.new
+      run = attributes[:transition_run]
+      if run
+        return website.with_lock do
+          run.with_lock do
+            raise "Cannot append evidence to an inactive transition run" unless run.status == "running"
+            create_record
+          end
+        end
+      end
+      create_record
+    end
+
+    private
+
+    def create_record
+      record = Distillator::TransitionEvidence.new
       record.assign_attributes(payload)
       record.save!
       record
     end
-
-    private
 
     attr_reader :website, :url, :check_kind, :status, :checked_at, :cohort_key, :details, :attributes
 
@@ -48,13 +61,6 @@ module Distillator
       return unless website.respond_to?(:distillator_primary_cohort_key)
 
       website.distillator_primary_cohort_key
-    end
-
-    def existing_record
-      Distillator::TransitionEvidence
-        .where(website: website, url: normalized_url, check_kind: check_kind.to_s)
-        .order(checked_at: :desc, id: :desc)
-        .first
     end
   end
 end

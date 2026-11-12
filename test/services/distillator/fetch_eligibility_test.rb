@@ -1,6 +1,7 @@
 require "test_helper"
 
 class Distillator::FetchEligibilityTest < ActiveSupport::TestCase
+  setup { Resolv.stubs(:getaddresses).with("example.com").returns(["93.184.215.14"]) }
   test "eligible for rendered fetch when render_js is true" do
     result = Distillator::FetchEligibility.call(
       url: "https://example.com/events",

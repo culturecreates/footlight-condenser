@@ -50,7 +50,7 @@ module Distillator::ShadowReportsHelper
 
   def shadow_report_mode_options
     options = [
-      ["All rollout modes", ""],
+      ["All rollout modes", "all"],
       ["Legacy", "legacy"],
       ["Shadow", "shadow"],
       ["Active", "active"]

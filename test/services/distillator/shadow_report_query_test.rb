@@ -278,6 +278,12 @@ class Distillator::ShadowReportQueryTest < ActiveSupport::TestCase
     end
 
     Distillator::FetchCache.create!(attrs.merge(id: next_id))
+    defaults = { "fetch_parity" => { status: recommendation == :blocked ? "failed" : "checked" } }
+    if recommendation == :ready
+      defaults["statement_delta"] = { status: "checked", statement_count_delta_acceptable: true }
+      defaults["export_diff"] = { status: "checked", export_diff_checked: true }
+    end
+    publish_transition_fixture(website, defaults: defaults)
     website
   end
 
@@ -305,5 +311,6 @@ class Distillator::ShadowReportQueryTest < ActiveSupport::TestCase
       export_diff_checked: export_diff,
       checked_at: checked_at
     )
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } })
   end
 end

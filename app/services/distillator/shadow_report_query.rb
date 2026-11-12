@@ -53,8 +53,6 @@ module Distillator
     end
 
     def call
-      return default_result if default_report?
-
       summaries = filtered_summaries
       paginated = paginate_rows(summaries, total_count: summaries.length)
 
@@ -72,26 +70,6 @@ module Distillator
     private
 
     attr_reader :filters, :sort, :direction, :page, :per_page
-
-    def default_result
-      scope = default_shadow_scope
-      rows = build_summaries(paginated_websites(scope))
-      total_count = scope.count
-      total_pages = (total_count.to_f / per_page).ceil
-      paginated = WillPaginate::Collection.create(page, per_page, total_count) do |pager|
-        pager.replace(rows)
-      end
-
-      Result.new(
-        records: paginated.to_a,
-        all_records: rows,
-        global_records: rows,
-        page: paginated.current_page,
-        per_page: paginated.per_page,
-        total_count: paginated.total_entries,
-        total_pages: total_pages
-      )
-    end
 
     def filtered_summaries
       @filtered_summaries ||= begin
@@ -165,7 +143,7 @@ module Distillator
     end
 
     def mode_match?(summary)
-      return true if filters[:mode].blank?
+      return true if filters[:mode].blank? || filters[:mode].to_s == "all"
       return Distillator::TransitionRuntime.staging_rollout_mode_invalid?(summary.website.distillator_mode) if filters[:mode].to_s == STAGING_INVALID_FILTER
 
       summary.website.distillator_mode.to_s == filters[:mode].to_s
@@ -284,26 +262,10 @@ module Distillator
 
     def website_scope
       requested_mode = filters[:mode].presence || "shadow"
+      return Website.all if requested_mode == "all"
       return Distillator::TransitionRuntime.staging_invalid_rollout_mode_scope if requested_mode == STAGING_INVALID_FILTER
 
       Website.where(distillator_mode: requested_mode)
-    end
-
-    def default_shadow_scope
-      @default_shadow_scope ||= Website.where(distillator_mode: "shadow").order(:name)
-    end
-
-    def paginated_websites(scope)
-      scope.offset((page - 1) * per_page).limit(per_page).includes(:webpages).to_a
-    end
-
-    def default_report?
-      return false unless filters.except(:mode).compact_blank.empty?
-      return false unless filters[:mode].blank? || filters[:mode].to_s == "shadow"
-      return false unless sort == DEFAULT_SORT
-      return false unless direction == DEFAULT_DIRECTION
-
-      true
     end
 
     class << self

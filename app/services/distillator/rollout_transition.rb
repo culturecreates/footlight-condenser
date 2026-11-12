@@ -19,6 +19,16 @@ module Distillator
     end
 
     def call
+      website.with_lock do
+        @promotion_readiness = nil
+        @blocked_transition_errors = nil
+        perform_transition
+      end
+    end
+
+    private
+
+    def perform_transition
       website.assign_attributes(attributes)
       return failure(["Distillator mode is not included in the list"]) unless valid_target_mode?
 
@@ -46,8 +56,6 @@ module Distillator
 
       failure(website.errors.full_messages)
     end
-
-    private
 
     attr_reader :website, :to_mode, :actor, :reason, :force, :override, :review, :attributes, :raw_to_mode
 
@@ -109,7 +117,10 @@ module Distillator
     end
 
     def readiness_snapshot(warnings)
+      run = website.latest_completed_transition_run
       {
+        transition_run_id: run&.id,
+        configuration_digest: run&.configuration_digest,
         blockers: promotion_readiness.blockers,
         warnings: warnings.presence || promotion_readiness.warnings,
         cohort_key: website.distillator_primary_cohort_key,

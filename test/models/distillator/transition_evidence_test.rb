@@ -20,6 +20,7 @@ class Distillator::TransitionEvidenceTest < ActiveSupport::TestCase
       checked_at: 1.day.ago
     )
 
+    publish_transition_fixture(website)
     assert_equal newer, Distillator::TransitionEvidence.latest_for_website(website, "export_diff")
     assert_equal newer, Distillator::TransitionEvidence.latest_for_website_ids([website.id])[website.id]["export_diff"]
   end

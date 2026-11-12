@@ -35,13 +35,32 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
     end
 
     job = ActiveJob::Base.queue_adapter.enqueued_jobs.find { |entry| entry[:job] == Distillator::TransitionCheckJob }
-    assert_equal [target.id], job[:args]
+    assert_equal target.id, job[:args].first
+    assert_equal target.transition_runs.last.id, job[:args].last["run_id"]
     assert_redirected_to distillator_shadow_report_site_path(target)
     assert_equal "shadow", target.reload.distillator_mode
     assert_equal "legacy", other.reload.distillator_mode
     assert_not_nil target.reload.transition_check_requested_at
     assert_equal 0, target.transition_evidences.count
     assert_equal 0, other.transition_evidences.count
+  end
+
+  test "duplicate requests reuse the queued run without another job" do
+    target = websites(:one)
+    2.times { post distillator_transition_checks_path, params: { website_id: target.id } }
+    assert_equal 1, target.transition_runs.active.count
+    assert_equal 1, ActiveJob::Base.queue_adapter.enqueued_jobs.length
+    assert_includes flash[:notice], "already queued"
+  end
+
+  test "enqueue failure marks the run failed and permits retry" do
+    target = websites(:one)
+    Distillator::TransitionCheckJob.stubs(:perform_later).returns(false)
+    post distillator_transition_checks_path, params: { website_id: target.id }
+    assert_equal "failed", target.latest_transition_run.status
+    assert_includes flash[:alert], "Unable to queue"
+    assert_nil flash[:notice]
+    assert Distillator::TransitionRun.request!(website: target).created?
   end
 
   test "transition check redirects back to website transition section when return_to is provided" do
@@ -58,7 +77,7 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
     post distillator_transition_checks_path, params: { website_id: target.id, return_to: website_path(target, anchor: "website-transition") }
 
     assert_redirected_to website_path(target, anchor: "website-transition")
-    assert_equal "Transition batch check queued. The latest transition report will update as evidence is recorded.", flash[:notice]
+    assert_equal "Transition batch check queued. The transition report will update when all phases finish.", flash[:notice]
   end
 
   test "transition check allows deliberate relative webpages return_to" do

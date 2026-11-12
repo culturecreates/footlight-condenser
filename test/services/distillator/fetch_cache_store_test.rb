@@ -570,6 +570,7 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
   test "json_post 404 preserves previous html body and successful_refresh" do
     old_successful_refresh = 2.hours.ago
     cache = create_cache(
+      profile: { "request_method" => "POST" },
       uri: "https://example.org/api",
       html: "<html>last good</html>",
       body: "<html>last good</html>",
@@ -600,6 +601,7 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
   test "json_post 500 preserves previous html body while updating status metadata" do
     old_successful_refresh = 2.hours.ago
     cache = create_cache(
+      profile: { "request_method" => "POST" },
       uri: "https://example.org/api",
       html: "<html>last good json post</html>",
       body: "<html>last good json post</html>",
@@ -766,6 +768,7 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
 
   test "phantomjs missing child frame failure preserves last good html and records hint" do
     cache = create_cache(
+      profile: { "render_js" => true },
       uri: "https://example.org/eventsiframe",
       html: "<html>last good child frame</html>",
       body: "<html>last good child frame</html>",
@@ -828,6 +831,7 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
 
   test "rendered non 2xx preserves previous html while updating renderer metadata" do
     cache = create_cache(
+      profile: { "render_js" => true },
       uri: "https://example.org/eventsiframe",
       html: "<html>last good rendered</html>",
       body: "<html>last good rendered</html>",
@@ -858,6 +862,7 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
 
   test "phantomjs iframe extraction failure preserves last good html and records hint" do
     cache = create_cache(
+      profile: { "render_js" => true },
       uri: "https://example.org/eventsiframe",
       html: "<html>last good iframe</html>",
       body: "<html>last good iframe</html>",
@@ -1466,6 +1471,7 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
 
     cases.each do |test_case|
       cache = create_cache(
+        profile: { "render_js" => test_case[:fetch_options][:render_js] == true, "request_method" => test_case[:fetch_options][:json_post] ? "POST" : "GET" },
         uri: test_case[:uri],
         html: "<html>last good #{test_case[:name]}</html>",
         body: "<html>last good #{test_case[:name]}</html>",
@@ -1703,7 +1709,7 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
 
   private
 
-  def create_cache(uri: "http://example.org/cached", html: "<html>cached</html>", body: html, name: "Cached", scrape_date:, successful_refresh:, http_response_code: 200, headers: {}, signals: { "network_status" => "ok", "content_type" => "html" }, hints: [], final_url: nil, redirect_chain: [])
+  def create_cache(profile: {}, uri: "http://example.org/cached", html: "<html>cached</html>", body: html, name: "Cached", scrape_date:, successful_refresh:, http_response_code: 200, headers: {}, signals: { "network_status" => "ok", "content_type" => "html" }, hints: [], final_url: nil, redirect_chain: [])
     key = Distillator::WringerUrlKey.call(uri)
 
     Distillator::FetchCache.create!(
@@ -1716,7 +1722,7 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
       successful_refresh: successful_refresh,
       http_response_code: http_response_code,
       headers: headers,
-      signals: { "body_profile" => { "backend" => "legacy", "request_method" => "GET", "render_js" => false, "absolute_src" => false } }.merge(signals),
+      signals: { "body_profile" => { "backend" => "legacy", "request_method" => "GET", "render_js" => false, "absolute_src" => false }.merge(profile) }.merge(signals),
       hints: hints,
       final_url: final_url,
       redirect_chain: redirect_chain

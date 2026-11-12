@@ -3,6 +3,7 @@ class Website < ApplicationRecord
   # They intentionally do not expose Distillator's internal execution naming.
   DISTILLATOR_MODES = %w[legacy shadow active].freeze
 
+  has_many :transition_runs, class_name: "Distillator::TransitionRun", dependent: :destroy
   has_many :webpages, dependent: :destroy
   has_many :sources, dependent: :destroy
   has_many :transition_evidences,
@@ -55,21 +56,37 @@ class Website < ApplicationRecord
   end
 
   def latest_transition_evidences_by_kind
-    @latest_transition_evidences_by_kind ||= transition_evidences.latest_first.group_by(&:check_kind).transform_values(&:first)
+    Distillator::TransitionEvidence.latest_for_website_ids([id]).fetch(id, {})
+  end
+
+  def latest_transition_run
+    transition_runs.order(id: :desc).first
+  end
+
+  def latest_completed_transition_run
+    transition_runs.completed.order(completed_at: :desc, id: :desc).first
   end
 
   def latest_transition_evidence_checked_at
-    transition_evidences.where(check_kind: Distillator::TransitionEvidence::REPORT_CHECK_KINDS).maximum(:checked_at)
+    latest_completed_transition_run&.completed_at
   end
 
   def pending_transition_batch_check?
-    return false if transition_check_requested_at.blank?
-
-    latest_transition_evidence_checked_at.blank? || latest_transition_evidence_checked_at <= transition_check_requested_at
+    latest_transition_run&.status.in?(%w[queued running])
   end
 
-  def request_transition_batch_check!(requested_at: Time.current)
-    update!(transition_check_requested_at: requested_at)
+  def transition_run_blocker
+    latest = latest_transition_run
+    return "Run a transition check to establish paired extraction evidence." unless latest
+    return "Transition check is #{latest.status}. Wait for all phases to finish." if latest.status.in?(%w[queued running])
+    return latest.error_message.presence || "Transition check failed. Run a new check." if latest.status == "failed"
+    return "Source configuration changed since the last check. Run a new check." unless latest.configuration_digest == Distillator::TransitionFingerprint.call(self)
+
+    nil
+  end
+
+  def request_transition_batch_check!
+    Distillator::TransitionRun.request!(website: self).run
   end
 
   private

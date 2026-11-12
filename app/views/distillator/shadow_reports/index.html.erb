@@ -6,12 +6,14 @@
   <p class="cache-page-note"><strong><%= shadow_report_staging_rollout_warning %></strong></p>
 <% end %>
 
+<p class="cache-page-note">Summary counts cover all sites matching the filters, across every page.</p>
+
 <%= render "shared/cards/card_grid",
            cards: transition_dashboard_cards(@dashboard_counts),
            variant: :summary,
            css_class: "cache-summary-cards shadow-report-summary-cards" %>
 
-<h2>Top blockers on this page</h2>
+<h2>Blockers across matching sites</h2>
 <%= render "shared/cards/card_grid",
            cards: transition_blocker_cards(@blocker_counts),
            variant: :summary,

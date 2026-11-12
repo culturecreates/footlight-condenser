@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_05_25_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_12_000100) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -109,13 +109,29 @@ ActiveRecord::Schema[8.0].define(version: 2026_05_25_120000) do
     t.datetime "checked_at", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "transition_run_id"
     t.index ["check_kind"], name: "index_distillator_transition_evidence_on_check_kind"
     t.index ["checked_at"], name: "index_distillator_transition_evidence_on_checked_at"
     t.index ["cohort_key"], name: "index_distillator_transition_evidence_on_cohort_key"
     t.index ["status"], name: "index_distillator_transition_evidence_on_status"
+    t.index ["transition_run_id"], name: "index_distillator_transition_evidence_on_transition_run_id"
     t.index ["website_id", "check_kind", "checked_at"], name: "index_transition_evidence_on_site_kind_checked_at"
     t.index ["website_id", "url", "check_kind", "checked_at"], name: "index_transition_evidence_on_site_url_kind_checked_at"
     t.index ["website_id"], name: "index_distillator_transition_evidence_on_website_id"
+  end
+
+  create_table "distillator_transition_runs", force: :cascade do |t|
+    t.bigint "website_id", null: false
+    t.string "status", default: "queued", null: false
+    t.string "configuration_digest", null: false
+    t.datetime "requested_at", null: false
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["website_id"], name: "index_distillator_transition_runs_on_website_id"
+    t.index ["website_id"], name: "one_active_transition_run_per_website", unique: true, where: "((status)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying])::text[]))"
   end
 
   create_table "jsonld_outputs", force: :cascade do |t|
@@ -228,7 +244,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_05_25_120000) do
   end
 
   add_foreign_key "distillator_rollout_events", "websites"
+  add_foreign_key "distillator_transition_evidence", "distillator_transition_runs", column: "transition_run_id"
   add_foreign_key "distillator_transition_evidence", "websites"
+  add_foreign_key "distillator_transition_runs", "websites"
   add_foreign_key "properties", "rdfs_classes"
   add_foreign_key "search_exceptions", "rdfs_classes"
   add_foreign_key "sources", "properties"

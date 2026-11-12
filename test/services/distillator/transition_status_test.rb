@@ -4,6 +4,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
   test "no cache or evidence returns not checked" do
     website = build_website("Outside Feed", "outside-feed")
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: nil)
 
     assert_equal :not_checked, status.status
@@ -18,6 +19,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     website = build_website("Outside Feed", "outside-feed")
     cache = build_cache(signals: { "transport_success" => false, "content_success" => true }, health_status: "attempt_failed")
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :blocked, status.status
@@ -30,6 +32,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     website = build_website("Outside Feed", "outside-feed")
     cache = build_cache(signals: { "transport_success" => true, "content_success" => false }, health_status: "attempt_failed")
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :blocked, status.status
@@ -40,6 +43,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     website = build_website("Tout Culture", "outside-seed")
     cache = build_cache(signals: { "transport_success" => true, "content_success" => true, "export_diff_checked" => true })
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :blocked, status.status
@@ -50,6 +54,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     website = build_website("Tout Culture", "outside-seed")
     cache = build_cache(signals: { "transport_success" => true, "content_success" => true, "statement_count_delta_acceptable" => true })
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :blocked, status.status
@@ -67,6 +72,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
       }
     )
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :blocked, status.status
@@ -78,6 +84,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     website = build_website("Outside Feed", "outside-feed")
     cache = build_cache(signals: { "transport_success" => true, "content_success" => true, "statement_count_delta_acceptable" => true })
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :review, status.status
@@ -95,6 +102,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
       }
     )
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :ready, status.status
@@ -110,6 +118,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     website.transition_evidences.create!(url: "https://example.org/event", check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
     website.transition_evidences.create!(url: "https://example.org/event", check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :ready, status.status
@@ -126,6 +135,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     website.transition_evidences.create!(url: "https://example.org/event", check_kind: "statement_delta", status: "failed", statement_count_delta_acceptable: false, checked_at: 1.hour.ago)
     website.transition_evidences.create!(url: "https://example.org/event", check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 4.days.ago)
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :checked, status.evidence_statuses["fetch_parity"]
@@ -143,13 +153,14 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     website.transition_evidences.create!(url: "https://example.org/event", check_kind: "statement_delta", status: "failed", statement_count_delta_acceptable: false, checked_at: 1.hour.ago)
     website.transition_evidences.create!(url: "https://example.org/event", check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :blocked, status.status
     assert_equal :failed, status.statements
     assert_equal :passed, status.export
     assert_equal "Blocked", status.activation_recommendation[:label]
-    assert_equal "Export", status.checks.last[:label]
+    assert_equal "Fetch diagnostic", status.checks.last[:label]
     assert_equal :passed, status.checks.last[:state]
   end
 
@@ -176,6 +187,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
       checked_at: 1.hour.ago
     )
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :review, status.status
@@ -211,6 +223,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
       checked_at: 1.hour.ago
     )
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :blocked, status.status
@@ -243,6 +256,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
       checked_at: 1.hour.ago
     )
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :blocked, status.status
@@ -276,6 +290,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
       checked_at: 1.hour.ago
     )
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :blocked, status.status
@@ -307,6 +322,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
       checked_at: 1.hour.ago
     )
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :failed, status.fetch
@@ -331,6 +347,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
       }
     )
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :inconclusive, status.statements
@@ -382,6 +399,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
       }
     )
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :blocked, status.status
@@ -418,6 +436,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
       }
     )
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :review, status.status
@@ -451,6 +470,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
       }
     )
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :review, status.status
@@ -484,6 +504,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
       }
     )
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :review, status.status
@@ -518,6 +539,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
       }
     )
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :review, status.status
@@ -554,6 +576,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
       }
     )
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :ready, status.status
@@ -607,6 +630,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
       }
     )
 
+    isolate_transition_policy(website)
     status = Distillator::TransitionStatus.call(website: website, cache: cache)
 
     assert_equal :blocked, status.status

@@ -120,9 +120,17 @@ module Distillator
       :safe
     end
 
+    def run_blocker
+      return unless website.respond_to?(:transition_run_blocker)
+
+      return @run_blocker if defined?(@run_blocker)
+
+      @run_blocker = website.transition_run_blocker
+    end
+
     def confidence
       return :not_checked unless cache.present? || any_evidence_present?
-      return :low if fetch_status == :failed
+      return :low if run_blocker.present? || fetch_status == :failed
       return :low if review_needed_difference? || legacy_lookup_missing_config? || legacy_lookup_unreachable? || legacy_lookup_body_omitted?
       return :low if cache_compare_unknown?
       return :low if [fetch_status, statements_status, export_status].any? { |status| %i[missing stale inconclusive not_evaluated blocked_by_fetch].include?(status) }
@@ -134,6 +142,7 @@ module Distillator
 
     def blockers
       reasons = []
+      reasons << run_blocker if run_blocker.present?
       reasons << fetch_failure_blocker if fetch_status == :failed
       reasons << "Cannot activate yet: fetch check is stale." if fetch_status == :stale && lavitrine_pipeline?
       reasons << "Cannot activate yet: statements check failed." if statements_status == :failed
@@ -322,7 +331,7 @@ module Distillator
       if statements_status == :passed
         checks << {
           key: "export_confirmation",
-          label: "Export confirmation",
+          label: "Export serializer compatibility",
           state: export_status,
           role: "confirmation"
         }
@@ -359,6 +368,7 @@ module Distillator
 
     def activation_next_action
       return fetch_failure_next_action if fetch_status == :failed
+      return "Run a new transition batch check and wait for all phases to finish." if run_blocker.present?
       return "Configure the Wringer endpoint for staging, then rerun the transition batch check." if legacy_lookup_missing_config?
       return "Fix the legacy Wringer endpoint, then rerun the transition batch check." if legacy_lookup_unreachable?
       return "Verify the legacy Wringer body endpoint or compare using the legacy inspection link." if legacy_lookup_body_omitted?
@@ -406,7 +416,9 @@ module Distillator
     end
 
     def lavitrine_pipeline?
-      website.respond_to?(:lavitrine_pipeline?) && website.lavitrine_pipeline?
+      return @lavitrine_pipeline if defined?(@lavitrine_pipeline)
+
+      @lavitrine_pipeline = website.respond_to?(:lavitrine_pipeline?) && website.lavitrine_pipeline?
     end
 
     def signal(key)
@@ -535,17 +547,19 @@ module Distillator
     end
 
     def no_selected_statements?(evidence)
-      evidence_reason(evidence) == "no_selected_statements"
+      evidence_reason(evidence).in?(%w[no_selected_statements paired_extraction_inconclusive])
     end
 
     def optional_statement_warning
       return unless statements_status == :warning
 
+      return "Critical extracted values match; optional value differences need review." if evidence_reason(statement_delta_evidence) == "optional_statement_parity_warning"
+
       "Critical statements passed; optional statement refresh warnings need review."
     end
 
     def optional_statement_warning_evidence?(evidence)
-      evidence_reason(evidence) == "optional_statement_refresh_warning" ||
+      evidence_reason(evidence).in?(%w[optional_statement_refresh_warning optional_statement_parity_warning]) ||
         (details_count(evidence, "optional_statements_failed_count") > 0 && details_count(evidence, "critical_statements_failed_count").zero?)
     end
 

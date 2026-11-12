@@ -13,6 +13,9 @@ module Distillator
     end
 
     def call
+      if blockers? && website.respond_to?(:latest_transition_run) && website.latest_transition_run.nil? && transition_status.fetch != :failed
+        return mode == :legacy ? "Move to Shadow." : "Run transition batch check."
+      end
       return "Review blocker." if blockers?
       return "Move to Shadow." if mode == :legacy
       return "Run transition batch check." if transition_check_needed?

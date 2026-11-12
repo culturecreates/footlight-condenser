@@ -26,9 +26,9 @@ module Distillator
       Result.new(
         rows: query.records,
         summary_counts: summary_counts(query.records),
-        global_summary_counts: summary_counts(query.records),
-        dashboard_counts: dashboard_counts(query.records),
-        blocker_counts: blocker_counts(query.records),
+        global_summary_counts: summary_counts(query.all_records),
+        dashboard_counts: dashboard_counts(query.all_records),
+        blocker_counts: blocker_counts(query.all_records),
         page: query.page,
         per_page: query.per_page,
         total_count: query.total_count,
@@ -62,7 +62,7 @@ module Distillator
     end
 
     def dashboard_counts(rows)
-      mode_counts = Website.group(:distillator_mode).count
+      mode_counts = rows.group_by { |row| row.website.distillator_mode }.transform_values(&:length)
 
       {
         legacy_sites: mode_counts.fetch("legacy", 0),
@@ -84,13 +84,11 @@ module Distillator
           redirect_cache_health_review: 0
         }
       ) do |row, counts|
-        messages = Array(row.blockers) + Array(row.warnings)
-
-        counts[:failed_fetch] += 1 if messages.any? { |message| message.include?("fetch check failed") }
-        counts[:missing_statement_evidence] += 1 if messages.any? { |message| message.include?("statements check is missing") }
-        counts[:missing_export_evidence] += 1 if messages.any? { |message| message.include?("export check is missing") }
-        counts[:stale_evidence] += 1 if messages.any? { |message| message.include?("check is stale") || message.include?("latest successful refresh is stale") }
-        counts[:redirect_cache_health_review] += 1 if messages.any? { |message| message.include?("fetch result redirected") }
+        counts[:failed_fetch] += 1 if row.fetch_status == :failed
+        counts[:missing_statement_evidence] += 1 if row.statements_status == :missing
+        counts[:missing_export_evidence] += 1 if row.export_status == :missing
+        counts[:stale_evidence] += 1 if [row.fetch_status, row.statements_status, row.export_status].include?(:stale)
+        counts[:redirect_cache_health_review] += 1 if row.cache&.redirected == true
       end
     end
   end

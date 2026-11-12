@@ -4,6 +4,7 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
   test "unknown when no distillator cache evidence exists" do
     website = create_shadow_website(name: "Unknown shadow", seedurl: "unknown-shadow")
 
+    isolate_transition_policy(website)
     summary = Distillator::ShadowSiteSummary.call(website: website, cache: nil)
 
     assert_equal :not_checked, summary.status
@@ -36,6 +37,7 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
       }
     )
 
+    isolate_transition_policy(website)
     summary = Distillator::ShadowSiteSummary.call(website: website, cache: cache)
 
     assert_equal :blocked, summary.status
@@ -65,6 +67,7 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
       }
     )
 
+    isolate_transition_policy(website)
     summary = Distillator::ShadowSiteSummary.call(website: website, cache: cache)
 
     assert_equal :review, summary.status
@@ -91,6 +94,7 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
       }
     )
 
+    isolate_transition_policy(website)
     summary = Distillator::ShadowSiteSummary.call(website: website, cache: cache)
 
     assert_equal :review, summary.status
@@ -116,6 +120,7 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
       }
     )
 
+    isolate_transition_policy(website)
     summary = Distillator::ShadowSiteSummary.call(website: website, cache: cache)
 
     assert_equal "lavitrine_pipeline", summary.cohort_key
@@ -135,6 +140,7 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
       }
     )
 
+    isolate_transition_policy(website)
     summary = Distillator::ShadowSiteSummary.call(website: website, cache: cache)
 
     assert_nil summary.cohort_key
@@ -157,6 +163,7 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
     create_transition_evidence(website, "statement_delta", statement_count_delta_acceptable: true)
     create_transition_evidence(website, "export_diff", export_diff_checked: true)
 
+    isolate_transition_policy(website)
     summary = Distillator::ShadowSiteSummary.call(website: website, cache: cache)
 
     assert_equal :ready, summary.status
@@ -190,6 +197,7 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
       }
     )
 
+    isolate_transition_policy(website)
     summary = Distillator::ShadowSiteSummary.call(website: website, cache: cache)
 
     assert_equal :blocked, summary.status
@@ -210,6 +218,7 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
     )
     create_transition_evidence(website, "export_diff", export_diff_checked: true, checked_at: 4.days.ago)
 
+    isolate_transition_policy(website)
     summary = Distillator::ShadowSiteSummary.call(website: website, cache: cache)
 
     assert_equal :review, summary.status

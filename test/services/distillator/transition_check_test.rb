@@ -10,6 +10,7 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
       health_status: "attempt_failed"
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     result = Distillator::TransitionCheck.call(website: website, cache: cache)
 
     assert_equal website.id, result.website_id
@@ -42,6 +43,7 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
     website.transition_evidences.create!(url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
     website.transition_evidences.create!(url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     result = Distillator::TransitionCheck.call(website: website, cache: cache)
 
     assert_equal :ready, result.status
@@ -61,6 +63,7 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
       health_status: "healthy"
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     result = Distillator::TransitionCheck.call(website: website, cache: cache)
 
     assert_equal :blocked, result.status
@@ -144,6 +147,7 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
   end
 
   test "publishable representative webpages prefer nearest future then recently updated then recent past" do
+    travel_to Time.zone.parse("2026-05-25 12:00:00")
     website = build_website("future-event-order")
     nearest_future = create_publishable_event_webpage(
       website,
@@ -347,6 +351,7 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
       }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     result = Distillator::TransitionCheck.call(website: website, cache: cache)
 
     assert_equal :passed, result.fetch
@@ -377,6 +382,7 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
       }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     result = Distillator::TransitionCheck.call(website: website, cache: cache)
 
     assert_equal :passed, result.fetch
@@ -432,6 +438,7 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
       }
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     result = Distillator::TransitionCheck.call(website: website, cache: cache)
 
     assert_equal :passed, result.fetch

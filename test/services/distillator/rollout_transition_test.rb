@@ -46,7 +46,7 @@ class Distillator::RolloutTransitionTest < ActiveSupport::TestCase
     result = Distillator::RolloutTransition.call(website: website, to_mode: "active", actor: "test")
 
     assert_equal false, result.success?
-    assert_includes result.errors, "Cannot activate yet: statements check is missing."
+    assert_includes result.errors, "Run a transition check to establish paired extraction evidence."
   end
 
   test "allows shadow to active when status is ready" do
@@ -79,6 +79,7 @@ class Distillator::RolloutTransitionTest < ActiveSupport::TestCase
       checked_at: 1.hour.ago
     )
 
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } })
     result = Distillator::RolloutTransition.call(website: website, to_mode: "active", actor: "test")
 
     assert_equal true, result.success?
@@ -110,6 +111,7 @@ class Distillator::RolloutTransitionTest < ActiveSupport::TestCase
     website.transition_evidences.create!(url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
     website.transition_evidences.create!(url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
 
+    publish_transition_fixture(website)
     result = Distillator::RolloutTransition.call(website: website, to_mode: "active", actor: "test", reason: "Manual review complete", review: true)
 
     assert_equal true, result.success?
@@ -356,7 +358,7 @@ class Distillator::RolloutTransitionTest < ActiveSupport::TestCase
     assert_equal true, event.readiness_snapshot["override"]
     assert_equal "rollout.override", event.readiness_snapshot["event"]
     assert_includes event.readiness_snapshot["warnings"], "Needs review: statements check is missing."
-    assert_equal [], event.readiness_snapshot["blockers"]
+    assert_includes event.readiness_snapshot["blockers"], "Run a transition check to establish paired extraction evidence."
   end
 
   test "activate anyway records current blockers when readiness is blocked" do

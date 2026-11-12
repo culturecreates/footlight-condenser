@@ -7,6 +7,10 @@ module Distillator
       :transition_evidence_explanations,
       :latest_transition_evidence_checked_at,
       :transition_check_requested_at,
+      :transition_run_id,
+      :completed_transition_run_id,
+      :transition_run_status,
+      :transition_run_error,
       :pending_transition_batch_check,
       :primary_blocker,
       :statement_failure_groups,
@@ -36,6 +40,10 @@ module Distillator
         transition_evidence_explanations: transition_evidence_explanations,
         latest_transition_evidence_checked_at: website.latest_transition_evidence_checked_at,
         transition_check_requested_at: website.transition_check_requested_at,
+        transition_run_id: website.latest_transition_run&.id,
+        completed_transition_run_id: website.latest_completed_transition_run&.id,
+        transition_run_status: website.latest_transition_run&.status,
+        transition_run_error: website.latest_transition_run&.error_message,
         pending_transition_batch_check: website.pending_transition_batch_check?,
         primary_blocker: primary_blocker,
         statement_failure_groups: statement_failure_groups,
@@ -282,9 +290,9 @@ module Distillator
     def rollout_notes
       notes = [Distillator::RolloutCopy.description(website.distillator_mode)]
       if website.lavitrine_pipeline?
-        notes << "La Vitrine pipeline requires statement equivalence before activation. Export confirmation and fetch diagnostics are supporting evidence."
+        notes << "La Vitrine pipeline requires statement equivalence before activation. Export serializer compatibility and fetch diagnostics are supporting evidence."
       else
-        notes << "Statement equivalence is the activation gate. Export confirmation and fetch diagnostics are supporting evidence."
+        notes << "Statement equivalence is the activation gate. Export serializer compatibility and fetch diagnostics are supporting evidence."
       end
       notes
     end

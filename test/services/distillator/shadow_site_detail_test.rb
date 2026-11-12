@@ -80,6 +80,7 @@ class Distillator::ShadowSiteDetailTest < ActiveSupport::TestCase
       }
     )
 
+    publish_transition_fixture(website)
     detail = Distillator::ShadowSiteDetail.call(website: website)
 
     assert_equal "statements", detail.root_cause[:failed_layer]
@@ -93,39 +94,22 @@ class Distillator::ShadowSiteDetailTest < ActiveSupport::TestCase
     assert_equal "json_url / en", detail.statement_failure_groups.first[:source]
   end
 
-  test "detail reports pending batch check until newer evidence is recorded" do
-    website = Website.create!(
-      name: "Pending freshness",
-      seedurl: "pending-freshness",
-      graph_name: "https://example.org/pending-freshness",
-      default_language: "en",
-      distillator_mode: "shadow",
-      transition_check_requested_at: Time.zone.parse("2026-05-25 12:15:00")
-    )
-    url = "https://example.org/pending-freshness/event"
-    website.transition_evidences.create!(
-      url: url,
-      check_kind: "fetch_parity",
-      status: "checked",
-      checked_at: Time.zone.parse("2026-05-25 12:00:00")
-    )
-
-    pending_detail = Distillator::ShadowSiteDetail.call(website: website)
-
-    assert_equal true, pending_detail.pending_transition_batch_check
-    assert_equal Time.zone.parse("2026-05-25 12:00:00"), pending_detail.latest_transition_evidence_checked_at
-
-    website.transition_evidences.create!(
-      url: url,
-      check_kind: "statement_delta",
-      status: "checked",
-      statement_count_delta_acceptable: true,
-      checked_at: Time.zone.parse("2026-05-25 12:20:00")
-    )
-
-    fresh_detail = Distillator::ShadowSiteDetail.call(website: website.reload)
-
-    assert_equal false, fresh_detail.pending_transition_batch_check
-    assert_equal Time.zone.parse("2026-05-25 12:20:00"), fresh_detail.latest_transition_evidence_checked_at
+  test "detail remains pending until the full run completes" do
+    website = websites(:one)
+    previous = publish_transition_fixture(website, at: 1.hour.ago)
+    run = Distillator::TransitionRun.request!(website: website).run
+    pending = Distillator::ShadowSiteDetail.call(website: website)
+    assert pending.pending_transition_batch_check
+    assert_equal previous.completed_at.to_i, pending.latest_transition_evidence_checked_at.to_i
+    run.execute do
+      Distillator::TransitionEvidence::REPORT_CHECK_KINDS.each do |kind|
+        run.transition_evidences.create!(website: website, url: "https://example.org/event", check_kind: kind,
+          status: "pending", checked_at: Time.current)
+      end
+      assert website.pending_transition_batch_check?
+    end
+    fresh = Distillator::ShadowSiteDetail.call(website: website.reload)
+    assert_not fresh.pending_transition_batch_check
+    assert_equal run.completed_at.to_i, fresh.latest_transition_evidence_checked_at.to_i
   end
 end

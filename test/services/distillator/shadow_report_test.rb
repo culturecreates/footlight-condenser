@@ -24,9 +24,9 @@ class Distillator::ShadowReportTest < ActiveSupport::TestCase
     assert_equal baseline.summary_counts[:not_checked], report.summary_counts[:not_checked]
     assert_equal baseline.summary_counts[:lavitrine_total] + 1, report.summary_counts[:lavitrine_total]
     assert_equal baseline.summary_counts[:lavitrine_review] + 1, report.summary_counts[:lavitrine_review]
-    assert_equal baseline.dashboard_counts[:legacy_sites] + 1, report.dashboard_counts[:legacy_sites]
+    assert_equal baseline.dashboard_counts[:legacy_sites], report.dashboard_counts[:legacy_sites]
     assert_equal baseline.dashboard_counts[:shadow_sites] + 3, report.dashboard_counts[:shadow_sites]
-    assert_equal baseline.dashboard_counts[:active_sites] + 1, report.dashboard_counts[:active_sites]
+    assert_equal baseline.dashboard_counts[:active_sites], report.dashboard_counts[:active_sites]
     assert_equal baseline.blocker_counts[:failed_fetch] + 1, report.blocker_counts[:failed_fetch]
     assert_equal baseline.blocker_counts[:missing_statement_evidence] + 1, report.blocker_counts[:missing_statement_evidence]
     assert_equal baseline.blocker_counts[:missing_export_evidence] + 1, report.blocker_counts[:missing_export_evidence]
@@ -201,6 +201,12 @@ class Distillator::ShadowReportTest < ActiveSupport::TestCase
         checked_at: 1.hour.ago
       )
     end
+    defaults = { "fetch_parity" => { status: status == :blocked ? "failed" : "checked" } }
+    if status == :ready || lavitrine
+      defaults["statement_delta"] = { status: "checked", statement_count_delta_acceptable: true }
+      defaults["export_diff"] = { status: "checked", export_diff_checked: true }
+    end
+    publish_transition_fixture(website, defaults: defaults)
     website
   end
 
