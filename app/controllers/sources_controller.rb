@@ -13,13 +13,19 @@ class SourcesController < ApplicationController
 
     cookies[:seedurl] = @seedurl if @website.present?
     @website_id = @website&.id
+    website_view = @website.present? && request.format.html?
+    browse_keys = Sources::IndexQuery::FILTER_KEYS.map(&:to_s) + %w[sort direction page per_page]
+    if website_view && (params.keys & browse_keys).empty?
+      return redirect_to sources_path(Sources::IndexQuery::WEBSITE_DEFAULTS.merge(seedurl: @seedurl))
+    end
+    default_per_page = website_view ? Sources::IndexQuery::WEBSITE_DEFAULTS[:per_page] : Sources::IndexQuery::DEFAULT_PER_PAGE
 
     index_params = harmonized_index_params(
       allowed_filters: Sources::IndexQuery::FILTER_KEYS,
       allowed_sorts: Sources::IndexQuery::SORT_COLUMNS.keys,
       default_sort: Sources::IndexQuery::DEFAULT_SORT,
       default_direction: Sources::IndexQuery::DEFAULT_DIRECTION,
-      default_per_page: Sources::IndexQuery::DEFAULT_PER_PAGE,
+      default_per_page: default_per_page,
       max_per_page: Sources::IndexQuery::MAX_PER_PAGE
     )
 
@@ -27,9 +33,12 @@ class SourcesController < ApplicationController
       index_params,
       default_sort: Sources::IndexQuery::DEFAULT_SORT,
       default_direction: Sources::IndexQuery::DEFAULT_DIRECTION,
-      default_per_page: Sources::IndexQuery::DEFAULT_PER_PAGE,
-      preserve: @seedurl.present? && @seedurl != "all" ? { seedurl: @seedurl } : {}
+      default_per_page: default_per_page,
+      preserve: @seedurl.present? ? { seedurl: @seedurl } : {}
     )
+    # Keep the page size explicit so clearing every filter remains an intentional
+    # unfiltered view rather than redirecting back into the website defaults.
+    canonical["per_page"] = index_params[:per_page].to_s if website_view
     raw = harmonized_index_raw_params(
       allowed_filters: Sources::IndexQuery::FILTER_KEYS,
       preserve: %w[seedurl sort direction page per_page]
@@ -194,7 +203,7 @@ class SourcesController < ApplicationController
 
   def source_index_quick_filters
     [
-      { label: "Website defaults", params: quick_filter_params(selected: "true") },
+      { label: "Website defaults", params: Sources::IndexQuery::WEBSITE_DEFAULTS.merge(seedurl: @seedurl).compact_blank },
       { label: "Alternatives", params: quick_filter_params(selected: "false") },
       { label: "Rendered fetch", params: quick_filter_params(render_js: "true") },
       { label: "Auto review", params: quick_filter_params(auto_review: "true") }
@@ -202,8 +211,8 @@ class SourcesController < ApplicationController
   end
 
   def quick_filter_params(overrides = {})
-    base = @filters.slice(:term, :language, :property_id).merge(overrides)
-    base[:seedurl] = @seedurl if @seedurl.present? && @seedurl != "all"
+    base = @filters.slice(:term, :language, :property_id).merge(overrides, per_page: @pagination[:per_page])
+    base[:seedurl] = @seedurl if @seedurl.present?
     base
   end
 end

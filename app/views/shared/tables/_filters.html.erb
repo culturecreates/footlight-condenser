@@ -201,7 +201,7 @@ source_id = local_assigns[:source_id]
       <%= hidden_field_tag :seedurl, seedurl if local_assigns[:seedurl].present? %>
       <%= hidden_field_tag :sort, sort if sort.present? %>
       <%= hidden_field_tag :direction, direction if direction.present? %>
-      <%= hidden_field_tag :per_page, pagination[:per_page] if pagination[:per_page].to_i != ::Sources::IndexQuery::DEFAULT_PER_PAGE %>
+      <%= hidden_field_tag :per_page, pagination[:per_page] %>
       <div class="source-filter-grid">
         <div>
           <%= label_tag :term, "Search" %>
@@ -230,7 +230,7 @@ source_id = local_assigns[:source_id]
       </div>
       <p class="sources-filter-actions">
         <%= submit_tag "Apply filters" %>
-        <%= link_to "Reset filters", sources_path(seedurl: seedurl.presence) %>
+        <%= link_to "Reset filters", sources_path(seedurl: seedurl.presence, per_page: pagination[:per_page]) %>
       </p>
     <% end %>
   </details>

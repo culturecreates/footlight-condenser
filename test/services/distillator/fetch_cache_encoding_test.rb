@@ -49,6 +49,28 @@ class Distillator::FetchCacheEncodingTest < ActiveSupport::TestCase
     assert_equal HTML, fetch_html(HTML.b, headers: { content_type: "text/html" }).html
   end
 
+  test "missing content type produces the same fresh and reloaded comparison" do
+    result = fetch_html(HTML.b, headers: {})
+    assert_equal Encoding::UTF_8, result.html.encoding
+    assert_equal TITLE, result.name
+    assert_equal compare(result)[:summary], compare(Struct.new(:cache).new(result.cache.reload))[:summary]
+    assert compare(result).dig(:diffs, :title, :same)
+  end
+
+  test "meta-only Latin1 HTML survives PostgreSQL and does not get decoded twice" do
+    html = HTML.sub("<head>", '<head><meta charset="ISO-8859-1">')
+    result = fetch_html(html.encode("ISO-8859-1").b, headers: {})
+    assert_equal html, result.html
+    assert_equal html, result.cache.reload.html
+    assert_equal TITLE, result.name
+  end
+
+  test "already decoded fetch with a Latin1 header preserves the title" do
+    result = fetch_html(HTML, headers: { content_type: "text/html; charset=ISO-8859-1" })
+    assert_equal HTML, result.html
+    assert_equal TITLE, result.name
+  end
+
   test "invalid UTF-8 and unsupported charsets preserve the original bytes and encoding" do
     invalid = "<html><title>invalid \xC3</title></html>".b
     unsupported = HTML.b

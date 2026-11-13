@@ -18,17 +18,57 @@
 </section>
 
 <% transition_contract = website_transition_contract(@website) %>
+<% active = @website.distillator_mode == "active" %>
+<% operation = website_operation_status(@website) if active %>
+
+<% if active %>
+  <section class="website-rollout-panel website-show-section" id="active-operation">
+    <h2>Active on Condenser</h2>
+    <% if operation.activation %>
+      <p><strong><%= Distillator::WebsiteOperationStatus.event_label(operation.activation) %></strong>
+        · <%= operation.activation.created_at.strftime("%Y-%m-%d %H:%M %Z") %></p>
+      <% if operation.activation.reason.present? %>
+        <p><%= Distillator::WebsiteOperationStatus.reviewed?(operation.activation) ? "Review reason" : "Activation reason" %>: <%= operation.activation.reason %></p>
+      <% end %>
+    <% end %>
+    <% observed = operation.observed_fetch %>
+    <p class="<%= observed[:failed] ? 'cache-page-notice' : 'cache-page-note' %>"><strong><%= observed[:label] %></strong></p>
+    <% if observed[:attempted_at] %>
+      <p><%= observed[:attempted_at].strftime("%Y-%m-%d %H:%M %Z") %>
+        <% if observed[:backend] %> · Backend: <%= observed[:backend] %><% end %>
+        · <%= observed[:url] %></p>
+      <% if observed[:redirected] %><p>Observed redirect: <%= observed[:url] %> → <%= observed[:final_url] %></p><% end %>
+      <p class="cache-page-note">This observation covers the latest cached page.</p>
+    <% else %>
+      <p>Refresh upcoming events to validate fetching and extraction after activation.</p>
+    <% end %>
+    <% counts = operation.statement_counts %>
+    <% if counts.any? %>
+      <p>Selected statements on upcoming event pages:
+        <%= counts.fetch("problem", 0) %> problems,
+        <%= counts.fetch("missing", 0) %> missing,
+        <%= counts.fetch("initial", 0) %> awaiting review.</p>
+    <% end %>
+    <%= link_to "Refresh upcoming events", refresh_upcoming_events_batch_jobs_path(seedurl: @website.seedurl) %>
+  </section>
+<% end %>
 
 <section id="website-transition" class="website-rollout-panel website-show-section">
-  <h2>Transition verdict</h2>
+  <h2><%= active ? "Latest comparison" : "Transition verdict" %></h2>
   <p><strong><%= website_transition_verdict_line(@website) %></strong></p>
   <p><%= website_transition_secondary_status_line(@website) %></p>
 </section>
 
 <section class="website-rollout-panel website-show-section">
-  <h2>Blocking reason / promote control</h2>
+  <h2><%= active ? "Active operation and rollback" : "Blocking reason / promote control" %></h2>
   <% primary_action = transition_contract[:primary_action] %>
-  <% if primary_action[:enabled] %>
+  <% if active %>
+    <details>
+      <summary>Rollback to Legacy Wringer</summary>
+      <p>Return this website's fetching to Legacy Wringer. The decision is recorded in rollout history.</p>
+      <%= button_to primary_action[:label], primary_action[:path], method: primary_action[:method], params: primary_action[:params], class: "website-transition-button" %>
+    </details>
+  <% elsif primary_action[:enabled] %>
     <%= button_to primary_action[:label], primary_action[:path], method: primary_action[:method], params: primary_action[:params], class: "website-transition-button" %>
   <% else %>
     <p class="transition-context-disabled-action">
@@ -67,6 +107,7 @@
 <section class="website-rollout-panel website-show-section">
   <h2>Drill-down links</h2>
   <ul class="website-show-link-list">
+    <li><%= link_to "Selected XPath sources", website_sources_index_path(@website) %></li>
     <% website_transition_drill_down_links(@website).each do |link| %>
       <li><%= link %></li>
     <% end %>
@@ -79,7 +120,7 @@
     <li><%= link_to "Edit", edit_website_path(@website) %></li>
     <li><%= link_to "View resources with lists", lists_path(seedurl: @website.seedurl) %></li>
     <li><%= link_to "Export step-by-step", graphs_website_path(seedurl: @website.seedurl) %></li>
-    <li><%= link_to "Refresh upcoming events", refresh_upcoming_events_batch_jobs_path(seedurl: @website.seedurl) %></li>
+    <% unless active %><li><%= link_to "Refresh upcoming events", refresh_upcoming_events_batch_jobs_path(seedurl: @website.seedurl) %></li><% end %>
     <li><%= link_to "Refresh lists and add webpages", check_for_new_webpages_batch_jobs_path(seedurl: @website.seedurl) %></li>
     <li><%= link_to "Refresh all Webpages (all classes, all dates)", refresh_webpages_batch_jobs_path(seedurl: @website.seedurl) %></li>
     <li><%= link_to "Export Events to Artsdata", graphs_website_queue_path(seedurl: @website.seedurl) %></li>
@@ -88,16 +129,18 @@
 
 <section class="website-rollout-panel website-show-section">
   <h2>Recent rollout events</h2>
-  <% if @website.rollout_events.order(created_at: :desc).limit(5).any? %>
+  <% if @website.rollout_events.order(created_at: :desc, id: :desc).limit(5).any? %>
     <ul>
-      <% @website.rollout_events.order(created_at: :desc).limit(5).each do |event| %>
+      <% @website.rollout_events.order(created_at: :desc, id: :desc).limit(5).each do |event| %>
         <li>
-          <%= [event.from_mode.presence || "unknown", "to", event.to_mode, event.created_at].join(" ") %>
-          <% if event.readiness_snapshot["blockers"].present? %>
-            | blockers: <%= Array(event.readiness_snapshot["blockers"]).join(", ") %>
-          <% end %>
-          <% if event.readiness_snapshot["warnings"].present? %>
-            | warnings: <%= Array(event.readiness_snapshot["warnings"]).join(", ") %>
+          <strong><%= Distillator::WebsiteOperationStatus.event_label(event) %></strong> · <%= event.created_at.strftime("%Y-%m-%d %H:%M %Z") %>
+          <% if event.reason.present? || event.readiness_snapshot["blockers"].present? || event.readiness_snapshot["warnings"].present? %>
+            <details class="rollout-audit-details">
+              <summary><%= Distillator::WebsiteOperationStatus.reviewed?(event) ? "Warnings accepted at activation" : "Readiness snapshot at decision time" %></summary>
+              <% if event.reason.present? %><p>Reason: <%= event.reason %></p><% end %>
+              <% if event.readiness_snapshot["blockers"].present? %><p>Blockers at that time: <%= Array(event.readiness_snapshot["blockers"]).join(", ") %></p><% end %>
+              <% if event.readiness_snapshot["warnings"].present? %><p>Warnings at that time: <%= Array(event.readiness_snapshot["warnings"]).join(", ") %></p><% end %>
+            </details>
           <% end %>
         </li>
       <% end %>

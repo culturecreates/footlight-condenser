@@ -137,6 +137,23 @@ class Distillator::MigrationComparatorTest < ActiveSupport::TestCase
     assert_nil result.export_verdict
   end
 
+  test "paired extraction treats canonical Unicode titles as equal but preserves distinct IRIs and real values" do
+    website, webpage = build_fixture("unicode-title")
+    create_source(website: website, property: property_fixture(61, "Title"), algorithm: "xpath=//title/text()")
+    comparator = Distillator::MigrationComparator.new(website: website, webpage: webpage,
+      legacy_html: "<title>Théâtre décembre</title>",
+      condenser_html: "<title>The\u0301a\u0302tre de\u0301cembre</title>")
+    assert_equal Distillator::MigrationComparator::MATCH, comparator.compare_statements.verdict
+    assert_equal "Théâtre", comparator.send(:normalize_statement_value, "The\u0301a\u0302tre")
+    assert_not_equal comparator.send(:normalize_statement_value, "https://example.org/é"),
+      comparator.send(:normalize_statement_value, "https://example.org/e\u0301")
+    assert_not_equal comparator.send(:normalize_statement_value, "2026-12-01"),
+      comparator.send(:normalize_statement_value, "2026-12-02")
+    changed = Distillator::MigrationComparator.new(website: website, webpage: webpage,
+      legacy_html: "<title>Théâtre décembre</title>", condenser_html: "<title>Théâtre janvier</title>")
+    assert_equal Distillator::MigrationComparator::DIFFERENT_VALUE, changed.compare_statements.verdict
+  end
+
   private
 
   def build_fixture(suffix)

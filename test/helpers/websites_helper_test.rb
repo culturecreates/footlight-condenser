@@ -64,6 +64,8 @@ class WebsitesHelperTest < ActionView::TestCase
       details: { reason: "review_needed_difference", comparison_policy: "operator", compare_summary: { review_needed_diffs: %w[html_sha256] } }
     )
 
+    publish_transition_fixture(website)
+
     contract = website_transition_contract(website)
 
     assert_equal "Review before activating", contract[:next_action_label]
@@ -96,6 +98,8 @@ class WebsitesHelperTest < ActionView::TestCase
       checked_at: 1.hour.ago,
       details: { reason: "legacy_lookup_body_omitted", comparison_policy: "operator" }
     )
+
+    publish_transition_fixture(website)
 
     contract = website_transition_contract(website)
 
@@ -195,10 +199,10 @@ class WebsitesHelperTest < ActionView::TestCase
 
   test "transition evidence freshness text prefers pending message over stale timestamp" do
     website = ready_shadow_website(seedurl: "summary-transition-pending")
-    website.update!(transition_check_requested_at: 5.minutes.ago)
-    website.transition_evidences.update_all(checked_at: 10.minutes.ago)
 
-    assert_equal "Batch check requested. Waiting for new transition evidence.", website_transition_evidence_freshness_text(website.reload)
+    website.request_transition_batch_check!
+
+    assert_equal "Transition check queued. Waiting for all phases to finish.", website_transition_evidence_freshness_text(website.reload)
   end
 
   test "transition drill down links render report cache and webpage targets once" do
@@ -206,7 +210,7 @@ class WebsitesHelperTest < ActionView::TestCase
 
     links = website_transition_drill_down_links(website)
 
-    assert_equal 3, links.length
+    assert_equal 4, links.length
     assert_includes links.first, "Latest transition report"
     assert_includes links.second, "Open cache diagnostics"
     assert_includes links.third, "Inspect publishable event pages"
@@ -251,6 +255,7 @@ class WebsitesHelperTest < ActionView::TestCase
     website.transition_evidences.create!(url: url, check_kind: "fetch_parity", status: "checked", details: { representative_urls_checked: true }, checked_at: 1.hour.ago)
     website.transition_evidences.create!(url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
     website.transition_evidences.create!(url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
+    publish_transition_fixture(website)
     website
   end
 
@@ -276,6 +281,7 @@ class WebsitesHelperTest < ActionView::TestCase
       statement_count_delta_acceptable: false,
       checked_at: 1.hour.ago
     )
+    publish_transition_fixture(website)
     website
   end
 end

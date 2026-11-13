@@ -120,7 +120,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select 'details[data-operator-context-card]', 0
     assert_includes @response.body, "Transition verdict"
-    assert_includes @response.body, "Not checked: statements check is missing."
+    assert_includes @response.body, "Not checked: Run a transition check to establish paired extraction evidence."
     assert_includes @response.body, "Statements missing | Export missing | Fetch missing"
     assert_includes @response.body, "Shadow"
     assert_includes @response.body, "Latest transition report"
@@ -272,7 +272,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal 1, @response.body.scan("Latest transition evidence:").size
-    refute_includes @response.body, "Batch check requested. Waiting for new transition evidence."
+    refute_includes @response.body, "Transition check queued. Waiting for all phases to finish."
   end
 
   test "website show displays not recorded when no transition evidence exists" do
@@ -292,13 +292,13 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
   test "website show displays pending batch check message until newer evidence exists" do
     website = ready_shadow_website(seedurl: "website-show-pending-evidence")
-    website.transition_evidences.update_all(checked_at: 10.minutes.ago)
-    website.update!(transition_check_requested_at: 5.minutes.ago)
+
+    website.request_transition_batch_check!
 
     get website_url(website)
 
     assert_response :success
-    assert_includes @response.body, "Batch check requested. Waiting for new transition evidence."
+    assert_includes @response.body, "Transition check queued. Waiting for all phases to finish."
     refute_includes @response.body, "Latest transition evidence:"
   end
 
@@ -358,6 +358,8 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
       checked_at: 1.hour.ago,
       details: { reason: "review_needed_difference", comparison_policy: "operator", compare_summary: { review_needed_diffs: %w[html_sha256] } }
     )
+
+    publish_transition_fixture(website)
 
     get website_url(website)
 
@@ -569,6 +571,8 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     website.transition_evidences.create!(url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
     website.transition_evidences.create!(url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
 
+    publish_transition_fixture(website)
+
     patch website_url(website), params: { website: { distillator_mode: "active" } }
 
     assert_redirected_to website_url(website)
@@ -601,7 +605,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal "shadow", website.reload.distillator_mode
-    assert_includes @response.body, "Cannot activate yet: statements check is missing."
+    assert_includes @response.body, "Run a transition check to establish paired extraction evidence."
   end
 
   test "active to legacy rollback is allowed even when readiness would fail" do
@@ -1167,7 +1171,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes @response.body, "Transition verdict"
-    assert_includes @response.body, "Not checked: statements check is missing."
+    assert_includes @response.body, "Not checked: Run a transition check to establish paired extraction evidence."
     assert_includes @response.body, "Statements missing | Export missing | Fetch missing"
     assert_includes @response.body, "Move to shadow"
     assert_includes @response.body, "Blocking reason / promote control"
@@ -1196,7 +1200,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get website_url(@website)
 
     assert_response :success
-    assert_includes @response.body, "Transition verdict"
+    assert_includes @response.body, "Latest comparison"
     assert_includes @response.body, "Rollback to Legacy Wringer"
   end
 
@@ -1346,6 +1350,51 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "active website distinguishes reviewed activation from the historical warnings and current observations" do
+    assert_read_only_page_does_not_fetch
+    Distillator::TransitionCheckRunner.expects(:call).never
+    Distillator::RefreshRunner.expects(:call).never
+    ExportArtsdataService.expects(:call).never
+    website = ready_review_activation_website(seedurl: "active-reviewed-page")
+    result = Distillator::RolloutTransition.call(website: website, to_mode: "active", review: true, reason: "Reviewed live event titles")
+    assert result.success?, result.errors.inspect
+    snapshot = website.rollout_events.last.readiness_snapshot.deep_dup
+
+    get website_url(website)
+
+    assert_response :success
+    assert_select '#active-operation h2', text: "Active on Condenser"
+    assert_select '#active-operation', text: /Activated after review.*Reviewed live event titles/m
+    assert_select '#website-transition h2', text: "Latest comparison"
+    assert_select '#website-transition strong', text: "Reviewed and accepted for this activation."
+    assert_select '#active-operation strong', text: "Awaiting active refresh"
+    assert_select 'h2', text: "Blocking reason / promote control", count: 0
+    assert_select 'input[value="Promote to active"]', 0
+    assert_select 'details.rollout-audit-details:not([open]) summary', text: "Warnings accepted at activation"
+    assert_select 'details.rollout-audit-details', text: /Warnings at that time:.*Condenser and Wringer differ/m
+    assert_select 'a', text: "Refresh upcoming events", count: 1
+    assert_select 'a[href*="publishable=true"][href*="scope=all"]', text: /all dates/
+    assert_select 'a[href*="archive_state=active"][href*="rdfs_class=Event"]', text: /Upcoming event pages/
+    assert_select 'a[href*="selected=true"][href*="term=xpath"][href*="per_page=100"]', text: "Selected XPath sources"
+    assert_select 'a[href*="selected=true"][href*="term=xpath"][href*="per_page=100"]', text: "sources"
+
+    cache = Distillator::FetchCache.find(Distillator::ShadowReportQuery.latest_cache_for_website(website).id)
+    cache.update!(scrape_date: 1.minute.from_now, health_status: "network_failed", signals: { transport_success: false, fetch_backend: "native" })
+    get website_url(website)
+    assert_response :success
+    assert_select '#active-operation .cache-page-notice', text: "Latest observed fetch failed"
+    assert_select '#active-operation', text: /Backend: native/
+    assert_select '#website-transition strong', text: "Reviewed and accepted for this activation."
+    assert_equal snapshot, website.rollout_events.last.readiness_snapshot
+
+    website.transition_runs.create!(status: "failed", requested_at: Time.current, completed_at: Time.current,
+      configuration_digest: website.latest_completed_transition_run.configuration_digest, error_message: "New comparison failed")
+    get website_url(website)
+    assert_response :success
+    assert_select '#website-transition strong', text: /Comparison needs attention: New comparison failed/
+    assert_select '#website-transition strong', text: "Reviewed and accepted for this activation.", count: 0
+  end
+
   private
 
   def ready_shadow_website(seedurl:)
@@ -1372,6 +1421,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     website.transition_evidences.create!(url: url, check_kind: "fetch_parity", status: "checked", details: { representative_urls_checked: true }, checked_at: 1.hour.ago)
     website.transition_evidences.create!(url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
     website.transition_evidences.create!(url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
+    publish_transition_fixture(website)
     website
   end
 
@@ -1403,6 +1453,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
       statement_count_delta_acceptable: false,
       checked_at: 1.hour.ago
     )
+    publish_transition_fixture(website)
     website
   end
 
@@ -1440,6 +1491,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     )
     website.transition_evidences.create!(url: url, check_kind: "statement_delta", status: "checked", statement_count_delta_acceptable: true, checked_at: 1.hour.ago)
     website.transition_evidences.create!(url: url, check_kind: "export_diff", status: "checked", export_diff_checked: true, checked_at: 1.hour.ago)
+    publish_transition_fixture(website)
     website
   end
 

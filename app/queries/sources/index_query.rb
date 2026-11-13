@@ -5,6 +5,7 @@ module Sources
     DEFAULT_DIRECTION = "asc".freeze
     DEFAULT_PER_PAGE = 25
     MAX_PER_PAGE = 100
+    WEBSITE_DEFAULTS = { selected: "true", term: "xpath", per_page: 100 }.freeze
 
     SORT_COLUMNS = {
       "id" => :id,

@@ -248,12 +248,20 @@ module WebsitesHelper
   end
 
   def website_transition_verdict_line(website)
+    if website.distillator_mode == "active"
+      operation = website_operation_status(website)
+      return "Reviewed and accepted for this activation." if operation.accepted_comparison?
+
+      status = operation.comparison
+      return "Latest comparison passed." if status.status == :ready
+      return "Comparison needs attention: #{website_transition_verdict_reason(status)}"
+    end
     status = website_transition_status(website)
     "#{status.readiness_label}: #{website_transition_verdict_reason(status)}"
   end
 
   def website_transition_secondary_status_line(website)
-    status = website_transition_status(website)
+    status = website.distillator_mode == "active" ? website_operation_status(website).comparison : website_transition_status(website)
     [
       "Statements #{website_transition_check_state_label(status.statements)}",
       "Export #{website_transition_check_state_label(status.export)}",
@@ -307,9 +315,11 @@ module WebsitesHelper
       link_to("Latest transition report", website_transition_report_path(website)),
       link_to("Open cache diagnostics", website_cache_diagnostics_path(website)),
       link_to(
-        "Inspect publishable event pages (#{website_publishable_event_page_count(website)} publishable / #{website_important_page_count(website)} important)",
+        "Inspect publishable event pages (#{website_publishable_event_page_count(website)}, all dates)",
         website_publishable_event_pages_path(website)
-      )
+      ),
+      link_to("Upcoming event pages (#{website_important_page_count(website)})",
+        webpages_path(seedurl: website.seedurl, scope: "all", rdfs_class: "Event", archive_state: "active"))
     ]
   end
 
@@ -321,7 +331,12 @@ module WebsitesHelper
   end
 
   def website_publishable_event_pages_path(website)
-    webpages_path(seedurl: website.seedurl)
+    webpages_path(seedurl: website.seedurl, scope: "all", publishable: true)
+  end
+
+  def website_operation_status(website)
+    @website_operation_statuses ||= {}
+    @website_operation_statuses[website.id] ||= Distillator::WebsiteOperationStatus.new(website: website, cache: website_transition_cache(website))
   end
 
   def website_publishable_event_page_count(website)

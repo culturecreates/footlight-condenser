@@ -263,7 +263,7 @@ module Distillator
       when Array
         value.map { |entry| normalize_statement_value(entry) }
       when String
-        value.gsub(/\s+/, " ").strip
+        Distillator::HtmlContent.normalize_text(value, preserve_uris: true)
       else
         value
       end

@@ -378,19 +378,7 @@ module Distillator
     end
 
     def decode_html_body(body, headers)
-      return body unless body.is_a?(String)
-
-      type = headers[:content_type].to_s
-      return body unless type.match?(/html/i)
-
-      charset = type[/charset\s*=\s*["']?([^;"'\s]+)/i, 1]
-      source = charset ? Encoding.find(charset) : Encoding::UTF_8
-      decoded = body.dup.force_encoding(source)
-      return body unless decoded.valid_encoding?
-
-      decoded.encode(Encoding::UTF_8)
-    rescue ArgumentError, EncodingError
-      body
+      Distillator::HtmlContent.decode(body, headers: headers)
     end
 
     def raw_body_for(fetch_result)
@@ -477,11 +465,7 @@ module Distillator
     end
 
     def extract_title(html)
-      return nil if html.blank?
-
-      Nokogiri::HTML(html.to_s).title
-    rescue StandardError
-      nil
+      Distillator::HtmlContent.title(html)
     end
 
     def successful_http?(code)

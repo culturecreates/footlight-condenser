@@ -157,7 +157,7 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
       auto_review: false
     )
 
-    get sources_url, params: { seedurl: website.seedurl }
+    get sources_url, params: { seedurl: website.seedurl, per_page: 100 }
 
     assert_response :success
     assert_select "th a", text: /Property/
@@ -180,6 +180,72 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :redirect
     assert_redirected_to "/sources"
+  end
+
+  test "website sources default to selected XPath sources with 100 rows and no fetching" do
+    assert_read_only_page_does_not_fetch
+    site = websites(:two)
+    xpath = Source.create!(algorithm_value: "xpath=//title/text()", label: "Selected XPath fixture",
+      selected: true, website: site, property: properties(:one), language: "en")
+    other = Source.create!(algorithm_value: "manual=Other", label: "Other manual fixture",
+      selected: true, website: site, property: properties(:one), language: "en")
+    alternative = Source.create!(algorithm_value: "xpath=//h1", label: "Alternative XPath fixture",
+      selected: false, website: site, property: properties(:one), language: "en")
+
+    get sources_url, params: { seedurl: site.seedurl }
+    assert_redirected_to sources_path(seedurl: site.seedurl, selected: "true", term: "xpath", per_page: 100)
+    follow_redirect!
+    assert_response :success
+    assert_includes response.body, xpath.label
+    assert_not_includes response.body, other.label
+    assert_not_includes response.body, alternative.label
+    assert_select 'input[name="term"][value="xpath"]'
+    assert_select 'input[name="per_page"][value="100"]'
+    assert_select 'a', text: "Clear filters" do |links|
+      uri = URI.parse(links.first["href"])
+      get uri.to_s
+    end
+    assert_response :success
+    assert_includes response.body, other.label
+    assert_includes response.body, alternative.label
+  end
+
+  test "explicit website filters and page size override defaults" do
+    assert_read_only_page_does_not_fetch
+    [10, 25].each do |page_size|
+      get sources_url, params: { seedurl: websites(:two).seedurl, selected: "false", term: "manual", per_page: page_size }
+      assert_response :success
+      assert_select 'input[name="term"][value="manual"]'
+      assert_select 'select[name="selected"] option[selected][value="false"]'
+      assert_select "input[name=per_page][value='#{page_size}']"
+      assert_select "a[href*='per_page=#{page_size}']", text: "Alternatives"
+    end
+  end
+
+  test "blank website filters can be cleared without reapplying defaults or redirecting in a loop" do
+    assert_read_only_page_does_not_fetch
+    get sources_url, params: { seedurl: websites(:two).seedurl, term: "", selected: "", per_page: 100 }
+    assert_response :success
+    assert_select 'input[name="term"][value="xpath"]', 0
+  end
+
+  test "explicit all websites ignores the remembered website and preserves the global view" do
+    assert_read_only_page_does_not_fetch
+    get sources_url, params: { seedurl: websites(:two).seedurl, per_page: 100 }
+    assert_response :success
+    get sources_url, params: { seedurl: "all" }
+    assert_response :success
+    assert_select 'input[name="term"][value="xpath"]', 0
+  end
+
+  test "website JSON requests do not receive presentation defaults" do
+    assert_read_only_page_does_not_fetch
+    site = websites(:two)
+    manual = Source.create!(algorithm_value: "manual=API content", selected: true,
+      website: site, property: properties(:one), language: "en")
+    get sources_url(format: :json), params: { seedurl: site.seedurl }
+    assert_response :success
+    assert_includes response.parsed_body.map { |source| source["id"] }, manual.id
   end
 
   test "sources index renders empty state" do

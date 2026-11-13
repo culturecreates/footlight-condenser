@@ -155,7 +155,8 @@ module Distillator
       data = payload.with_indifferent_access
       {
         html: data[:html],
-        title: extract_title(data[:html]).presence || data[:title].presence || data[:name].presence || data[:page_name].presence,
+        title: Distillator::HtmlContent.title(data[:html], headers: data[:headers].to_h) ||
+          Distillator::HtmlContent.normalize_text(data[:title].presence || data[:name].presence || data[:page_name]).presence,
         scrape_date: data[:scrape_date],
         successful_refresh: data[:successful_refresh],
         http_code: data[:http_code] || data[:http_response_code],
@@ -290,7 +291,7 @@ module Distillator
     end
 
     def extract_title(html)
-      html.to_s[%r{<title>(.*?)</title>}im, 1].to_s.strip.presence
+      Distillator::HtmlContent.title(html)
     end
 
     def signal_value(signals, key)

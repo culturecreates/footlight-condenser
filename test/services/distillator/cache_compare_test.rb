@@ -5,6 +5,21 @@ class Distillator::CacheCompareTest < ActiveSupport::TestCase
     Distillator::FetchCache.delete_all
   end
 
+  test "title comparison parses attributes entities and canonical Unicode while keeping real changes blocking" do
+    url = "https://example.org/title-parity"
+    html = "<html><title lang='fr'>The\u0301a\u0302tre &#38; décembre</title></html>"
+    cache = Distillator::FetchCache.create!(uri_key: CGI.escape(url), normalized_url: url,
+      html: html, body: html, headers: {}, signals: {}, final_url: url)
+    lookup = ->(_) { { html: "<html><TITLE>Théâtre &amp; décembre</TITLE></html>", final_url: url } }
+    result = Distillator::CacheCompare.call(uri: url, legacy_lookup: lookup)
+    assert result.dig(:diffs, :title, :same)
+    assert_not result.dig(:diffs, :html_sha256, :same)
+    assert_not_includes result.dig(:summary, :blocking_regressions), :title
+    cache.update!(html: "<title>Different event</title>")
+    changed = Distillator::CacheCompare.call(uri: url, legacy_lookup: lookup)
+    assert_includes changed.dig(:summary, :blocking_regressions), :title
+  end
+
   test "handles injected lookup and missing cache cases" do
     key = CGI.escape("http://example.org/page")
     Distillator::FetchCache.create!(

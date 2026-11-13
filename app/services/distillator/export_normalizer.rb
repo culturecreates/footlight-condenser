@@ -11,6 +11,7 @@ module Distillator
       recorded_at
       updated_at
     ].freeze
+    IDENTITY_KEYS = %w[@id @type @vocab @base @context].freeze
 
     VOLATILE_LINE_PATTERN = /
       (cache_changed|cache_refreshed|created_at|dateModified|generatedAt|recorded_at|updated_at)
@@ -52,20 +53,20 @@ module Distillator
       JSON.pretty_generate(canonicalize(value))
     end
 
-    def canonicalize(value)
+    def canonicalize(value, literal_text: true)
       case value
       when Hash
         value
           .reject { |key, _| VOLATILE_KEYS.include?(key.to_s) }
           .sort_by { |key, _| key.to_s }
           .each_with_object({}) do |(key, child), out|
-            out[key.to_s] = canonicalize(child)
+            out[key.to_s] = canonicalize(child, literal_text: literal_text && !IDENTITY_KEYS.include?(key.to_s))
           end
       when Array
-        value.map { |child| canonicalize(child) }
+        value.map { |child| canonicalize(child, literal_text: literal_text) }
              .sort_by { |child| JSON.generate(child) }
       when String
-        normalize_whitespace(value)
+        literal_text ? Distillator::HtmlContent.normalize_text(value, preserve_uris: true) : normalize_whitespace(value)
       else
         value
       end

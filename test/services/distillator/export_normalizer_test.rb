@@ -1,6 +1,15 @@
 require "test_helper"
 
 class Distillator::ExportNormalizerTest < ActiveSupport::TestCase
+  test "JSON literal text normalizes canonical Unicode but distinct identifiers remain distinct" do
+    assert_equal Distillator::ExportNormalizer.normalize({ "name" => "Théâtre" }),
+      Distillator::ExportNormalizer.normalize({ "name" => "The\u0301a\u0302tre" })
+    assert_not_equal Distillator::ExportNormalizer.normalize({ "@id" => "https://example.org/é" }),
+      Distillator::ExportNormalizer.normalize({ "@id" => "https://example.org/e\u0301" })
+    assert_not_equal Distillator::ExportNormalizer.normalize({ "@id" => "événement" }),
+      Distillator::ExportNormalizer.normalize({ "@id" => "e\u0301vénement" })
+  end
+
   test "normalizes JSON deterministically" do
     input = {
       "updated_at" => "2026-04-27T12:00:00Z",

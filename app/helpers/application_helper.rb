@@ -37,7 +37,12 @@ module ApplicationHelper
   end
 
   def contextual_sources_path
-    sources_path(contextual_seedurl_params)
+    context = contextual_seedurl_params
+    sources_path(context.present? ? Sources::IndexQuery::WEBSITE_DEFAULTS.merge(context) : {})
+  end
+
+  def website_sources_index_path(website)
+    sources_path(Sources::IndexQuery::WEBSITE_DEFAULTS.merge(seedurl: website.seedurl))
   end
 
   def contextual_statements_path

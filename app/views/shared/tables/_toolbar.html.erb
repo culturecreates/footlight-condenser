@@ -2,6 +2,7 @@
 table_key = local_assigns[:table_key]
 quick_filters = Array(local_assigns[:quick_filters])
 seedurl = local_assigns[:seedurl]
+pagination = local_assigns[:pagination] || {}
 preserved_index_params = local_assigns[:preserved_index_params] || {}
 refresh_ui_enabled = local_assigns[:refresh_ui_enabled]
 view_mode = local_assigns[:view_mode] || "rich"
@@ -14,7 +15,7 @@ view_mode = local_assigns[:view_mode] || "rich"
       <% quick_filters.each do |quick_filter| %>
         <%= link_to quick_filter[:label], sources_path(quick_filter[:params]), class: "cache-quick-filter" %>
       <% end %>
-      <%= link_to "Clear filters", sources_path(seedurl: seedurl.presence), class: "cache-quick-filter" %>
+      <%= link_to "Clear filters", sources_path(seedurl: seedurl.presence, per_page: pagination[:per_page]), class: "cache-quick-filter" %>
     </section>
   <% else %>
     <p class="cache-view-toggle">
