@@ -454,6 +454,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "top level normal fetch calls fetch cache store through command semantics" do
+    allow_public_fetch
     ENV["DISTILLATOR_CACHE_REFRESH_UI"] = "true"
 
     fetch_result = OpenStruct.new(normalized_url: "http://example.org/events", http_response_code: 200, cache_reason: "force_scrape", fetch_path: "legacy", html: "<html>body</html>", cache: nil)
@@ -477,6 +478,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "successful fetch shows structured last action result on index" do
+    allow_public_fetch
     ENV["DISTILLATOR_CACHE_REFRESH_UI"] = "true"
 
     fetch_result = OpenStruct.new(
@@ -509,6 +511,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "successful rendered fetch shows rendered fetch label in last action result" do
+    allow_public_fetch
     ENV["DISTILLATOR_CACHE_REFRESH_UI"] = "true"
 
     Distillator::FetchCacheStore.expects(:fetch).returns(
@@ -534,6 +537,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "top level fetch defaults missing fetch kind to normal" do
+    allow_public_fetch
     ENV["DISTILLATOR_CACHE_REFRESH_UI"] = "true"
 
     Distillator::FetchCacheStore.expects(:fetch).with do |kwargs|
@@ -548,6 +552,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "top level rendered fetch calls phantomjs and include fragment" do
+    allow_public_fetch
     ENV["DISTILLATOR_CACHE_REFRESH_UI"] = "true"
 
     Distillator::FetchCacheStore.expects(:fetch).with do |kwargs|
@@ -565,6 +570,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "top level post fetch calls json_post" do
+    allow_public_fetch
     ENV["DISTILLATOR_CACHE_REFRESH_UI"] = "true"
 
     Distillator::FetchCacheStore.expects(:fetch).with do |kwargs|
@@ -654,6 +660,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "row wring action preserves filter context and calls normal fetch" do
+    allow_public_fetch
     cache = create_cache(uri: "http://example.org/filtered")
     ENV["DISTILLATOR_CACHE_REFRESH_UI"] = "true"
 
@@ -715,6 +722,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "successful fetch preserves filters and shows last action result" do
+    allow_public_fetch
     ENV["DISTILLATOR_CACHE_REFRESH_UI"] = "true"
 
     Distillator::FetchCacheStore.expects(:fetch).returns(
@@ -1139,6 +1147,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "fetch redirects back with notice after successful request" do
+    allow_public_fetch
     ENV["DISTILLATOR_CACHE_REFRESH_UI"] = "true"
     Distillator::FetchCacheStore.expects(:fetch).with do |kwargs|
       assert_equal "http://example.org/events", kwargs[:uri]
@@ -1589,6 +1598,12 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     Distillator::FetchService.expects(:fetch).never
     Distillator::NativeFetch.expects(:call).never
     Distillator::FetchShadowComparator.expects(:call).never
+  end
+
+  def allow_public_fetch
+    # Command/controller behavior is under test; do not depend on external DNS.
+    # Blocked-URL and guard-policy tests keep their own explicit expectations.
+    Distillator::FetchGuard.stubs(:check_url).returns(Distillator::FetchGuard::Result.new(allowed: true))
   end
 
   def create_cache(uri: "http://example.org/cached", html: "<html>cached</html>", body: html, name: "Cached", signals: {}, hints: [], final_url: nil, redirect_chain: [], http_response_code: 200, scrape_date: Time.zone.now, successful_refresh: Time.zone.now, updated_at: Time.zone.now)

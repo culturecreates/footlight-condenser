@@ -248,6 +248,21 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     assert_redirected_to distillator_transition_check_path(run)
   end
 
+  test "performance details stay collapsed and belong to the selected completed run" do
+    export = @completed.transition_evidences.find_by!(check_kind: "export_diff")
+    export.update!(details: export.details.merge("performance" => {
+      total_ms: 10000, phases_ms: { fetch: 1000, statements: 8000, export: 1000 },
+      reconciliation: { lookups: 90, http_requests: 12, cache_hits: 78, http_ms: 7000, errors: 0 },
+      slowest_sources: [{ field: "Location", source_id: 12, executions: 18, extraction_ms: 100, formatting_ms: 7000 }]
+    }))
+    get distillator_shadow_report_site_path(@website, run_id: @completed.id)
+    assert_response :success
+    assert_select '#transition-performance:not([open]) summary', text: "Where time was spent"
+    assert_select '#transition-performance', text: /12 HTTP requests/
+    assert_select '#transition-performance', text: /78 reused responses/
+    assert_select '#transition-performance', text: /Location/
+  end
+
   private
 
   def request_run

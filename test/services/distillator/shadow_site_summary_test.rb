@@ -48,7 +48,7 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
     assert_equal "Cannot activate yet: fetch check failed.", summary.primary_blocker
   end
 
-  test "review when evidence is incomplete and redirect changed" do
+  test "incomplete evidence needs review while a redirect observation alone is not a blocker" do
     website, cache = create_shadow_website_with_cache(
       name: "Review shadow",
       seedurl: "review-shadow",
@@ -72,7 +72,7 @@ class Distillator::ShadowSiteSummaryTest < ActiveSupport::TestCase
 
     assert_equal :review, summary.status
     assert_equal :stale, summary.fetch_status
-    assert_includes summary.warnings, "Needs review: fetch result redirected."
+    assert_not_includes summary.warnings, "Needs review: fetch result redirected."
     assert_equal "Needs review", summary.readiness_label
     assert_equal "medium", summary.severity
     assert_equal "Needs review: fetch check is stale.", summary.primary_blocker

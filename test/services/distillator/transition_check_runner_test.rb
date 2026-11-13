@@ -85,6 +85,11 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal "checked", result.records[:fetch_parity].status
     assert_equal "checked", result.records[:statement_delta].status
     assert_equal "checked", result.records[:export_diff].status
+    performance = result.records[:export_diff].details.fetch("performance")
+    assert_equal %w[export fetch selection statements], performance.fetch("phases_ms").keys.sort
+    assert_operator performance["total_ms"], :>=, 0
+    assert_equal 0, performance.dig("reconciliation", "http_requests")
+    assert performance["slowest_sources"].any?
     assert_equal cache.normalized_url, result.records[:fetch_parity].url
     assert_equal 0, result.records[:statement_delta].statement_delta
     assert_equal 0, result.records[:export_diff].rdf_added_count
@@ -605,6 +610,28 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal before, stored.reload.attributes
     assert_equal "shadow", website.reload.distillator_mode
     assert_equal :failed, Distillator::TransitionStatus.call(website: website).statements
+  end
+
+  test "additional diagnostics and body drift do not block matching strict statements and export" do
+    website = build_website
+    page = website.webpages.first
+    create_selected_statement(page, status: "ok")
+    cache = Distillator::FetchCache.find_by!(normalized_url: page.url)
+    adapter = Object.new
+    adapter.define_singleton_method(:call) do |uri:, **options|
+      Distillator::CacheCompare.call(uri: uri, **options,
+        legacy_lookup: ->(_) { { html: cache.html + '<!-- Different tracking markup -->' } })
+    end
+    result = Distillator::TransitionCheckRunner.call(website: website,
+      check_options: { sample_mode: "all", strictness: "strict" },
+      fetch_cache_store: fake_fetch_cache_store_for(website, cache), cache_compare: adapter,
+      export_service: FakeExportService.new(actual: '{"@id":"event:1"}', expected: '{"@id":"event:1"}'))
+    assert_equal "metadata_only_difference", result.records[:fetch_parity].details["reason"]
+    assert result.records.values.all? { |record| record.status == "checked" }
+    status = Distillator::TransitionStatus.for_completed_run(website: website, run: website.latest_transition_run)
+    assert_equal :ready, status.status
+    assert_empty status.warnings
+    assert_equal "shadow", website.reload.distillator_mode
   end
 
   test "runner cannot silently substitute a different scope for a recorded job" do

@@ -59,8 +59,8 @@ class Distillator::CacheCompareTest < ActiveSupport::TestCase
     assert_nil both[:legacy_lookup_error]
     assert_equal "local_fetch_cache", both[:condenser_source]
     assert_equal true, both.dig(:summary, :html_hash_difference)
-    assert_includes both.dig(:summary, :review_needed_diffs), :html_sha256
-    assert_equal "review", both.dig(:summary, :outcome)
+    assert_includes both.dig(:summary, :metadata_only_diffs), :html_sha256
+    assert_equal "ready_with_metadata_notes", both.dig(:summary, :outcome)
 
     legacy_missing = Distillator::CacheCompare.call(uri: "http://example.org/page", legacy_lookup: ->(_uri_key) { nil })
     assert_equal true, legacy_missing.dig(:missing, :legacy)
@@ -245,7 +245,7 @@ class Distillator::CacheCompareTest < ActiveSupport::TestCase
     assert_equal "Legacy Wringer body was omitted from the comparison endpoint.", result.dig(:summary, :primary_reason)
   end
 
-  test "metadata enrichments are review-needed rather than blocking when legacy fields are null" do
+  test "additional healthy diagnostics do not require review when legacy fields are null" do
     key = CGI.escape("https://example.org/events/review-needed")
     Distillator::FetchCache.create!(
       uri_key: key,
@@ -279,21 +279,22 @@ class Distillator::CacheCompareTest < ActiveSupport::TestCase
       end
     )
 
-    assert_includes result.dig(:summary, :review_needed_diffs), :html_sha256
+    assert_includes result.dig(:summary, :metadata_only_diffs), :html_sha256
     assert_not_includes result.dig(:summary, :blocking_regressions), :content_type
     assert_not_includes result.dig(:summary, :blocking_regressions), :final_url
     assert_not_includes result.dig(:summary, :blocking_regressions), :transport_success
     assert_not_includes result.dig(:summary, :blocking_regressions), :content_success
-    assert_includes result.dig(:summary, :review_needed_diffs), :content_type
-    assert_includes result.dig(:summary, :review_needed_diffs), :final_url
-    assert_includes result.dig(:summary, :review_needed_diffs), :transport_success
-    assert_includes result.dig(:summary, :review_needed_diffs), :content_success
-    assert_equal false, result.dig(:summary, :promotable)
+    assert_includes result.dig(:summary, :improvements), :content_type
+    assert_includes result.dig(:summary, :improvements), :final_url
+    assert_includes result.dig(:summary, :improvements), :transport_success
+    assert_includes result.dig(:summary, :improvements), :content_success
+    assert_empty result.dig(:summary, :review_needed_diffs)
+    assert_equal true, result.dig(:summary, :promotable)
     assert_equal "Shared title", result.dig(:legacy_cache, :title)
     assert_equal "Shared title", result.dig(:condenser_cache, :title)
   end
 
-  test "strict comparison policy keeps raw html drift blocking" do
+  test "strict data comparison retains raw html drift as diagnostic evidence" do
     key = CGI.escape("https://example.org/events/strict-review-needed")
     Distillator::FetchCache.create!(
       uri_key: key,
@@ -323,8 +324,9 @@ class Distillator::CacheCompareTest < ActiveSupport::TestCase
       end
     )
 
-    assert_includes result.dig(:summary, :blocking_regressions), :html_sha256
-    assert_equal "blocked", result.dig(:summary, :outcome)
+    assert_includes result.dig(:summary, :metadata_only_diffs), :html_sha256
+    assert_empty result.dig(:summary, :blocking_regressions)
+    assert_equal "ready_with_metadata_notes", result.dig(:summary, :outcome)
   end
 
   test "search uses uri_key once and hydration uses normalized url with encoded inputs" do

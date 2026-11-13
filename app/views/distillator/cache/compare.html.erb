@@ -51,7 +51,7 @@
     "Safety blockers" => :blocking_regression,
     "Review-needed differences" => :review_needed,
     "Metadata-only differences" => :metadata_only,
-    "Improvements" => :distillator_improvement
+    "Additional observations" => :distillator_improvement
   } %>
   <% grouped_diffs.each do |label, classification| %>
     <% rows = @comparison[:diffs].select { |_field, diff| diff[:classification] == classification } %>

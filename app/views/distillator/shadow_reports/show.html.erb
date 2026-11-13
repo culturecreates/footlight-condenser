@@ -145,6 +145,43 @@
   </section>
 <% end %>
 
+<% performance = @detail.transition_evidence_by_kind["export_diff"]&.details.to_h["performance"] %>
+<% if performance.present? %>
+  <details class="website-rollout-panel" id="transition-performance">
+    <summary>Where time was spent</summary>
+    <p>Total check work: <%= (performance["total_ms"].to_f / 1000).round(2) %> seconds.</p>
+    <ul>
+      <% performance.fetch("phases_ms", {}).each do |phase, duration| %>
+        <li><%= phase.humanize %>: <%= (duration.to_f / 1000).round(2) %> seconds</li>
+      <% end %>
+    </ul>
+    <% reconciliation = performance.fetch("reconciliation", {}) %>
+    <% if reconciliation.present? %>
+      <p>Reconciliation: <%= reconciliation["lookups"] %> lookups,
+        <%= reconciliation["http_requests"] %> HTTP requests,
+        <%= reconciliation["cache_hits"] %> reused responses,
+        <%= reconciliation["errors"] %> errors.
+        HTTP time: <%= (reconciliation["http_ms"].to_f / 1000).round(2) %> seconds.</p>
+      <p class="cache-page-note">Responses are reused only within this check. Reconciliation HTTP time is included in formatting and statement time.</p>
+    <% end %>
+    <% if performance["slowest_sources"].present? %>
+      <table class="cache-table">
+        <thead><tr><th>Field / source</th><th>Executions</th><th>Extraction</th><th>Formatting</th></tr></thead>
+        <tbody>
+          <% performance["slowest_sources"].each do |source| %>
+            <tr>
+              <td><%= source["field"] %> · #<%= source["source_id"] %></td>
+              <td><%= source["executions"] %></td>
+              <td><%= (source["extraction_ms"].to_f / 1000).round(2) %>s</td>
+              <td><%= (source["formatting_ms"].to_f / 1000).round(2) %>s</td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+  </details>
+<% end %>
+
 <details class="website-rollout-panel" id="transition-url-diagnostics">
   <summary>Sampled URL diagnostics</summary>
   <% if @detail.url_matrix.any? %>

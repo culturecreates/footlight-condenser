@@ -114,14 +114,38 @@ class Distillator::StatementParityCheckTest < ActiveSupport::TestCase
     assert_equal :pending, compare(html, html, strict: true).status
   end
 
+  test "unselected markup changes do not defeat strict equality of extracted data" do
+    result = compare(html, html + '<aside data-tracking="new">Extra markup</aside>', strict: true)
+    assert_equal :checked, result.status
+    assert result.artifacts.all? { |row| row[:verdict] == Distillator::MigrationComparator::MATCH }
+  end
+
+  test "an exhausted budget records incomplete coverage without running more sources" do
+    @helper.expects(:format_datatype).never
+    result = compare(html, html, stop_requested: -> { true })
+    assert_equal :pending, result.status
+    assert_equal "transition_check_timeout_budget_exceeded", result.reason
+    assert_empty result.artifacts
+  end
+
+  test "a mid-page deadline retains already detected critical failures and cannot claim full coverage" do
+    checks = 0
+    result = compare(html, html(title: "Different"), stop_requested: -> { checks += 1; checks >= 6 })
+    assert_equal :failed, result.status
+    assert_equal ["Title"], result.critical_failures.map { |row| row[:property_label] }
+    assert_equal "inconclusive", result.url_results.first[:status]
+    assert_equal "transition_check_timeout_budget_exceeded", result.url_results.first[:reason]
+  end
+
   private
 
   def html(title: "Shared", date: "2027-01-01", price: "20")
     "<html><head><title>#{title}</title></head><body><time>#{date}</time><div id='location'>Hall</div><span id='price'>#{price}</span></body></html>"
   end
 
-  def compare(legacy, candidate, strict: false)
+  def compare(legacy, candidate, strict: false, stop_requested: nil)
     Distillator::StatementParityCheck.call(website: @website, webpages: [@page], refresh_helper: @helper,
-      url_results: [{ url: @page.url, fetch_status: "passed", legacy_html: legacy, condenser_html: candidate }], strict: strict)
+      url_results: [{ url: @page.url, fetch_status: "passed", legacy_html: legacy, condenser_html: candidate }], strict: strict,
+      stop_requested: stop_requested)
   end
 end

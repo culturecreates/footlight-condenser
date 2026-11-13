@@ -194,7 +194,8 @@ module Distillator
       reasons << "Needs review: export check is stale." if !lavitrine_pipeline? && export_status == :stale
       reasons << "Needs review: export check is inconclusive." if !lavitrine_pipeline? && export_status == :inconclusive
       reasons << "Needs review: export check is stale." if export_status == :stale && export_diff_evidence&.export_diff_accepted?
-      reasons << "Needs review: fetch result redirected." if redirect_changed?
+      # Redirect observations are shown in diagnostics. Actual fetch failures
+      # and known destination differences are evaluated by the paired check.
       reasons << "Needs review: latest successful refresh is stale." if stale_successful_refresh?
       reasons.uniq
     end
@@ -304,13 +305,6 @@ module Distillator
 
     def stale_successful_refresh?
       fetch_evidence_stale?
-    end
-
-    def redirect_changed?
-      return false unless cache.present?
-
-      cache.redirected == true ||
-        (cache.final_url.present? && cache.final_url.to_s != cache.normalized_url.to_s)
     end
 
     def export_evidence_stale?(evidence)

@@ -48,8 +48,7 @@
     <% if show_transition_context? %>
       <%= render "shared/transition_context",
                  website: transition_context_website,
-                 contract: website_transition_contract(transition_context_website),
-                 compact: true %>
+                 context: transition_context_summary(transition_context_website) %>
     <% end %>
     <% if !suppress_operator_context_card? && (operator_context = operator_context_payload).present? %>
       <%= render "shared/operator_context_card", context: operator_context %>

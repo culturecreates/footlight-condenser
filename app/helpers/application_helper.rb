@@ -123,6 +123,24 @@ module ApplicationHelper
       (%w[distillator/shadow_reports distillator/transition_checks].include?(controller_path) && action_name == "show")
   end
 
+  def transition_context_summary(website)
+    # Recorded state only: readiness, diagnostics and controls belong on their
+    # dedicated pages, not in this reference infobox.
+    run = website.latest_transition_run
+    completed = run&.status == "completed" ? run : website.latest_completed_transition_run
+    links = [{ label: "Website transition", path: website_path(website, anchor: "website-transition") }]
+    if completed
+      links << { label: "Comparison ##{completed.id}", path: distillator_shadow_report_site_path(website, run_id: completed.id) }
+    else
+      links << { label: "Transition report", path: distillator_shadow_report_site_path(website) }
+    end
+    if run && run.status != "completed"
+      links << { label: "View run ##{run.id}", path: distillator_transition_check_path(run) }
+    end
+    { mode: operator_rollout_state(website).fetch(:label), backend: operator_active_backend_label(website),
+      check_label: run ? "Run ##{run.id}: #{run.status.humanize}" : "Not run yet", links: links }
+  end
+
   def current_wringer_status_text
     [current_wringer_status.status_label, current_wringer_status.status_detail].compact.join(" - ")
   end

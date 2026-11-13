@@ -77,7 +77,7 @@ module Distillator
       end
       @statement_comparator = statement_comparator
       @website = website.is_a?(Website) ? website : Website.find(website)
-      @refresh_helper = refresh_helper || StatementsHelper.build_refresh_proxy(cookies: {})
+      @refresh_helper = refresh_helper || Distillator::ComparisonRefreshProxy.new(cookies: {})
       @export_service = export_service
       @transition_check_service = transition_check_service
       @fetch_cache_store = fetch_cache_store
@@ -99,26 +99,52 @@ module Distillator
     end
 
     def perform_checks
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      @phase_timings = {}
       check_args = { website: website, run_fetch: false }
       check_args[:check_options] = @check_options unless @check_options.default?
-      transition_check = transition_check_service.call(**check_args)
+      transition_check = timed_phase("selection") { transition_check_service.call(**check_args) }
       representative_webpages = Array(transition_check.representative_webpages)
-      representative_url_results = @representative_url_results = collect_representative_url_results(representative_webpages, transition_check.comparison_policy)
+      representative_url_results = @representative_url_results = timed_phase("fetch") do
+        collect_representative_url_results(representative_webpages, transition_check.comparison_policy)
+      end
 
-      Result.new(
-        website: website,
-        records: {
-          fetch_parity: record_fetch_check(transition_check, representative_url_results),
-          statement_delta: record_statement_check(transition_check, representative_webpages, representative_url_results),
-          export_diff: record_export_check(transition_check, representative_webpages, representative_url_results)
-        }
-      )
+      records = {
+        fetch_parity: record_fetch_check(transition_check, representative_url_results),
+        statement_delta: timed_phase("statements") { record_statement_check(transition_check, representative_webpages, representative_url_results) },
+        export_diff: timed_phase("export") { record_export_check(transition_check, representative_webpages, representative_url_results) }
+      }
+      performance = performance_snapshot(records, started)
+      records[:export_diff].update!(details: records[:export_diff].details.merge("performance" => performance))
+      Rails.logger.info(event: "distillator.transition.performance", website_id: website.id, run_id: transition_run&.id, performance: performance)
+      Result.new(website: website, records: records)
     end
 
     private
 
     attr_reader :transition_run, :statement_comparator, :website, :refresh_helper, :export_service, :transition_check_service, :fetch_cache_store, :cache_compare,
                 :timeout_guard_seconds
+
+    def timed_phase(name)
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      yield
+    ensure
+      @phase_timings[name] = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round(2)
+    end
+
+    def performance_snapshot(records, started)
+      artifacts = Array(records[:statement_delta].details["statement_artifacts"])
+      sources = artifacts.group_by { |row| row["source_id"] }.map do |id, rows|
+        timings = rows.flat_map { |row| row.fetch("timing", {}).to_h.values }.compact
+        { source_id: id, field: rows.first["property_label"], executions: timings.length,
+          extraction_ms: timings.sum { |row| row["extraction_ms"].to_f }.round(2),
+          formatting_ms: timings.sum { |row| row["formatting_ms"].to_f }.round(2) }
+      end
+      { total_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round(2),
+        phases_ms: @phase_timings.dup,
+        reconciliation: refresh_helper.respond_to?(:reconciliation_performance) ? refresh_helper.reconciliation_performance : {},
+        slowest_sources: sources.sort_by { |row| -(row[:extraction_ms] + row[:formatting_ms]) }.first(10) }
+    end
 
     def record_fetch_check(transition_check, representative_url_results)
       latest_cache = representative_url_results.first&.dig(:cache) || transition_check.cache
@@ -145,7 +171,8 @@ module Distillator
         return pending_statement_timeout_record(latest_cache, transition_check, representative_webpages, fetched, failed)
       end
       parity = Distillator::StatementParityCheck.call(website: website, webpages: representative_webpages,
-        url_results: representative_url_results, refresh_helper: refresh_helper, comparator: statement_comparator, strict: @check_options.strict?)
+        url_results: representative_url_results, refresh_helper: refresh_helper, comparator: statement_comparator,
+        strict: @check_options.strict?, stop_requested: -> { timeout_budget_exceeded? })
       failing = parity.critical_failures + parity.optional_failures
       Distillator::TransitionEvidenceRecorder.call(
         website: website, transition_run: transition_run,
@@ -473,11 +500,12 @@ module Distillator
 
     def comparison_status(comparison)
       return "not_performed" if comparison.blank?
+      return "failed" if comparison.dig(:summary, :operational_failures).present?
       return "missing" if comparison.dig(:missing, :legacy) || comparison.dig(:missing, :condenser)
       return "failed" if comparison.dig(:summary, :blocking_regressions).present?
       return "review" if comparison.dig(:summary, :review_needed_diffs).present?
       return "unknown" if comparison.dig(:summary, :unknown_diffs).present?
-      return "metadata_only" if comparison.dig(:summary, :metadata_only_diffs).present?
+      return "metadata_only" if comparison.dig(:summary, :metadata_only_diffs).present? || comparison.dig(:summary, :improvements).present?
 
       "passed"
     end

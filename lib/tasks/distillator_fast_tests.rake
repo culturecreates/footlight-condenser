@@ -13,6 +13,8 @@ namespace :test do
       test/services/distillator/transition_check_options_test.rb
       test/models/distillator/transition_run_test.rb
       test/services/distillator/statement_parity_check_test.rb
+      test/services/distillator/cache_compare_observability_test.rb
+      test/services/distillator/comparison_refresh_proxy_test.rb
       test/services/distillator/p1_persistence_test.rb
       test/services/distillator/p1_navigation_test.rb
       test/services/distillator/p1_queue_health_test.rb

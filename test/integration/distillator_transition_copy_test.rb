@@ -55,8 +55,7 @@ class DistillatorTransitionContextIntegrationTest < ActionDispatch::IntegrationT
     assert_response :success
     assert_includes @response.body, "Transition context"
     assert_includes @response.body, website.name
-    assert_includes @response.body, "Current mode:</strong> Shadow"
-    assert_includes @response.body, "Production backend:</strong> Wringer"
+    assert_select 'details[data-transition-context]:not([open]) > summary', text: "Transition context · Shadow · Wringer"
     assert_includes @response.body, "Transition report"
   end
 
@@ -65,6 +64,26 @@ class DistillatorTransitionContextIntegrationTest < ActionDispatch::IntegrationT
 
     assert_response :success
     assert_not_includes @response.body, "Transition context"
+  end
+
+  test "context is a closed reference box with no readiness assessment or migration actions" do
+    website = websites(:one)
+    website.update!(distillator_mode: "legacy", seedurl: "transition-infobox-test")
+    run = Distillator::TransitionRun.request!(website: website).run
+    get website_url(website)
+    Distillator::PromotionReadiness.expects(:call).never
+    Distillator::CacheCompare.expects(:call).never
+    Distillator::FetchCacheStore.expects(:fetch).never
+    get webpages_url(seedurl: website.seedurl)
+    assert_response :success
+    assert_select 'details[data-transition-context]:not([open])' do
+      assert_select 'summary', text: "Transition context · Legacy · Wringer"
+      assert_select 'p', text: /Run ##{run.id}: Queued/
+      assert_select 'a[href="' + distillator_transition_check_path(run) + '"]', text: "View run ##{run.id}"
+      assert_select 'form, button, input, h2', count: 0
+      assert_select 'a', text: "Options", count: 0
+      assert_select 'a', text: "Cache", count: 0
+    end
   end
 
   test "live operator pages avoid retired rollout terms" do

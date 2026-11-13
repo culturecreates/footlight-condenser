@@ -1071,7 +1071,7 @@ module StatementsHelper
         }
       }
 
-      response = HTTParty.get(
+      response = reconciliation_response_for(
         "#{artsdata_recon_url}?queries=#{CGI.escape(payload.to_json)}"
       )
 
@@ -1080,12 +1080,16 @@ module StatementsHelper
       escaped_query = CGI.escape(CGI.unescapeHTML(str))
                          .gsub('+', '%20')
                          .gsub('%3A', ':')
-      response = HTTParty.get(
+      response = reconciliation_response_for(
         "#{artsdata_recon_url}?query=#{escaped_query}&type=#{recon_type}"
       )
 
       response["result"] || []
     end
+  end
+
+  def reconciliation_response_for(url)
+    HTTParty.get(url)
   end
 
   def select_cckg_hits(hits, str, rdfs_class, webpage, clean)

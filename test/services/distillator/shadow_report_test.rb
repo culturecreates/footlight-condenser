@@ -202,6 +202,10 @@ class Distillator::ShadowReportTest < ActiveSupport::TestCase
       )
     end
     defaults = { "fetch_parity" => { status: status == :blocked ? "failed" : "checked" } }
+    if status == :review
+      defaults["fetch_parity"][:details] = { reason: "review_needed_difference",
+        compare_summary: { review_needed_diffs: ["final_url"] } }
+    end
     if status == :ready || lavitrine
       defaults["statement_delta"] = { status: "checked", statement_count_delta_acceptable: true }
       defaults["export_diff"] = { status: "checked", export_diff_checked: true }

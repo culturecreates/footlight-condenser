@@ -418,7 +418,7 @@ module Distillator
       when "passed", ""
         "Passed"
       when "metadata_only"
-        "Passed with metadata notes"
+        "Passed with diagnostic notes"
       when "review"
         "Review"
       when "unknown", "not_performed"

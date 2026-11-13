@@ -1,4 +1,6 @@
 module DslRunnerTestHelper
+  include WebMock::API
+
   FETCH_RESPONSE_CLASS = Struct.new(
     :status,
     :body,

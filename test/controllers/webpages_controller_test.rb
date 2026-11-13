@@ -242,7 +242,7 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_match(%r{href="/webpages\?seedurl=#{website.seedurl}">Show publishable event pages}, @response.body)
     assert_select "a[href='#{website_path(website)}']", text: website.name
     assert_select "a[href='/webpages?seedurl=#{website.seedurl}']", text: "webpages"
-    assert_select "a[href='/sources?seedurl=#{website.seedurl}']", text: "Sources"
+    assert_select "a[href='#{sources_path(seedurl: website.seedurl, selected: true, term: 'xpath', per_page: 100)}']", text: "sources"
     assert_select "a[href='/statements?seedurl=#{website.seedurl}']", text: "statements"
   end
 

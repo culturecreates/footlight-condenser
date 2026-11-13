@@ -2,9 +2,12 @@ module Distillator
   class StatementParityCheck
     Result = Struct.new(:status, :reason, :artifacts, :url_results, :critical_failures, :optional_failures, keyword_init: true)
 
-    def self.call(website:, webpages:, url_results:, refresh_helper:, comparator: Distillator::MigrationComparator, strict: false)
+    def self.call(website:, webpages:, url_results:, refresh_helper:, comparator: Distillator::MigrationComparator, strict: false, stop_requested: nil)
       artifacts = []
       rows = webpages.map do |page|
+        if stop_requested&.call
+          next { url: page.url, status: "inconclusive", reason: "transition_check_timeout_budget_exceeded" }
+        end
         input = url_results.find { |row| row[:url] == page.url } || {}
         if input[:fetch_status] != "passed"
           next { url: page.url, status: "blocked_by_fetch", reason: input[:fetch_reason] || "paired_snapshot_missing" }
@@ -19,8 +22,15 @@ module Distillator
         if sources.map { |source| source.render_js == true }.uniq.length > 1
           next { url: page.url, status: "inconclusive", reason: "mixed_fetch_profiles" }
         end
-        comparison = comparator.new(website: website, webpage: page, legacy_html: input[:legacy_html],
-          condenser_html: input[:condenser_html], sources: sources, refresh_helper: refresh_helper).compare_statements
+        interrupted = false
+        comparison = begin
+          comparator.new(website: website, webpage: page, legacy_html: input[:legacy_html],
+            condenser_html: input[:condenser_html], sources: sources, refresh_helper: refresh_helper,
+            stop_requested: stop_requested).compare_statements
+        rescue MigrationComparator::BudgetExceeded => error
+          interrupted = true
+          MigrationComparator::StatementComparison.new(artifacts: Array(error.artifacts))
+        end
         entries = comparison.artifacts.map do |artifact|
           critical = page.rdfs_class.name == "Event" && Webpage.publishable_required_property_labels.include?(artifact[:property_label])
           verdict = if critical && artifact[:verdict] == MigrationComparator::MATCH && artifact[:condenser].nil?
@@ -38,7 +48,9 @@ module Distillator
             error.to_h["error_type"].to_s.include?("FetchUnsupported")
           end
         end
-        if entries.empty? || (required - entries.map { |entry| entry[:property_label] }).any? || unsupported
+        if interrupted
+          { url: page.url, status: "inconclusive", reason: "transition_check_timeout_budget_exceeded" }
+        elsif entries.empty? || (required - entries.map { |entry| entry[:property_label] }).any? || unsupported
           { url: page.url, status: "inconclusive", reason: "paired_extraction_inconclusive" }
         elsif entries.any? { |entry| entry[:severity] == "blocker" && entry[:verdict] != MigrationComparator::MATCH }
           { url: page.url, status: "failed", reason: strict ? "strict_statement_parity_failed" : "critical_statement_parity_failed" }
@@ -57,6 +69,8 @@ module Distillator
         [:pending, "fetch_failed_before_statement_refresh"]
       elsif rows.any? { |row| row[:status] == "blocked_by_fetch" }
         [:pending, "partial_fetch_failed_before_statement_refresh"]
+      elsif rows.any? { |row| row[:reason] == "transition_check_timeout_budget_exceeded" }
+        [:pending, "transition_check_timeout_budget_exceeded"]
       elsif rows.empty? || rows.any? { |row| row[:status] == "inconclusive" }
         [:pending, "paired_extraction_inconclusive"]
       elsif rows.any? { |row| row[:status] == "failed" }

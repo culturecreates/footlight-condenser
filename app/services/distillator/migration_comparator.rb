@@ -8,6 +8,9 @@ module Distillator
     EXTRA_STATEMENT = "EXTRA_STATEMENT".freeze
     DIFFERENT_VALUE = "DIFFERENT_VALUE".freeze
     PARSE_ERROR = "PARSE_ERROR".freeze
+    class BudgetExceeded < StandardError
+      attr_accessor :artifacts
+    end
 
     STATEMENT_VERDICT_PRECEDENCE = [
       PARSE_ERROR,
@@ -59,7 +62,8 @@ module Distillator
       sources: nil,
       refresh_helper: nil,
       source_resolver: Statements::RefreshWebpageStatementsService,
-      export_service: ExportArtsdataService
+      export_service: ExportArtsdataService,
+      stop_requested: nil
     )
       @website = website
       @webpage = webpage
@@ -69,9 +73,10 @@ module Distillator
       @condenser_fetch = condenser_fetch
       @default_language = default_language || website.default_language
       @sources = sources
-      @refresh_helper = refresh_helper || StatementsHelper.build_refresh_proxy(cookies: {})
+      @refresh_helper = refresh_helper || Distillator::ComparisonRefreshProxy.new(cookies: {})
       @source_resolver = source_resolver
       @export_service = export_service
+      @stop_requested = stop_requested
     end
 
     def call
@@ -101,14 +106,18 @@ module Distillator
     end
 
     def compare_statements
-      artifacts = resolved_sources.sort_by { |source| [source.property_id.to_i, source.id.to_i] }.map do |source|
-        compare_source(source)
+      artifacts = []
+      resolved_sources.sort_by { |source| [source.property_id.to_i, source.id.to_i] }.each do |source|
+        artifacts << compare_source(source)
       end
 
       StatementComparison.new(
         verdict: overall_statement_verdict(artifacts),
         artifacts: artifacts
       )
+    rescue BudgetExceeded => error
+      error.artifacts = artifacts
+      raise
     end
 
     def compare_export
@@ -165,11 +174,14 @@ module Distillator
         condenser: condenser[:value],
         legacy_error: normalized_error(legacy[:error]),
         condenser_error: normalized_error(condenser[:error]),
+        timing: { legacy: legacy[:timing], condenser: condenser[:timing] },
         verdict: classify_statement_verdict(legacy, condenser)
       }
     end
 
     def extract_value(source, html:, side:)
+      timing = {}
+      raise BudgetExceeded, "Comparison deadline reached" if @stop_requested&.call
       if html.blank?
         return {
           value: nil,
@@ -181,54 +193,69 @@ module Distillator
         }
       end
 
-      runner = Dsl::Core::AlgorithmRunner.new(
-        url: webpage.url,
-        render_js: source.render_js,
-        scrape_options: refresh_helper.statement_scrape_options(
-          source: source,
-          webpage: webpage,
-          scrape_options: { force_scrape_every_hrs: 0 }
-        ),
-        tracer: Dsl::Tracing::NullTracer.new
-      )
-      runner.instance_variable_set(:@html, html)
-      runner.instance_variable_set(:@page, Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s))
-      runner.define_singleton_method(:fetch_result_for) do |url:, render_js:, scrape_options:|
-        {
-          status: :abort,
-          body: [
-            "abort_update",
-            {
-              error: "Read-only migration comparison cannot fetch additional URLs",
-              error_type: "MigrationComparatorFetchUnsupported",
-              source: "migration_comparator",
-              step: "url"
-            }
-          ],
-          headers: {},
-          final_url: url,
-          redirect_chain: [url],
-          duration_ms: 0
-        }
+      raw = timed_stage(timing, :extraction_ms) do
+        runner = Dsl::Core::AlgorithmRunner.new(
+          url: webpage.url,
+          render_js: source.render_js,
+          scrape_options: refresh_helper.statement_scrape_options(
+            source: source,
+            webpage: webpage,
+            scrape_options: { force_scrape_every_hrs: 0 }
+          ),
+          tracer: Dsl::Tracing::NullTracer.new
+        )
+        runner.instance_variable_set(:@html, html)
+        runner.instance_variable_set(:@page, Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s))
+        runner.define_singleton_method(:fetch_result_for) do |url:, render_js:, scrape_options:|
+          {
+            status: :abort,
+            body: [
+              "abort_update",
+              {
+                error: "Read-only migration comparison cannot fetch additional URLs",
+                error_type: "MigrationComparatorFetchUnsupported",
+                source: "migration_comparator",
+                step: "url"
+              }
+            ],
+            headers: {},
+            final_url: url,
+            redirect_chain: [url],
+            duration_ms: 0
+          }
+        end
+
+        runner.run(source.algorithm_value)
       end
+      return { value: nil, error: raw.second.to_h, timing: timing } if abort_structure?(raw)
 
-      raw = runner.run(source.algorithm_value)
-      return { value: nil, error: raw.second.to_h } if abort_structure?(raw)
-
-      formatted = refresh_helper.format_datatype(raw, source.property, webpage, statement_status: "initial")
-      return { value: nil, error: formatted.second.to_h } if abort_structure?(formatted)
+      formatted = timed_stage(timing, :formatting_ms) do
+        raise BudgetExceeded, "Comparison deadline reached" if @stop_requested&.call
+        refresh_helper.format_datatype(raw, source.property, webpage, statement_status: "initial")
+      end
+      return { value: nil, error: formatted.second.to_h, timing: timing } if abort_structure?(formatted)
 
       normalized_value = normalize_statement_value(formatted)
-      { value: blank_value?(normalized_value) ? nil : normalized_value, error: nil }
+      { value: blank_value?(normalized_value) ? nil : normalized_value, error: nil, timing: timing }
+    rescue BudgetExceeded
+      raise
     rescue StandardError => error
       {
         value: nil,
+        timing: timing,
         error: {
           error: error.message,
           error_type: error.class.to_s,
           source: "migration_comparator"
         }
       }
+    end
+
+    def timed_stage(timing, key)
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      yield
+    ensure
+      timing[key] = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round(2)
     end
 
     def overall_statement_verdict(artifacts)
