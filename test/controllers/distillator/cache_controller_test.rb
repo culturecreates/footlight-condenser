@@ -66,7 +66,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_match "Cache Comparison", @response.body
-    assert_match "Comparison policy", @response.body
+    assert_match "Cache diagnostics policy", @response.body
     assert_match "Detailed comparison", @response.body
     assert_match "Raw payloads", @response.body
     assert_match "Condenser source", @response.body

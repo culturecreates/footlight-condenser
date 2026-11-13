@@ -394,6 +394,7 @@ module Distillator::ShadowReportsHelper
     text = value.to_s.humanize
     label = row[{ fetch_reason: :condenser_fetch_result, legacy_lookup_reason: :legacy_lookup_result,
       cache_compare_reason: :cache_comparison_result, statement_reason: :statement_check_result, export_reason: :export_impact }[key]]
+    return if key == :cache_compare_reason && %w[metadata_only metadata_only_difference].include?(value.to_s) && label == "Passed with diagnostic notes"
     return if text.casecmp?(label.to_s)
     return if key == :statement_reason && value == "paired_statements_match" && label == "Passed"
 
@@ -478,16 +479,26 @@ module Distillator::ShadowReportsHelper
     cache = row.respond_to?(:cache) ? row.cache : nil
 
     if cache.present?
-      links << link_to(shadow_report_cache_result_label(cache), distillator_cache_path(cache))
+      links << { label: shadow_report_cache_result_label(cache), url: distillator_cache_path(cache) }
     elsif payload[:active_cache_url].present?
-      links << link_to(shadow_report_active_cache_label(payload), payload[:active_cache_url])
+      links << { label: shadow_report_active_cache_label(payload), url: payload[:active_cache_url] }
     end
 
     Array(payload[:secondary_links]).each do |link|
-      links << link_to(link[:label], link[:url]) if link[:label].present? && link[:url].present?
+      links << link if link[:label].present? && link[:url].present?
     end
 
-    safe_join(links.uniq, " | ")
+    seen = {}
+    unique_links = links.filter_map do |link|
+      label = link[:label].to_s
+      condenser_link = label.match?(/\AOpen (?:active )?Condenser cache\z/) || label == "Open failed cache result"
+      purpose = condenser_link ? :condenser_cache : label
+      next if seen[purpose] || seen[link[:url]]
+
+      seen[purpose] = seen[link[:url]] = true
+      link_to(label, link[:url])
+    end
+    safe_join(unique_links, " | ")
   end
 
   def shadow_report_safety_label(row)

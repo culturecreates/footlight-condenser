@@ -263,14 +263,39 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     assert_select '#transition-performance', text: /Location/
   end
 
+  test "a ready strict report has one decision and high evidence confidence despite diagnostic notes" do
+    assert Distillator::RolloutTransition.call(website: @website, to_mode: "shadow").success?
+    run = publish_recheck(check_options: { sample_mode: "all", strictness: "strict" })
+    get distillator_shadow_report_site_path(@website, run_id: run.id)
+    assert_response :success
+    summary = assert_select('#transition-report-summary').first
+    assert_equal 1, summary.text.scan("Safe to promote").length
+    assert_equal 1, summary.text.scan("Next step:").length
+    assert_select '#transition-report-summary > p', text: /Data field comparison:\s*Strict/
+    assert_select 'h2', text: "Decision", count: 0
+    assert_select '#transition-report-audit', text: /Evidence confidence:\s*High/
+    assert_select '#transition-report-audit', text: /Cache diagnostics policy:\s*Review known destination changes/
+    assert_not_includes response.body, "Operator mode"
+    assert_select '#transition-url-diagnostics td:nth-child(4)', text: "Passed with diagnostic notes"
+    assert_select '#transition-url-diagnostics .sources-secondary-text', text: "Metadata only", count: 0
+    assert_equal "shadow", @website.reload.distillator_mode
+    assert_equal @activation_snapshot, @website.rollout_events.find_by(to_mode: "active").readiness_snapshot
+  end
+
+  test "the export explanation renders its source URL once" do
+    get distillator_shadow_report_site_path(@website, run_id: @completed.id)
+    export_details = assert_select('details[data-check-kind="export_diff"]').first
+    assert_equal 1, export_details.text.scan(@url).length
+  end
+
   private
 
   def request_run
     Distillator::TransitionRun.request!(website: @website).run
   end
 
-  def publish_recheck(statement_status: "checked")
-    run = request_run
+  def publish_recheck(statement_status: "checked", check_options: {})
+    run = Distillator::TransitionRun.request!(website: @website, options: check_options).run
     run.execute do
       @completed.transition_evidences.each do |record|
         attrs = record.attributes.except("id", "created_at", "updated_at", "transition_run_id")

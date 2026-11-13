@@ -4,10 +4,11 @@
 
 <p><strong>URI:</strong> <span class="cache-normalized-url"><%= external_website_link(@comparison[:uri]) %></span></p>
 <p><strong>URI key:</strong> <span class="cache-uri-key"><%= @comparison[:uri_key] || "Unavailable" %></span></p>
-<p><strong>Comparison policy:</strong> <%= @comparison[:comparison_policy].to_s.humanize %> mode</p>
+<p><strong>Cache diagnostics policy:</strong> <%= cache_compare_policy_label(@comparison[:comparison_policy]) %></p>
+<p class="cache-page-note">Data field comparison (Standard or Strict) is chosen separately for each transition check.</p>
 <p>
-  <%= link_to "Operator mode", condenser_cache_compare_path(uri: @comparison[:uri], comparison_policy: "operator") %> |
-  <%= link_to "Strict mode", condenser_cache_compare_path(uri: @comparison[:uri], comparison_policy: "strict") %>
+  <%= link_to "Review destination changes", condenser_cache_compare_path(uri: @comparison[:uri], comparison_policy: "operator") %> |
+  <%= link_to "Block destination changes", condenser_cache_compare_path(uri: @comparison[:uri], comparison_policy: "strict") %>
 </p>
 
 <section class="website-rollout-panel">

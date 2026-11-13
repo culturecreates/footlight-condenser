@@ -211,7 +211,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match "Promote to active", @response.body
     assert_match "Safe to promote", @response.body
-    decision_html = @response.body[%r{<section class="website-rollout-panel">\s*<h2>Decision</h2>.*?</section>}m]
+    decision_html = assert_select('#transition-report-summary').first.to_html
     assert_match "Export serializer compatibility", decision_html
     assert_match "Passed", decision_html
   end
@@ -1195,7 +1195,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_no_match "Fetch/cache failed for the representative URL.", @response.body
-    decision_html = @response.body[%r{<section class="website-rollout-panel">\s*<h2>Decision</h2>.*?</section>}m]
+    decision_html = assert_select('#transition-report-summary').first.to_html
     assert_no_match "Blocked by fetch", decision_html
     assert_no_match "blocked by fetch", decision_html
     assert_match "Condenser and Wringer have a blocking parity mismatch.", @response.body

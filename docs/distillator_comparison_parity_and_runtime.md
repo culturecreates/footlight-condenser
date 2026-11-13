@@ -28,6 +28,23 @@ Neither requires identical diagnostic metadata. A passing cache comparison alone
 never establishes statement or export parity. Existing evidence and accepted
 rollout history are not rewritten; run a new check to use the corrected policy.
 
+The report presents one decision and next step, with the completed run's **Data
+field comparison: Standard/Strict** beside its ID. The separate **Cache diagnostics
+policy** is labeled **Review known destination changes** or **Block known
+destination changes**, including on the cache-comparison page. The existing API
+values `operator` and `strict` are retained for links and stored evidence.
+
+Benign diagnostic notes do not reduce evidence confidence. Missing, stale,
+incomplete or review-needed evidence still lowers confidence as before; optional
+statement differences retain Medium confidence. Confidence describes the evidence,
+not a separate activation decision. Blocking checks and warnings always take
+priority over a promotion recommendation, even when diagnostic notes are present.
+
+Redundant per-row diagnostic captions, duplicate cache links and a repeated export
+URL are suppressed in presentation. The underlying diagnostics and historical
+readiness snapshots are preserved. These presentation/confidence changes require
+only a page reload after deployment, not a new comparison run or migration.
+
 Parity does not establish that the source website's data is correct. Identical
 incorrect timezone offsets on both sides still require a separate data-quality
 check.

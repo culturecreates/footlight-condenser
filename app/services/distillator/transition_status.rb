@@ -157,7 +157,6 @@ module Distillator
       return :low if cache_compare_unknown?
       return :low if [fetch_status, statements_status, export_status].any? { |status| %i[missing stale inconclusive not_evaluated blocked_by_fetch].include?(status) }
       return :medium if statements_status == :warning
-      return :medium if metadata_only_difference?
 
       :high
     end
@@ -389,7 +388,6 @@ module Distillator
       return "Fix the legacy Wringer endpoint, then rerun the transition batch check." if legacy_lookup_unreachable?
       return "Verify the legacy Wringer body endpoint or compare using the legacy inspection link." if legacy_lookup_body_omitted?
       return "Review the checklist, then activate with a recorded reason." if review_activation_eligible?
-      return "Metadata notes only. Promote to active when you are satisfied with the evidence." if metadata_only_difference?
       return "Review the unknown comparison results, then rerun the transition batch check if needed." if cache_compare_unknown?
       return "Review the parity differences, then rerun the transition batch check if needed." if review_needed_difference?
       return "Review the optional statement refresh warnings before activating." if statements_status == :warning
@@ -477,10 +475,6 @@ module Distillator
 
     def review_needed_difference?
       fetch_parity_evidence&.detail_reason == "review_needed_difference"
-    end
-
-    def metadata_only_difference?
-      fetch_parity_evidence&.detail_reason == "metadata_only_difference"
     end
 
     def cache_compare_unknown?

@@ -385,6 +385,10 @@ module Distillator::CacheHelper
     )
   end
 
+  def cache_compare_policy_label(policy)
+    policy.to_s == "strict" ? "Block known destination changes" : "Review known destination changes"
+  end
+
   def cache_compare_outcome_label(summary)
     case summary.to_h[:outcome].to_s
     when "blocked"

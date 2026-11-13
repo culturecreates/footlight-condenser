@@ -10,6 +10,36 @@ class CacheLinkRenderingTest < ActionView::TestCase
   include SourcesHelper
   include OperatorContextHelper
 
+  test "report cache links retain one purpose and distinct legacy and comparison links" do
+    cache = Distillator::FetchCache.create!(uri_key: "clarity-cache", normalized_url: "https://example.org/event",
+      html: "<title>Event</title>", body: "<title>Event</title>", http_response_code: 200,
+      health_status: "healthy", headers: {}, signals: { transport_success: true, content_success: true })
+    row = Struct.new(:cache, :cache_link_payload).new(cache, {
+      secondary_links: [
+        { label: "Open Condenser cache", url: "/condenser/cache?uri=event" },
+        { label: "Compare Condenser vs Wringer", url: "/condenser/cache/compare?uri=event" },
+        { label: "Inspect legacy Wringer", url: "https://wringer.example/event" }
+      ]
+    })
+    fragment = Nokogiri::HTML.fragment(shadow_report_cache_diagnostic_links(row))
+    assert_equal ["Open Condenser cache", "Compare Condenser vs Wringer", "Inspect legacy Wringer"], fragment.css("a").map(&:text)
+    assert_equal distillator_cache_path(cache), fragment.css("a").first["href"]
+    assert_equal "https://wringer.example/event", fragment.css("a").last["href"]
+    cache.assign_attributes(health_status: "network_failed", signals: { "transport_success" => false })
+    fragment = Nokogiri::HTML.fragment(shadow_report_cache_diagnostic_links(row))
+    assert_equal "Open failed cache result", fragment.css("a").first.text
+    assert_equal 3, fragment.css("a").length
+  end
+
+  test "only redundant successful diagnostic reasons are suppressed" do
+    row = { cache_comparison_result: "Passed with diagnostic notes", cache_compare_reason: "metadata_only" }
+    assert_nil shadow_report_matrix_reason(row, :cache_compare_reason)
+    row[:cache_compare_reason] = "Fields: title"
+    assert_equal "Fields: title", shadow_report_matrix_reason(row, :cache_compare_reason)
+    row.merge!(cache_comparison_result: "Failed", cache_compare_reason: "metadata_only")
+    assert_equal "Metadata only", shadow_report_matrix_reason(row, :cache_compare_reason)
+  end
+
   setup do
     @old_fetch_mode = ENV["DISTILLATOR_FETCH_MODE"]
     Distillator::WringerEndpoint.stubs(:current).returns(

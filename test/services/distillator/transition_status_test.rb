@@ -553,7 +553,7 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     assert_equal "Review the checklist, then activate with a recorded reason.", status.activation_recommendation[:next_action]
   end
 
-  test "metadata only difference stays ready with medium confidence" do
+  test "metadata-only diagnostics do not reduce evidence confidence or change readiness" do
     website = build_website("Outside Feed", "outside-feed")
     cache = build_cache(
       signals: {
@@ -581,10 +581,27 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
 
     assert_equal :ready, status.status
     assert_equal :safe, status.safety
-    assert_equal :medium, status.confidence
+    assert_equal :high, status.confidence
     assert_equal false, status.review_activation_eligible
     assert_equal false, status.manual_review_required
-    assert_equal "Metadata notes only. Promote to active when you are satisfied with the evidence.", status.activation_recommendation[:next_action]
+    assert_equal "Promote to active when you are satisfied with the evidence.", status.activation_recommendation[:next_action]
+  end
+
+  test "metadata notes cannot suggest promotion when a statement check failed" do
+    website = build_website("Blocked despite notes", "blocked-despite-notes")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true })
+    website.transition_evidences.create!(url: "https://example.org/event", check_kind: "fetch_parity",
+      status: "checked", checked_at: Time.current, details: { reason: "metadata_only_difference" })
+    website.transition_evidences.create!(url: "https://example.org/event", check_kind: "statement_delta",
+      status: "failed", statement_count_delta_acceptable: false, checked_at: Time.current)
+    website.transition_evidences.create!(url: "https://example.org/event", check_kind: "export_diff",
+      status: "checked", export_diff_checked: true, checked_at: Time.current)
+    isolate_transition_policy(website)
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+    assert_equal :blocked, status.status
+    assert_equal :failed, status.statements
+    assert_match /Fix/, status.activation_recommendation[:next_action]
+    refute_match /Promote/, status.activation_recommendation[:next_action]
   end
 
   test "timeout budget exceeded keeps statements and export inconclusive while fetch stays failed" do

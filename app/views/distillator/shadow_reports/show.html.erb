@@ -32,7 +32,7 @@
   <% elsif @website.distillator_mode == "legacy" %>
     <p><strong><%= shadow_report_decision_label(@detail.decision) %></strong></p>
   <% else %>
-    <p><strong>Is this site ready?</strong> <%= shadow_report_decision_label(@detail.decision) %></p>
+    <p><strong>Decision:</strong> <%= shadow_report_decision_label(@detail.decision) %></p>
     <% if @detail.transition_status.blockers.any? %>
       <p><strong>Primary blocker:</strong> <%= @detail.transition_status.blockers.first %></p>
     <% end %>
@@ -40,6 +40,9 @@
   <% if @detail.completed_transition_run_id %>
     <p><strong>Completed transition run:</strong> #<%= @detail.completed_transition_run_id %></p>
     <p><strong><%= @report_run ? "Completed at" : "Latest completed evidence" %>:</strong> <%= shadow_report_timestamp(@detail.latest_transition_evidence_checked_at) %></p>
+    <% completed_options = operation.completed_run.options %>
+    <p><strong>Data field comparison:</strong>
+      <span title="<%= completed_options.field_policy_label %>"><%= completed_options.strictness.humanize %></span></p>
   <% else %>
     <p>No completed comparison recorded.</p>
   <% end %>
@@ -57,7 +60,27 @@
       <% if @detail.completed_transition_run_id %><p>Results below remain from completed run #<%= @detail.completed_transition_run_id %>.</p><% end %>
     <% end %>
   </div>
-  <% unless shadow || @historical_run %><p><strong>Next step:</strong> <%= @detail.decision[:recommended_action] %></p><% end %>
+  <% if !shadow || @historical_run %>
+    <h3><%= @report_run ? "Completed comparison" : "Latest completed comparison" %></h3>
+    <p><strong><%= shadow_report_completed_comparison_label(@detail) %></strong></p>
+    <% if completed_status && !operation.reviewed_completed_comparison? %>
+      <% findings = completed_status.blockers.presence || completed_status.warnings %>
+      <% if findings.any? %><p>Findings in this run: <%= findings.join(" ").gsub("Cannot activate yet: ", "") %></p><% end %>
+    <% end %>
+  <% elsif @detail.transition_status.blockers.empty? && @detail.transition_status.status != :ready %>
+    <p><strong>Why:</strong> <%= @detail.decision[:why].first %></p>
+  <% end %>
+  <ul class="transition-check-results">
+    <% (completed_status || @detail.transition_status).checks.each do |check| %>
+      <li>
+        <%= shadow_report_check_icon(check[:state]) %>
+        <strong><%= check[:label] %></strong>
+        <% if check[:role].present? %>(<%= check[:role].to_s.humanize.downcase %>)<% end %>
+        — <%= shadow_report_check_label(check[:state]) %>
+      </li>
+    <% end %>
+  </ul>
+  <% unless @historical_run %><p><strong>Next step:</strong> <%= @detail.decision[:recommended_action] %></p><% end %>
   <p><strong>Links:</strong>
     <%= link_to "Website batch jobs", website_path(@website, anchor: "website-batch-jobs-transition") %> |
     <%= link_to "Inspect publishable event pages", website_publishable_event_pages_path(@website) %> |
@@ -65,33 +88,6 @@
   </p>
 </section>
 
-<section class="website-rollout-panel">
-  <% if !shadow || @historical_run %>
-    <h2><%= @report_run ? "Completed comparison" : "Latest completed comparison" %></h2>
-    <p><strong><%= shadow_report_completed_comparison_label(@detail) %></strong></p>
-    <% if completed_status && !operation.reviewed_completed_comparison? %>
-      <% findings = completed_status.blockers.presence || completed_status.warnings %>
-      <% if findings.any? %><p>Findings in this run: <%= findings.join(" ").gsub("Cannot activate yet: ", "") %></p><% end %>
-    <% end %>
-  <% else %>
-    <h2>Decision</h2>
-    <p><strong>Decision:</strong> <%= shadow_report_decision_label(@detail.decision) %></p>
-    <p><strong>Why:</strong> <%= @detail.decision[:why].first %></p>
-    <p><strong>Recommended action:</strong> <%= @detail.decision[:recommended_action] %></p>
-  <% end %>
-  <ul>
-    <% (completed_status || @detail.transition_status).checks.each do |check| %>
-      <li>
-        <%= shadow_report_check_icon(check[:state]) %>
-        <strong><%= check[:label] %></strong>
-        <% if check[:role].present? %>
-          (<%= check[:role].to_s.humanize.downcase %>)
-        <% end %>
-        — <%= shadow_report_check_label(check[:state]) %>
-      </li>
-    <% end %>
-  </ul>
-</section>
 
 <% if @detail.primary_blocker.present? || shadow_report_statement_failure_groups(@detail, severity: :blocker).any? || shadow_report_statement_failure_groups(@detail, severity: :warning).any? %>
   <section class="website-rollout-panel">
@@ -258,14 +254,14 @@
   </details>
 </section>
 
-<details class="website-rollout-panel">
+<details class="website-rollout-panel" id="transition-report-audit">
   <summary>Audit</summary>
   <p><strong>Website:</strong> <%= @website.name %></p>
   <p><strong>Seedurl:</strong> <%= @website.seedurl %></p>
   <p><strong>Cohort:</strong> <%= @detail.summary.cohort_label.presence || "Other" %></p>
   <p><strong>Current rollout mode:</strong> <%= Distillator::RolloutCopy.label(@website.distillator_mode) %></p>
   <p><strong>Production backend:</strong> <%= shadow_report_production_backend_label(@detail.summary) %></p>
-  <p><strong>Comparison policy:</strong> <%= @detail.transition_status.comparison_policy.to_s.humanize %> mode</p>
+  <p><strong>Cache diagnostics policy:</strong> <%= cache_compare_policy_label(@detail.transition_status.comparison_policy) %></p>
   <h3>Current cache observation</h3>
   <p><strong>Latest attempt:</strong> <%= shadow_report_timestamp(@detail.summary.latest_refresh) %></p>
   <p><strong>Latest successful refresh:</strong> <%= shadow_report_timestamp(@detail.summary.latest_successful_refresh) %></p>
@@ -276,25 +272,26 @@
   <h3>Recorded check evidence</h3>
   <% if completed_status %>
     <p><strong>Completed comparison safety:</strong> <%= completed_status.safety.to_s.humanize %>
-      · <strong>Confidence:</strong> <%= completed_status.confidence.to_s.humanize %></p>
+      · <strong>Evidence confidence:</strong> <%= completed_status.confidence.to_s.humanize %></p>
   <% end %>
   <% @detail.transition_evidence_explanations.each do |explanation| %>
     <% evidence = @detail.transition_evidence_by_kind[explanation.key] %>
-    <details class="website-rollout-panel">
+    <details class="website-rollout-panel" data-check-kind="<%= explanation.key %>">
       <summary><%= explanation.check %> details</summary>
       <p><strong>State:</strong> <%= shadow_report_transition_evidence_status_label(explanation.state) %></p>
       <p><strong>Checked at:</strong> <%= shadow_report_timestamp(evidence&.checked_at) %></p>
       <% if evidence&.url.present? %><p><strong>URL:</strong> <%= external_website_link(evidence.url, max: 120) %></p><% end %>
       <p><strong>Headline:</strong> <%= explanation.headline %></p>
-      <% if explanation.details.any? %>
-        <% visible_details = explanation.details.first(10) %>
+      <% detail_lines = explanation.details.reject { |line| evidence&.url.present? && line.to_s.strip == "URL: #{evidence.url}" } %>
+      <% if detail_lines.any? %>
+        <% visible_details = detail_lines.first(10) %>
         <ul>
           <% visible_details.each do |line| %>
             <li><%= line %></li>
           <% end %>
         </ul>
-        <% if explanation.details.size > visible_details.size %>
-          <p><%= explanation.details.size - visible_details.size %> additional detail lines hidden from this summary.</p>
+        <% if detail_lines.size > visible_details.size %>
+          <p><%= detail_lines.size - visible_details.size %> additional detail lines hidden from this summary.</p>
         <% end %>
       <% end %>
       <p><strong>Recorded guidance:</strong> <%= explanation.next_action %></p>
