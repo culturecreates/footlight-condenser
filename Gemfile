@@ -1,6 +1,6 @@
 source 'https://rubygems.org'
 
-ruby '3.4.8'
+ruby file: '.ruby-version'
 
 # Core
 gem 'rails', '~> 8.0.2'
