@@ -26,7 +26,7 @@ gem 'sidekiq'
 gem 'aws-sdk-s3'
 
 # Monitoring
-gem 'scout_apm'
+gem 'scout_apm', '~> 5.7.1'
 
 # CORS
 gem 'rack-cors'

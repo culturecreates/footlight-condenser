@@ -83,6 +83,10 @@ class WebsiteTest < ActiveSupport::TestCase
     )
 
     assert_equal evidence, website.latest_transition_evidence("export_diff")
+    assert_nil website.latest_transition_evidences_by_kind["export_diff"]
+
+    publish_transition_fixture(website)
+
     assert_equal evidence, website.latest_transition_evidences_by_kind["export_diff"]
   end
 

@@ -86,12 +86,14 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "webpages json index preserves existing contract" do
-    get webpages_url(format: :json)
+    website, publishable_page, = build_transition_inspection_website
+
+    get webpages_url(format: :json), params: { seedurl: website.seedurl }
 
     assert_response :success
-    payload = JSON.parse(@response.body)
-    assert payload.is_a?(Array)
-    assert_includes payload.first.keys, "url"
+    payload = JSON.parse(response.body)
+    assert_equal 1, payload.size
+    assert_equal publishable_page.url, payload.first["url"]
     assert_includes payload.first.keys, "rdf_uri"
     assert_includes payload.first.keys, "publishable"
   end
@@ -240,7 +242,7 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_match(%r{href="/webpages\?seedurl=#{website.seedurl}">Show publishable event pages}, @response.body)
     assert_select "a[href='#{website_path(website)}']", text: website.name
     assert_select "a[href='/webpages?seedurl=#{website.seedurl}']", text: "webpages"
-    assert_select "a[href='/sources?seedurl=#{website.seedurl}']", text: "sources"
+    assert_select "a[href='/sources?seedurl=#{website.seedurl}']", text: "Sources"
     assert_select "a[href='/statements?seedurl=#{website.seedurl}']", text: "statements"
   end
 
