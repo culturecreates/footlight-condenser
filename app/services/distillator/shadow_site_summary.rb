@@ -40,12 +40,13 @@ module Distillator
       new(...).call
     end
 
-    def initialize(website:, cache: nil, stale_after: Distillator::CacheHealth::STALE_AFTER, evidence_by_kind: nil, include_cache_links: false)
+    def initialize(website:, cache: nil, stale_after: Distillator::CacheHealth::STALE_AFTER, evidence_by_kind: nil, include_cache_links: false, current_run: :latest)
       @website = website
       @cache = cache
       @stale_after = stale_after
       @evidence_by_kind = evidence_by_kind
       @include_cache_links = include_cache_links
+      @current_run = current_run
     end
 
     def call
@@ -72,7 +73,7 @@ module Distillator
         warnings: transition_status.warnings,
         cache_link_payload: include_cache_links? ? cache_link_payload : nil,
         last_checked: transition_status.last_checked,
-        promotable: transition_status.status == :ready,
+        promotable: website.distillator_mode == "shadow" && transition_status.status == :ready,
         priority: website.lavitrine_pipeline?,
         mode_label: Distillator::RolloutCopy.label(website.distillator_mode),
         production_backend_label: Distillator::RolloutCopy.active_backend_label(website.distillator_mode),
@@ -122,23 +123,22 @@ module Distillator
       @transition_status ||= Distillator::TransitionStatus.call(
         website: website,
         cache: cache,
-        evidence_by_kind: resolved_evidence_by_kind
+        evidence_by_kind: resolved_evidence_by_kind,
+        current_run: @current_run
       )
     end
 
     def cache_link_payload
-      @cache_link_payload ||= Distillator::TransitionCheck.call(
-        website: website,
-        cache: cache,
-        evidence_by_kind: resolved_evidence_by_kind
-      ).cache_link_payload
+      url = cache&.normalized_url.presence || website.webpages.first&.url.presence || website.seedurl
+      @cache_link_payload ||= Distillator::CacheLinkResolver.call(url: url, website: website)
     end
 
     def operator_next_action
       Distillator::OperatorNextAction.call(
         website: website,
         transition_status: transition_status,
-        cache_link_payload: include_cache_links? ? cache_link_payload : nil
+        cache_link_payload: include_cache_links? ? cache_link_payload : nil,
+        current_run: @current_run
       )
     end
 

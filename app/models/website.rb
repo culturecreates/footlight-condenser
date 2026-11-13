@@ -75,8 +75,7 @@ class Website < ApplicationRecord
     latest_transition_run&.status.in?(%w[queued running])
   end
 
-  def transition_run_blocker
-    latest = latest_transition_run
+  def transition_run_blocker(latest = latest_transition_run)
     return "Run a transition check to establish paired extraction evidence." unless latest
     return "Transition check is #{latest.status}. Wait for all phases to finish." if latest.status.in?(%w[queued running])
     return latest.error_message.presence || "Transition check failed. Run a new check." if latest.status == "failed"

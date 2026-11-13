@@ -286,10 +286,10 @@ module Distillator
         [{ label: "Transition report", target: :transition_report }]
       else
         [
-          { label: "Open failed cache result", target: :failed_cache_result },
+          { label: "Open Condenser cache", target: :condenser_cache_result },
           { label: "Compare Condenser vs Wringer", target: :compare_cache },
           { label: "Compare extracted statements", target: :compare_statements },
-          { label: "Open active Wringer cache", target: :active_wringer_cache }
+          { label: "Open active cache", target: :active_cache }
         ]
       end
     end

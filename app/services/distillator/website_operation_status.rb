@@ -1,14 +1,21 @@
 module Distillator
   class WebsiteOperationStatus
-    attr_reader :website, :cache, :comparison
+    attr_reader :website, :cache, :comparison, :completed_run, :latest_run, :evidence_by_kind
 
     def initialize(website:, cache: nil)
       @website = website
       @cache = cache
-      # This section describes the completed comparison, not a later cache fetch.
-      run = website.latest_completed_transition_run
+      # Bind IDs, evidence and status to one observation. A run finishing while
+      # the page renders cannot replace only part of the displayed comparison.
+      @latest_run = website.latest_transition_run
+      @completed_run = if latest_run&.status == "completed"
+        latest_run
+      elsif latest_run
+        website.transition_runs.completed.where("id < ?", latest_run.id).order(completed_at: :desc, id: :desc).first
+      end
+      @evidence_by_kind = completed_run ? completed_run.transition_evidences.index_by(&:check_kind) : {}
       @comparison = Distillator::TransitionStatus.call(website: website, cache: nil,
-        evidence_by_kind: website.latest_transition_evidences_by_kind, now: run&.completed_at || Time.current)
+        evidence_by_kind: evidence_by_kind, current_run: latest_run, now: completed_run&.completed_at || Time.current)
     end
 
     def activation
@@ -24,6 +31,8 @@ module Distillator
     end
 
     def self.event_label(event)
+      return "Rolled back to Legacy Wringer" if event.from_mode == "active" && event.to_mode == "legacy"
+      return "Returned to Shadow (Wringer)" if event.from_mode == "active" && event.to_mode == "shadow"
       return "Activated after review" if event.to_mode == "active" && reviewed?(event)
       return "Activated with override" if event.to_mode == "active" && event.readiness_snapshot["override"] == true
       return "Activated" if event.to_mode == "active"
@@ -32,15 +41,23 @@ module Distillator
     end
 
     def accepted_comparison?
+      reviewed_completed_comparison? && website.transition_run_blocker(latest_run).blank?
+    end
+
+    def completed_comparison
+      @completed_comparison ||= Distillator::TransitionStatus.for_completed_run(website: website, run: completed_run) if completed_run
+    end
+
+    def reviewed_completed_comparison?
       return false unless activation && self.class.reviewed?(activation)
 
-      run = website.latest_completed_transition_run
+      run = completed_run
       snapshot = activation.readiness_snapshot.to_h
       run && snapshot["transition_run_id"].to_s == run.id.to_s &&
         snapshot["configuration_digest"] == run.configuration_digest &&
-        website.transition_run_blocker.blank? && comparison.blockers.empty? &&
-        [comparison.fetch, comparison.statements, comparison.export].all? { |state| state == :passed } &&
-        (comparison.warnings - Array(snapshot["warnings"])).empty?
+        completed_comparison.blockers.empty? &&
+        [completed_comparison.fetch, completed_comparison.statements, completed_comparison.export].all? { |state| state == :passed } &&
+        (completed_comparison.warnings - Array(snapshot["warnings"])).empty?
     end
 
     def observed_fetch
@@ -51,7 +68,7 @@ module Distillator
       end
       signals = cache.signals.to_h.stringify_keys
       backend = signals["fetch_backend"].presence
-      failed = Distillator::TransitionStatus.call(website: website, cache: cache, evidence_by_kind: {}).fetch == :failed
+      failed = Distillator::TransitionStatus.cache_fetch_failed?(cache)
       label = if failed
         "Latest observed fetch failed"
       elsif %w[legacy replay].include?(backend)

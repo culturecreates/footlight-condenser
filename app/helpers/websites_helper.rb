@@ -250,9 +250,10 @@ module WebsitesHelper
   def website_transition_verdict_line(website)
     if website.distillator_mode == "active"
       operation = website_operation_status(website)
-      return "Reviewed and accepted for this activation." if operation.accepted_comparison?
+      return "Reviewed and accepted for this activation." if operation.reviewed_completed_comparison?
 
-      status = operation.comparison
+      status = operation.completed_comparison
+      return "No completed comparison recorded." unless status
       return "Latest comparison passed." if status.status == :ready
       return "Comparison needs attention: #{website_transition_verdict_reason(status)}"
     end
@@ -261,7 +262,8 @@ module WebsitesHelper
   end
 
   def website_transition_secondary_status_line(website)
-    status = website.distillator_mode == "active" ? website_operation_status(website).comparison : website_transition_status(website)
+    operation = website_operation_status(website) if website.distillator_mode == "active"
+    status = operation ? (operation.completed_comparison || operation.comparison) : website_transition_status(website)
     [
       "Statements #{website_transition_check_state_label(status.statements)}",
       "Export #{website_transition_check_state_label(status.export)}",
@@ -296,11 +298,15 @@ module WebsitesHelper
   end
 
   def website_transition_evidence_freshness_text(website)
-    return "Transition check #{website.latest_transition_run.status}. Waiting for all phases to finish." if website.pending_transition_batch_check?
+    operation = website_operation_status(website) if website.distillator_mode == "active"
+    run = operation ? operation.latest_run : website.latest_transition_run
+    return "Transition check #{run.status}. Waiting for all phases to finish." if run&.status.in?(%w[queued running])
 
-    run = website.latest_transition_run
     return run.error_message if run&.status == "failed"
-    latest_checked_at = website.latest_transition_evidence_checked_at
+    if operation && (blocker = website.transition_run_blocker(run)).present?
+      return blocker
+    end
+    latest_checked_at = operation ? operation.completed_run&.completed_at : website.latest_transition_evidence_checked_at
     return "Latest transition evidence: Not recorded yet." if latest_checked_at.blank?
 
     "Latest transition evidence: #{latest_checked_at}"

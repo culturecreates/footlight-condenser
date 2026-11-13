@@ -95,6 +95,64 @@ class Distillator::WebsiteOperationStatusTest < ActiveSupport::TestCase
     assert_equal({ "problem" => 2, "missing" => 1 }, operation.statement_counts)
   end
 
+  test "completed comparison is historical while a newer attempt keeps current activation gated" do
+    run = Distillator::TransitionRun.request!(website: @website).run
+    run.update!(status: "running", started_at: Time.current)
+    @cache.update!(scrape_date: 1.second.from_now, signals: { transport_success: false })
+    status = operation
+    assert status.reviewed_completed_comparison?
+    assert_not status.accepted_comparison?
+    assert_equal :passed, status.completed_comparison.fetch
+    assert_equal :failed, Distillator::TransitionStatus.call(website: @website, cache: @cache).fetch
+    assert_includes status.comparison.blockers.join, "running"
+    assert_equal "active", @website.reload.distillator_mode
+    assert_raises(ArgumentError) { Distillator::TransitionStatus.for_completed_run(website: @website, run: run) }
+    assert_raises(ArgumentError) { Distillator::TransitionStatus.for_completed_run(website: websites(:one), run: @run) }
+    assert_raises(ArgumentError) { Distillator::TransitionStatus.for_completed_run(website: @website, run: nil) }
+  end
+
+  test "same mode settings saves do not become fake activations or erase the reviewed decision" do
+    activation = operation.activation
+    assert_no_difference "Distillator::RolloutEvent.count" do
+      assert Distillator::RolloutTransition.call(website: @website, to_mode: "active").success?
+    end
+    assert_equal activation.id, operation.activation.id
+    assert operation.accepted_comparison?
+    @website.update!(graph_name: "https://example.org/changed")
+    assert_not operation.accepted_comparison?
+    assert operation.reviewed_completed_comparison?
+  end
+
+  test "report cannot mix a run that completes between loading the attempt and reading its evidence" do
+    pending = Distillator::TransitionRun.request!(website: @website).run
+    old_run = @run
+    @website.define_singleton_method(:latest_transition_run) do
+      observed = super()
+      # Publish via another model instance after taking the attempt snapshot.
+      Distillator::TransitionRun.find(pending.id).execute do |publishing|
+        old_run.transition_evidences.each do |record|
+          attrs = record.attributes.except("id", "created_at", "updated_at", "transition_run_id")
+          publishing.transition_evidences.create!(attrs.merge("status" => "failed", "checked_at" => Time.current))
+        end
+      end
+      observed
+    end
+    report = Distillator::ShadowSiteDetail.call(website: @website)
+    assert_equal "completed", pending.reload.status
+    assert_equal "queued", report.transition_run_status
+    assert_equal @run.id, report.completed_transition_run_id
+    assert_equal [@run.id], report.transition_evidence_by_kind.values.map(&:transition_run_id).uniq
+    assert_equal :passed, report.completed_transition_status.statements
+    assert report.operation_status.reviewed_completed_comparison?
+    assert_equal "active", @website.reload.distillator_mode
+
+    fresh = Distillator::ShadowSiteDetail.call(website: Website.find(@website.id))
+    assert_equal pending.id, fresh.completed_transition_run_id
+    assert_equal [pending.id], fresh.transition_evidence_by_kind.values.map(&:transition_run_id).uniq
+    assert_equal :failed, fresh.completed_transition_status.statements
+    assert_not fresh.operation_status.reviewed_completed_comparison?
+  end
+
   private
 
   def operation

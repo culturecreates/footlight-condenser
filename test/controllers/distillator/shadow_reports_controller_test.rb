@@ -165,7 +165,8 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Sampled URL diagnostics", @response.body
     assert_match "Checked scope", @response.body
     assert_match "Audit", @response.body
-    assert_match "Raw legacy transition evidence", @response.body
+    assert_match "Recorded check evidence", @response.body
+    assert_no_match "Raw legacy transition evidence", @response.body
     assert_no_match "Queue transition check", @response.body
     assert_match "Website batch jobs", @response.body
     assert_match "Inspect publishable event pages", @response.body
@@ -344,8 +345,8 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes visible_html, "Statement ID: #{statement.id}"
     assert_match "Open the statement trace and fix the source before activating.", @response.body
     assert_match "Checked 1 of 4 publishable event pages.", @response.body
-    assert_match "Publishable event pages: 4", @response.body
-    assert_match "Sampled count: 1", @response.body
+    assert_no_match "Publishable event pages: 4", @response.body
+    assert_no_match "Sampled count: 1", @response.body
     assert_match Distillator::TransitionCheck::SELECTION_RULE, @response.body
     assert_match "This check used a limited sample of representative webpages.", @response.body
     assert_match "Do not activate yet", @response.body
@@ -554,8 +555,8 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
-    assert_match "Latest transition evidence:", @response.body
-    assert_match "Transition check queued; requested", @response.body
+    assert_match "Latest completed evidence:", @response.body
+    assert_match "Run ##{website.latest_transition_run.id}: Queued", @response.body
   end
 
   test "shadow report detail shows statements not evaluated when fetch failed before statement refresh" do

@@ -19,6 +19,7 @@ namespace :test do
       test/services/distillator/transition_check_runner_test.rb
       test/services/distillator/rollout_transition_test.rb
       test/controllers/distillator/transition_checks_controller_test.rb
+      test/controllers/distillator/active_transition_report_test.rb
       test/services/distillator/fetch_response_contract_test.rb
       test/services/dsl/wringer_client_test.rb
       test/services/dsl_algorithm_runner_test.rb

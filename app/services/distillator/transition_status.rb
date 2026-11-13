@@ -47,11 +47,32 @@ module Distillator
       new(...).call
     end
 
-    def initialize(website:, cache: nil, evidence_by_kind: nil, now: Time.current)
+    # A read-only historical comparison is distinct from current activation
+    # readiness. It must not inherit another run's state or a later cache fetch.
+    def self.for_completed_run(website:, run:)
+      raise ArgumentError, "A completed run is required" unless run
+
+      new(website: website, completed_run: run).call
+    end
+
+    def self.cache_fetch_failed?(cache)
+      new(website: nil, cache: cache).cache_fetch_failed?
+    end
+
+    def initialize(website:, cache: nil, evidence_by_kind: nil, now: Time.current, completed_run: nil, current_run: :latest)
+      if completed_run && (completed_run.website_id != website.id || completed_run.status != "completed" || !completed_run.completed_at)
+        raise ArgumentError, "Comparison snapshots require a completed run belonging to this website"
+      end
       @website = website
-      @cache = cache
-      @evidence_by_kind = evidence_by_kind
-      @now = now
+      @completed_run = completed_run
+      @current_run = current_run
+      @cache = completed_run ? nil : cache
+      @evidence_by_kind = completed_run ? completed_run.transition_evidences.index_by(&:check_kind) : evidence_by_kind
+      @now = completed_run&.completed_at || now
+    end
+
+    def cache_fetch_failed?
+      cache.present? && fetch_failed?
     end
 
     def call
@@ -121,11 +142,12 @@ module Distillator
     end
 
     def run_blocker
+      return if @completed_run
       return unless website.respond_to?(:transition_run_blocker)
 
       return @run_blocker if defined?(@run_blocker)
 
-      @run_blocker = website.transition_run_blocker
+      @run_blocker = @current_run == :latest ? website.transition_run_blocker : website.transition_run_blocker(@current_run)
     end
 
     def confidence

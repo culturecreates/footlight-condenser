@@ -6,14 +6,15 @@ module Distillator
       new(...).call
     end
 
-    def initialize(website:, transition_status:, cache_link_payload: nil)
+    def initialize(website:, transition_status:, cache_link_payload: nil, current_run: :latest)
       @website = website
       @transition_status = transition_status
       @cache_link_payload = cache_link_payload || {}
+      @current_run = current_run
     end
 
     def call
-      if blockers? && website.respond_to?(:latest_transition_run) && website.latest_transition_run.nil? && transition_status.fetch != :failed
+      if blockers? && website.respond_to?(:latest_transition_run) && latest_run.nil? && transition_status.fetch != :failed
         return mode == :legacy ? "Move to Shadow." : "Run transition batch check."
       end
       return "Review blocker." if blockers?
@@ -34,6 +35,10 @@ module Distillator
     private
 
     attr_reader :website, :transition_status, :cache_link_payload
+
+    def latest_run
+      @current_run == :latest ? website.latest_transition_run : @current_run
+    end
 
     def mode
       Distillator::RolloutCopy.normalize(website&.distillator_mode)

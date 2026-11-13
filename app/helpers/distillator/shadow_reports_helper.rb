@@ -194,11 +194,6 @@ module Distillator::ShadowReportsHelper
     ]
   end
 
-  def shadow_report_transition_evidence_rows(detail)
-    detail.transition_evidence_explanations.map do |explanation|
-      shadow_report_transition_evidence_row(explanation, detail)
-    end
-  end
 
   def shadow_report_transition_evidence_status_label(status)
     case status.to_sym
@@ -254,6 +249,14 @@ module Distillator::ShadowReportsHelper
     decision.fetch(:label)
   end
 
+  def shadow_report_completed_comparison_label(detail)
+    return "No completed comparison recorded." unless detail.completed_transition_status
+    return "Reviewed and accepted for this activation." if detail.operation_status.reviewed_completed_comparison?
+
+    { ready: "Comparison passed.", review: "Comparison needs review.", blocked: "Comparison has blocking differences.",
+      not_checked: "Comparison is incomplete." }.fetch(detail.completed_transition_status.status)
+  end
+
   def shadow_report_primary_blocker_heading(blocker)
     blocker ? "#{blocker.check} (selected from sampled URLs)" : "None"
   end
@@ -266,16 +269,6 @@ module Distillator::ShadowReportsHelper
     ]
   end
 
-  def shadow_report_checked_pages_summary(scope)
-    publishable_count = scope[:publishable_event_page_count].to_i
-    sampled_count = scope[:representative_webpage_count].to_i
-
-    if publishable_count.positive?
-      "#{sampled_count} of #{publishable_count} publishable event pages."
-    else
-      "#{sampled_count} representative webpages."
-    end
-  end
 
   def shadow_report_statement_failure_groups(detail, severity: nil)
     groups = Array(detail.statement_failure_groups)
@@ -320,10 +313,12 @@ module Distillator::ShadowReportsHelper
     else
       lines << "Checked #{sampled_count} representative webpages because no publishable event pages were available."
     end
-    lines << "Publishable event pages: #{publishable_count}"
-    lines << "Sampled count: #{sampled_count}"
     lines << "Sampling rule: #{scope[:selection_rule]}"
-    lines << "Statements refreshed: #{scope[:statements_refreshed_count]}"
+    if scope[:paired_extraction]
+      lines << "Source comparisons: #{scope[:statements_compared_count]}" if scope[:statements_compared_count]
+    else
+      lines << "Statements refreshed in this historical check: #{scope[:statements_refreshed_count]}"
+    end
     if scope[:legacy_statement_failure]
       lines << "Legacy statement check failed before critical/optional classification was available."
       lines << "Legacy statement failures recorded: #{scope[:statements_failed_count]}"
@@ -334,10 +329,15 @@ module Distillator::ShadowReportsHelper
       lines << "Optional statement warnings: #{scope[:optional_statements_failed_count]}"
     end
     if !scope[:legacy_statement_failure] && scope[:critical_statements_failed_count].to_i.zero? && scope[:optional_statements_failed_count].to_i.zero?
-      lines << "Statement failures: 0"
+      lines << if scope[:statement_check_status].in?(%i[passed warning])
+        "Statement failures: 0"
+      else
+        "Statement check: #{scope[:statement_check_status].to_s.humanize}"
+      end
     end
     lines << "Export compared: #{scope[:export_compared] ? 'yes' : 'no'}"
-    lines << "Export basis: #{scope[:export_basis]}"
+    basis = scope[:export_basis] == "current export vs production-equivalent export" ? "Serializer compatibility using stored data in this environment" : scope[:export_basis]
+    lines << "Export basis: #{basis}"
     lines
   end
 
@@ -356,7 +356,7 @@ module Distillator::ShadowReportsHelper
         when "Compare"
           "Compare Condenser vs Wringer"
         when "Open active cache"
-          "Open active Wringer cache"
+          shadow_report_active_cache_label(Distillator::CacheLinkResolver.call(url: row[:url], website: website))
         when "Webpage record"
           "Open webpage record"
         else
@@ -384,7 +384,13 @@ module Distillator::ShadowReportsHelper
     value = row[key]
     return if value.blank? || value == "ok"
 
-    value.to_s.humanize
+    text = value.to_s.humanize
+    label = row[{ fetch_reason: :condenser_fetch_result, legacy_lookup_reason: :legacy_lookup_result,
+      cache_compare_reason: :cache_comparison_result, statement_reason: :statement_check_result, export_reason: :export_impact }[key]]
+    return if text.casecmp?(label.to_s)
+    return if key == :statement_reason && value == "paired_statements_match" && label == "Passed"
+
+    text
   end
 
   def truncated_url_label(url, max: 80)
@@ -436,21 +442,26 @@ module Distillator::ShadowReportsHelper
           distillator_shadow_report_site_path(website)
         when :cache
           distillator_cache_index_path
-        when :failed_cache_result
-          shadow_report_failed_cache_result_path(detail)
+        when :condenser_cache_result
+          shadow_report_cache_result_path(detail)
         when :compare_cache
           shadow_report_compare_cache_path(detail)
         when :compare_statements
           shadow_report_compare_statements_path(detail)
-        when :active_wringer_cache
-          shadow_report_active_wringer_cache_path(detail)
+        when :active_cache
+          shadow_report_active_cache_path(detail)
         else
           website_path(website)
         end
 
       next if path.blank?
 
-      link_to(link[:label], path)
+      label = case link[:target]
+              when :condenser_cache_result then shadow_report_cache_result_label(detail&.summary&.cache)
+              when :active_cache then shadow_report_active_cache_label(detail&.summary&.cache_link_payload || {})
+              else link[:label]
+              end
+      link_to(label, path)
     end.compact
   end
 
@@ -460,9 +471,9 @@ module Distillator::ShadowReportsHelper
     cache = row.respond_to?(:cache) ? row.cache : nil
 
     if cache.present?
-      links << link_to("Open failed cache result", distillator_cache_path(cache))
+      links << link_to(shadow_report_cache_result_label(cache), distillator_cache_path(cache))
     elsif payload[:active_cache_url].present?
-      links << link_to("Open active Wringer cache", payload[:active_cache_url])
+      links << link_to(shadow_report_active_cache_label(payload), payload[:active_cache_url])
     end
 
     Array(payload[:secondary_links]).each do |link|
@@ -481,6 +492,14 @@ module Distillator::ShadowReportsHelper
   end
 
   private
+
+  def shadow_report_cache_result_label(cache)
+    Distillator::TransitionStatus.cache_fetch_failed?(cache) ? "Open failed cache result" : "Open Condenser cache"
+  end
+
+  def shadow_report_active_cache_label(payload)
+    payload[:active_backend].to_s == "condenser" ? "Open active Condenser cache" : "Open active Wringer cache"
+  end
 
   def shadow_report_summary_card(title, count, tone, description)
     {
@@ -504,26 +523,12 @@ module Distillator::ShadowReportsHelper
         params: { website_id: row.website.id }.merge(return_to)
       }
     ]
-    links << { label: "Inspect publishable event pages", url: webpages_path(seedurl: row.website.seedurl) }
+    links << { label: "Inspect publishable event pages", url: website_publishable_event_pages_path(row.website) }
     links << { label: "Open cache diagnostics", url: website_cache_diagnostics_path(row.website) }
 
     links.uniq { |link| [link[:label], link[:url]] }
   end
 
-  def shadow_report_transition_evidence_row(explanation, detail)
-    evidence = detail.transition_evidence_by_kind[explanation.key]
-
-    {
-      label: explanation.check,
-      status: shadow_report_transition_evidence_status_label(explanation.state),
-      checked_at: shadow_report_timestamp(evidence&.checked_at),
-      url: evidence&.url.presence || "Not recorded",
-      headline: explanation.headline,
-      next_action: explanation.next_action,
-      details: explanation.details,
-      links: shadow_report_explanation_links(explanation, detail.summary.website, detail: detail)
-    }
-  end
 
   def shadow_report_sampled_explanation(detail, url)
     detail.transition_evidence_explanations.find do |explanation|
@@ -547,21 +552,21 @@ module Distillator::ShadowReportsHelper
 
   def shadow_report_fetch_blocker_links(detail)
     links = []
-    failed_cache_path = shadow_report_failed_cache_result_path(detail)
+    cache_result_path = shadow_report_cache_result_path(detail)
     compare_path = shadow_report_compare_cache_path(detail)
     compare_statements_path = shadow_report_compare_statements_path(detail)
-    active_wringer_path = shadow_report_active_wringer_cache_path(detail)
+    active_cache_path = shadow_report_active_cache_path(detail)
     condenser_path = shadow_report_condenser_cache_path(detail)
 
-    links << link_to("Open failed cache result", failed_cache_path) if failed_cache_path.present?
+    links << link_to(shadow_report_cache_result_label(detail.summary.cache), cache_result_path) if cache_result_path.present?
     links << link_to("Compare Condenser vs Wringer", compare_path) if compare_path.present?
     links << link_to("Compare extracted statements", compare_statements_path) if compare_statements_path.present?
-    links << link_to("Open active Wringer cache", active_wringer_path) if active_wringer_path.present?
-    links << link_to("Open Condenser cache", condenser_path) if condenser_path.present? && condenser_path != failed_cache_path
+    links << link_to(shadow_report_active_cache_label(detail.summary.cache_link_payload || {}), active_cache_path) if active_cache_path.present?
+    links << link_to("Open Condenser cache", condenser_path) if condenser_path.present? && condenser_path != cache_result_path
     links
   end
 
-  def shadow_report_failed_cache_result_path(detail)
+  def shadow_report_cache_result_path(detail)
     cache = detail.summary.cache
     return distillator_cache_path(cache) if cache.present?
 
@@ -584,7 +589,7 @@ module Distillator::ShadowReportsHelper
     compare_extracted_statements_path(url: url, website_id: detail.summary.website.id)
   end
 
-  def shadow_report_active_wringer_cache_path(detail)
+  def shadow_report_active_cache_path(detail)
     payload = detail.summary.cache_link_payload || {}
     payload[:active_cache_url]
   end

@@ -1391,8 +1391,8 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
       configuration_digest: website.latest_completed_transition_run.configuration_digest, error_message: "New comparison failed")
     get website_url(website)
     assert_response :success
-    assert_select '#website-transition strong', text: /Comparison needs attention: New comparison failed/
-    assert_select '#website-transition strong', text: "Reviewed and accepted for this activation.", count: 0
+    assert_select '#website-transition strong', text: "Reviewed and accepted for this activation."
+    assert_select '#website-batch-jobs-transition', text: /New comparison failed/
   end
 
   private

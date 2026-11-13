@@ -3,6 +3,8 @@ module Distillator
     Result = Struct.new(
       :summary,
       :transition_status,
+      :completed_transition_status,
+      :operation_status,
       :transition_evidence_by_kind,
       :transition_evidence_explanations,
       :latest_transition_evidence_checked_at,
@@ -36,15 +38,17 @@ module Distillator
       Result.new(
         summary: summary,
         transition_status: transition_status,
+        completed_transition_status: completed_transition_status,
+        operation_status: operation_status,
         transition_evidence_by_kind: transition_evidence_by_kind,
         transition_evidence_explanations: transition_evidence_explanations,
-        latest_transition_evidence_checked_at: website.latest_transition_evidence_checked_at,
-        transition_check_requested_at: website.transition_check_requested_at,
-        transition_run_id: website.latest_transition_run&.id,
-        completed_transition_run_id: website.latest_completed_transition_run&.id,
-        transition_run_status: website.latest_transition_run&.status,
-        transition_run_error: website.latest_transition_run&.error_message,
-        pending_transition_batch_check: website.pending_transition_batch_check?,
+        latest_transition_evidence_checked_at: operation_status.completed_run&.completed_at,
+        transition_check_requested_at: latest_run&.requested_at,
+        transition_run_id: latest_run&.id,
+        completed_transition_run_id: operation_status.completed_run&.id,
+        transition_run_status: latest_run&.status,
+        transition_run_error: latest_run&.error_message,
+        pending_transition_batch_check: pending_check?,
         primary_blocker: primary_blocker,
         statement_failure_groups: statement_failure_groups,
         url_matrix: url_matrix,
@@ -52,7 +56,7 @@ module Distillator
         checked_scope: checked_scope,
         decision: decision,
         rollout_notes: rollout_notes,
-        recent_rollout_events: website.rollout_events.order(created_at: :desc).limit(5)
+        recent_rollout_events: website.rollout_events.order(created_at: :desc, id: :desc).limit(5)
       )
     end
 
@@ -61,23 +65,45 @@ module Distillator
     attr_reader :website, :cache
 
     def summary
-      @summary ||= Distillator::ShadowSiteSummary.call(website: website, cache: resolved_cache, include_cache_links: true)
+      @summary ||= Distillator::ShadowSiteSummary.call(website: website, cache: resolved_cache, include_cache_links: true,
+        evidence_by_kind: transition_evidence_by_kind, current_run: latest_run)
     end
 
     def transition_status
       @transition_status ||= Distillator::TransitionStatus.call(
         website: website,
         cache: resolved_cache,
-        evidence_by_kind: transition_evidence_by_kind
+        evidence_by_kind: transition_evidence_by_kind,
+        current_run: latest_run
       )
     end
 
     def transition_evidence_by_kind
-      @transition_evidence_by_kind ||= website.latest_transition_evidences_by_kind
+      operation_status.evidence_by_kind
+    end
+
+    def latest_run
+      operation_status.latest_run
+    end
+
+    def pending_check?
+      latest_run&.status.in?(%w[queued running])
+    end
+
+    def operation_status
+      @operation_status ||= Distillator::WebsiteOperationStatus.new(website: website, cache: resolved_cache)
+    end
+
+    def completed_transition_status
+      operation_status.completed_comparison
+    end
+
+    def evidence_status
+      completed_transition_status || transition_status
     end
 
     def transition_evidence_explanations
-      @transition_evidence_explanations ||= transition_status.checks.map do |check|
+      @transition_evidence_explanations ||= evidence_status.checks.map do |check|
         evidence_key = evidence_key_for(check)
         Distillator::TransitionEvidenceExplanation.call(
           check_kind: evidence_key,
@@ -106,6 +132,9 @@ module Distillator
           selection_rule: statement_details["selection_rule"] || export_details["selection_rule"] || fetch_details["selection_rule"] || Distillator::TransitionCheck::SELECTION_RULE,
           selected_candidate_tier_count: (statement_details["selected_candidate_tier_count"] || export_details["selected_candidate_tier_count"] || fetch_details["selected_candidate_tier_count"]).to_i,
           statements_refreshed_count: (statement_details["statements_refreshed_count"] || 0).to_i,
+          statements_compared_count: integer_detail(statement_details, "statements_compared_count"),
+          paired_extraction: statement_details["comparison_basis"] == "paired_dsl" || statement_details["source"] == "paired_extraction",
+          statement_check_status: evidence_status.statements,
           statements_failed_count: (statement_details["statements_failed_count"] || transition_evidence_by_kind["statement_delta"]&.statement_delta || 0).to_i,
           critical_statements_failed_count: integer_detail(statement_details, "critical_statements_failed_count"),
           optional_statements_failed_count: integer_detail(statement_details, "optional_statements_failed_count"),
@@ -256,6 +285,13 @@ module Distillator
     end
 
     def decision
+      if website.distillator_mode == "active"
+        return @decision ||= { label: "Active on Condenser", why: [Distillator::RolloutCopy.description("active")], recommended_action: active_next_action }
+      end
+      if website.distillator_mode == "legacy"
+        return @decision ||= { label: "Legacy Wringer active", why: ["Wringer serves this website."],
+          recommended_action: "Move to Shadow before considering activation." }
+      end
       @decision ||= begin
         action = if primary_blocker.present?
           primary_blocker.next_action
@@ -263,6 +299,8 @@ module Distillator
           "Use the review checklist, then activate with a recorded reason if the content is acceptable."
         elsif transition_status.status == :ready
           "Promote to active when you are satisfied with the evidence."
+        elsif pending_check?
+          "Wait for run ##{latest_run.id} to finish, then reload this report."
         else
           transition_status.primary_action
         end
@@ -311,10 +349,23 @@ module Distillator
     end
 
     def decision_reasons
+      return transition_status.blockers if transition_status.blockers.any?
       return [primary_blocker.headline] if primary_blocker.present?
       return transition_status.warnings.presence if transition_status.warnings.any?
 
       ["All sampled transition checks are currently passing."]
+    end
+
+    def active_next_action
+      return "Inspect the latest failed fetch and validate event extraction." if operation_status.observed_fetch[:failed]
+      run = latest_run
+      return "Wait for run ##{run.id} to finish, then reload this report." if pending_check?
+      return "Inspect failed run ##{run.id}, fix the reported error, then run a new check." if run&.status == "failed"
+      blocker = website.transition_run_blocker(run)
+      return blocker if blocker.present?
+      return "Investigate the differences in the latest comparison." if !operation_status.reviewed_completed_comparison? && completed_transition_status&.status.in?(%i[blocked review])
+
+      "Monitor normal fetching and event extraction."
     end
 
     def evidence_key_for(check)
@@ -442,6 +493,11 @@ module Distillator
     end
 
     def cache_compare_reason(row)
+      summary = row[:compare_summary].to_h.stringify_keys
+      fields = Array(summary["blocking_regressions"]).presence || Array(summary["review_needed_diffs"]).presence
+      if fields
+        return "Fields: #{fields.map { |field| field.to_s == 'html_sha256' ? 'HTML body' : field.to_s.humanize.downcase }.join(', ')}"
+      end
       return row[:comparison_status] if row[:comparison_status].present? && row[:comparison_status] != "passed"
       return "metadata_only_difference" if row[:comparison_status] == "metadata_only"
 
@@ -453,7 +509,7 @@ module Distillator
       {
         url: url,
         webpage_id: website.webpages.find_by(url: url)&.id,
-        fetch_status: transition_status.fetch == :failed ? "failed" : "passed",
+        fetch_status: evidence_status.fetch == :failed ? "failed" : "passed",
         fetch_reason: details["reason"] || details[:reason] || "ok",
         legacy_lookup_status: details["legacy_lookup_status"] || details[:legacy_lookup_status] || "ok",
         legacy_lookup_error: details["legacy_lookup_error"] || details[:legacy_lookup_error],
@@ -465,13 +521,13 @@ module Distillator
       details = transition_evidence_by_kind["statement_delta"]&.details.to_h || {}
       {
         url: url,
-        status: case transition_status.statements
+        status: case evidence_status.statements
                 when :passed then "passed"
                 when :warning then "warning"
                 when :failed then "failed"
                 when :not_evaluated then "blocked_by_fetch"
                 when :inconclusive then "inconclusive"
-                else transition_status.statements.to_s
+                else evidence_status.statements.to_s
                 end,
         reason: details["reason"] || details[:reason]
       }
@@ -481,12 +537,12 @@ module Distillator
       details = transition_evidence_by_kind["export_diff"]&.details.to_h || {}
       {
         url: url,
-        status: case transition_status.export
+        status: case evidence_status.export
                 when :passed then "checked"
                 when :failed then "failed"
                 when :blocked_by_fetch then "blocked_by_fetch"
                 when :inconclusive then "inconclusive"
-                else transition_status.export.to_s
+                else evidence_status.export.to_s
                 end,
         reason: details["reason"] || details[:reason]
       }
