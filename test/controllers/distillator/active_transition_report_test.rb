@@ -214,6 +214,40 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     assert_equal "active", @website.reload.distillator_mode
   end
 
+  test "a pinned report retains the requested run after a newer comparison and never offers historical activation" do
+    newer = publish_recheck(statement_status: "failed")
+    @website.update!(distillator_mode: "shadow")
+    get distillator_shadow_report_site_path(@website, run_id: @completed.id)
+    assert_response :success
+    assert_select '#historical-transition-run', text: /Historical comparison for run ##{@completed.id}/
+    assert_select '#transition-report-summary', text: /Completed transition run:\s*##{@completed.id}/
+    assert_select '#transition-report-summary', text: /Current mode:\s*Shadow/
+    assert_select '#transition-url-diagnostics td:nth-child(5)', text: /\APassed\b/
+    assert_not_includes response.body, "Review checklist"
+    assert_not_includes response.body, "Safe to promote"
+
+    get distillator_shadow_report_site_path(@website, run_id: newer.id)
+    assert_response :success
+    assert_select '#historical-transition-run', count: 0
+    assert_select '#transition-report-summary', text: /Completed transition run:\s*##{newer.id}/
+    assert_select '#transition-url-diagnostics td:nth-child(5)', text: /\AFailed\b/
+  end
+
+  test "report selection cannot read a different website's run" do
+    other = websites(:two)
+    get distillator_shadow_report_site_path(other, run_id: @completed.id)
+    assert_response :not_found
+  end
+
+  test "an unfinished or failed explicit run opens its own status instead of another run's evidence" do
+    run = request_run
+    get distillator_shadow_report_site_path(@website, run_id: run.id)
+    assert_redirected_to distillator_transition_check_path(run)
+    run.fail!("Could not finish")
+    get distillator_shadow_report_site_path(@website, run_id: run.id)
+    assert_redirected_to distillator_transition_check_path(run)
+  end
+
   private
 
   def request_run
@@ -231,6 +265,11 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
         elsif record.check_kind == "statement_delta"
           attrs["status"] = statement_status
           attrs["statement_count_delta_acceptable"] = statement_status == "checked"
+          if statement_status == "failed"
+            attrs["details"] = attrs["details"].merge("representative_url_statement_results" => [
+              { url: @url, status: "failed", reason: "paired_statement_mismatch" }
+            ])
+          end
         end
         run.transition_evidences.create!(attrs.merge("checked_at" => Time.current))
       end

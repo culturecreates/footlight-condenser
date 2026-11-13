@@ -2,12 +2,12 @@ module Distillator
   class WebsiteOperationStatus
     attr_reader :website, :cache, :comparison, :completed_run, :latest_run, :evidence_by_kind
 
-    def initialize(website:, cache: nil)
+    def initialize(website:, cache: nil, transition_run: nil)
       @website = website
       @cache = cache
       # Bind IDs, evidence and status to one observation. A run finishing while
       # the page renders cannot replace only part of the displayed comparison.
-      @latest_run = website.latest_transition_run
+      @latest_run = transition_run || website.latest_transition_run
       @completed_run = if latest_run&.status == "completed"
         latest_run
       elsif latest_run

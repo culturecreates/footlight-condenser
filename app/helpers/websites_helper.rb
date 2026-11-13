@@ -294,7 +294,7 @@ module WebsitesHelper
   end
 
   def website_transition_batch_check_copy
-    "Transition checks are run by batch job. This page displays the latest result."
+    "Run a background comparison. A status page follows the run and opens its completed report automatically."
   end
 
   def website_transition_evidence_freshness_text(website)
@@ -593,6 +593,7 @@ module WebsitesHelper
     elsif %w[legacy shadow].include?(mode) && website_transition_runtime_override_allowed?
       actions << {
         kind: :override,
+        emergency: true,
         label: "Activate anyway",
         path: activate_anyway_website_path(website),
         method: :post,

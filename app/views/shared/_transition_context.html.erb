@@ -66,7 +66,7 @@
           <%= button_to action[:label], action[:path], method: action[:method], params: action[:params], class: "website-transition-button" %>
         <% elsif action[:kind] == :override %>
           <details class="website-transition-override">
-            <summary><%= action[:label] %></summary>
+            <summary><%= action[:emergency] ? "Emergency activation override" : action[:label] %></summary>
             <p><%= action[:copy] %></p>
             <%= form_with url: action[:path], method: action[:method], local: true, class: "website-transition-override-form" do |form| %>
               <%= form.label :reason, "Reason" %>

@@ -1,6 +1,12 @@
 <h1>Transition Report Detail</h1>
 
-<p class="cache-page-note">This page is read-only. Transition checks are run by batch job; this page displays the last completed result. Checks compare extracted values without updating stored statements.</p>
+<p class="cache-page-note">This report is read-only. Checks compare extracted values without updating stored statements.
+  <%= @report_run ? "This report is pinned to completed run ##{@report_run.id}." : "This page displays the latest completed comparison." %></p>
+
+<% if @historical_run %>
+  <p class="cache-page-notice" id="historical-transition-run"><strong>Historical comparison for run #<%= @report_run.id %>.</strong>
+    A newer check exists. <%= link_to "View current transition status", distillator_shadow_report_site_path(@website) %>.</p>
+<% end %>
 
 <% active = @website.distillator_mode == "active" %>
 <% shadow = @website.distillator_mode == "shadow" %>
@@ -9,7 +15,10 @@
 
 <section id="transition-report-summary" class="website-rollout-panel">
   <h2>Summary</h2>
-  <% if active %>
+  <% if @historical_run %>
+    <p><strong>Current mode:</strong> <%= @website.distillator_mode.humanize %> ·
+      <strong>Production backend:</strong> <%= website_rollout_backend_for(@website) %></p>
+  <% elsif active %>
     <p><strong><%= shadow_report_decision_label(@detail.decision) %></strong></p>
     <% if operation.activation %>
       <p><%= Distillator::WebsiteOperationStatus.event_label(operation.activation) %> · <%= shadow_report_timestamp(operation.activation.created_at) %></p>
@@ -30,7 +39,7 @@
   <% end %>
   <% if @detail.completed_transition_run_id %>
     <p><strong>Completed transition run:</strong> #<%= @detail.completed_transition_run_id %></p>
-    <p><strong>Latest completed evidence:</strong> <%= shadow_report_timestamp(@detail.latest_transition_evidence_checked_at) %></p>
+    <p><strong><%= @report_run ? "Completed at" : "Latest completed evidence" %>:</strong> <%= shadow_report_timestamp(@detail.latest_transition_evidence_checked_at) %></p>
   <% else %>
     <p>No completed comparison recorded.</p>
   <% end %>
@@ -42,12 +51,13 @@
       <p><strong>Requested scope:</strong> <%= requested_options.selection_rule %>
         <%= requested_options.field_policy_label %>.</p>
       <p><%= @detail.completed_transition_run_id ? "Results below remain from completed run ##{@detail.completed_transition_run_id}." : "Results will appear when all phases finish." %></p>
+      <p><%= link_to "Follow run ##{@detail.transition_run_id} and open its report automatically", distillator_transition_check_path(@detail.transition_run_id) %></p>
     <% elsif @detail.transition_run_status == "failed" %>
       <p class="cache-page-notice"><strong>Run #<%= @detail.transition_run_id %> failed:</strong> <%= @detail.transition_run_error %></p>
       <% if @detail.completed_transition_run_id %><p>Results below remain from completed run #<%= @detail.completed_transition_run_id %>.</p><% end %>
     <% end %>
   </div>
-  <% unless shadow %><p><strong>Next step:</strong> <%= @detail.decision[:recommended_action] %></p><% end %>
+  <% unless shadow || @historical_run %><p><strong>Next step:</strong> <%= @detail.decision[:recommended_action] %></p><% end %>
   <p><strong>Links:</strong>
     <%= link_to "Website batch jobs", website_path(@website, anchor: "website-batch-jobs-transition") %> |
     <%= link_to "Inspect publishable event pages", website_publishable_event_pages_path(@website) %> |
@@ -56,8 +66,8 @@
 </section>
 
 <section class="website-rollout-panel">
-  <% unless shadow %>
-    <h2>Latest completed comparison</h2>
+  <% if !shadow || @historical_run %>
+    <h2><%= @report_run ? "Completed comparison" : "Latest completed comparison" %></h2>
     <p><strong><%= shadow_report_completed_comparison_label(@detail) %></strong></p>
     <% if completed_status && !operation.reviewed_completed_comparison? %>
       <% findings = completed_status.blockers.presence || completed_status.warnings %>
@@ -135,7 +145,7 @@
   </section>
 <% end %>
 
-<details class="website-rollout-panel">
+<details class="website-rollout-panel" id="transition-url-diagnostics">
   <summary>Sampled URL diagnostics</summary>
   <% if @detail.url_matrix.any? %>
     <table class="cache-table cache-compare-table">
@@ -260,7 +270,7 @@
   <h3>Recent rollout events</h3>
   <%= render "websites/rollout_history", events: @detail.recent_rollout_events %>
 
-  <% if shadow && @detail.transition_status.review_activation_eligible %>
+  <% if shadow && !@historical_run && @detail.transition_status.review_activation_eligible %>
     <h3>Review checklist</h3>
     <% sampled_webpages = shadow_report_sampled_webpages(@detail) %>
     <% first_sample = sampled_webpages.first %>

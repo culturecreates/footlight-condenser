@@ -3,10 +3,37 @@
 Open a website and use **Transition batch check**. These controls belong to the
 individual check, rather than the general Options page.
 
+Submitting a check opens `/distillator/transition_checks/:run_id`. It follows that
+specific run through Queued, Running, Completed or Failed. A lightweight JSON poll
+updates the status every five seconds; temporary network errors retry with backoff.
+The completed report opens automatically, pinned by `run_id`, even if a newer run
+has since started. Job completion is distinct from a passing comparison verdict.
+
+Reloading the status URL never submits another job. The website and pending report
+link back to the same status page so a check can be resumed after navigating away.
+Without JavaScript, use **Refresh status** and the completed-report link. Failed
+or expired checks stay on the status page and offer **Retry with the same options**,
+which creates a new run; an equivalent active run is reused. Authentication loss
+stops polling and asks the operator to refresh and sign in again.
+
+Earlier completed reports remain available by run ID, visibly labeled as historical
+when a newer check exists. Their evidence and scope cannot be replaced by a later
+run. Historical reports do not recommend activation for the current website.
+
 | Control | Choices |
 | --- | --- |
 | Event sample | Default sample, a fixed number (1–1000), or all publishable event pages |
 | Field comparison | Standard or Strict |
+
+The page-count input becomes editable only for **Fixed number of pages**. Selecting
+Strict does not increase the sample; quantity and field policy remain independent.
+The status page repeats the options recorded on the run. Emergency **Activate
+anyway** is separated from normal migration controls in a collapsed section; it
+still requires a reason and retains the existing runtime restrictions and audit.
+
+The browser polling and sample controls have dependency-free tests:
+`yarn test:transition-ui`. Backend lifecycle, retry, exact-run report selection and
+rollback behavior are covered by controller and transition regression tests.
 
 The default sample is unchanged: 20%, minimum five, maximum 25, or all pages when
 fewer than five exist. For Petit Théâtre's nine publishable events, choose **All**

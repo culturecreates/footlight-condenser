@@ -6,7 +6,8 @@
     "yarn": "1.22.22"
   },
   "scripts": {
-    "build": "esbuild app/javascript/*.* --bundle --sourcemap --format=esm --outdir=app/assets/builds --public-path=/assets"
+    "build": "esbuild app/javascript/*.* --bundle --sourcemap --format=esm --outdir=app/assets/builds --public-path=/assets",
+    "test:transition-ui": "node --test test/javascript/transition_checks_test.mjs"
   },
   "dependencies": {
     "esbuild": "^0.28.1",

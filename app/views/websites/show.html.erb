@@ -78,7 +78,7 @@
     </p>
   <% end %>
 
-  <% transition_contract[:secondary_actions].each do |action| %>
+  <% transition_contract[:secondary_actions].reject { |action| action[:emergency] }.each do |action| %>
     <% if action[:kind] == :override %>
       <details class="website-transition-override">
         <summary><%= action[:label] %></summary>
@@ -108,7 +108,7 @@
             ["Default sample (20%, minimum 5, maximum 25)", "default"],
             ["Fixed number of pages", "count"], ["All publishable event pages", "all"]
           ], check_options.sample_mode) %>
-          <%= label_tag "check_options_sample_size", "Fixed count" %>
+          <%= label_tag "check_options_sample_size", "Page count (Fixed number of pages only)" %>
           <%= number_field_tag "check_options[sample_size]", check_options.sample_size || 25,
             min: 1, max: Distillator::TransitionCheckOptions::MAX_SAMPLE_SIZE, step: 1 %>
         </p>
@@ -125,8 +125,24 @@
       </fieldset>
     <% end %>
     <p><%= website_transition_evidence_freshness_text(@website) %></p>
+    <% if latest_run %>
+      <p><%= link_to "View run ##{latest_run.id} status", distillator_transition_check_path(latest_run) %></p>
+    <% end %>
   </section>
 </section>
+
+<% transition_contract[:secondary_actions].select { |action| action[:emergency] }.each do |action| %>
+  <details class="website-transition-override website-show-section" id="website-emergency-override">
+    <summary>Emergency activation override</summary>
+    <p>Bypasses transition gates, including a queued or running check. Use only for an intentional emergency activation.</p>
+    <p><%= action[:copy] %></p>
+    <%= form_with url: action[:path], method: action[:method], local: true, class: "website-transition-override-form" do |form| %>
+      <%= form.label :reason, "Emergency activation reason" %>
+      <%= form.text_field :reason, required: true %>
+      <%= form.submit action[:label] %>
+    <% end %>
+  </details>
+<% end %>
 
 <section class="website-rollout-panel website-show-section">
   <h2>Drill-down links</h2>

@@ -29,9 +29,10 @@ module Distillator
       new(...).call
     end
 
-    def initialize(website:, cache: nil)
+    def initialize(website:, cache: nil, transition_run: nil)
       @website = website
       @cache = cache
+      @transition_run = transition_run
     end
 
     def call
@@ -91,7 +92,7 @@ module Distillator
     end
 
     def operation_status
-      @operation_status ||= Distillator::WebsiteOperationStatus.new(website: website, cache: resolved_cache)
+      @operation_status ||= Distillator::WebsiteOperationStatus.new(website: website, cache: resolved_cache, transition_run: @transition_run)
     end
 
     def completed_transition_status

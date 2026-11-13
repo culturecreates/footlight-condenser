@@ -125,7 +125,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Shadow"
     assert_includes @response.body, "Latest transition report"
     assert_includes @response.body, "Run transition batch check"
-    assert_includes @response.body, "Transition checks are run by batch job. This page displays the latest result."
+    assert_includes @response.body, "A status page follows the run and opens its completed report automatically."
     assert_includes @response.body, "Open cache diagnostics"
     assert_includes @response.body, "Inspect publishable event pages"
     assert_select "input[name='website_id'][value='#{@website.id}']"
@@ -134,7 +134,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Operations"
     assert_includes @response.body, "Drill-down links"
     assert_select '#website-batch-jobs-transition input[type=submit][value="Run transition batch check"]', count: 1
-    assert_equal 1, @response.body.scan("Transition checks are run by batch job. This page displays the latest result.").size
+    assert_equal 1, @response.body.scan("A status page follows the run and opens its completed report automatically.").size
     assert_equal 1, @response.body.scan("Latest transition report").size
     assert_not_includes @response.body, "Queue transition check"
     assert_includes @response.body, "Danger zone"
@@ -1408,6 +1408,21 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_select '#website-batch-jobs-transition option[value="all"][selected]'
     assert_select '#website-batch-jobs-transition option[value="strict"][selected]'
     assert_equal run.id, @website.latest_transition_run.id
+    assert_select 'a[href="' + distillator_transition_check_path(run) + '"]', text: "View run ##{run.id} status"
+  end
+
+  test "emergency activation is collapsed and separate from normal controls while a check is queued" do
+    Distillator::TransitionRuntime.stubs(:allow_active_override?).returns(true)
+    @website.update!(distillator_mode: "legacy")
+    Distillator::TransitionRun.request!(website: @website)
+    get website_url(@website)
+    assert_response :success
+    assert_select '#website-emergency-override:not([open])' do
+      assert_select 'summary', text: "Emergency activation override"
+      assert_select 'input[type=submit][value="Activate anyway"]'
+    end
+    assert_select '#website-batch-jobs-transition input[value="Activate anyway"]', count: 0
+    assert_select '.website-transition-check-form input[value="Activate anyway"]', count: 0
   end
 
   private

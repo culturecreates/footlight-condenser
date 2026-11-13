@@ -157,7 +157,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
-    assert_match "This page is read-only. Transition checks are run by batch job; this page displays the last completed result.", @response.body
+    assert_match "This report is read-only. Checks compare extracted values without updating stored statements.", @response.body
     assert_match "Summary", @response.body
     assert_match "Decision", @response.body
     assert_match "Statement equivalence", @response.body

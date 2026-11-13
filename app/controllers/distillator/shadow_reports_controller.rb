@@ -50,7 +50,12 @@ module Distillator
 
     def show
       @website = Website.find(params[:id])
-      @detail = Distillator::ShadowSiteDetail.call(website: @website)
+      @report_run = @website.transition_runs.find(params[:run_id]) if params[:run_id].present?
+      if @report_run && @report_run.status != "completed"
+        return redirect_to distillator_transition_check_path(@report_run)
+      end
+      @historical_run = @report_run && @report_run.id != @website.latest_transition_run&.id
+      @detail = Distillator::ShadowSiteDetail.call(website: @website, transition_run: @report_run)
     end
 
     private

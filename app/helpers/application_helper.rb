@@ -113,12 +113,14 @@ module ApplicationHelper
   end
 
   def show_transition_context?
+    return false if controller_path == "distillator/transition_checks"
+
     transition_context_website.present? && !(%w[websites webpages sources statements].include?(controller_name) && action_name == "show")
   end
 
   def suppress_operator_context_card?
     (%w[websites webpages statements].include?(controller_name) && action_name == "show") ||
-      (controller_path == "distillator/shadow_reports" && action_name == "show")
+      (%w[distillator/shadow_reports distillator/transition_checks].include?(controller_path) && action_name == "show")
   end
 
   def current_wringer_status_text

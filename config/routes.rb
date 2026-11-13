@@ -30,7 +30,7 @@ Rails.application.routes.draw do
     get :capabilities, to: "capabilities#index", as: :capabilities
     get :shadow_report, to: "shadow_reports#index", as: :shadow_report
     get "shadow_report/:id", to: "shadow_reports#show", as: :shadow_report_site
-    resources :transition_checks, only: [:create]
+    resources :transition_checks, only: [:create, :show]
 
     resources :cache, only: [:index, :show], controller: "cache" do
       collection do
