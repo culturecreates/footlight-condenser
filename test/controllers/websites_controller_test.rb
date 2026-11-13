@@ -38,11 +38,104 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Legacy:"
     assert_includes @response.body, "Shadow:"
     assert_includes @response.body, "Active:"
-    assert_includes @response.body, "Unknown:"
+    assert_select '.website-rollout-summary a', text: /Unknown:/, count: 0
     assert_includes @response.body, "La Vitrine pipeline"
     assert_includes @response.body, "Website rollout filters"
     assert_select 'details[data-operator-context-card]', 0
     assert_no_cohort_source_requests
+  end
+
+  test "overview shows compact rows with hidden detail panels and no per-site readiness calculation" do
+    Distillator::ShadowSiteSummary.expects(:call).never
+    assert_read_only_page_does_not_fetch
+    get websites_url
+
+    assert_response :success
+    Nokogiri::HTML(@response.body).css('.website-index-table').each do |table|
+      assert_equal 8, table.css('thead th').length
+    end
+    assert_select '.website-index-row', count: Website.count
+    assert_select 'tr.website-index-detail-row[hidden]', count: Website.count
+    assert_select 'button[data-website-details][aria-expanded="false"][hidden]', count: Website.count
+    assert_select 'select[name="distillator_mode"]', count: 1
+    assert_select 'select[name="cohort"]', count: 1
+    assert_select '.website-index-advanced:not([open])', count: 1
+    assert_select '.website-index-row .webpage-summary-cell', count: 0
+    assert_select '.website-index-detail-row .webpage-summary-cell', count: Website.count
+    assert_select '.website-index-actions a', text: "Sources", count: Website.count
+  end
+
+  test "website search matches seedurl and mode chips preserve the other filters" do
+    website = Website.create!(name: "A different display name", seedurl: "unique-search-key",
+      graph_name: "https://example.org/search", default_language: "fr", distillator_mode: "shadow")
+    get websites_url, params: { q: "UNIQUE-SEARCH-KEY", default_language: "fr", sort: "name", direction: "desc" }
+
+    assert_response :success
+    assert_select '.website-index-row', count: 1
+    assert_select '.website-index-row th a', text: website.name
+    link = Nokogiri::HTML(@response.body).at_css('.website-rollout-summary a.website-rollout-summary-link')
+    query = Rack::Utils.parse_nested_query(URI.parse(link['href']).query)
+    assert_equal "UNIQUE-SEARCH-KEY", query["q"]
+    assert_equal "fr", query["default_language"]
+    assert_equal "desc", query["direction"]
+    assert_select '.website-index-advanced[open]', count: 1
+  end
+
+  test "cohort and mode filters compose without losing sorting or raising an array query error" do
+    chosen = Website.create!(name: "Vieux Noranda", seedurl: "petittheatre-org", graph_name: "https://example.org/pilot", default_language: "fr", distillator_mode: "shadow")
+    Website.create!(name: "Hector legacy", seedurl: "hector-charland-com", graph_name: "https://example.org/legacy", default_language: "fr", distillator_mode: "legacy")
+    get websites_url, params: { cohort: "lavitrine_pipeline", distillator_mode: "shadow", sort: "webpages_count", direction: "desc" }
+
+    assert_response :success
+    assert_select '.website-index-row', count: 1
+    assert_select '.website-index-row th a', text: chosen.name
+    assert_select 'a[aria-current="page"]', text: /Shadow:/
+  end
+
+  test "no-match results explain the empty state and keep reset available" do
+    get websites_url, params: { q: "no-such-site-987654" }
+    assert_response :success
+    assert_select '.website-index-row', count: 0
+    assert_includes @response.body, "No websites match these filters"
+    assert_harmonized_reset_filters_link(path: "/websites")
+  end
+
+  test "scheduled list is the default and other categories including manual French site are collapsed" do
+    scheduled = Website.create!(name: "Scheduled venue", seedurl: "scheduled-venue", graph_name: "https://example.org/scheduled", default_language: "fr", schedule_every_days: 1)
+    manual = Website.create!(name: "Manual French", seedurl: "footlight-manual-fr", graph_name: "https://example.org/manual", default_language: "fr")
+    trial = Website.create!(name: "Code Snippet Test Site", seedurl: "code-snippet-test", graph_name: "https://example.org/test", default_language: "fr", schedule_every_days: 1)
+    entity = Website.create!(name: "SPEC Artists", seedurl: "spec-qc-ca-people", graph_name: "https://example.org/people", default_language: "fr")
+    get websites_url
+
+    assert_response :success
+    assert_select "#website-list-scheduled + .website-index-table-scroll .website-index-row[data-website-id='#{scheduled.id}']", count: 1
+    { templates: manual, tests: trial, entities: entity }.each do |category, website|
+      assert_select "#website-list-#{category} .website-index-row[data-website-id='#{website.id}']", count: 1
+      assert_select "#website-list-#{category}[open]", count: 0
+      assert_select ".website-index-row[data-website-id='#{website.id}']", count: 1
+    end
+  end
+
+  test "clearing or zeroing a saved schedule moves the site to Unscheduled and restoring it moves it back" do
+    website = Website.create!(name: "Schedule movement", seedurl: "schedule-movement", graph_name: "https://example.org/movement", default_language: "fr", distillator_mode: "shadow", schedule_every_days: 1)
+    [0, "", 2].each do |days|
+      patch website_url(website), params: { website: { schedule_every_days: days, distillator_mode: "shadow" } }
+      assert_response :redirect
+      get websites_url
+      assert_response :success
+      category = days == 2 ? "scheduled" : "unscheduled"
+      selector = category == "scheduled" ? "#website-list-scheduled + .website-index-table-scroll" : "#website-list-unscheduled"
+      assert_select "#{selector} .website-index-row[data-website-id='#{website.id}']", count: 1
+    end
+  end
+
+  test "search reveals matching category automatically without reclassifying or changing its schedule" do
+    website = Website.create!(name: "Searchable test feed", seedurl: "searchable-test-feed", graph_name: "https://example.org/search-test", default_language: "fr", schedule_every_days: 3)
+    get websites_url, params: { q: "searchable-test-feed" }
+    assert_response :success
+    assert_select '#website-list-tests[open] .website-index-row', count: 1
+    assert_equal 3, website.reload.schedule_every_days
+    assert_select '#website-list-tests th a[href*="sort=name"][href$="#website-list-tests"]', count: 1
   end
 
   test "websites index renders typed webpage summary cell with scoped links" do
@@ -708,11 +801,11 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
   test "index shows direction indicator on active sort column" do
     get websites_url, params: { sort: "name", direction: "asc" }
     assert_response :success
-    assert_includes @response.body, "Name ↑"
+    assert_includes @response.body, "Website ↑"
 
     get websites_url, params: { sort: "name", direction: "desc" }
     assert_response :success
-    assert_includes @response.body, "Name ↓"
+    assert_includes @response.body, "Website ↓"
   end
 
   test "index falls back to safe defaults for invalid sort parameters" do
@@ -1050,7 +1143,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_sort_link_preserves_params(
-      label: "Name",
+      label: "Website",
       sort_key: "name",
       params: { distillator_mode: "shadow", q: "sort-target" }
     )
@@ -1269,7 +1362,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Legacy:"
     assert_includes @response.body, "Shadow:"
     assert_includes @response.body, "Active:"
-    assert_includes @response.body, "Unknown:"
+    assert_select '.website-rollout-summary a', text: /Unknown:/, count: 0
   end
 
   test "websites index summary counts include legacy shadow active and unknown" do

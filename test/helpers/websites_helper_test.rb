@@ -1,6 +1,15 @@
 require "test_helper"
 
 class WebsitesHelperTest < ActionView::TestCase
+  test "overview distinguishes unscheduled sites and missing refresh dates" do
+    website = build_website("legacy", seedurl: "overview-settings")
+    website.schedule_every_days = 0
+    website.last_refresh = nil
+    assert_equal "Not scheduled", website_index_schedule(website)
+    assert_includes website_index_refresh_time(website), "Never"
+    website.schedule_every_days = 2
+    assert_match /Every 2 days/, website_index_schedule(website)
+  end
   test "legacy contract exposes move to shadow only" do
     website = build_website("legacy", seedurl: "helper-legacy")
     Distillator::TransitionRuntime.stubs(:allow_active_override?).returns(false)

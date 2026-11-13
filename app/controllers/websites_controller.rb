@@ -63,7 +63,7 @@ class WebsitesController < ApplicationController
     invalid_cohort_filter = requested_cohort.present? && cleaned[:cohort].nil?
     return redirect_to(websites_path(canonical)) if invalid_rollout_filter || invalid_cohort_filter || canonical != normalized_raw
 
-    @filters = cleaned
+    @filters = cleaned.compact
 
     @current_sort = params[:sort].presence
     @current_direction = params[:direction].presence
@@ -72,7 +72,7 @@ class WebsitesController < ApplicationController
 
     if @filters[:q]
       keyword = "%#{@filters[:q].downcase}%"
-      @websites = @websites.where("LOWER(name) LIKE ?", keyword)
+      @websites = @websites.where("LOWER(name) LIKE ? OR LOWER(seedurl) LIKE ?", keyword, keyword)
     end
 
     if @filters[:seed_filter]
@@ -89,10 +89,6 @@ class WebsitesController < ApplicationController
       @websites = @websites.where("LOWER(graph_name) LIKE ?", keyword)
     end
 
-    if @filters[:cohort].present?
-      @websites = @websites.to_a.select { |website| helpers.website_matches_cohort_filter?(website, @filters[:cohort]) }
-    end
-
     case @filters[:distillator_mode]
     when "unknown"
       @websites = @websites.where(distillator_mode: [nil, ""])
@@ -102,6 +98,10 @@ class WebsitesController < ApplicationController
       nil
     else
       @websites = @websites.where(distillator_mode: @filters[:distillator_mode])
+    end
+
+    if @filters[:cohort].present?
+      @websites = @websites.to_a.select { |website| helpers.website_matches_cohort_filter?(website, @filters[:cohort]) }
     end
 
     @rollout_counts = Website.group(:distillator_mode).count

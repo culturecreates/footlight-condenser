@@ -65,16 +65,36 @@ module WebsitesHelper
     items + [{ mode: "invalid_on_staging", label: "Invalid on staging" }]
   end
 
-  def website_rollout_summary_link(mode:, label:, rollout_counts:, current_sort:, current_direction:)
+  def website_rollout_summary_link(mode:, label:, rollout_counts:, current_sort:, current_direction:, current_filters: {})
     count = website_rollout_count(mode, rollout_counts)
-    params = { distillator_mode: mode == "unknown" ? "unknown" : mode }
+    params = current_filters.merge(distillator_mode: mode)
     params[:sort] = current_sort if current_sort.present?
     params[:direction] = current_direction if current_direction.present?
-    link_to "#{label}: #{count}", websites_path(params.compact), class: "website-rollout-summary-link"
+    selected = current_filters[:distillator_mode].to_s == mode.to_s
+    link_to "#{label}: #{count}", websites_path(params.compact), class: "website-rollout-summary-link",
+      aria: { current: selected ? "page" : nil }
+  end
+
+  def website_index_refresh_time(website)
+    value = website.last_refresh
+    return content_tag(:span, "Never", class: "muted") unless value
+
+    time_tag value, value.in_time_zone.strftime("%Y-%m-%d %H:%M"), title: value.iso8601
+  end
+
+  def website_index_schedule(website)
+    days = website.schedule_every_days.to_i
+    return "Not scheduled" unless days.positive?
+
+    [days == 1 ? "Every day" : "Every #{days} days", display_time(website.schedule_time)].compact.join(" at ")
+  end
+
+  def website_index_sortable(column, label, group:)
+    admin_sortable(column, label, filters: @filters.merge(anchor: "website-list-#{group}"))
   end
 
   def website_rollout_filter_form_options
-    website_rollout_filter_options
+    website_rollout_filter_options.map { |label, mode| [mode.blank? ? "All modes" : label, mode] }
   end
 
   def website_cohort_badge(website)

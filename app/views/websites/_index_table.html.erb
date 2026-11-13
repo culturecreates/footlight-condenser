@@ -1,0 +1,62 @@
+<div class="website-index-table-scroll" tabindex="0" role="region" aria-label="Website overview">
+  <table class="cache-table website-index-table">
+    <caption class="website-index-sr-only">Website modes, page counts, statement activity and last refresh. Open Details for settings and operations.</caption>
+    <thead><tr>
+      <th scope="col"><%= website_index_sortable("name", "Website", group: group) %></th>
+      <th scope="col">Mode</th>
+      <th scope="col" class="website-index-number"><%= website_index_sortable("webpages_count", "Pages", group: group) %></th>
+      <th scope="col" class="website-index-number" title="Publishable pages across all resource classes, not only upcoming events">Publishable</th>
+      <th scope="col" class="website-index-number"><%= website_index_sortable("statements_count", "Statements", group: group) %></th>
+      <th scope="col" title="Statements refreshed / statements changed in the last 24 hours"><%= website_index_sortable("refreshed_24h", "Refreshed", group: group) %> / <%= website_index_sortable("updated_24h", "Changed", group: group) %> (24h)</th>
+      <th scope="col"><%= website_index_sortable("last_refresh", "Last refresh", group: group) %></th>
+      <th scope="col"><span class="website-index-sr-only">Actions</span></th>
+    </tr></thead>
+    <tbody>
+      <% websites.each do |website| %>
+        <% pages = @webpage_summaries.fetch(website.id, Distillator::WebsiteWebpageSummary.empty_summary) %>
+        <tr class="website-index-row" data-website-id="<%= website.id %>">
+          <th scope="row" class="website-index-name"><%= link_to website.name.presence || website.seedurl, website, title: website.seedurl %></th>
+          <td title="<%= website_rollout_explanation(website) %>"><%= website_rollout_badge(website) %></td>
+          <td class="website-index-number"><%= link_to number_with_delimiter(pages[:total]), website_webpages_filter_path(website) %></td>
+          <td class="website-index-number"><%= link_to number_with_delimiter(pages[:publishable]), website_webpages_filter_path(website, publishable: true) %></td>
+          <td class="website-index-number"><%= link_to number_with_delimiter(@statements_grouped[website.seedurl] || 0), statements_path(seedurl: website.seedurl) %></td>
+          <td class="website-index-activity"><%= number_with_delimiter(@statements_refreshed_24hr[website.seedurl] || 0) %> / <%= number_with_delimiter(@statements_updated_24hr[website.seedurl] || 0) %></td>
+          <td><%= website_index_refresh_time(website) %></td>
+          <td class="website-index-actions">
+            <%= link_to "Sources", website_sources_index_path(website) %>
+            <button type="button" data-website-details aria-expanded="false" aria-controls="website-details-<%= website.id %>" aria-label="Details for <%= website.name %>" hidden>Details</button>
+            <noscript><%= link_to "Details", website %></noscript>
+          </td>
+        </tr>
+        <tr id="website-details-<%= website.id %>" class="website-index-detail-row" hidden><td colspan="8">
+          <div class="website-index-detail-grid">
+            <section aria-label="Website settings">
+              <h2><%= website.name %></h2>
+              <dl>
+                <dt>Seedurl</dt><dd><%= website.seedurl %></dd>
+                <dt>Language</dt><dd><%= website.default_language.presence || "Not set" %></dd>
+                <dt>Schedule</dt><dd><%= website_index_schedule(website) %></dd>
+                <dt>Graph</dt><dd><%= website.graph_name.presence || "Not set" %></dd>
+                <dt>Backend</dt><dd><%= website_rollout_backend_for(website) %></dd>
+              </dl>
+              <%= website_cohort_badge(website) %>
+            </section>
+            <section aria-label="Webpage breakdown"><h2>Webpages</h2><%= website_webpage_summary_cell(website, pages) %></section>
+            <section aria-label="Website operations">
+              <h2>Operations</h2>
+              <nav class="website-index-operations">
+                <%= link_to "Website and batch jobs", website %>
+                <%= link_to "Transition report", distillator_shadow_report_site_path(website) %>
+                <% cache_links = website_cache_links(website) %>
+                <% if cache_links[:disabled] %><span><%= cache_links[:warning] %></span>
+                <% elsif cache_links[:active_cache_url].present? %><%= link_to cache_links[:label], cache_links[:active_cache_url] %><% end %>
+                <%= link_to "Export", graphs_website_queue_path(seedurl: website.seedurl) %>
+                <%= link_to "Edit settings", edit_website_path(website) %>
+              </nav>
+            </section>
+          </div>
+        </td></tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

@@ -1,141 +1,69 @@
+<section class="website-index">
+  <header class="website-index-header">
+    <div>
+      <h1>Websites</h1>
+      <p class="muted"><%= @filters.present? ? "#{@websites.size} of #{@rollout_counts.values.sum} sites match" : "#{@rollout_counts.values.sum} sites" %> · <%= number_to_human(@total_statements) %> statements across all websites</p>
+    </div>
+    <%= link_to "New Website", new_website_path, class: "website-index-primary-action" %>
+  </header>
 
-<h1>Websites</h1>
-Total Statements: <%= number_to_human(@total_statements) %>
-<br>
-Last 24 hrs:  <%= @statements_errors %> errors
-<br>
-<% if website_staging_rollout_warning.present? %>
-  <p class="cache-page-note"><strong><%= website_staging_rollout_warning %></strong></p>
-<% end %>
+  <% if @statements_errors.positive? %>
+    <p class="website-index-warning"><strong><%= number_with_delimiter(@statements_errors) %> statement errors in the last 24 hours.</strong></p>
+  <% end %>
+  <% if (staging_warning = website_staging_rollout_warning).present? %>
+    <p class="website-index-warning"><%= staging_warning %></p>
+  <% end %>
 
-<div class="harmonized-table-shell">
-  <div class="website-rollout-summary">
-    <% website_rollout_summary_items.each do |item| %>
-      <span class="website-rollout-summary-item">
-        <%= website_rollout_summary_link(
-          mode: item.fetch(:mode),
-          label: item.fetch(:label),
-          rollout_counts: @rollout_counts,
-          current_sort: @current_sort,
-          current_direction: @current_direction
-        ) %>
-      </span>
-    <% end %>
-  </div>
-
-  <nav class="website-rollout-filters" aria-label="Website rollout filters">
-    <% website_rollout_filter_options.each do |label, mode| %>
-      <span class="website-rollout-filter-link">
-        <%= website_rollout_filter_link(
-          label: label,
-          mode: mode,
-          current_filters: @filters,
-          current_sort: @current_sort,
-          current_direction: @current_direction
-        ) %>
-      </span>
-    <% end %>
-  </nav>
-
-<%= form_with url: websites_path, method: :get, local: true, html: { autocomplete: "off", class: "harmonized-table-filters" } do %>
-  <%= hidden_field_tag :sort, @current_sort if @current_sort.present? %>
-  <%= hidden_field_tag :direction, @current_direction if @current_direction.present? %>
-
-  <table>
-    <thead>
-      <tr>
-        <th><%= sortable("name", "Name") %></th>
-        <th><%= sortable("seedurl", "Seedurl") %></th>
-        <th><%= sortable("default_language", "Default Language") %></th>
-        <th><%= sortable("schedule_every_days", "Schedule Every") %> <br>(days)</th>
-        <th><%= sortable("schedule_time", "Schedule Time") %></th>
-        <th><%= sortable("last_refresh", "Last Refresh") %></th>
-        <th><%= sortable("graph_name", "Graph Name") %></th>
-        <th><%= sortable("webpages_count", "Webpages") %></th>
-        <th><%= sortable("statements_count", "Statements") %></th>
-        <th><%= sortable("refreshed_24h", "24 hr refreshed") %></th>
-        <th><%= sortable("updated_24h", "24 hr updated") %></th>
-        <th>Next action</th>
-        <th colspan="5"></th>
-      </tr>
-      <tr>
-        <td><%= text_field_tag :q, @filters[:q], autocomplete: "off" %></td>
-        <td><%= text_field_tag :seed_filter, @filters[:seed_filter], autocomplete: "off" %></td>
-        <td>
-          <%= select_tag :default_language,
-                         options_for_select([["", ""], ["en", "en"], ["fr", "fr"]], @filters[:default_language]) %>
-        </td>
-        <td></td>
-        <td></td>
-        <td></td>
-        <td></td>
-        <td>
-          <%= text_field_tag :graph_name, @filters[:graph_name], autocomplete: "off" %>
-          <div class="website-rollout-inline-filter">
-            <%= select_tag :distillator_mode,
-                           options_for_select(
-                             website_rollout_filter_form_options,
-                             @filters[:distillator_mode]
-                           ) %>
-          </div>
-          <div class="website-rollout-inline-filter">
-            <%= select_tag :cohort,
-                           options_for_select(
-                             website_cohort_filter_options,
-                             @filters[:cohort]
-                           ) %>
-          </div>
-        </td>
-        <td colspan="8">
-          <%= submit_tag "Apply filters" %>
-          <%= link_to "Reset filters", websites_path %>
-        </td>
-      </tr>
-    </thead>
-
-    <tbody>
-      <% @websites.each do |website| %>
-        <tr>
-          <td>
-            <%= link_to website.name, website %>
-            <div class="rollout-note">
-              <% if website_cohort_badge(website).present? %>
-                <%= website_cohort_badge(website) %>
-              <% end %>
-              <%= website_rollout_badge(website) %>
-            </div>
-          </td>
-          <td><%= website.seedurl %></td>
-          <td><%= website.default_language %></td>
-          <td><%= website.schedule_every_days %></td>
-          <td><%= display_time(website.schedule_time) %></td>
-          <td><%= website.last_refresh %></td>
-          <td><%= website.graph_name %></td>
-          <td><%= website_webpage_summary_cell(website, @webpage_summaries[website.id]) %></td>
-          <td><%= @statements_grouped[website.seedurl] || 0 %></td>
-          <td><%= @statements_refreshed_24hr[website.seedurl] || 0 %></td>
-          <td><%= @statements_updated_24hr[website.seedurl] || 0 %></td>
-          <td><%= website_transition_summary(website).primary_action %></td>
-
-          <% cache_links = website_cache_links(website) %>
-          <td>
-            <% if cache_links[:disabled] %>
-              <span><%= cache_links[:warning] %></span>
-            <% elsif cache_links[:active_cache_url].present? %>
-              <%= link_to cache_links[:label], cache_links[:active_cache_url] %>
-            <% end %>
-          </td>
-          <td><%= link_to 'Show', website %></td>
-          <td><%= link_to 'Export', graphs_website_queue_path(seedurl: website.seedurl) %></td>
-          <td><%= link_to 'Edit', edit_website_path(website) %></td>
-          <td></td>
-        </tr>
+  <div class="harmonized-table-shell">
+    <nav class="website-rollout-summary" aria-label="Website rollout filters">
+      <% all_params = @filters.except(:distillator_mode).merge(sort: @current_sort, direction: @current_direction).compact %>
+      <%= link_to "All: #{@rollout_counts.values.sum}", websites_path(all_params), class: "website-rollout-summary-item", aria: { current: @filters[:distillator_mode].blank? ? "page" : nil } %>
+      <% website_rollout_summary_items.each do |item| %>
+        <% next if item[:mode].in?(%w[unknown invalid_on_staging]) && website_rollout_count(item[:mode], @rollout_counts).zero? && @filters[:distillator_mode] != item[:mode] %>
+        <span class="website-rollout-summary-item">
+          <%= website_rollout_summary_link(mode: item.fetch(:mode), label: item.fetch(:label), rollout_counts: @rollout_counts, current_sort: @current_sort, current_direction: @current_direction, current_filters: @filters) %>
+        </span>
       <% end %>
-    </tbody>
-  </table>
-<% end %>
-</div>
+    </nav>
 
-<br>
+    <%= form_with url: websites_path, method: :get, local: true, html: { autocomplete: "off", class: "harmonized-table-filters website-index-filters" } do %>
+      <%= hidden_field_tag :sort, @current_sort if @current_sort.present? %>
+      <%= hidden_field_tag :direction, @current_direction if @current_direction.present? %>
+      <div class="website-index-filter-row">
+        <div class="website-index-search"><%= label_tag :q, "Find a website" %><%= text_field_tag :q, @filters[:q], placeholder: "Name or seedurl", autocomplete: "off" %></div>
+        <div><%= label_tag :distillator_mode, "Mode" %><%= select_tag :distillator_mode, options_for_select(website_rollout_filter_form_options, @filters[:distillator_mode]) %></div>
+        <div><%= label_tag :cohort, "Cohort" %><%= select_tag :cohort, options_for_select(website_cohort_filter_options, @filters[:cohort]) %></div>
+        <%= submit_tag "Apply filters" %>
+        <%= link_to "Reset filters", websites_path %>
+      </div>
+      <details class="website-index-advanced" <%= "open" if @filters.slice(:seed_filter, :default_language, :graph_name).present? %>>
+        <summary>More filters and sorting</summary>
+        <div class="website-index-filter-row">
+          <div><%= label_tag :seed_filter, "Seedurl" %><%= text_field_tag :seed_filter, @filters[:seed_filter] %></div>
+          <div><%= label_tag :default_language, "Language" %><%= select_tag :default_language, options_for_select([["All languages", ""], ["English", "en"], ["French", "fr"]], @filters[:default_language]) %></div>
+          <div><%= label_tag :graph_name, "Graph" %><%= text_field_tag :graph_name, @filters[:graph_name] %></div>
+          <div class="website-index-extra-sorts">Sort: <%= sortable("seedurl", "Seedurl") %> · <%= sortable("default_language", "Language") %> · <%= sortable("schedule_every_days", "Schedule interval") %> · <%= sortable("schedule_time", "Schedule time") %> · <%= sortable("graph_name", "Graph") %></div>
+        </div>
+      </details>
+    <% end %>
 
-<%= link_to 'New Website', new_website_path %>
+    <% groups = Distillator::WebsiteIndexGroups.call(@websites) %>
+    <h2 class="website-index-list-heading" id="website-list-scheduled">Scheduled sites (<%= groups[:scheduled].size %>)</h2>
+    <% if groups[:scheduled].any? %>
+      <%= render "index_table", websites: groups[:scheduled], group: :scheduled %>
+    <% elsif @websites.empty? %>
+      <p>No websites match these filters. Try another name or clear the filters.</p>
+      <%= render "index_table", websites: [], group: :scheduled %>
+    <% else %>
+      <p>No scheduled sites in this view. Open one of the lists below.</p>
+    <% end %>
+    <% Distillator::WebsiteIndexGroups::LABELS.except(:scheduled).each do |key, label| %>
+      <% next if groups[key].empty? %>
+      <details class="website-index-category" id="website-list-<%= key %>" <%= "open" if @filters.present? %>>
+        <summary><%= label %> (<%= groups[key].size %>)</summary>
+        <%= render "index_table", websites: groups[key], group: key %>
+      </details>
+    <% end %>
+
+  </div>
+</section>

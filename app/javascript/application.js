@@ -6,3 +6,4 @@ import consumer from "./channels/cable";
 import "./statements_show";
 import "./operator_context_card";
 import "./transition_checks";
+import "./website_index";
