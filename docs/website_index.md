@@ -36,8 +36,34 @@ ordinary site's interval to zero or clearing it moves it to Unscheduled; giving
 it a positive interval moves it back. Templates, tests and entity feeds remain in
 their own categories regardless of interval. No rows are deleted or copied and
 no schedules, rollout modes or production/staging configuration are changed.
-No migration is needed. The production inventory supplied on November 13, 2026
+No migration is needed for grouping. The production inventory supplied on November 13, 2026
 informs the explicit role exceptions, not a whitelist of allowed scheduled sites.
+
+## Preferred list
+
+Each row has a Preferred checkbox. Its boolean is stored on the website, shared
+with other operators of this Condenser instance. The Preferred view is an
+independent working list: it includes any marked site, including unscheduled,
+entity, template and test sites, without changing the site's display category.
+Search, filters and sorting still apply. Empty lists explain how to add sites.
+
+Use Preferred as default stores only an allowlisted view name in a signed,
+HttpOnly browser cookie. There is no individual-user model in Condenser's shared
+HTTP Basic sign-in. The default can be unchecked; the All sites link explicitly
+overrides it for navigation. JSON API requests do not inherit the browser default.
+
+Checkbox changes submit their own CSRF-protected PATCH forms; without JavaScript
+the forms expose Save buttons. The row update writes only the preferred column,
+avoiding rollout, scheduling and monitorable callbacks. Filtered return paths stay
+local. Default-view updates accept only All or Preferred, never redirect URLs.
+
+This addition requires migration `20261113000200_add_preferred_to_websites.rb`.
+Existing sites start unchecked. The list grouping above itself needs no migration.
+After deploying to staging, run:
+
+```sh
+heroku run rails db:migrate --app footlight-condenser-test
+```
 
 ## Filters and counters
 

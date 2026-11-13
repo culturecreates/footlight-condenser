@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { configureWebsiteDetails, revealWebsiteGroup } from "../../app/javascript/website_index.js";
+import { configureWebsiteDetails, configureWebsitePreferences, revealWebsiteGroup } from "../../app/javascript/website_index.js";
 
 function harness() {
   const rows = new Map();
@@ -53,4 +53,17 @@ test("sorting can reopen its category while an unrelated hash cannot open other 
   assert.equal(group.open, false);
   revealWebsiteGroup(root, "#website-list-tests");
   assert.equal(group.open, false);
+});
+
+test("preferred controls submit the owning form once and initialization is idempotent", () => {
+  let submitted = 0;
+  const handlers = [];
+  const input = { dataset: {}, form: { requestSubmit: () => submitted++ }, addEventListener: (name, fn) => handlers.push(fn) };
+  const detached = { dataset: {}, form: null };
+  const root = { querySelectorAll: () => [input, detached] };
+  configureWebsitePreferences(root);
+  configureWebsitePreferences(root);
+  assert.equal(handlers.length, 1);
+  handlers[0]();
+  assert.equal(submitted, 1);
 });

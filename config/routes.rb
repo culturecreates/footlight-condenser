@@ -13,10 +13,12 @@ Rails.application.routes.draw do
   resources :websites do
     # API: get /websites 
     member do
+      patch :preference
       post :activate_after_review
       post :activate_anyway
     end
     collection do
+      patch :default_view
       get 'events'         # Internal Webpages Only
       get 'places'         # Internal Webpages Only
       get 'test_api'       # Internal Webpages Only

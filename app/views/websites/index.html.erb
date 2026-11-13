@@ -7,6 +7,19 @@
     <%= link_to "New Website", new_website_path, class: "website-index-primary-action" %>
   </header>
 
+  <div class="website-index-view-controls">
+    <nav aria-label="Website lists">
+      <% view_params = @filters.merge(sort: @current_sort, direction: @current_direction).compact %>
+      <%= link_to "All sites", websites_path(view_params.merge(view: "all")), aria: { current: @website_index_view == "all" ? "page" : nil } %>
+      <%= link_to "Preferred (#{@preferred_count})", websites_path(view_params.merge(view: "preferred")), aria: { current: @website_index_view == "preferred" ? "page" : nil } %>
+    </nav>
+    <%= form_with url: default_view_websites_path, method: :patch, local: true, class: "website-index-default-view" do %>
+      <%= hidden_field_tag :view, "all", id: nil %>
+      <label><%= check_box_tag :view, "preferred", @default_website_view == "preferred", id: "website-default-preferred", data: { auto_submit_preference: true } %> Use Preferred as default</label>
+      <noscript><%= submit_tag "Save default" %></noscript>
+    <% end %>
+  </div>
+
   <% if @statements_errors.positive? %>
     <p class="website-index-warning"><strong><%= number_with_delimiter(@statements_errors) %> statement errors in the last 24 hours.</strong></p>
   <% end %>
@@ -17,7 +30,7 @@
   <div class="harmonized-table-shell">
     <nav class="website-rollout-summary" aria-label="Website rollout filters">
       <% all_params = @filters.except(:distillator_mode).merge(sort: @current_sort, direction: @current_direction).compact %>
-      <%= link_to "All: #{@rollout_counts.values.sum}", websites_path(all_params), class: "website-rollout-summary-item", aria: { current: @filters[:distillator_mode].blank? ? "page" : nil } %>
+      <%= link_to "All modes: #{@rollout_counts.values.sum}", websites_path(all_params), class: "website-rollout-summary-item", aria: { current: @filters[:distillator_mode].blank? ? "page" : nil } %>
       <% website_rollout_summary_items.each do |item| %>
         <% next if item[:mode].in?(%w[unknown invalid_on_staging]) && website_rollout_count(item[:mode], @rollout_counts).zero? && @filters[:distillator_mode] != item[:mode] %>
         <span class="website-rollout-summary-item">
@@ -29,12 +42,13 @@
     <%= form_with url: websites_path, method: :get, local: true, html: { autocomplete: "off", class: "harmonized-table-filters website-index-filters" } do %>
       <%= hidden_field_tag :sort, @current_sort if @current_sort.present? %>
       <%= hidden_field_tag :direction, @current_direction if @current_direction.present? %>
+      <%= hidden_field_tag :view, @website_index_view if @filters[:view].present? %>
       <div class="website-index-filter-row">
         <div class="website-index-search"><%= label_tag :q, "Find a website" %><%= text_field_tag :q, @filters[:q], placeholder: "Name or seedurl", autocomplete: "off" %></div>
         <div><%= label_tag :distillator_mode, "Mode" %><%= select_tag :distillator_mode, options_for_select(website_rollout_filter_form_options, @filters[:distillator_mode]) %></div>
         <div><%= label_tag :cohort, "Cohort" %><%= select_tag :cohort, options_for_select(website_cohort_filter_options, @filters[:cohort]) %></div>
         <%= submit_tag "Apply filters" %>
-        <%= link_to "Reset filters", websites_path %>
+        <%= link_to "Reset filters", @filters[:view].present? ? websites_path(view: @website_index_view) : websites_path %>
       </div>
       <details class="website-index-advanced" <%= "open" if @filters.slice(:seed_filter, :default_language, :graph_name).present? %>>
         <summary>More filters and sorting</summary>
@@ -47,22 +61,28 @@
       </details>
     <% end %>
 
-    <% groups = Distillator::WebsiteIndexGroups.call(@websites) %>
-    <h2 class="website-index-list-heading" id="website-list-scheduled">Scheduled sites (<%= groups[:scheduled].size %>)</h2>
-    <% if groups[:scheduled].any? %>
-      <%= render "index_table", websites: groups[:scheduled], group: :scheduled %>
-    <% elsif @websites.empty? %>
-      <p>No websites match these filters. Try another name or clear the filters.</p>
-      <%= render "index_table", websites: [], group: :scheduled %>
+    <% if @website_index_view == "preferred" %>
+      <h2 class="website-index-list-heading" id="website-list-preferred">Preferred (<%= @websites.size %>)</h2>
+      <% if @websites.empty? %><p>No preferred sites in this view. Choose All sites and check Preferred beside the sites you want to keep here.</p><% end %>
+      <%= render "index_table", websites: @websites, group: :preferred %>
     <% else %>
-      <p>No scheduled sites in this view. Open one of the lists below.</p>
-    <% end %>
-    <% Distillator::WebsiteIndexGroups::LABELS.except(:scheduled).each do |key, label| %>
-      <% next if groups[key].empty? %>
-      <details class="website-index-category" id="website-list-<%= key %>" <%= "open" if @filters.present? %>>
-        <summary><%= label %> (<%= groups[key].size %>)</summary>
-        <%= render "index_table", websites: groups[key], group: key %>
-      </details>
+      <% groups = Distillator::WebsiteIndexGroups.call(@websites) %>
+      <h2 class="website-index-list-heading" id="website-list-scheduled">Scheduled sites (<%= groups[:scheduled].size %>)</h2>
+      <% if groups[:scheduled].any? %>
+        <%= render "index_table", websites: groups[:scheduled], group: :scheduled %>
+      <% elsif @websites.empty? %>
+        <p>No websites match these filters. Try another name or clear the filters.</p>
+        <%= render "index_table", websites: [], group: :scheduled %>
+      <% else %>
+        <p>No scheduled sites in this view. Open one of the lists below.</p>
+      <% end %>
+      <% Distillator::WebsiteIndexGroups::LABELS.except(:scheduled).each do |key, label| %>
+        <% next if groups[key].empty? %>
+        <details class="website-index-category" id="website-list-<%= key %>" <%= "open" if @filters.except(:view).present? %>>
+          <summary><%= label %> (<%= groups[key].size %>)</summary>
+          <%= render "index_table", websites: groups[key], group: key %>
+        </details>
+      <% end %>
     <% end %>
 
   </div>

@@ -45,6 +45,72 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_no_cohort_source_requests
   end
 
+  test "preferred checkbox changes only the preference and never runs rollout or scheduling callbacks" do
+    @website.update_column(:monitorable, true)
+    before = @website.reload.attributes
+    fingerprint = Distillator::TransitionFingerprint.call(@website)
+    patch preference_website_url(@website), params: { preferred: "1", website: { schedule_every_days: 99, distillator_mode: "active" }, return_to: "/websites?q=one#website-list-unscheduled" }
+    assert_response :see_other
+    assert_redirected_to "/websites?q=one#website-list-unscheduled"
+    assert @website.reload.preferred?
+    assert_equal before.except("preferred"), @website.attributes.except("preferred")
+    assert_equal fingerprint, Distillator::TransitionFingerprint.call(@website)
+
+    patch preference_website_url(@website), params: { preferred: "0", return_to: "https://untrusted.example/" }
+    assert_redirected_to websites_path
+    assert_not @website.reload.preferred?
+    patch preference_website_url(@website), params: { preferred: "anything" }
+    assert_response :bad_request
+    assert_not @website.reload.preferred?
+  end
+
+  test "Preferred view cuts across categories and keeps normal filter and sort behavior" do
+    @website.update_columns(preferred: true, name: "Alpha preferred", schedule_every_days: 0)
+    other = Website.create!(name: "Beta preferred Test", seedurl: "preferred-test", graph_name: "https://example.org/preferred", default_language: "fr", preferred: true)
+    get websites_url, params: { view: "preferred", sort: "name", direction: "desc" }
+    assert_response :success
+    assert_select '.website-index-row', count: 2
+    assert_select '#website-list-preferred', text: "Preferred (2)"
+    assert_select '.website-index-category', count: 0
+    assert_select '.website-index-preference input[type="checkbox"][checked]', count: 2
+    assert_operator @response.body.index(other.name), :<, @response.body.index(@website.name)
+    assert_select 'form[action="/websites"] input[name="view"][value="preferred"]', count: 1
+    get websites_url, params: { view: "preferred", q: "Alpha preferred" }
+    assert_select '.website-index-row', count: 1
+    assert_select 'a[href="/websites?view=preferred"]', text: "Reset filters"
+  end
+
+  test "Preferred default is remembered per browser with an explicit All override and JSON unaffected" do
+    @website.update_column(:preferred, true)
+    patch default_view_websites_url, params: { view: "preferred" }
+    assert_response :see_other
+    assert_redirected_to websites_path(view: "preferred")
+    get websites_url
+    assert_select '#website-list-preferred', count: 1
+    assert_select '.website-index-row', count: 1
+    assert_select '#website-default-preferred[checked]', count: 1
+    get websites_url, params: { view: "all" }
+    assert_select '#website-list-scheduled', count: 1
+    assert_select '.website-index-row', count: Website.count
+    assert_select 'a[href="/websites?view=all"]', text: "Reset filters"
+    get websites_url(format: :json)
+    assert_equal Website.count, JSON.parse(@response.body).size
+    patch default_view_websites_url, params: { view: "all" }
+    get websites_url
+    assert_select '#website-list-preferred', count: 0
+    assert_select '#website-default-preferred[checked]', count: 0
+  end
+
+  test "empty preferred list explains how to add sites and invalid views cannot be saved" do
+    get websites_url, params: { view: "preferred" }
+    assert_select '.website-index-row', count: 0
+    assert_includes @response.body, "No preferred sites in this view"
+    patch default_view_websites_url, params: { view: "https://untrusted.example/" }
+    assert_response :bad_request
+    get websites_url, params: { view: "invalid" }
+    assert_redirected_to websites_path
+  end
+
   test "overview shows compact rows with hidden detail panels and no per-site readiness calculation" do
     Distillator::ShadowSiteSummary.expects(:call).never
     assert_read_only_page_does_not_fetch

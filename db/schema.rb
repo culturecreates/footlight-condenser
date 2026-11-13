@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_13_000100) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_13_000200) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -240,6 +240,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_13_000100) do
     t.boolean "monitorable"
     t.string "distillator_mode", default: "legacy", null: false
     t.datetime "transition_check_requested_at"
+    t.boolean "preferred", default: false, null: false
     t.index ["distillator_mode"], name: "index_websites_on_distillator_mode"
     t.index ["transition_check_requested_at"], name: "index_websites_on_transition_check_requested_at"
   end

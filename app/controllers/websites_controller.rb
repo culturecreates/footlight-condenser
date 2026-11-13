@@ -2,9 +2,10 @@ class WebsitesController < ApplicationController
   include FilterableIndex
   include SortableIndex
 
-  FILTER_KEYS = %i[q seed_filter default_language graph_name distillator_mode cohort].freeze
+  FILTER_KEYS = %i[q seed_filter default_language graph_name distillator_mode cohort view].freeze
+  INDEX_VIEWS = %w[all preferred].freeze
 
-  before_action :set_website, only: [:show, :edit, :update, :destroy, :delete_all_statements, :activate_after_review, :activate_anyway]
+  before_action :set_website, only: [:show, :edit, :update, :destroy, :delete_all_statements, :activate_after_review, :activate_anyway, :preference]
 
   def test_api
     @websites = Website.all.order(:name)
@@ -36,9 +37,11 @@ class WebsitesController < ApplicationController
 
     requested_rollout_mode = params[:distillator_mode].presence
     requested_cohort = params[:cohort].presence
+    requested_view = params[:view].presence
     cleaned = extract_allowed_filters(params, FILTER_KEYS)
     cleaned[:distillator_mode] = helpers.normalize_website_rollout_filter(cleaned[:distillator_mode])
     cleaned[:cohort] = helpers.normalize_website_cohort_filter(cleaned[:cohort])
+    cleaned[:view] = cleaned[:view].presence_in(INDEX_VIEWS)
 
     canonical = cleaned.merge(
       sort: params[:sort],
@@ -57,18 +60,26 @@ class WebsitesController < ApplicationController
     ).compact.stringify_keys
     normalized_raw["distillator_mode"] = helpers.normalize_website_rollout_filter(normalized_raw["distillator_mode"])
     normalized_raw["cohort"] = helpers.normalize_website_cohort_filter(normalized_raw["cohort"])
+    normalized_raw["view"] = normalized_raw["view"].presence_in(INDEX_VIEWS)
     normalized_raw.compact!
 
     invalid_rollout_filter = requested_rollout_mode.present? && cleaned[:distillator_mode].nil?
     invalid_cohort_filter = requested_cohort.present? && cleaned[:cohort].nil?
-    return redirect_to(websites_path(canonical)) if invalid_rollout_filter || invalid_cohort_filter || canonical != normalized_raw
+    invalid_view = requested_view.present? && cleaned[:view].nil?
+    return redirect_to(websites_path(canonical)) if invalid_rollout_filter || invalid_cohort_filter || invalid_view || canonical != normalized_raw
 
     @filters = cleaned.compact
+    @default_website_view = request.format.html? ? (cookies.signed[:website_default_view].presence_in(INDEX_VIEWS) || "all") : "all"
+    @website_index_view = @filters[:view] || @default_website_view
+    # Keep an explicit All override through sorting when Preferred is the default.
+    @filters[:view] = @website_index_view if @filters[:view].present? || @default_website_view != "all"
+    @preferred_count = Website.where(preferred: true).count
 
     @current_sort = params[:sort].presence
     @current_direction = params[:direction].presence
 
     @websites = Website.all
+    @websites = @websites.where(preferred: true) if @website_index_view == "preferred"
 
     if @filters[:q]
       keyword = "%#{@filters[:q].downcase}%"
@@ -127,6 +138,23 @@ class WebsitesController < ApplicationController
       @websites = @websites.order(sort_column => sort_direction.to_sym)
     end
   
+  end
+
+  def preference
+    value = params.require(:preferred)
+    return head :bad_request unless [true, false, "0", "1", "true", "false"].include?(value)
+
+    # A display preference must not run scheduling, rollout or monitorable callbacks.
+    @website.update_columns(preferred: Distillator::BooleanParam.parse(value))
+    redirect_to safe_return_to_param || websites_path, status: :see_other
+  end
+
+  def default_view
+    value = params.require(:view)
+    return head :bad_request unless INDEX_VIEWS.include?(value)
+
+    cookies.permanent.signed[:website_default_view] = { value: value, httponly: true, same_site: :lax, secure: request.ssl? }
+    redirect_to websites_path(view: value), status: :see_other
   end
 
   # GET /websites/1

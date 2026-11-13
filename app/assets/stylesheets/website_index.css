@@ -5,6 +5,11 @@
 .website-index-header p { margin: 0; }
 .website-index-primary-action { background: #165f9c; color: #fff; border-radius: .3rem; padding: .55rem .85rem; white-space: nowrap; }
 .website-index-warning { background: #fff6dd; border-left: 3px solid #b77500; padding: .6rem .8rem; }
+.website-index-view-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 2rem; margin-top: 1rem; }
+.website-index-view-controls nav { display: flex; gap: 1rem; }
+.website-index-default-view, .website-index-preference { margin: 0; }
+.website-index-identity { display: flex; align-items: center; gap: .55rem; }
+.website-index-preference input[type="checkbox"] { width: 1rem; height: 1rem; cursor: pointer; vertical-align: middle; }
 .website-index [aria-current="page"] { font-weight: 700; text-decoration: underline; text-underline-offset: .2em; }
 .website-index-filter-row { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; }
 .website-index-filter-row label { display: block; margin-bottom: .2rem; font-size: .85rem; font-weight: 600; }

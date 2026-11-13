@@ -18,9 +18,18 @@ export function revealWebsiteGroup(root, hash) {
   if (group?.matches("details.website-index-category")) group.open = true;
 }
 
+export function configureWebsitePreferences(root = document) {
+  root.querySelectorAll("input[data-auto-submit-preference]").forEach((input) => {
+    if (input.dataset.preferenceBound || !input.form) return;
+    input.dataset.preferenceBound = "true";
+    input.addEventListener("change", () => input.form.requestSubmit());
+  });
+}
+
 if (typeof document !== "undefined") {
   const initialize = () => {
     configureWebsiteDetails();
+    configureWebsitePreferences();
     revealWebsiteGroup(document, window.location.hash);
   };
   document.addEventListener("DOMContentLoaded", initialize);

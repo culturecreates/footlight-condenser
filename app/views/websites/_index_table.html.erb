@@ -15,7 +15,17 @@
       <% websites.each do |website| %>
         <% pages = @webpage_summaries.fetch(website.id, Distillator::WebsiteWebpageSummary.empty_summary) %>
         <tr class="website-index-row" data-website-id="<%= website.id %>">
-          <th scope="row" class="website-index-name"><%= link_to website.name.presence || website.seedurl, website, title: website.seedurl %></th>
+          <th scope="row" class="website-index-name">
+            <div class="website-index-identity">
+              <%= form_with url: preference_website_path(website), method: :patch, local: true, class: "website-index-preference" do %>
+                <%= hidden_field_tag :preferred, "0", id: nil %>
+                <%= hidden_field_tag :return_to, "#{request.fullpath.split('#').first}#website-list-#{group}", id: nil %>
+                <%= check_box_tag :preferred, "1", website.preferred?, id: "website-preferred-#{website.id}", title: "Preferred", aria: { label: "Preferred: #{website.name}" }, data: { auto_submit_preference: true } %>
+                <noscript><%= submit_tag "Save" %></noscript>
+              <% end %>
+              <%= link_to website.name.presence || website.seedurl, website, title: website.seedurl %>
+            </div>
+          </th>
           <td title="<%= website_rollout_explanation(website) %>"><%= website_rollout_badge(website) %></td>
           <td class="website-index-number"><%= link_to number_with_delimiter(pages[:total]), website_webpages_filter_path(website) %></td>
           <td class="website-index-number"><%= link_to number_with_delimiter(pages[:publishable]), website_webpages_filter_path(website, publishable: true) %></td>
