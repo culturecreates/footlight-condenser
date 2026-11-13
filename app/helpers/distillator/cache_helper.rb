@@ -392,16 +392,23 @@ module Distillator::CacheHelper
   def cache_compare_outcome_label(summary)
     case summary.to_h[:outcome].to_s
     when "blocked"
-      "Blocked"
+      "Failed"
     when "review"
       "Needs review"
     when "ready_with_metadata_notes"
-      "Ready with metadata notes"
+      summary.to_h[:metadata_only_diffs].blank? && summary.to_h[:improvements].present? ? "Passed — additional diagnostics only" : "Passed — diagnostic notes only"
     when "pass"
-      "Pass"
+      "Passed"
     else
-      "Unknown"
+      "Inconclusive"
     end
+  end
+
+  def cache_compare_match_label(comparison, field)
+    diff = comparison.dig(:diffs, field)
+    return "Unavailable" if diff.nil? || comparison.dig(:missing, :legacy) || comparison.dig(:missing, :condenser)
+
+    diff[:same] ? "Match" : "Different"
   end
 
   private

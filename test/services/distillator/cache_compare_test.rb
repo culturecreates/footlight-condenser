@@ -521,11 +521,77 @@ class Distillator::CacheCompareTest < ActiveSupport::TestCase
     assert_equal [], result.dig(:summary, :review_needed_diffs)
     assert_equal [], result.dig(:summary, :unknown_diffs)
     assert_includes result.dig(:summary, :metadata_only_diffs), :hints
-    assert_includes result.dig(:summary, :metadata_only_diffs), :redirect_chain
+    assert_not_includes result.dig(:summary, :metadata_only_diffs), :redirect_chain
     assert_equal true, result.dig(:summary, :promotable)
     assert_equal "ready_with_metadata_notes", result.dig(:summary, :outcome)
     assert_match(/\AMetadata notes:/, result.dig(:summary, :primary_reason))
-    assert_includes result.dig(:summary, :primary_reason), "redirect_chain"
+    assert_not_includes result.dig(:summary, :primary_reason), "redirect_chain"
     assert_includes result.dig(:summary, :primary_reason), "hints"
   end
+  test "timestamps compare instants at shared precision while retaining original evidence" do
+    native_time = Time.iso8601("2026-11-13T19:27:14.706953Z")
+    legacy_time = "2026-11-13T14:27:14-05:00"
+    result = compare_snapshot_values(legacy: { scrape_date: legacy_time, successful_refresh: legacy_time },
+      native: { scrape_date: native_time, successful_refresh: native_time })
+    %i[scrape_date successful_refresh].each do |field|
+      assert result.dig(:diffs, field, :same)
+      assert_equal legacy_time, result.dig(:diffs, field, :legacy)
+      assert_equal native_time.to_r, result.dig(:diffs, field, :condenser).to_r
+      assert_not_includes result.dig(:summary, :metadata_only_diffs), field
+    end
+    result = compare_snapshot_values(legacy: { successful_refresh: "2026-11-13T14:27:14.123-05:00" },
+      native: { successful_refresh: Time.iso8601("2026-11-13T19:27:14.123999Z") })
+    assert result.dig(:diffs, :successful_refresh, :same)
+  end
+
+  test "real timestamp drift missing dates and invalid dates remain different" do
+    [
+      ["2026-11-13T19:27:14.100Z", "2026-11-13T19:27:14.101Z"],
+      ["2026-11-13T19:27:14Z", "2026-11-13T19:27:15.001Z"],
+      ["not-a-date", "2026-11-13T19:27:14Z"],
+      [nil, "2026-11-13T19:27:14Z"]
+    ].each do |legacy, native|
+      result = compare_snapshot_values(legacy: { successful_refresh: legacy },
+        native: { successful_refresh: Time.iso8601(native) })
+      assert_not result.dig(:diffs, :successful_refresh, :same), legacy.inspect
+    end
+  end
+
+  test "redirect comparison ignores starting URL convention but preserves actual routes" do
+    url = "https://example.org/semantic-parity"
+    target = "https://example.org/destination"
+    result = compare_snapshot_values(legacy: { redirect_chain: [] }, native: { redirect_chain: [url] })
+    assert result.dig(:diffs, :redirect_chain, :same)
+    assert_equal [], result.dig(:diffs, :redirect_chain, :legacy)
+    assert_equal [url], result.dig(:diffs, :redirect_chain, :condenser)
+    result = compare_snapshot_values(legacy: { redirect_chain: [target], final_url: target },
+      native: { redirect_chain: [url, target], final_url: target })
+    assert result.dig(:diffs, :redirect_chain, :same)
+    [[target], [url, target, url], [url, url]].each do |chain|
+      result = compare_snapshot_values(legacy: { redirect_chain: [] }, native: { redirect_chain: chain })
+      assert_not result.dig(:diffs, :redirect_chain, :same), chain.inspect
+    end
+    result = compare_snapshot_values(legacy: { redirect_chain: [], final_url: target },
+      native: { redirect_chain: [url], final_url: target })
+    assert_not result.dig(:diffs, :redirect_chain, :same)
+    result = compare_snapshot_values(legacy: { redirect_chain: [] },
+      native: { redirect_chain: [url], signals: { "redirected" => true } })
+    assert_not result.dig(:diffs, :redirect_chain, :same)
+    result = compare_snapshot_values(legacy: { final_url: target }, native: {}, policy: :strict)
+    assert_includes result.dig(:summary, :blocking_regressions), :final_url
+  end
+
+  private
+
+  def compare_snapshot_values(legacy:, native:, policy: :operator)
+    url = "https://example.org/semantic-parity"
+    common = { html: "<title>Shared title</title>", scrape_date: Time.iso8601("2026-11-13T19:27:14Z"),
+      successful_refresh: Time.iso8601("2026-11-13T19:27:14Z"), signals: {}, final_url: url, redirect_chain: [] }
+    cache = Distillator::FetchCache.find_or_initialize_by(uri_key: CGI.escape(url))
+    cache.assign_attributes(common.merge(body: common[:html], normalized_url: url, headers: {}, http_response_code: 200).merge(native))
+    cache.save!
+    Distillator::CacheCompare.call(uri: url, comparison_policy: policy,
+      legacy_lookup: ->(_) { common.merge(http_code: 200).merge(legacy) })
+  end
+
 end

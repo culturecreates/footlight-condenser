@@ -1456,13 +1456,13 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match "Cache Comparison", @response.body
     assert_match "Summary", @response.body
-    assert_match "Outcome:", @response.body
+    assert_match "Stored cache comparison:", @response.body
     assert_match "Differences grouped by importance", @response.body
     assert_match "Legacy source:", @response.body
     assert_match "Condenser source:", @response.body
     assert_match "Condenser cache missing:", @response.body
     assert_match "<th>Condenser</th>", @response.body
-    assert_match "No cache refresh was performed.", @response.body
+    assert_match "No refresh was performed", @response.body
     assert_no_match "Distillator", visible_text(@response.body)
     assert_match "html_sha256", @response.body
     assert_match "blocking_regression", @response.body
@@ -1472,7 +1472,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Distillator", visible_text(@response.body)
   end
 
-  test "compare page shows ready with metadata notes without review copy" do
+  test "snapshot report separates actual differences from matches and activation readiness" do
     assert_read_only_page_does_not_fetch
     Distillator::CacheCompare.expects(:call).returns(
       {
@@ -1486,7 +1486,13 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
         distillator_cache: { html: "<html>same</html>" },
         distillator_source: "local_fetch_cache",
         comparison_policy: :operator,
-        diffs: { hints: { same: false, classification: :metadata_only, legacy: [], condenser: ["condenser-extra-note"], distillator: ["condenser-extra-note"] } },
+        diffs: {
+          hints: { same: false, classification: :metadata_only, legacy: [], condenser: ["condenser-extra-note"] },
+          title: { same: true, classification: :metadata_only, legacy: "Same title", condenser: "Same title" },
+          html_sha256: { same: true, classification: :metadata_only, legacy: "same-hash", condenser: "same-hash" },
+          html_bytes: { same: true, classification: :metadata_only, legacy: 165763, condenser: 165763 },
+          http_code: { same: true, classification: :metadata_only, legacy: 200, condenser: 200 }
+        },
         missing: { legacy: false, condenser: false, distillator: false },
         summary: {
           outcome: "ready_with_metadata_notes",
@@ -1511,9 +1517,17 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     get "/distillator/cache/compare", params: { uri: "http://example.org/page" }
 
     assert_response :success
-    assert_match "Ready with metadata notes", @response.body
-    assert_match "Metadata notes only. Activation can proceed when the rest of the evidence is ready.", @response.body
-    assert_no_match "Outcome:</strong> Needs review", @response.body
+    assert_match "Passed — diagnostic notes only", @response.body
+    assert_match "Activation readiness requires fresh retrievals from both backends", @response.body
+    assert_no_match "Activation can proceed", @response.body
+    assert_no_match "Ready with metadata notes", @response.body
+    assert_select "#cache-comparison-differences tbody tr", count: 1
+    assert_select "#cache-comparison-differences td:first-child", text: "hints"
+    assert_select "#cache-comparison-differences td", text: "title", count: 0
+    assert_select "#cache-comparison-differences td", text: "html_sha256", count: 0
+    assert_select "details .cache-compare-same td", text: "title", count: 1
+    assert_select "details.cache-detail-details[open]", count: 0
+    assert_select "#cache-comparison-differences h3", count: 1
   end
 
   test "cache index stays operational and does not fetch under heavy filter and sort usage" do

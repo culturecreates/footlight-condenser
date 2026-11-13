@@ -1,5 +1,6 @@
 require "digest"
 require "json"
+require "time"
 
 module Distillator
   class CacheCompare
@@ -215,12 +216,13 @@ module Distillator
       FIELDS.index_with do |field|
         legacy_value = comparable_value(legacy_cache, field)
         condenser_value = comparable_value(condenser_cache, field)
+        same = equivalent_values?(field, legacy_value, condenser_value, legacy_cache, condenser_cache)
         {
-          same: legacy_value == condenser_value,
+          same: same,
           legacy: legacy_value,
           condenser: condenser_value,
           distillator: condenser_value,
-          classification: classify_field(
+          classification: same ? :metadata_only : classify_field(
             field,
             legacy_value: legacy_value,
             distillator_value: condenser_value,
@@ -279,6 +281,52 @@ module Distillator
       else
         cache[field]
       end
+    end
+
+    def equivalent_values?(field, legacy_value, condenser_value, legacy_cache, condenser_cache)
+      return true if legacy_value == condenser_value
+
+      case field
+      when :scrape_date, :successful_refresh
+        legacy_time = comparison_timestamp(legacy_value)
+        condenser_time = comparison_timestamp(condenser_value)
+        return false unless legacy_time && condenser_time
+
+        # An ISO timestamp without fractions cannot establish subsecond drift.
+        precision = [timestamp_precision(legacy_value), timestamp_precision(condenser_value)].min
+        scale = 10**precision
+        (legacy_time.to_r * scale).floor == (condenser_time.to_r * scale).floor
+      when :redirect_chain
+        redirect_destinations(legacy_cache) == redirect_destinations(condenser_cache)
+      else
+        false
+      end
+    end
+
+    def comparison_timestamp(value)
+      return value.to_time if value.is_a?(Time) || value.is_a?(DateTime) || value.is_a?(ActiveSupport::TimeWithZone)
+      return nil unless value.is_a?(String) && value.match?(/(?:Z|[+-]\d{2}:?\d{2})\z/i)
+
+      Time.iso8601(value)
+    rescue ArgumentError, TypeError
+      nil
+    end
+
+    def timestamp_precision(value)
+      value.is_a?(String) ? [value[/\.([0-9]+)/, 1].to_s.length, 9].min : 9
+    end
+
+    def redirect_destinations(cache)
+      return nil unless cache
+
+      chain = Array(cache[:redirect_chain])
+      return chain unless chain.first == normalized_url
+      # Preserve inconsistent singleton records and self-redirect evidence.
+      if chain.length == 1
+        return chain if cache[:final_url].present? && cache[:final_url] != normalized_url
+        return chain if Distillator::BooleanParam.parse(signal_value(cache[:signals], :redirected))
+      end
+      chain.drop(1)
     end
 
     def classify_field(field, legacy_value:, distillator_value:, legacy_cache:, distillator_cache:)

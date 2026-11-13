@@ -33,6 +33,21 @@ Read-only cache/statement diagnostic GET pages still inspect stored snapshots an
 are explicitly labeled as such. They do not generate activation evidence. Use a
 transition batch check for a new comparison of fresh backend results.
 
+The cache inspection summary reports **Stored cache comparison**, never activation
+readiness. It shows HTTP codes, HTML byte counts, hash/title agreement and the next
+step. Only actual differences appear in grouped tables; equal fields remain in the
+closed detailed comparison. Provenance, settings and raw payloads are also closed
+by default.
+
+Timestamp equality uses parsed instants at the lower recorded fractional precision
+of the two values. Seconds-only timestamps cannot establish a microsecond difference;
+two precise timestamps can. Invalid, missing or timezone-ambiguous values are not
+coerced into matches. Redirect chains compare destination sequences after removing
+an optional starting URL. A singleton starting URL is equivalent to no redirects
+only when it does not contradict a recorded redirect or a different final URL.
+Loops and real route differences remain different. Original timestamp and chain
+values remain in the evidence; title and final-destination safety checks are unchanged.
+
 Transition checks validate selected extracted values, required-field coverage and
 export serialization. Cache diagnostics support this decision; they are not a
 requirement to reproduce Wringer's monitoring limitations.
