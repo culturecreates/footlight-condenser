@@ -96,14 +96,32 @@ class Distillator::StatementParityCheckTest < ActiveSupport::TestCase
     assert_equal "mixed_fetch_profiles", result.url_results.first[:reason]
   end
 
+  test "strict comparison blocks price differences while standard comparison records a warning" do
+    assert_equal :warning, compare(html, html(price: "30")).status
+    result = compare(html, html(price: "30"), strict: true)
+    assert_equal :failed, result.status
+    assert_equal "strict_statement_parity_failed", result.reason
+    assert_equal ["Price"], result.critical_failures.map { |row| row[:property_label] }
+    assert_equal false, result.critical_failures.first[:core_field]
+    assert_equal "blocker", result.critical_failures.first[:severity]
+  end
+
+  test "strict agreement does not make optional fields mandatory or accept unsupported inputs" do
+    assert_equal :checked, compare(html(price: ""), html(price: ""), strict: true).status
+    assert_equal :failed, compare(html(title: ""), html(title: ""), strict: true).status
+    assert_equal :pending, compare(nil, html, strict: true).status
+    @sources["Price"].update!(algorithm_value: %q{url='https://example.org/price';xpath=//title/text()})
+    assert_equal :pending, compare(html, html, strict: true).status
+  end
+
   private
 
   def html(title: "Shared", date: "2027-01-01", price: "20")
     "<html><head><title>#{title}</title></head><body><time>#{date}</time><div id='location'>Hall</div><span id='price'>#{price}</span></body></html>"
   end
 
-  def compare(legacy, candidate)
+  def compare(legacy, candidate, strict: false)
     Distillator::StatementParityCheck.call(website: @website, webpages: [@page], refresh_helper: @helper,
-      url_results: [{ url: @page.url, fetch_status: "passed", legacy_html: legacy, condenser_html: candidate }])
+      url_results: [{ url: @page.url, fetch_status: "passed", legacy_html: legacy, condenser_html: candidate }], strict: strict)
   end
 end

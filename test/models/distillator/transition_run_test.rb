@@ -117,6 +117,26 @@ class Distillator::TransitionRunTest < ActiveSupport::TestCase
     assert_raises(RuntimeError) { record(run, "fetch_parity") }
   end
 
+  test "scope is persisted immutable and different active requests are not silently deduplicated" do
+    requested = { sample_mode: "all", strictness: "strict" }
+    run = Distillator::TransitionRun.request!(website: @website, options: requested).run
+    assert_equal "all", run.reload.options.sample_mode
+    assert run.options.strict?
+    assert_not Distillator::TransitionRun.request!(website: @website, options: requested).created?
+    assert_raises(Distillator::TransitionRun::OptionsConflict) { Distillator::TransitionRun.request!(website: @website) }
+    assert_raises(ActiveRecord::RecordInvalid) { run.update!(check_options: { sample_mode: "default" }) }
+    assert_equal "all", run.reload.options.sample_mode
+    run.execute { record_all(run) }
+    assert_equal requested.stringify_keys, run.reload.check_options
+    assert_equal "shadow", @website.reload.distillator_mode
+  end
+
+  test "invalid scope creates no run" do
+    assert_no_difference "Distillator::TransitionRun.count" do
+      assert_raises(ArgumentError) { Distillator::TransitionRun.request!(website: @website, options: { sample_mode: "count", sample_size: "0" }) }
+    end
+  end
+
   private
 
   def record_all(run)

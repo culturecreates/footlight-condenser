@@ -95,11 +95,35 @@
   <section id="website-batch-jobs-transition" class="website-rollout-panel">
     <h3>Transition batch check</h3>
     <p><%= website_transition_batch_check_copy %></p>
-    <%= button_to "Run transition batch check",
-                  website_transition_batch_check_path,
-                  method: :post,
-                  params: website_transition_batch_check_params(@website, return_to: website_transition_batch_status_path(@website)),
-                  class: "website-transition-button" %>
+    <% latest_run = website_operation_status(@website).latest_run %>
+    <% check_options = latest_run ? latest_run.options : Distillator::TransitionCheckOptions.new %>
+    <%= form_with url: website_transition_batch_check_path, method: :post, local: true, class: "website-transition-check-form" do %>
+      <% website_transition_batch_check_params(@website, return_to: website_transition_batch_status_path(@website)).each do |key, value| %>
+        <%= hidden_field_tag key, value %>
+      <% end %>
+      <fieldset <%= "disabled" if latest_run&.status.in?(%w[queued running]) %>>
+        <p>
+          <%= label_tag "check_options_sample_mode", "Event sample" %>
+          <%= select_tag "check_options[sample_mode]", options_for_select([
+            ["Default sample (20%, minimum 5, maximum 25)", "default"],
+            ["Fixed number of pages", "count"], ["All publishable event pages", "all"]
+          ], check_options.sample_mode) %>
+          <%= label_tag "check_options_sample_size", "Fixed count" %>
+          <%= number_field_tag "check_options[sample_size]", check_options.sample_size || 25,
+            min: 1, max: Distillator::TransitionCheckOptions::MAX_SAMPLE_SIZE, step: 1 %>
+        </p>
+        <p>
+          <%= label_tag "check_options_strictness", "Field comparison" %>
+          <%= select_tag "check_options[strictness]", options_for_select([
+            ["Standard: core differences block; other differences warn", "standard"],
+            ["Strict: differences in any selected field block", "strict"]
+          ], check_options.strictness) %>
+        </p>
+        <p class="cache-page-note">Both modes compare all selected sources. Fixed count applies only to a fixed sample.
+          If no publishable events exist, the check uses other website pages. Larger checks take longer.</p>
+        <%= submit_tag "Run transition batch check", class: "website-transition-button" %>
+      </fieldset>
+    <% end %>
     <p><%= website_transition_evidence_freshness_text(@website) %></p>
   </section>
 </section>

@@ -305,15 +305,21 @@ module Distillator::ShadowReportsHelper
 
   def shadow_report_scope_lines(scope)
     lines = []
+    check_options = Distillator::TransitionCheckOptions.coerce(scope[:check_options])
     publishable_count = scope[:publishable_event_page_count].to_i
     sampled_count = scope[:representative_webpage_count].to_i
 
-    if publishable_count.positive?
+    compared = scope[:compared_webpage_count]
+    if !compared.nil? && compared < sampled_count
+      total = publishable_count.positive? ? publishable_count : scope[:candidate_webpage_count].to_i
+      lines << "Compared #{compared} of #{total} pages; selected #{sampled_count}, fetched #{scope[:fetch_attempted_webpage_count].to_i}."
+    elsif publishable_count.positive?
       lines << "Checked #{sampled_count} of #{publishable_count} publishable event pages."
     else
       lines << "Checked #{sampled_count} representative webpages because no publishable event pages were available."
     end
     lines << "Sampling rule: #{scope[:selection_rule]}"
+    lines << "Field comparison: #{check_options.field_policy_label}"
     if scope[:paired_extraction]
       lines << "Source comparisons: #{scope[:statements_compared_count]}" if scope[:statements_compared_count]
     else
@@ -323,7 +329,8 @@ module Distillator::ShadowReportsHelper
       lines << "Legacy statement check failed before critical/optional classification was available."
       lines << "Legacy statement failures recorded: #{scope[:statements_failed_count]}"
     elsif scope[:critical_statements_failed_count].to_i.positive?
-      lines << "Critical statement failures: #{scope[:critical_statements_failed_count]}"
+      label = check_options.strict? ? "Blocking selected-field differences" : "Critical statement failures"
+      lines << "#{label}: #{scope[:critical_statements_failed_count]}"
     end
     if !scope[:legacy_statement_failure] && scope[:optional_statements_failed_count].to_i.positive?
       lines << "Optional statement warnings: #{scope[:optional_statements_failed_count]}"

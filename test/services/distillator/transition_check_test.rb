@@ -445,6 +445,22 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
     assert_not_includes result.blocking_issues, "Cannot activate yet: fetch check failed."
   end
 
+  test "operator can check all nine publishable events or request a larger sample beyond the old cap" do
+    [9, 32].each do |total|
+      website = build_website("sample-options-#{total}")
+      pages = create_publishable_event_pages(website, total)
+      default = Distillator::TransitionCheck.call(website: website)
+      assert_equal(total == 9 ? 5 : 7, default.representative_webpage_count)
+      all = Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "all" })
+      assert_equal total, all.representative_webpage_count
+      assert_equal pages.map(&:id).sort, all.representative_webpages.map(&:id).sort
+      fixed = Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "count", sample_size: 30 })
+      assert_equal [total, 30].min, fixed.representative_webpage_count
+      assert_equal fixed.representative_webpages.map(&:id),
+        Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "count", sample_size: 30 }).representative_webpages.map(&:id)
+    end
+  end
+
   private
 
   def build_website(seedurl)

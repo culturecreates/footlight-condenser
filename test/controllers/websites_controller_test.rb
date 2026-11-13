@@ -128,12 +128,12 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Transition checks are run by batch job. This page displays the latest result."
     assert_includes @response.body, "Open cache diagnostics"
     assert_includes @response.body, "Inspect publishable event pages"
-    assert_includes @response.body, "name=\"website_id\" value=\"#{@website.id}\""
+    assert_select "input[name='website_id'][value='#{@website.id}']"
     assert_includes @response.body, CGI.escapeHTML(website_path(@website, anchor: "website-batch-jobs-transition"))
     assert_includes @response.body, distillator_shadow_report_site_path(@website, anchor: "transition-report-summary")
     assert_includes @response.body, "Operations"
     assert_includes @response.body, "Drill-down links"
-    assert_equal 1, @response.body.scan("Run transition batch check").size
+    assert_select '#website-batch-jobs-transition input[type=submit][value="Run transition batch check"]', count: 1
     assert_equal 1, @response.body.scan("Transition checks are run by batch job. This page displays the latest result.").size
     assert_equal 1, @response.body.scan("Latest transition report").size
     assert_not_includes @response.body, "Queue transition check"
@@ -1393,6 +1393,21 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select '#website-transition strong', text: "Reviewed and accepted for this activation."
     assert_select '#website-batch-jobs-transition', text: /New comparison failed/
+  end
+
+  test "website offers event quantity and field strictness beside the batch check and restores the requested scope" do
+    get website_url(@website)
+    assert_response :success
+    assert_select '#website-batch-jobs-transition select[name="check_options[sample_mode]"] option[value="all"]'
+    assert_select '#website-batch-jobs-transition select[name="check_options[strictness]"] option[value="strict"]'
+    assert_select '#website-batch-jobs-transition input[type=number][name="check_options[sample_size]"][max="1000"]'
+    run = Distillator::TransitionRun.request!(website: @website, options: { sample_mode: "all", strictness: "strict" }).run
+    get website_url(@website)
+    assert_response :success
+    assert_select '#website-batch-jobs-transition fieldset[disabled]'
+    assert_select '#website-batch-jobs-transition option[value="all"][selected]'
+    assert_select '#website-batch-jobs-transition option[value="strict"][selected]'
+    assert_equal run.id, @website.latest_transition_run.id
   end
 
   private

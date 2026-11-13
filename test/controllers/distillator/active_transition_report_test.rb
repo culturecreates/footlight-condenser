@@ -202,6 +202,18 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     assert_equal "active", @website.reload.distillator_mode
   end
 
+  test "requested all page strict scope is distinct from the previous completed standard sample" do
+    run = Distillator::TransitionRun.request!(website: @website, options: { sample_mode: "all", strictness: "strict" }).run
+    get distillator_shadow_report_site_path(@website)
+    assert_response :success
+    assert_select '#latest-transition-check', text: /All publishable event pages/
+    assert_select '#latest-transition-check', text: /Strict: differences in any selected field block activation/
+    assert_includes response.body, "Field comparison: Standard: core field differences block; other differences warn"
+    assert_select 'strong', text: "Reviewed and accepted for this activation."
+    assert_equal "queued", run.reload.status
+    assert_equal "active", @website.reload.distillator_mode
+  end
+
   private
 
   def request_run

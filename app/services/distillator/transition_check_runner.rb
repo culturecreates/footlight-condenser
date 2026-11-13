@@ -59,6 +59,7 @@ module Distillator
       website:,
       refresh_helper: nil,
       transition_run: nil,
+      check_options: nil,
       statement_comparator: Distillator::MigrationComparator,
       refresh_runner: Distillator::RefreshRunner,
       export_service: ExportArtsdataService,
@@ -70,6 +71,10 @@ module Distillator
       clock: nil
     )
       @transition_run = transition_run
+      @check_options = transition_run ? transition_run.options : Distillator::TransitionCheckOptions.coerce(check_options)
+      if transition_run && check_options && Distillator::TransitionCheckOptions.coerce(check_options).to_h != @check_options.to_h
+        raise ArgumentError, "Check options must match the recorded run"
+      end
       @statement_comparator = statement_comparator
       @website = website.is_a?(Website) ? website : Website.find(website)
       @refresh_helper = refresh_helper || StatementsHelper.build_refresh_proxy(cookies: {})
@@ -87,16 +92,18 @@ module Distillator
     def call
       return perform_checks if transition_run
 
-      request = Distillator::TransitionRun.request!(website: website)
+      request = Distillator::TransitionRun.request!(website: website, options: @check_options)
       raise "A transition check is already running" unless request.created?
       @transition_run = request.run
       transition_run.execute { perform_checks }
     end
 
     def perform_checks
-      transition_check = transition_check_service.call(website: website, run_fetch: false)
+      check_args = { website: website, run_fetch: false }
+      check_args[:check_options] = @check_options unless @check_options.default?
+      transition_check = transition_check_service.call(**check_args)
       representative_webpages = Array(transition_check.representative_webpages)
-      representative_url_results = collect_representative_url_results(representative_webpages, transition_check.comparison_policy)
+      representative_url_results = @representative_url_results = collect_representative_url_results(representative_webpages, transition_check.comparison_policy)
 
       Result.new(
         website: website,
@@ -111,7 +118,7 @@ module Distillator
     private
 
     attr_reader :transition_run, :statement_comparator, :website, :refresh_helper, :export_service, :transition_check_service, :fetch_cache_store, :cache_compare,
-                :budget_seconds, :timeout_guard_seconds
+                :timeout_guard_seconds
 
     def record_fetch_check(transition_check, representative_url_results)
       latest_cache = representative_url_results.first&.dig(:cache) || transition_check.cache
@@ -138,7 +145,7 @@ module Distillator
         return pending_statement_timeout_record(latest_cache, transition_check, representative_webpages, fetched, failed)
       end
       parity = Distillator::StatementParityCheck.call(website: website, webpages: representative_webpages,
-        url_results: representative_url_results, refresh_helper: refresh_helper, comparator: statement_comparator)
+        url_results: representative_url_results, refresh_helper: refresh_helper, comparator: statement_comparator, strict: @check_options.strict?)
       failing = parity.critical_failures + parity.optional_failures
       Distillator::TransitionEvidenceRecorder.call(
         website: website, transition_run: transition_run,
@@ -151,6 +158,7 @@ module Distillator
           representative_url_statement_results: parity.url_results,
           statement_artifacts: parity.artifacts,
           statements_compared_count: parity.artifacts.length, statements_refreshed_count: 0,
+          compared_webpage_count: parity.url_results.count { |row| row[:status].in?(%w[passed warning failed]) },
           statements_failed_count: failing.length, failing_statements: failing,
           critical_statements_failed_count: parity.critical_failures.length,
           optional_statements_failed_count: parity.optional_failures.length,
@@ -388,6 +396,8 @@ module Distillator
         publishable_event_page_count: publishable_event_page_count,
         selected_candidate_tier_count: transition_check.selected_candidate_tier_count,
         selection_rule: transition_check.selection_rule,
+        check_options: @check_options.to_h,
+        fetch_attempted_webpage_count: Array(@representative_url_results).count { |row| row[:attempted_condenser_fetch] },
         sample_small: (publishable_event_page_count.positive? ? publishable_event_page_count : transition_check.candidate_webpage_count.to_i) > representative_webpages.count
       }
     end
@@ -521,6 +531,7 @@ module Distillator
           source: "paired_extraction",
           representative_url_statement_results: representative_statement_timeout_results(fetched_webpages, failed_fetch_results),
           statements_refreshed_count: 0,
+          compared_webpage_count: 0,
           statements_failed_count: 0,
           failing_statement_ids: [],
           failing_statements: [],
@@ -609,6 +620,13 @@ module Distillator
 
       elapsed = monotonic_now - @started_at
       elapsed >= [budget_seconds.to_f - timeout_guard_seconds.to_f, 0].max
+    end
+
+    def budget_seconds
+      return @budget_seconds unless @budget_seconds.nil?
+      return unless transition_run
+
+      @run_budget_seconds ||= [transition_run.requested_at + Distillator::TransitionRun::LEASE - Time.current - 60, 0].max
     end
 
     def monotonic_now

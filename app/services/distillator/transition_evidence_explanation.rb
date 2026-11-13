@@ -104,6 +104,7 @@ module Distillator
 
     def statement_headline
       return "Wringer and Condenser differ in critical extracted values." if reason == "critical_statement_parity_failed"
+      return "Selected field values differ under strict comparison." if reason == "strict_statement_parity_failed"
       return "Optional extracted values differ and need review." if reason == "optional_statement_parity_warning"
       return "Paired extraction is incomplete: missing snapshots, required sources, mixed fetch profiles, or unsupported nested fetches." if reason == "paired_extraction_inconclusive"
       return "Sampled Wringer and Condenser extracted values match." if reason == "paired_statements_match"
@@ -234,7 +235,7 @@ module Distillator
 
         state == :passed ? "No fetch action is needed right now." : "Fix the fetch/cache failure first, then rerun the transition batch check."
       when "statement_delta"
-        if reason == "critical_statement_parity_failed"
+        if reason.in?(%w[critical_statement_parity_failed strict_statement_parity_failed])
           "Compare the differing values and fix the affected sources before activating."
         elsif reason == "optional_statement_parity_warning"
           "Review optional value differences before activating."

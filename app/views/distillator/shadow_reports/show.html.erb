@@ -38,6 +38,9 @@
     <% if @detail.pending_transition_batch_check %>
       <p><strong>Run #<%= @detail.transition_run_id %>: <%= @detail.transition_run_status.humanize %></strong>
         · requested <%= time_ago_in_words(@detail.transition_check_requested_at) %> ago.</p>
+      <% requested_options = operation.latest_run.options %>
+      <p><strong>Requested scope:</strong> <%= requested_options.selection_rule %>
+        <%= requested_options.field_policy_label %>.</p>
       <p><%= @detail.completed_transition_run_id ? "Results below remain from completed run ##{@detail.completed_transition_run_id}." : "Results will appear when all phases finish." %></p>
     <% elsif @detail.transition_run_status == "failed" %>
       <p class="cache-page-notice"><strong>Run #<%= @detail.transition_run_id %> failed:</strong> <%= @detail.transition_run_error %></p>

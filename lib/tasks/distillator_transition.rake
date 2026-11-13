@@ -19,13 +19,23 @@ namespace :distillator do
       website_id = args[:website_id] || ENV["website_id"] || ENV["WEBSITE_ID"]
       raise ArgumentError, "Missing website_id. Usage: bin/rails distillator:transition:check[website_id]" if website_id.blank?
 
-      result = Distillator::TransitionCheckRunner.call(website: website_id)
+      requested_options = {
+        sample_mode: ENV["SAMPLE_MODE"], sample_size: ENV["SAMPLE_SIZE"], strictness: ENV["STRICTNESS"]
+      }.compact_blank
+      runner_args = { website: website_id }
+      runner_args[:check_options] = requested_options if requested_options.present?
+      result = Distillator::TransitionCheckRunner.call(**runner_args)
       status = Distillator::TransitionCheck.call(website: result.website)
 
       puts "Fetch: #{operator_check_label(status.fetch)}"
       puts "Statements: #{operator_check_label(status.statements)}"
       puts "Export: #{operator_check_label(status.export)}"
       puts "Overall: #{operator_status_label(status.status)}"
+      if requested_options.present?
+        options = Distillator::TransitionCheckOptions.new(requested_options)
+        puts "Sample: #{options.selection_rule}"
+        puts "Fields: #{options.field_policy_label}"
+      end
       puts "Open: /distillator/shadow_report/#{result.website.id}"
     end
   end

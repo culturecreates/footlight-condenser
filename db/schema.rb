@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_12_000100) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_13_000100) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -130,6 +130,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_12_000100) do
     t.text "error_message"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "check_options", default: {}, null: false
     t.index ["website_id"], name: "index_distillator_transition_runs_on_website_id"
     t.index ["website_id"], name: "one_active_transition_run_per_website", unique: true, where: "((status)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying])::text[]))"
   end

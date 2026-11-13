@@ -48,6 +48,7 @@ module Distillator
       website:,
       cache: nil,
       evidence_by_kind: nil,
+      check_options: nil,
       run_fetch: false,
       comparison_policy: :operator,
       fetch_cache_store: Distillator::FetchCacheStore,
@@ -56,6 +57,7 @@ module Distillator
       @website = website.is_a?(Website) ? website : Website.find(website)
       @cache = cache
       @evidence_by_kind = evidence_by_kind
+      @check_options = Distillator::TransitionCheckOptions.coerce(check_options)
       @run_fetch = run_fetch == true
       @comparison_policy = normalize_comparison_policy(comparison_policy)
       @fetch_cache_store = fetch_cache_store
@@ -90,7 +92,7 @@ module Distillator
         candidate_webpage_count: candidate_webpage_count,
         publishable_event_page_count: publishable_event_page_count,
         selected_candidate_tier_count: selected_candidate_tier_count,
-        selection_rule: SELECTION_RULE,
+        selection_rule: @check_options.selection_rule,
         attempted_condenser_fetch: fetch_attempt[:attempted],
         condenser_fetch_result: fetch_attempt[:result],
         comparison: fetch_attempt[:comparison],
@@ -150,7 +152,8 @@ module Distillator
       if publishable_event_page_count.positive?
         publishable_representative_webpages
       else
-        generic_representative_scope.limit(FALLBACK_REPRESENTATIVE_SAMPLE_SIZE).to_a
+        size = @check_options.size_for(generic_representative_scope.count, default: FALLBACK_REPRESENTATIVE_SAMPLE_SIZE)
+        generic_representative_scope.limit(size).to_a
       end
     end
 
@@ -185,7 +188,8 @@ module Distillator
       count = publishable_event_page_count
       return 0 if count.zero?
 
-      [count, [[(count * PUBLISHABLE_SAMPLE_PERCENT).ceil, MINIMUM_PUBLISHABLE_SAMPLE_SIZE].max, MAXIMUM_PUBLISHABLE_SAMPLE_SIZE].min].min
+      default = [[(count * PUBLISHABLE_SAMPLE_PERCENT).ceil, MINIMUM_PUBLISHABLE_SAMPLE_SIZE].max, MAXIMUM_PUBLISHABLE_SAMPLE_SIZE].min
+      @check_options.size_for(count, default: default)
     end
 
     def publishable_event_scope

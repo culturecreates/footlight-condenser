@@ -4,27 +4,37 @@ module Distillator
     LEASE = 1.hour
     STATUSES = %w[queued running completed failed].freeze
     class ConfigurationChanged < StandardError; end
+    class OptionsConflict < StandardError; end
     Request = Struct.new(:run, :created?, keyword_init: true)
 
     belongs_to :website
     has_many :transition_evidences, class_name: "Distillator::TransitionEvidence", dependent: :destroy
     validates :status, inclusion: { in: STATUSES }
     validates :configuration_digest, :requested_at, presence: true
+    validate :valid_check_options
     scope :active, -> { where(status: %w[queued running]) }
     scope :completed, -> { where(status: "completed") }
 
-    def self.request!(website:)
+    def self.request!(website:, options: {})
+      requested_options = Distillator::TransitionCheckOptions.coerce(options)
       website.with_lock do
         current = active.find_by(website_id: website.id)
         if current && current.requested_at > Time.current - LEASE
+          unless current.options.to_h == requested_options.to_h
+            raise OptionsConflict, "Run ##{current.id} is already #{current.status} with different check options. Wait for it to finish before requesting another scope."
+          end
           next Request.new(run: current, created?: false)
         end
         current&.update!(status: "failed", completed_at: Time.current, error_message: "Check expired. A new run was requested.")
         run = create!(website: website, requested_at: Time.current,
-          configuration_digest: Distillator::TransitionFingerprint.call(website))
+          configuration_digest: Distillator::TransitionFingerprint.call(website), check_options: requested_options.to_h)
         website.update_column(:transition_check_requested_at, run.requested_at)
         Request.new(run: run, created?: true)
       end
+    end
+
+    def options
+      Distillator::TransitionCheckOptions.new(check_options)
     end
 
     def execute
@@ -62,6 +72,17 @@ module Distillator
       self.class.where(id: id, status: %w[queued running]).update_all(
         status: "failed", completed_at: Time.current, error_message: message, updated_at: Time.current)
       reload
+    end
+
+    private
+
+    def valid_check_options
+      options
+      if persisted? && will_save_change_to_check_options?
+        errors.add(:check_options, "cannot change after the check is requested")
+      end
+    rescue ArgumentError => error
+      errors.add(:check_options, error.message)
     end
   end
 end

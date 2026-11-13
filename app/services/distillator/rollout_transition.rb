@@ -121,6 +121,7 @@ module Distillator
       {
         transition_run_id: run&.id,
         configuration_digest: run&.configuration_digest,
+        check_options: run&.check_options,
         blockers: promotion_readiness.blockers,
         warnings: warnings.presence || promotion_readiness.warnings,
         cohort_key: website.distillator_primary_cohort_key,

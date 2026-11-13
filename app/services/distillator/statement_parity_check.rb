@@ -2,7 +2,7 @@ module Distillator
   class StatementParityCheck
     Result = Struct.new(:status, :reason, :artifacts, :url_results, :critical_failures, :optional_failures, keyword_init: true)
 
-    def self.call(website:, webpages:, url_results:, refresh_helper:, comparator: Distillator::MigrationComparator)
+    def self.call(website:, webpages:, url_results:, refresh_helper:, comparator: Distillator::MigrationComparator, strict: false)
       artifacts = []
       rows = webpages.map do |page|
         input = url_results.find { |row| row[:url] == page.url } || {}
@@ -29,7 +29,7 @@ module Distillator
             artifact[:verdict]
           end
           artifact.merge(verdict: verdict, webpage_url: page.url, source: artifact[:property_label],
-            severity: critical ? "blocker" : "warning")
+            core_field: critical, severity: (critical || strict) ? "blocker" : "warning")
         end
         artifacts.concat(entries)
         required = page.rdfs_class.name == "Event" ? Webpage.publishable_required_property_labels : []
@@ -41,7 +41,7 @@ module Distillator
         if entries.empty? || (required - entries.map { |entry| entry[:property_label] }).any? || unsupported
           { url: page.url, status: "inconclusive", reason: "paired_extraction_inconclusive" }
         elsif entries.any? { |entry| entry[:severity] == "blocker" && entry[:verdict] != MigrationComparator::MATCH }
-          { url: page.url, status: "failed", reason: "critical_statement_parity_failed" }
+          { url: page.url, status: "failed", reason: strict ? "strict_statement_parity_failed" : "critical_statement_parity_failed" }
         elsif entries.any? { |entry| entry[:verdict] != MigrationComparator::MATCH }
           { url: page.url, status: "warning", reason: "optional_statement_parity_warning" }
         else
@@ -67,7 +67,7 @@ module Distillator
         [:checked, "paired_statements_match"]
       end
       # A known critical failure cannot be hidden by incomplete coverage elsewhere.
-      state, reason = :failed, "critical_statement_parity_failed" if critical.any?
+      state, reason = :failed, (strict ? "strict_statement_parity_failed" : "critical_statement_parity_failed") if critical.any?
       Result.new(status: state, reason: reason, artifacts: artifacts, url_results: rows,
         critical_failures: critical, optional_failures: optional)
     end

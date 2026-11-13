@@ -55,6 +55,24 @@ class DistillatorTransitionTaskTest < ActiveSupport::TestCase
     assert_includes stdout, "Open: /distillator/shadow_report/#{website.id}"
   end
 
+  test "task forwards explicit sample and field policies" do
+    keys = %w[SAMPLE_MODE SAMPLE_SIZE STRICTNESS]
+    previous = keys.to_h { |key| [key, ENV[key]] }
+    ENV["SAMPLE_MODE"] = "all"
+    ENV.delete("SAMPLE_SIZE")
+    ENV["STRICTNESS"] = "strict"
+    website = websites(:two)
+    Distillator::TransitionCheckRunner.expects(:call).with(website: website.id,
+      check_options: { sample_mode: "all", strictness: "strict" }).returns(OpenStruct.new(website: website))
+    Distillator::TransitionCheck.expects(:call).with(website: website).returns(
+      OpenStruct.new(fetch: :passed, statements: :passed, export: :passed, status: :ready))
+    output, = capture_io { @check_task.invoke(website.id) }
+    assert_includes output, "All publishable event pages"
+    assert_includes output, "Strict: differences in any selected field block activation"
+  ensure
+    previous&.each { |key, value| value ? ENV[key] = value : ENV.delete(key) }
+  end
+
   test "preflight task prints second production readiness checks without fetching" do
     Distillator::FetchCacheStore.expects(:fetch).never
     Distillator::FetchService.expects(:fetch).never

@@ -112,4 +112,37 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
 
     assert_redirected_to distillator_shadow_report_site_path(target)
   end
+
+  test "custom quantity and strictness queue a scoped run without changing the website" do
+    target = websites(:two)
+    mode = target.distillator_mode
+    post distillator_transition_checks_path, params: { website_id: target.id,
+      check_options: { sample_mode: "count", sample_size: "50", strictness: "strict" } }
+    assert_redirected_to distillator_shadow_report_site_path(target)
+    assert_equal({ "sample_mode" => "count", "sample_size" => 50, "strictness" => "strict" }, target.latest_transition_run.check_options)
+    assert_equal mode, target.reload.distillator_mode
+    assert_equal 1, ActiveJob::Base.queue_adapter.enqueued_jobs.length
+  end
+
+  test "different scope during an active run produces a clear conflict without a second job" do
+    target = websites(:two)
+    post distillator_transition_checks_path, params: { website_id: target.id }
+    post distillator_transition_checks_path, params: { website_id: target.id, check_options: { sample_mode: "all", strictness: "strict" } }
+    assert_includes flash[:alert], "different check options"
+    assert_nil flash[:notice]
+    assert_equal 1, target.transition_runs.count
+    assert_equal 1, ActiveJob::Base.queue_adapter.enqueued_jobs.length
+    assert target.latest_transition_run.options.default?
+  end
+
+  test "malformed and invalid options do not create runs or enqueue jobs" do
+    target = websites(:two)
+    ["all", { sample_mode: "count", sample_size: "-1" }, { strictness: "anything" }, { unexpected: "value" }].each do |options|
+      post distillator_transition_checks_path, params: { website_id: target.id, check_options: options }
+      assert_redirected_to distillator_shadow_report_site_path(target)
+      assert flash[:alert].present?
+    end
+    assert_equal 0, target.transition_runs.count
+    assert_empty ActiveJob::Base.queue_adapter.enqueued_jobs
+  end
 end

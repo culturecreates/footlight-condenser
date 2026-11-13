@@ -573,6 +573,69 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal "checked", result.records[:statement_delta].status
   end
 
+  test "all page strict run persists its scope in every phase and blocks optional differences without updating statements" do
+    website = build_website
+    first = website.webpages.first
+    stored = create_selected_statement(first, status: "ok")
+    price = Property.create!(label: "Price", value_datatype: "MyString", uri: "https://example.org/strict-price", rdfs_class: rdfs_classes(:one))
+    website.sources.create!(property: price, selected: true, language: "en", render_js: false, algorithm_value: "xpath=//span/text()")
+    second = website.webpages.create!(url: "https://runner-site.example/other", language: "en", rdf_uri: "rdf:strict-other", rdfs_class: rdfs_classes(:one))
+    caches = website.webpages.map do |page|
+      cache = Distillator::FetchCache.find_by(normalized_url: page.url) || create_fetch_cache_for_url(page.url, signals: { transport_success: true, content_success: true })
+      cache.update!(html: "<html><span>30</span></html>", body: "<html><span>30</span></html>")
+      [page.url, fetch_result_for(cache: cache)]
+    end.to_h
+    legacy = website.webpages.to_h do |page|
+      [page.url, { legacy_cache: { html: "<html><span>20</span></html>" }, legacy_lookup_status: "ok", missing: {},
+        summary: { blocking_regressions: [], review_needed_diffs: [], metadata_only_diffs: [], unknown_diffs: [] } }]
+    end
+    before = stored.reload.attributes
+    options = { sample_mode: "all", strictness: "strict" }
+    result = Distillator::TransitionCheckRunner.call(website: website, check_options: options,
+      fetch_cache_store: FakeFetchCacheStore.new(caches), cache_compare: FakeCacheCompare.new(legacy),
+      export_service: FakeExportService.new(actual: '{"@id":"event:1"}', expected: '{"@id":"event:1"}'))
+    assert_equal options.stringify_keys, website.latest_transition_run.check_options
+    result.records.each_value { |record| assert_equal options.stringify_keys, record.details["check_options"] }
+    statements = result.records[:statement_delta]
+    assert_equal 2, statements.details["representative_webpage_count"]
+    assert_equal 2, statements.details["compared_webpage_count"]
+    assert_equal "failed", statements.status
+    assert_equal "strict_statement_parity_failed", statements.details["reason"]
+    assert_equal ["Price"], statements.details["critical_failing_statements"].map { |entry| entry["property_label"] }.uniq
+    assert_equal before, stored.reload.attributes
+    assert_equal "shadow", website.reload.distillator_mode
+    assert_equal :failed, Distillator::TransitionStatus.call(website: website).statements
+  end
+
+  test "runner cannot silently substitute a different scope for a recorded job" do
+    website = build_website
+    run = Distillator::TransitionRun.request!(website: website, options: { sample_mode: "all", strictness: "strict" }).run
+    assert_raises(ArgumentError) { Distillator::TransitionCheckRunner.new(website: website, transition_run: run, check_options: {}) }
+  end
+
+  test "a large check near lease expiry records incomplete coverage rather than claiming all pages were checked" do
+    website = build_website
+    cache = Distillator::FetchCache.find_by!(normalized_url: website.webpages.first.url)
+    run = Distillator::TransitionRun.request!(website: website, options: { sample_mode: "all", strictness: "strict" }).run
+    run.update_column(:requested_at, 59.minutes.ago)
+    store = mock
+    store.expects(:fetch).never
+    compare = mock
+    compare.expects(:call).never
+    run.execute do
+      Distillator::TransitionCheckRunner.call(website: website, transition_run: run,
+        transition_check_service: fake_transition_check_service(website: website, cache: cache),
+        fetch_cache_store: store, cache_compare: compare)
+    end
+    detail = Distillator::ShadowSiteDetail.call(website: website)
+    assert_equal 1, detail.checked_scope[:representative_webpage_count]
+    assert_equal 0, detail.checked_scope[:fetch_attempted_webpage_count]
+    assert_equal 0, detail.checked_scope[:compared_webpage_count]
+    assert_includes ApplicationController.helpers.shadow_report_scope_lines(detail.checked_scope), "Compared 0 of 1 pages; selected 1, fetched 0."
+    assert_equal :failed, detail.transition_status.fetch
+    assert_not detail.transition_status.review_activation_eligible
+  end
+
   private
 
   def build_website(with_webpage: true)
