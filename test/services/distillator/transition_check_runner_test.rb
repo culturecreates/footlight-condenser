@@ -1,7 +1,9 @@
 require "test_helper"
 
 class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
-  FetchResult = Struct.new(:cache, :transport_success_value, :content_success_value, :blocking_issue_key, keyword_init: true) do
+  include WebMock::API
+  setup { WebMock.reset! }
+  FetchResult = Struct.new(:cache, :transport_success_value, :content_success_value, :blocking_issue_key, :cache_hit, keyword_init: true) do
     def transport_success?
       transport_success_value
     end
@@ -617,14 +619,15 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     page = website.webpages.first
     create_selected_statement(page, status: "ok")
     cache = Distillator::FetchCache.find_by!(normalized_url: page.url)
-    adapter = Object.new
-    adapter.define_singleton_method(:call) do |uri:, **options|
-      Distillator::CacheCompare.call(uri: uri, **options,
-        legacy_lookup: ->(_) { { html: cache.html + '<!-- Different tracking markup -->' } })
-    end
+    cache.update!(http_response_code: 200)
+    endpoint = Distillator::WringerEndpoint::Result.new(legacy_lookup_base_url: "https://legacy.example")
+    Distillator::WringerEndpoint.stubs(:current).returns(endpoint)
+    request = stub_request(:get, "https://legacy.example/websites/wring.json")
+      .with(query: { uri: page.url, force_scrape: "true" })
+      .to_return(body: { html: cache.html + '<!-- Different tracking markup -->', http_code: 200 }.to_json)
     result = Distillator::TransitionCheckRunner.call(website: website,
       check_options: { sample_mode: "all", strictness: "strict" },
-      fetch_cache_store: fake_fetch_cache_store_for(website, cache), cache_compare: adapter,
+      fetch_cache_store: fake_fetch_cache_store_for(website, cache),
       export_service: FakeExportService.new(actual: '{"@id":"event:1"}', expected: '{"@id":"event:1"}'))
     assert_equal "metadata_only_difference", result.records[:fetch_parity].details["reason"]
     assert result.records.values.all? { |record| record.status == "checked" }
@@ -632,6 +635,33 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal :ready, status.status
     assert_empty status.warnings
     assert_equal "shadow", website.reload.distillator_mode
+    assert_requested request, times: 1
+    assert_equal "fresh_both", result.records[:fetch_parity].details["fetch_basis"]
+    assert result.records[:fetch_parity].details["representative_url_results"].first.dig("legacy_fetch", "force_scrape")
+  end
+
+  test "failed fresh Wringer scrape cannot compare its retained last good HTML" do
+    website = build_website
+    page = website.webpages.first
+    create_selected_statement(page, status: "ok")
+    cache = Distillator::FetchCache.find_by!(normalized_url: page.url)
+    endpoint = Distillator::WringerEndpoint::Result.new(legacy_lookup_base_url: "https://legacy.example")
+    Distillator::WringerEndpoint.stubs(:current).returns(endpoint)
+    stub_request(:get, "https://legacy.example/websites/wring.json")
+      .with(query: { uri: page.url, force_scrape: "true" })
+      .to_return(body: { html: cache.html, http_code: 503 }.to_json)
+    native = fake_fetch_cache_store_for(website, cache)
+
+    result = Distillator::TransitionCheckRunner.call(website: website, fetch_cache_store: native,
+      export_service: FakeExportService.new(actual: '{}', expected: '{}'))
+
+    assert_equal "legacy_lookup_unreachable", result.records[:fetch_parity].details["reason"]
+    assert_equal "pending", result.records[:statement_delta].status
+    assert_empty result.records[:statement_delta].details["statement_artifacts"]
+    assert_equal true, native.calls.first[:force_scrape]
+    assert_equal false, native.calls.first[:render_js]
+    assert_not Distillator::TransitionStatus.call(website: website).review_activation_eligible
+    assert_not_requested :get, "https://legacy.example/websites.json"
   end
 
   test "runner cannot silently substitute a different scope for a recorded job" do

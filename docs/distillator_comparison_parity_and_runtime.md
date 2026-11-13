@@ -1,5 +1,38 @@
 # Transition comparison: data, reliability and diagnostics
 
+## Fresh input policy
+
+Transition checks require new fetches from **both** backends for every sampled
+URL. Condenser uses its internal path with `force_scrape: true`. Wringer is called
+directly at the configured legacy backend's `/websites/wring.json` endpoint with
+`force_scrape=true`, using the same rendering option. Normal fetches omit the
+`use_phantomjs` parameter entirely because older Wringer versions test presence.
+There is no cached-list lookup or hydration fallback in this check path.
+
+Wringer may return last-good HTML after an upstream failure. The check requires
+both a successful API response and an explicit upstream 2xx code, no failed
+signals/abort policy, and a nonempty HTML string. Failure, missing success proof,
+malformed JSON or a timeout leaves the legacy snapshot unavailable. Paired
+extraction then remains inconclusive and cannot authorize activation. Condenser
+cache hits and failed fresh results likewise cannot supply a comparison body.
+
+Each freshly fetched pair is reused for all selected source comparisons within
+that run. Request timestamps and response codes are retained in per-URL evidence;
+`fetch_basis: fresh_both` identifies the policy. Fetching still writes operational
+caches, but comparisons consume this run's responses, never older retained HTML.
+The two requests are sequential and close in time, not an atomic website snapshot;
+live content may still change between them and genuine field differences remain
+blocking. Reconciliation reuse within a run is unchanged.
+
+The comparison-policy version is part of the configuration fingerprint. Earlier
+cached-legacy runs remain available for historical inspection but are stale for
+activation; run a new check after deployment. Rollout modes and audit history are
+not changed. No schema migration is required.
+
+Read-only cache/statement diagnostic GET pages still inspect stored snapshots and
+are explicitly labeled as such. They do not generate activation evidence. Use a
+transition batch check for a new comparison of fresh backend results.
+
 Transition checks validate selected extracted values, required-field coverage and
 export serialization. Cache diagnostics support this decision; they are not a
 requirement to reproduce Wringer's monitoring limitations.

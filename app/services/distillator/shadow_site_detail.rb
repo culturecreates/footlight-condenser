@@ -127,6 +127,7 @@ module Distillator
 
         {
           check_options: operation_status.completed_run&.options&.to_h || {},
+          fetch_basis: fetch_details["fetch_basis"],
           compared_webpage_count: integer_detail(statement_details, "compared_webpage_count"),
           fetch_attempted_webpage_count: integer_detail(fetch_details, "fetch_attempted_webpage_count"),
           representative_webpage_count: representative_count,

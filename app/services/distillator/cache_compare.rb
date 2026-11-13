@@ -25,24 +25,28 @@ module Distillator
       successful_refresh
     ].freeze
 
-    def self.call(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil, wringer_endpoint: nil, comparison_policy: :operator)
+    def self.call(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil, wringer_endpoint: nil, comparison_policy: :operator, fresh_legacy: false, render_js: false)
       new(
         uri: uri,
         include_fragment: include_fragment,
         legacy_lookup: legacy_lookup,
         condenser_result: condenser_result,
         wringer_endpoint: wringer_endpoint,
-        comparison_policy: comparison_policy
+        comparison_policy: comparison_policy,
+        fresh_legacy: fresh_legacy,
+        render_js: render_js
       ).call
     end
 
-    def initialize(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil, wringer_endpoint: nil, comparison_policy: :operator)
+    def initialize(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil, wringer_endpoint: nil, comparison_policy: :operator, fresh_legacy: false, render_js: false)
       @uri = uri
       @include_fragment = include_fragment
       @legacy_lookup = legacy_lookup
       @condenser_result = condenser_result
       @wringer_endpoint = wringer_endpoint
       @comparison_policy = normalize_policy(comparison_policy)
+      @fresh_legacy = fresh_legacy
+      @render_js = render_js
     end
 
     def call
@@ -58,8 +62,9 @@ module Distillator
         legacy_source: legacy_result[:source],
         legacy_lookup_status: legacy_result[:status],
         legacy_lookup_error: legacy_result[:error],
+        legacy_fetch: legacy_result[:fetch],
         condenser_cache: condenser_cache,
-        condenser_source: "local_fetch_cache",
+        condenser_source: @fresh_legacy ? (@render_js ? "fresh_rendered_fetch" : "fresh_native_fetch") : "local_fetch_cache",
         comparison_policy: comparison_policy,
         diffs: build_diffs(legacy_cache, condenser_cache),
         missing: {
@@ -83,10 +88,20 @@ module Distillator
     attr_reader :uri, :include_fragment, :legacy_lookup, :condenser_result, :wringer_endpoint, :comparison_policy
 
     def condenser_cache_record(key)
+      if @fresh_legacy
+        return nil unless condenser_result && condenser_result.cache_hit != true &&
+          condenser_result.transport_success? && condenser_result.content_success?
+
+        return condenser_result.cache
+      end
       condenser_result&.cache || Distillator::FetchCache.find_by(uri_key: key.uri_key)
     end
 
     def fetch_legacy_cache(key)
+      if @fresh_legacy
+        return Distillator::FreshWringerSnapshot.call(uri: key.normalized_url, render_js: @render_js,
+          include_fragment: include_fragment, wringer_endpoint: wringer_endpoint)
+      end
       if legacy_lookup
         payload = legacy_lookup.call(key.uri_key)
         return { payload: payload, source: "injected_lookup", status: payload.present? ? "ok" : "missing", error: nil }

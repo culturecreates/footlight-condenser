@@ -22,7 +22,7 @@ class Distillator::TransitionEvidenceExplanationTest < ActiveSupport::TestCase
     assert_includes explanation.details.second, 'Wringer "Original title"; Condenser "Updated title"'
     assert_equal 2, explanation.details.length
     assert_includes explanation.next_action, "snapshots and their fetch times"
-    assert_includes explanation.next_action, "If equivalent snapshots still produce different values"
+    assert_includes explanation.next_action, "fetch both backends fresh"
   end
 
   test "fetch explanation distinguishes comparison failure from fetch failure" do

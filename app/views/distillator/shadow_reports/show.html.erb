@@ -43,6 +43,7 @@
     <% completed_options = operation.completed_run.options %>
     <p><strong>Data field comparison:</strong>
       <span title="<%= completed_options.field_policy_label %>"><%= completed_options.strictness.humanize %></span></p>
+    <p><strong>Snapshot policy:</strong> <%= @detail.checked_scope[:fetch_basis] == "fresh_both" ? "Fresh requests to Wringer and Condenser; no fallback to older HTML." : "Older run: fresh requests to both backends were not established. Run a new check." %></p>
   <% else %>
     <p>No completed comparison recorded.</p>
   <% end %>

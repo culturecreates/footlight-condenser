@@ -227,10 +227,12 @@ module Distillator
       return { attempted: false, result: nil, comparison: nil } unless run_fetch?
       return { attempted: false, result: nil, comparison: nil } unless representative_webpage.present?
 
-      # Transition checks force fresh Condenser evidence through the internal-only path.
-      # CacheCompare performs the separate legacy/Wringer lookup afterward.
+      # Both sides must fetch now; cached snapshots are inspection-only.
+      render_js = Statements::RefreshWebpageStatementsService.sources_for_webpage(representative_webpage,
+        default_language: website.default_language).any? { |source| source.selected? && source.render_js == true }
       fetch_result = fetch_cache_store.fetch(
         uri: representative_webpage.url,
+        render_js: render_js,
         force_scrape: true,
         mode: "internal",
         website: website,
@@ -249,7 +251,9 @@ module Distillator
         comparison: cache_compare.call(
           uri: representative_webpage.url,
           condenser_result: fetch_result,
-          comparison_policy: comparison_policy
+          comparison_policy: comparison_policy,
+          fresh_legacy: true,
+          render_js: render_js
         )
       }
     end

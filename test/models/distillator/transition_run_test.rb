@@ -60,6 +60,21 @@ class Distillator::TransitionRunTest < ActiveSupport::TestCase
     assert_empty @website.latest_transition_evidences_by_kind
   end
 
+  test "completed runs from the cached legacy policy cannot authorize activation" do
+    old_inputs = [@website.attributes.slice("seedurl", "default_language", "graph_name"),
+      @website.sources.order(:id).pluck(*Source.column_names),
+      Property.where(id: @website.sources.select(:property_id)).order(:id).pluck(*Property.column_names),
+      RdfsClass.order(:id).pluck(:id, :name),
+      @website.webpages.order(:id).pluck(*Webpage.column_names)]
+    old_digest = Digest::SHA256.hexdigest(JSON.generate(old_inputs))
+    run = Distillator::TransitionRun.request!(website: @website).run
+    run.execute { record_all(run) }
+    assert_not_equal old_digest, run.configuration_digest
+    run.update_column(:configuration_digest, old_digest)
+    assert_match "configuration changed", @website.transition_run_blocker
+    assert_equal "shadow", @website.reload.distillator_mode
+  end
+
   test "a configuration edit after completion invalidates promotion evidence" do
     run = Distillator::TransitionRun.request!(website: @website).run
     run.execute { record_all(run) }

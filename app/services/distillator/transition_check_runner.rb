@@ -424,6 +424,7 @@ module Distillator
         selected_candidate_tier_count: transition_check.selected_candidate_tier_count,
         selection_rule: transition_check.selection_rule,
         check_options: @check_options.to_h,
+        fetch_basis: "fresh_both",
         fetch_attempted_webpage_count: Array(@representative_url_results).count { |row| row[:attempted_condenser_fetch] },
         sample_small: (publishable_event_page_count.positive? ? publishable_event_page_count : transition_check.candidate_webpage_count.to_i) > representative_webpages.count
       }
@@ -433,10 +434,11 @@ module Distillator
       cached = @representative_result_cache[webpage.url]
       return cached.merge(url: webpage.url, webpage_id: webpage.id) if cached.present?
 
+      render_js = Statements::RefreshWebpageStatementsService.sources_for_webpage(webpage,
+        default_language: website.default_language).any? { |source| source.selected? && source.render_js == true }
       fetch_result = fetch_cache_store.fetch(
         uri: webpage.url,
-        render_js: Statements::RefreshWebpageStatementsService.sources_for_webpage(webpage,
-          default_language: website.default_language).any? { |source| source.selected? && source.render_js == true },
+        render_js: render_js,
         force_scrape: true,
         mode: "internal",
         website: website,
@@ -449,7 +451,9 @@ module Distillator
       comparison = cache_compare.call(
         uri: webpage.url,
         condenser_result: fetch_result,
-        comparison_policy: comparison_policy
+        comparison_policy: comparison_policy,
+        fresh_legacy: true,
+        render_js: render_js
       )
 
       built = build_representative_url_result(webpage, fetch_result, comparison)
@@ -458,7 +462,7 @@ module Distillator
     end
 
     def build_representative_url_result(webpage, fetch_result, comparison)
-      fetch_status = fetch_result.transport_success? && fetch_result.content_success? ? "passed" : "failed"
+      fetch_status = fetch_result.cache_hit != true && fetch_result.transport_success? && fetch_result.content_success? ? "passed" : "failed"
       {
         url: webpage.url,
         webpage_id: webpage.id,
@@ -477,6 +481,8 @@ module Distillator
         legacy_source: comparison&.dig(:legacy_source),
         legacy_lookup_status: comparison&.dig(:legacy_lookup_status),
         legacy_lookup_error: comparison&.dig(:legacy_lookup_error),
+        legacy_fetch: comparison&.dig(:legacy_fetch),
+        condenser_fetch: { attempted_at: fetch_result.cache&.scrape_date, cache_hit: fetch_result.cache_hit },
         condenser_source: comparison&.dig(:condenser_source),
         compare_missing: comparison&.dig(:missing),
         compare_summary: comparison&.dig(:summary),

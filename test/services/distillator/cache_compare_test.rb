@@ -5,6 +5,23 @@ class Distillator::CacheCompareTest < ActiveSupport::TestCase
     Distillator::FetchCache.delete_all
   end
 
+  test "fresh comparison never falls back to a stored Condenser body" do
+    url = "https://example.org/fresh-only"
+    cache = Distillator::FetchCache.create!(uri_key: CGI.escape(url), normalized_url: url,
+      html: "<title>Old</title>", body: "<title>Old</title>", signals: {})
+    Distillator::FreshWringerSnapshot.stubs(:call).returns(payload: { html: "<title>New</title>", http_code: 200 },
+      source: "remote_wringer_fresh", status: "ok", error: nil)
+    [nil, Distillator::FetchCacheStore::Result.new(cache: cache, cache_hit: true,
+      signals: { "transport_success" => true, "content_success" => true }),
+      Distillator::FetchCacheStore::Result.new(cache: cache, cache_hit: false,
+        signals: { "transport_success" => false, "content_success" => false })].each do |fresh_result|
+      result = Distillator::CacheCompare.call(uri: url, fresh_legacy: true, condenser_result: fresh_result)
+      assert_nil result[:condenser_cache]
+      assert result.dig(:missing, :condenser)
+      assert_not result.dig(:summary, :promotable)
+    end
+  end
+
   test "title comparison parses attributes entities and canonical Unicode while keeping real changes blocking" do
     url = "https://example.org/title-parity"
     html = "<html><title lang='fr'>The\u0301a\u0302tre &#38; décembre</title></html>"

@@ -237,7 +237,7 @@ module Distillator
         state == :passed ? "No fetch action is needed right now." : "Fix the fetch/cache failure first, then rerun the transition batch check."
       when "statement_delta"
         if reason.in?(%w[critical_statement_parity_failed strict_statement_parity_failed])
-          "Compare the affected page snapshots and their fetch times first. A live-page change can differ from cached Wringer content. If equivalent snapshots still produce different values, investigate the affected sources before activating."
+          "Compare the affected page snapshots and their fetch times first. If either snapshot came from an older cache, run a new transition check to fetch both backends fresh. Investigate any remaining differences before activating."
         elsif reason == "optional_statement_parity_warning"
           "Review optional value differences before activating."
         elsif reason == "paired_extraction_inconclusive"

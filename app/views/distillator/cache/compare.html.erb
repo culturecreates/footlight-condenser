@@ -1,6 +1,7 @@
 <h1>Cache Comparison</h1>
 
 <p class="cache-page-notice cache-compare-warning">Read-only comparison only. No cache refresh was performed. Legacy data may be read from the configured Wringer cache endpoint.</p>
+<p class="cache-page-notice">Stored snapshot diagnostics do not establish current transition parity. Run a transition batch check from the website page to fetch both backends fresh.</p>
 
 <p><strong>URI:</strong> <span class="cache-normalized-url"><%= external_website_link(@comparison[:uri]) %></span></p>
 <p><strong>URI key:</strong> <span class="cache-uri-key"><%= @comparison[:uri_key] || "Unavailable" %></span></p>
