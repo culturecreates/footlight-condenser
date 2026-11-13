@@ -177,7 +177,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes @response.body, "Extracted Statement Comparison"
     assert_includes @response.body, "Read-only diagnostic only"
-    assert_includes @response.body, "limited to essential properties 1, 3, 5, and 13"
+    assert_includes @response.body, "Only website-selected sources are compared, within properties 1, 3, 5, and 13"
     assert_includes @response.body, "Same statements"
     assert_includes @response.body, "Removed statements"
     assert_includes @response.body, "Changed statements"

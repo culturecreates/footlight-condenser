@@ -27,11 +27,12 @@ module Statements
 
     def call(webpage:, default_language: "en", legacy_html:, condenser_html:, sources: nil, property_ids: DEFAULT_PROPERTY_IDS)
       scoped_property_ids = normalized_property_ids(property_ids)
-      source_list = Array(sources).presence || source_resolver.sources_for_webpage(
+      source_list = sources.nil? ? source_resolver.sources_for_webpage(
         webpage,
         default_language: default_language,
         property_ids: scoped_property_ids
-      )
+      ) : Array(sources)
+      source_list = source_list.select(&:selected?)
       comparison = Distillator::MigrationComparator.new(website: webpage.website, webpage: webpage,
         legacy_html: legacy_html, condenser_html: condenser_html, sources: source_list, refresh_helper: refresh_helper).compare_statements
       groups_by_verdict = {

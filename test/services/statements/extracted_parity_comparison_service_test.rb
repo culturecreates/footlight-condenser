@@ -1,6 +1,29 @@
 require "test_helper"
 
 class Statements::ExtractedParityComparisonServiceTest < ActiveSupport::TestCase
+  test "diagnostics compare only the selected Dates source and count only executed sources" do
+    website, webpage = build_statement_compare_fixture(suffix: "selected-dates")
+    property = essential_property(1, "Dates")
+    chosen = create_statement_compare_source(website: website, property: property, algorithm: "xpath=//time/text()")
+    excluded = create_statement_compare_source(website: website, property: property,
+      algorithm: "ruby=raise 'Unselected Dates must not execute'")
+    excluded.update!(selected: false)
+
+    [nil, [chosen, excluded]].each do |sources|
+      result = Statements::ExtractedParityComparisonService.call(webpage: webpage, sources: sources, property_ids: [1],
+        legacy_html: "<time>2027-01-01</time>", condenser_html: "<time>2027-01-01</time>")
+      assert_equal 1, result.sources_count
+      assert_equal 1, result.counts[:same]
+      assert_equal [chosen.id], result.groups.values.flatten.map { |row| row[:source_id] }
+      assert_equal 0, result.counts[:extraction_errors]
+    end
+
+    result = Statements::ExtractedParityComparisonService.call(webpage: webpage, sources: [],
+      legacy_html: "<time>2027-01-01</time>", condenser_html: "<time>2027-01-01</time>")
+    assert_equal 0, result.sources_count
+    assert_empty result.groups.values.flatten
+  end
+
   test "defaults to essential properties only and ignores non essential differences" do
     website, webpage = build_statement_compare_fixture
     essential_same = create_statement_compare_source(

@@ -1,6 +1,23 @@
 require "test_helper"
 
 class Distillator::MigrationComparatorTest < ActiveSupport::TestCase
+  test "unselected alternate Dates sources are excluded even from an explicit source list" do
+    website, webpage = build_fixture("selected-dates")
+    property = property_fixture(88, "Dates")
+    chosen = create_source(website: website, property: property, algorithm: "xpath=//time/text()")
+    excluded = create_source(website: website, property: property, algorithm: "ruby=raise 'Unselected Dates must not execute'")
+    excluded.update!(selected: false)
+    unset = create_source(website: website, property: property, algorithm: "ruby=raise 'Unset selection must not execute'")
+    unset.update_column(:selected, nil)
+
+    [nil, [chosen, excluded, unset]].each do |sources|
+      result = Distillator::MigrationComparator.new(website: website, webpage: webpage, sources: sources,
+        legacy_html: "<time>2027-01-01</time>", condenser_html: "<time>2027-01-01</time>").compare_statements
+      assert_equal Distillator::MigrationComparator::MATCH, result.verdict
+      assert_equal [chosen.id], result.artifacts.map { |artifact| artifact[:source_id] }
+    end
+  end
+
   class ExportServiceStub
     def initialize(actual:, expected:)
       @actual = actual

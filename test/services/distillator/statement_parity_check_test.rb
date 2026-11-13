@@ -23,6 +23,26 @@ class Distillator::StatementParityCheckTest < ActiveSupport::TestCase
     assert_equal fingerprint, Distillator::TransitionFingerprint.call(@website)
   end
 
+  test "standard and strict ignore an unselected alternative Dates source and its rendering profile" do
+    @website.sources.create!(property: @sources["Dates"].property, language: "en", selected: false, render_js: true,
+      algorithm_value: "ruby=raise 'Unselected Dates must not execute'")
+    [false, true].each do |strict|
+      result = compare(html, html, strict: strict)
+      assert_equal :checked, result.status
+      assert_equal @sources.values.map(&:id).sort, result.artifacts.map { |row| row[:source_id] }.sort
+      assert_equal 1, result.artifacts.count { |row| row[:property_label] == "Dates" }
+      assert_empty result.critical_failures
+    end
+  end
+
+  test "an unselected Dates source cannot satisfy required field coverage" do
+    @sources["Dates"].update!(selected: false)
+    result = compare(html, html, strict: true)
+    assert_equal :pending, result.status
+    assert_equal "paired_extraction_inconclusive", result.reason
+    assert_not_includes result.artifacts.map { |row| row[:source_id] }, @sources["Dates"].id
+  end
+
   test "a changed critical value fails even when both sides parse" do
     result = compare(html, html(date: "2027-02-02"))
     assert_equal :failed, result.status

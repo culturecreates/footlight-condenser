@@ -1,5 +1,16 @@
 # Transition comparison: data, reliability and diagnostics
 
+## Selected source scope
+
+Standard and Strict compare website-selected sources only (`Source.selected?`),
+including the read-only extracted-statement diagnostic. Strict changes how
+differences are classified; it does not include unselected alternative algorithms.
+An expanded property scope also remains selected-only. The shared comparator
+enforces selection even when callers supply source lists explicitly, and diagnostic
+source counts reflect the filtered list. An explicitly empty list remains empty.
+Unselected required fields cannot satisfy coverage. There is no implicit exhaustive
+or all-alternatives mode.
+
 ## Fresh input policy
 
 Transition checks require new fetches from **both** backends for every sampled

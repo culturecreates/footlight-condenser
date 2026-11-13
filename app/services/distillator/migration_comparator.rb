@@ -154,11 +154,8 @@ module Distillator
                 :default_language, :sources, :refresh_helper, :source_resolver, :export_service
 
     def resolved_sources
-      return Array(sources) unless sources.nil?
-
-      source_resolver
-        .sources_for_webpage(webpage, default_language: default_language)
-        .select { |source| source.selected? }
+      candidates = sources.nil? ? source_resolver.sources_for_webpage(webpage, default_language: default_language) : Array(sources)
+      candidates.select(&:selected?)
     end
 
     def compare_source(source)
