@@ -1,0 +1,101 @@
+[
+  {
+    "@id": "http://kg.footlight.io/resource/phase1-jsonld-event",
+    "@type": [
+      "http://schema.org/Event"
+    ],
+    "http://schema.org/location": [
+      {
+        "@id": "http://kg.footlight.io/resource/phase1-jsonld-event#VirtualLocation"
+      }
+    ],
+    "http://schema.org/name": [
+      {
+        "@value": "JSON-LD Fixture Event"
+      }
+    ],
+    "http://schema.org/startDate": [
+      {
+        "@type": "http://www.w3.org/2001/XMLSchema#dateTime",
+        "@value": "2026-05-02T20:00:00Z"
+      }
+    ]
+  },
+  {
+    "@id": "http://kg.footlight.io/resource/phase1-jsonld-event#VirtualLocation",
+    "@type": [
+      "http://schema.org/VirtualLocation"
+    ],
+    "http://schema.org/url": [
+      {
+        "@value": "https://phase1.example/jsonld-event"
+      }
+    ]
+  },
+  {
+    "@id": "http://kg.footlight.io/resource/phase1-redirect-event",
+    "@type": [
+      "http://schema.org/Event"
+    ],
+    "http://schema.org/location": [
+      {
+        "@id": "http://kg.footlight.io/resource/phase1-redirect-event#VirtualLocation"
+      }
+    ],
+    "http://schema.org/name": [
+      {
+        "@value": "Redirect Fixture Event"
+      }
+    ],
+    "http://schema.org/startDate": [
+      {
+        "@type": "http://www.w3.org/2001/XMLSchema#dateTime",
+        "@value": "2026-05-03T20:00:00Z"
+      }
+    ]
+  },
+  {
+    "@id": "http://kg.footlight.io/resource/phase1-redirect-event#VirtualLocation",
+    "@type": [
+      "http://schema.org/VirtualLocation"
+    ],
+    "http://schema.org/url": [
+      {
+        "@value": "https://phase1.example/final-event"
+      }
+    ]
+  },
+  {
+    "@id": "http://kg.footlight.io/resource/phase1-simple-event",
+    "@type": [
+      "http://schema.org/Event"
+    ],
+    "http://schema.org/location": [
+      {
+        "@id": "http://kg.footlight.io/resource/phase1-simple-event#VirtualLocation"
+      }
+    ],
+    "http://schema.org/name": [
+      {
+        "@value": "Simple Fixture Event"
+      }
+    ],
+    "http://schema.org/startDate": [
+      {
+        "@type": "http://www.w3.org/2001/XMLSchema#dateTime",
+        "@value": "2026-05-01T20:00:00Z"
+      }
+    ]
+  },
+  {
+    "@id": "http://kg.footlight.io/resource/phase1-simple-event#VirtualLocation",
+    "@type": [
+      "http://schema.org/VirtualLocation"
+    ],
+    "http://schema.org/url": [
+      {
+        "@value": "https://phase1.example/simple-event"
+      }
+    ]
+  }
+]

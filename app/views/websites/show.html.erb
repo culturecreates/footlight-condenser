@@ -1,48 +1,185 @@
+<section class="website-show-section">
+  <h1>
+    <%= @website.name %>
+    <% if website_cohort_badge(@website).present? %>
+      <span class="rollout-inline"><%= website_cohort_badge(@website) %></span>
+    <% end %>
+    <span class="rollout-inline"><%= website_rollout_badge(@website) %></span>
+  </h1>
 
+  <dl class="website-identity-list">
+    <% website_identity_rows(@website).each do |label, value| %>
+      <dt><%= label %></dt>
+      <dd><%= value %></dd>
+    <% end %>
+  </dl>
 
-<p>
-  <strong>Name:</strong>
-  <%= @website.name %> 
-</p>
+  <p class="website-debug-id"><%= website_debug_id_label(@website) %></p>
+</section>
 
-<p>
-  <strong>Seedurl:</strong>
-  <%= @website.seedurl %>
-</p>
+<% transition_contract = website_transition_contract(@website) %>
+<% active = @website.distillator_mode == "active" %>
+<% operation = website_operation_status(@website) if active %>
 
-<p>
-  <strong>Default Language:</strong>
-  <%= @website.default_language %>
-</p>
+<% if active %>
+  <section class="website-rollout-panel website-show-section" id="active-operation">
+    <h2>Active on Condenser</h2>
+    <% if operation.activation %>
+      <p><strong><%= Distillator::WebsiteOperationStatus.event_label(operation.activation) %></strong>
+        · <%= operation.activation.created_at.strftime("%Y-%m-%d %H:%M %Z") %></p>
+      <% if operation.activation.reason.present? %>
+        <p><%= Distillator::WebsiteOperationStatus.reviewed?(operation.activation) ? "Review reason" : "Activation reason" %>: <%= operation.activation.reason %></p>
+      <% end %>
+    <% end %>
+    <% observed = operation.observed_fetch %>
+    <p class="<%= observed[:failed] ? 'cache-page-notice' : 'cache-page-note' %>"><strong><%= observed[:label] %></strong></p>
+    <% if observed[:attempted_at] %>
+      <p><%= observed[:attempted_at].strftime("%Y-%m-%d %H:%M %Z") %>
+        <% if observed[:backend] %> · Backend: <%= observed[:backend] %><% end %>
+        · <%= observed[:url] %></p>
+      <% if observed[:redirected] %><p>Observed redirect: <%= observed[:url] %> → <%= observed[:final_url] %></p><% end %>
+      <p class="cache-page-note">This observation covers the latest cached page.</p>
+    <% else %>
+      <p>Refresh upcoming events to validate fetching and extraction after activation.</p>
+    <% end %>
+    <% counts = operation.statement_counts %>
+    <% if counts.any? %>
+      <p>Selected statements on upcoming event pages:
+        <%= counts.fetch("problem", 0) %> problems,
+        <%= counts.fetch("missing", 0) %> missing,
+        <%= counts.fetch("initial", 0) %> awaiting review.</p>
+    <% end %>
+    <%= link_to "Refresh upcoming events", refresh_upcoming_events_batch_jobs_path(seedurl: @website.seedurl) %>
+  </section>
+<% end %>
 
-<p>
-  <strong>graph_name:</strong>
-  <%= @website.graph_name %>
-</p>
+<section id="website-transition" class="website-rollout-panel website-show-section">
+  <h2><%= active ? "Latest comparison" : "Transition verdict" %></h2>
+  <p><strong><%= website_transition_verdict_line(@website) %></strong></p>
+  <p><%= website_transition_secondary_status_line(@website) %></p>
+</section>
 
+<section class="website-rollout-panel website-show-section">
+  <h2><%= active ? "Active operation and rollback" : "Blocking reason / promote control" %></h2>
+  <% primary_action = transition_contract[:primary_action] %>
+  <% if active %>
+    <details>
+      <summary>Rollback to Legacy Wringer</summary>
+      <p>Return this website's fetching to Legacy Wringer. The decision is recorded in rollout history.</p>
+      <%= button_to primary_action[:label], primary_action[:path], method: primary_action[:method], params: primary_action[:params], class: "website-transition-button" %>
+    </details>
+  <% elsif primary_action[:enabled] %>
+    <%= button_to primary_action[:label], primary_action[:path], method: primary_action[:method], params: primary_action[:params], class: "website-transition-button" %>
+  <% else %>
+    <p class="transition-context-disabled-action">
+      <strong><%= primary_action[:label] %>:</strong>
+      <%= primary_action[:message] %>
+      <%= link_to "See latest transition report", distillator_shadow_report_site_path(@website) %>
+    </p>
+  <% end %>
 
-<%= link_to 'Edit', edit_website_path(@website) %> |
-<%= link_to 'Back', websites_path %>
-<hr>
-<h1> Jobs</h1>
-<%= link_to 'View resources with lists', lists_path(seedurl: @website.seedurl) %> 
-<br>
-<%= link_to 'Export step-by-step', graphs_website_path(seedurl: @website.seedurl) %>
+  <% transition_contract[:secondary_actions].reject { |action| action[:emergency] }.each do |action| %>
+    <% if action[:kind] == :override %>
+      <details class="website-transition-override">
+        <summary><%= action[:label] %></summary>
+        <p><%= action[:copy] %></p>
+        <%= form_with url: action[:path], method: action[:method], local: true, class: "website-transition-override-form" do |form| %>
+          <%= form.label :reason, "Reason" %>
+          <%= form.text_field :reason, required: true %>
+          <%= form.submit action[:label] %>
+        <% end %>
+      </details>
+    <% end %>
+  <% end %>
 
+  <section id="website-batch-jobs-transition" class="website-rollout-panel">
+    <h3>Transition batch check</h3>
+    <p><%= website_transition_batch_check_copy %></p>
+    <% latest_run = website_operation_status(@website).latest_run %>
+    <% check_options = latest_run ? latest_run.options : Distillator::TransitionCheckOptions.new %>
+    <%= form_with url: website_transition_batch_check_path, method: :post, local: true, class: "website-transition-check-form" do %>
+      <% website_transition_batch_check_params(@website, return_to: website_transition_batch_status_path(@website)).each do |key, value| %>
+        <%= hidden_field_tag key, value %>
+      <% end %>
+      <fieldset <%= "disabled" if latest_run&.status.in?(%w[queued running]) %>>
+        <p>
+          <%= label_tag "check_options_sample_mode", "Event sample" %>
+          <%= select_tag "check_options[sample_mode]", options_for_select([
+            ["Default sample (20%, minimum 5, maximum 25)", "default"],
+            ["Fixed number of pages", "count"], ["All publishable event pages", "all"]
+          ], check_options.sample_mode) %>
+          <%= label_tag "check_options_sample_size", "Page count (Fixed number of pages only)" %>
+          <%= number_field_tag "check_options[sample_size]", check_options.sample_size || 25,
+            min: 1, max: Distillator::TransitionCheckOptions::MAX_SAMPLE_SIZE, step: 1 %>
+        </p>
+        <p>
+          <%= label_tag "check_options_strictness", "Field comparison" %>
+          <%= select_tag "check_options[strictness]", options_for_select([
+            ["Standard: core differences block; other differences warn", "standard"],
+            ["Strict: differences in any selected field block", "strict"]
+          ], check_options.strictness) %>
+        </p>
+        <p class="cache-page-note">Both modes compare all selected sources. Fixed count applies only to a fixed sample.
+          If no publishable events exist, the check uses other website pages. Larger checks take longer.</p>
+        <%= submit_tag "Run transition batch check", class: "website-transition-button" %>
+      </fieldset>
+    <% end %>
+    <p><%= website_transition_evidence_freshness_text(@website) %></p>
+    <% if latest_run %>
+      <p><%= link_to "View run ##{latest_run.id} status", distillator_transition_check_path(latest_run) %></p>
+    <% end %>
+  </section>
+</section>
 
-<h1>Batch Jobs</h1>
-<%= link_to 'Refresh upcoming events', refresh_upcoming_events_batch_jobs_path(seedurl: @website.seedurl) %> 
-<br>
-<%= link_to 'Refresh lists and add webpages', check_for_new_webpages_batch_jobs_path(seedurl: params[:seedurl]) %>
-<br>
-<%= link_to 'Refresh all Webpages (all classes, all dates)', refresh_webpages_batch_jobs_path(seedurl: @website.seedurl) %> 
-<br>
-<%= link_to 'Export Events to Artsdata', graphs_website_queue_path(seedurl: @website.seedurl) %>
+<% transition_contract[:secondary_actions].select { |action| action[:emergency] }.each do |action| %>
+  <details class="website-transition-override website-show-section" id="website-emergency-override">
+    <summary>Emergency activation override</summary>
+    <p>Bypasses transition gates, including a queued or running check. Use only for an intentional emergency activation.</p>
+    <p><%= action[:copy] %></p>
+    <%= form_with url: action[:path], method: action[:method], local: true, class: "website-transition-override-form" do |form| %>
+      <%= form.label :reason, "Emergency activation reason" %>
+      <%= form.text_field :reason, required: true %>
+      <%= form.submit action[:label] %>
+    <% end %>
+  </details>
+<% end %>
 
+<section class="website-rollout-panel website-show-section">
+  <h2>Drill-down links</h2>
+  <ul class="website-show-link-list">
+    <li><%= link_to "Selected XPath sources", website_sources_index_path(@website) %></li>
+    <% website_transition_drill_down_links(@website).each do |link| %>
+      <li><%= link %></li>
+    <% end %>
+  </ul>
+</section>
 
-<h3 style="color:red">  DESTROY </h3>
-<div style="display:block;float: left">
- <%= button_to 'Destroy all statements', delete_all_statements_websites_path(id: @website.id), method: :delete, data: { confirm: 'Are you sure to delete all #{@website.seedurl} statements ?' } %>
- <%= button_to 'Destroy all webpages', delete_all_webpages_websites_path(id: @website.id), method: :delete, data: { confirm: 'Are you sure to delete all #{@website.seedurl} statements ?' } %>
- <%= button_to 'Destroy all EVENT webpages', delete_all_event_webpages_websites_path(id: @website.id), method: :delete, data: { confirm: 'Are you sure to delete all #{@website.seedurl} statements ?' } %>
+<section class="website-show-section">
+  <h2>Operations</h2>
+  <ul class="website-show-link-list">
+    <li><%= link_to "Edit", edit_website_path(@website) %></li>
+    <li><%= link_to "View resources with lists", lists_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Export step-by-step", graphs_website_path(seedurl: @website.seedurl) %></li>
+    <% unless active %><li><%= link_to "Refresh upcoming events", refresh_upcoming_events_batch_jobs_path(seedurl: @website.seedurl) %></li><% end %>
+    <li><%= link_to "Refresh lists and add webpages", check_for_new_webpages_batch_jobs_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Refresh all Webpages (all classes, all dates)", refresh_webpages_batch_jobs_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Export Events to Artsdata", graphs_website_queue_path(seedurl: @website.seedurl) %></li>
+  </ul>
+</section>
 
+<section class="website-rollout-panel website-show-section">
+  <h2>Recent rollout events</h2>
+  <%= render "websites/rollout_history", events: @website.rollout_events.order(created_at: :desc, id: :desc).limit(5) %>
+
+</section>
+
+<details class="website-danger-zone website-show-section">
+  <summary>Danger zone</summary>
+
+  <div class="website-danger-zone-body">
+    <%= button_to "Destroy website", website_path(@website), method: :delete, data: { confirm: "Are you sure you want to destroy #{@website.seedurl}?", turbo: false } %>
+    <%= button_to "Destroy all statements", delete_all_statements_websites_path(id: @website.id), method: :delete, data: { confirm: "Are you sure to delete all #{@website.seedurl} statements ?" } %>
+    <%= button_to "Destroy all webpages", delete_all_webpages_websites_path(id: @website.id), method: :delete, data: { confirm: "Are you sure to delete all #{@website.seedurl} statements ?" } %>
+    <%= button_to "Destroy all EVENT webpages", delete_all_event_webpages_websites_path(id: @website.id), method: :delete, data: { confirm: "Are you sure to delete all #{@website.seedurl} statements ?" } %>
+  </div>
+</details>

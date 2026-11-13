@@ -9,6 +9,8 @@ DUMP_FILE="$1"
 DB_NAME="$2"
 DB_OWNER="${3:-educa}"
 
+PG_RESTORE="/usr/lib/postgresql/17/bin/pg_restore"
+
 if [[ -z "$DUMP_FILE" || -z "$DB_NAME" ]]; then
   echo "Usage: sudo -u postgres bash restore_condenser.bash <dump_file> <db_name> [db_owner]"
   exit 1
@@ -30,7 +32,7 @@ echo ">> Creating schema heroku_ext (if needed)"
 psql -d "$DB_NAME" -c "CREATE SCHEMA IF NOT EXISTS heroku_ext;"
 
 echo ">> Restoring database from: $DUMP_FILE (as role: $DB_OWNER)"
-pg_restore --verbose --clean --no-owner --role="$DB_OWNER" --dbname="$DB_NAME" "$DUMP_FILE" | tee restore.log
+$PG_RESTORE --verbose --clean --no-owner --role="$DB_OWNER" --dbname="$DB_NAME" "$DUMP_FILE" | tee restore.log
 
 echo ">> Checking for permission/ownership issues..."
 grep -Ei "owner|denied|skipping|execute" restore.log || echo "✅ No permission issues found."

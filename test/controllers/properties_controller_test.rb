@@ -10,6 +10,30 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "properties index renders harmonized table shell and sortable headers" do
+    get properties_url
+
+    assert_response :success
+    assert_select ".harmonized-table-shell", 1
+    assert_select 'th a[href*="sort=label"]'
+    assert_select 'th a[href*="sort=uri"]'
+  end
+
+  test "properties index falls back safely for invalid sort and direction" do
+    get properties_url, params: { sort: "bogus", direction: "sideways" }
+
+    assert_response :redirect
+    assert_redirected_to properties_url
+  end
+
+  test "properties index renders empty state" do
+    get properties_url, params: { term: "no-such-property-filter" }
+
+    follow_redirect! if response.redirect?
+    assert_response :success
+    assert_select ".harmonized-table-empty-state", 1
+  end
+
   test "should get new" do
     get new_property_url
     assert_response :success
@@ -26,6 +50,17 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   test "should show property" do
     get property_url(@property)
     assert_response :success
+  end
+
+  test "property show renders harmonized card hooks" do
+    get property_url(@property)
+
+    assert_response :success
+    assert_select ".harmonized-card-grid", minimum: 1
+    assert_select ".harmonized-card", minimum: 1
+    assert_select ".harmonized-card-title", minimum: 1
+    assert_select ".harmonized-card-value", minimum: 1
+    assert_select ".harmonized-card-actions", minimum: 1
   end
 
   test "should get edit" do

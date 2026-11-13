@@ -113,5 +113,121 @@ class StatementsHelperSearchCckgTest < ActionView::TestCase
     end
   end
 
+  test "search_cckg: structured reconciliation for place with QC province returns Montreal result only" do
+    webpage = webpages(:four)
+    webpage.website.stubs(:respond_to?).with(:province).returns(true)
+    webpage.website.stubs(:province).returns("QC")
+
+    HTTParty.expects(:get).with do |url|
+      url.include?("queries=") &&
+        url.include?("schema%3Aaddress%2Fschema%3AaddressRegion") &&
+        url.include?("%22v%22%3A%22QC%22")
+    end.returns(
+      {
+        "q0" => {
+          "result" => [
+            { "id" => "K11-3", "name" => "Place des Arts", "match" => true, "score" => 95.0 }
+          ]
+        }
+      }
+    )
+
+    expected = { data: [["Place des Arts", "http://kg.artsdata.ca/resource/K11-3"]] }
+    actual = search_cckg("Place des Arts", "Place", webpage)
+    assert_equal expected, actual
+  end
+
+  test "search_cckg: structured reconciliation for place with ON province returns Sudbury result only" do
+    webpage = webpages(:four)
+    webpage.website.stubs(:respond_to?).with(:province).returns(true)
+    webpage.website.stubs(:province).returns("ON")
+
+    HTTParty.expects(:get).with do |url|
+      url.include?("queries=") &&
+        url.include?("schema%3Aaddress%2Fschema%3AaddressRegion") &&
+        url.include?("%22v%22%3A%22ON%22")
+    end.returns(
+      {
+        "q0" => {
+          "result" => [
+            { "id" => "K11-SUDBURY", "name" => "Place des Arts (Sudbury)", "match" => true, "score" => 96.0 }
+          ]
+        }
+      }
+    )
+
+    expected = { data: [["Place des Arts (Sudbury)", "http://kg.artsdata.ca/resource/K11-SUDBURY"]] }
+    actual = search_cckg("Place des Arts", "Place", webpage)
+    assert_equal expected, actual
+  end
+
+  test "search_cckg: no province falls back to legacy extraction behavior and can return multiple results" do
+    webpage = webpages(:four)
+    webpage.website.stubs(:respond_to?).with(:province).returns(true)
+    webpage.website.stubs(:province).returns(nil)
+
+    HTTParty.expects(:get).with do |url|
+      url.include?("?query=Place%20des%20Arts") && url.include?("&type=Place")
+    end.returns(
+      {
+        "result" => [
+          { "id" => "K11-3", "name" => "Place des Arts", "match" => true, "score" => 95.0 },
+          { "id" => "K11-SUDBURY", "name" => "Place des Arts (Sudbury)", "match" => false, "score" => 70.0 }
+        ]
+      }
+    )
+
+    expected = {
+      data: [
+        ["Place des Arts", "http://kg.artsdata.ca/resource/K11-3"],
+        ["Place des Arts (Sudbury)", "http://kg.artsdata.ca/resource/K11-SUDBURY"]
+      ]
+    }
+    actual = search_cckg("Place des Arts", "Place", webpage)
+    assert_equal expected, actual
+  end
+
+  test "search_cckg: clean query resolves to a single best match" do
+    HTTParty.expects(:get).with do |url|
+      url.include?("?query=Place%20des%20Arts") && url.include?("&type=Place")
+    end.returns(
+      {
+        "result" => [
+          { "id" => "K11-3", "name" => "Place des Arts", "match" => true, "score" => 95.0 },
+          { "id" => "K11-SUDBURY", "name" => "Place des Arts (Sudbury)", "match" => false, "score" => 70.0 }
+        ]
+      }
+    )
+
+    expected = { data: [["Place des Arts", "http://kg.artsdata.ca/resource/K11-3"]] }
+    actual = search_cckg("Place des Arts", "Place")
+    assert_equal expected, actual
+  end
+
+  test "search_cckg: noisy query uses extraction behavior and returns multiple matches" do
+    webpage = webpages(:four)
+    webpage.website.stubs(:respond_to?).with(:province).returns(true)
+    webpage.website.stubs(:province).returns("ON")
+
+    HTTParty.expects(:get).with do |url|
+      url.include?("?query=Bluma%20Appel%20Theatre%20and%20Berkeley%20Street%20Theatre") && url.include?("&type=Place")
+    end.returns(
+      {
+        "result" => [
+          { "id" => "K11-6", "name" => "St. Lawrence Centre for the Arts - Bluma Appel Theatre", "match" => false, "score" => 81.0 },
+          { "id" => "K11-14", "name" => "Canadian Stage - Berkeley Street Theatre", "match" => false, "score" => 80.0 }
+        ]
+      }
+    )
+
+    expected = {
+      data: [
+        ["St. Lawrence Centre for the Arts - Bluma Appel Theatre", "http://kg.artsdata.ca/resource/K11-6"],
+        ["Canadian Stage - Berkeley Street Theatre", "http://kg.artsdata.ca/resource/K11-14"]
+      ]
+    }
+    actual = search_cckg("Bluma Appel Theatre and Berkeley Street Theatre", "Place", webpage)
+    assert_equal expected, actual
+  end
 
 end

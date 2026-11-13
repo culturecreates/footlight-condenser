@@ -1,0 +1,62 @@
+<h1>Condenser / Distillator System Map</h1>
+
+<p class="cache-page-note">This page is read-only. It documents the current Condenser, Distillator, and legacy Wringer surfaces without fetching, refreshing, exporting, or changing rollout state.</p>
+
+<section class="website-rollout-panel">
+  <h2>Activation readiness ladder</h2>
+  <table class="cache-table cache-compare-table">
+    <thead>
+      <tr>
+        <th>Step</th>
+        <th>Purpose</th>
+        <th>Operator surface</th>
+        <th>Status badges</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @capability_map.activation_readiness_ladder.each do |step| %>
+        <tr>
+          <td><strong><%= step.name %></strong></td>
+          <td><%= step.purpose %></td>
+          <td><%= step.operator_surface %></td>
+          <td><%= capability_badges(step.badges) %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</section>
+
+<% @capability_map.sections.each do |section| %>
+  <section class="website-rollout-panel">
+    <h2><%= section.title %></h2>
+    <table class="cache-table cache-compare-table">
+      <thead>
+        <tr>
+          <th>Feature name</th>
+          <th>Purpose</th>
+          <th>Implementation status</th>
+          <th>Wringer dependency / parity status</th>
+          <th>Transition relevance</th>
+          <th>Evidence source</th>
+          <th>Operator link</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% section.features.each do |feature| %>
+          <tr>
+            <td>
+              <strong><%= feature.name %></strong>
+              <div class="sources-secondary-text"><%= capability_badges(feature.badges) %></div>
+            </td>
+            <td><%= feature.purpose %></td>
+            <td><%= feature.implementation_status %></td>
+            <td><%= feature.wringer_dependency_status %></td>
+            <td><%= feature.transition_relevance %></td>
+            <td><code><%= feature.evidence_source %></code></td>
+            <td><%= link_to feature.operator_label, feature.operator_path %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </section>
+<% end %>

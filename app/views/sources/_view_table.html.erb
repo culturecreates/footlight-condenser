@@ -1,39 +1,213 @@
-<table>
+<% visible_sources = sources_for_display(@sources) %>
+<% source_rollout_website = @sources.map(&:website).compact.uniq.one? ? @sources.first&.website : nil %>
+
+<% if source_rollout_website.present? %>
+  <p class="rollout-note">
+    <%= operator_rollout_badge(source_rollout_website) %>
+    <span><%= operator_rollout_explanation(source_rollout_website) %></span>
+  </p>
+<% end %>
+
+<div class="sources-quick-filter-strip">
+  <strong>Quick filters</strong>
+  <% source_quick_filter_links(@sources).each do |filter| %>
+    <%= link_to filter[:path], class: "sources-quick-filter #{'sources-quick-filter-active' if filter[:active]}" do %>
+      <span><%= filter[:label] %></span>
+      <span class="sources-quick-filter-count"><%= filter[:count] %></span>
+    <% end %>
+  <% end %>
+  <%= link_to "Clear filters", source_clear_filters_path, class: "sources-quick-filter sources-quick-filter-clear" %>
+</div>
+
+<details class="source-advanced-filters" <%= "open" if source_advanced_filters_open? %>>
+  <summary>Advanced filters</summary>
+
+  <%= form_with url: source_filters_form_path, method: :get, local: true, class: "source-advanced-filters-form" do |form| %>
+    <%= hidden_field_tag :seedurl, params[:seedurl] if params[:seedurl].present? %>
+    <%= hidden_field_tag :id, params[:id] if params[:id].present? %>
+    <%= hidden_field_tag :quick_filter, params[:quick_filter] if params[:quick_filter].present? %>
+
+    <div class="source-filter-grid">
+      <div>
+        <%= form.label :source_term, "Search" %>
+        <%= form.text_field :source_term, value: params[:source_term] %>
+      </div>
+
+      <div>
+        <%= form.label :source_property, "Property" %>
+        <%= form.text_field :source_property, value: params[:source_property] %>
+      </div>
+
+      <div>
+        <%= form.label :source_language, "Language" %>
+        <%= form.select :source_language,
+                        options_for_select([["Any", ""], ["en", "en"], ["fr", "fr"]], params[:source_language]),
+                        {} %>
+      </div>
+
+      <div>
+        <%= form.label :source_selected_by, "Selected by" %>
+        <%= form.text_field :source_selected_by, value: params[:source_selected_by] %>
+      </div>
+
+      <div>
+        <%= form.label :source_status, "Status" %>
+        <%= form.select :source_status,
+                        options_for_select([
+                          ["Any", ""],
+                          ["Website default", "website_default"],
+                          ["Alternative", "alternative"],
+                          ["Manual-sensitive", "manual_sensitive"],
+                          ["Needs test", "needs_test"],
+                          ["Failed", "failed"]
+                        ], params[:source_status]),
+                        {} %>
+      </div>
+
+      <div>
+        <%= form.label :source_strategy, "Fetch strategy" %>
+        <%= form.select :source_strategy,
+                        options_for_select([
+                          ["Any", ""],
+                          ["Direct fetch", "direct_fetch"],
+                          ["Rendered fetch", "rendered_fetch"],
+                          ["POST fetch", "post_fetch"]
+                        ], params[:source_strategy]),
+                        {} %>
+      </div>
+
+      <div>
+        <%= form.label :source_pipeline, "Pipeline step" %>
+        <%= form.select :source_pipeline,
+                        options_for_select([
+                          ["Any", ""],
+                          ["URL step", "url_step"],
+                          ["XPath", "xpath"],
+                          ["Ruby transform", "ruby_transform"]
+                        ], params[:source_pipeline]),
+                        {} %>
+      </div>
+
+      <div>
+        <%= form.label :source_needs_test, "Needs test" %>
+        <%= form.select :source_needs_test,
+                        options_for_select([
+                          ["Any", ""],
+                          ["Yes", "true"],
+                          ["No", "false"]
+                        ], params[:source_needs_test]),
+                        {} %>
+      </div>
+    </div>
+
+    <p class="sources-filter-actions">
+      <%= form.submit "Apply filters" %>
+      <%= link_to "Reset", source_clear_filters_path %>
+    </p>
+  <% end %>
+</details>
+
+<p class="sources-results-summary">
+  Showing <strong><%= visible_sources.count %></strong> of <strong><%= @sources.count %></strong> sources.
+</p>
+
+<table class="cache-table sources-table">
   <thead>
     <tr>
-      <th>ID</th>
-
-      <th>Property</th>
-       <th>Label</th>
-      <th>Algorithm value</th>
-      <th>Selected</th>
-     
-      <th>Render js</th>
-       <th>Auto review</th>
-      <th>Website</th>
-      <th colspan="3"></th>
+      <th>Status</th>
+      <th>Property / Language</th>
+      <th>Pipeline</th>
+      <th>Fetch strategy</th>
+      <th>Impact</th>
+      <th>Last test</th>
+      <th>Actions</th>
     </tr>
   </thead>
 
   <tbody>
-    <% @sources.each do |source| %>
-      <tr <%= "style=color:red;" if !source.selected %>>
-        <td><%= source.id %></td>
+    <% visible_sources.each do |source| %>
+      <% status = source_operator_status(source) %>
+      <% strategy = source_fetch_strategy(source) %>
+      <tr>
+        <td class="sources-status-cell">
+          <%= source_status_badge(source) %>
+          <div class="sources-secondary-text"><%= status[:detail] %></div>
+        </td>
 
-        <td><%= source.property.rdfs_class.name if  source.property.rdfs_class %> <%= source.property.label  + "(#{source.property_id})" %> <%= "@" + source.language if !source.language.blank?%></td>
-        <td><%= source.label %></td>
-        <td><%= source.algorithm_value %></td>
-        <td <%= "style=bakground-color:pink;" if !source.selected %>><%= source.selected %></td>
-        <td><%= source.render_js %></td>
-         <td><%= source.auto_review %></td>
-        <td><%= source.website.seedurl + "(#{source.website_id})" %></td>
+        <td>
+          <strong><%= source_property_language_text(source) %></strong>
+          <% if source_property_context(source).present? %>
+            <div class="sources-secondary-text"><%= source_property_context(source) %></div>
+          <% end %>
+        </td>
 
-        <td><%= link_to 'Show', source %></td>
-        <td><%= link_to 'Edit', edit_source_path(source) %></td>
-        <td><%= link_to 'Destroy', source, method: :delete, data: { confirm: 'Are you sure?', turbo: false } %></td>
-        <td><%= link_to 'Report', source_reports_path(source_id: source.id) %></td>
+        <td>
+          <div class="sources-pipeline-list">
+            <% source_pipeline_summary(source).each do |step_label| %>
+              <span class="sources-pill"><%= step_label %></span>
+            <% end %>
+          </div>
+          <div class="sources-secondary-text"><%= truncate(source.algorithm_value.to_s, length: 90) %></div>
+        </td>
+
+        <td>
+          <%= source_fetch_strategy_badge(source) %>
+          <div class="sources-secondary-text"><%= strategy[:detail] %></div>
+        </td>
+
+        <td>
+          <strong><%= source_impact_summary(source) %></strong>
+          <div class="sources-secondary-text"><%= source.website&.seedurl %></div>
+          <div class="rollout-note"><%= source_rollout_badge(source) %></div>
+        </td>
+
+        <td>
+          <strong><%= source_last_test_summary(source) %></strong>
+          <div class="sources-secondary-text"><%= source_last_test_detail(source) %></div>
+        </td>
+
+        <td class="sources-actions-cell">
+          <div class="cache-action-group">
+            <strong>Actions</strong>
+            <%= source_inline_test_action(source) %>
+            <%= link_to "Edit", edit_source_path(source) %>
+            <%= source_inline_trace_action(source) %>
+          </div>
+
+          <details class="sources-row-details">
+            <summary>More</summary>
+
+            <div class="cache-action-group">
+              <strong>Secondary actions</strong>
+              <%= source_more_actions(source) %>
+            </div>
+
+            <div class="cache-action-group">
+              <strong>Source details</strong>
+              <dl class="sources-detail-list">
+                <% source_metadata_pairs(source).each do |label, value| %>
+                  <dt><%= label %></dt>
+                  <dd><%= value %></dd>
+                <% end %>
+              </dl>
+            </div>
+
+            <div class="cache-action-group">
+              <strong>Compatibility links</strong>
+              <% if source_cache_rollout_badge(source).present? %>
+                <p><%= source_cache_rollout_badge(source) %></p>
+              <% end %>
+              <p class="sources-secondary-text"><%= source_cache_note(source) %></p>
+            </div>
+          </details>
+        </td>
       </tr>
+    <% end %>
 
+    <% if visible_sources.empty? %>
+      <tr>
+        <td colspan="7">No sources match the current filters.</td>
+      </tr>
     <% end %>
   </tbody>
 </table>

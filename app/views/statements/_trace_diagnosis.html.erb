@@ -1,0 +1,32 @@
+<% if diagnosis[:message].present? %>
+  <div class="trace-diagnosis">
+    <strong>
+      <%=
+        case diagnosis[:status].to_sym
+        when :error then "🔴"
+        when :warning then "🟠"
+        else "🟢"
+        end
+      %>
+      <%= diagnosis_label %>:
+    </strong>
+    <%= diagnosis[:message] %>
+    <% hint = trace_presenter.diagnosis_relationship_hint(diagnosis, @statement.status, steps) %>
+
+    <% if hint.present? %>
+      <div class="trace-diagnosis-hint">
+        💡 <%= hint %>
+      </div>
+    <% end %>
+    <% if diagnosis[:source].present? || diagnosis[:error_type].present? %>
+      <span class="trace-diagnosis-meta">
+        [source: <%= diagnosis[:source].presence || "dsl" %><% if diagnosis[:error_type].present? %> • type: <%= diagnosis[:error_type] %><% end %>]
+      </span>
+    <% end %>
+  </div>
+<% end %>
+<% if diagnosis[:pipeline_category].to_s == "fetch" && @statement.status == "ok" %>
+  <div class="trace-diagnosis-hint">
+    ⚠ Latest fetch failed — displaying previously stored data
+  </div>
+<% end %>

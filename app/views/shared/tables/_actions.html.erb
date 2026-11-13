@@ -1,0 +1,24 @@
+<div class="cache-actions harmonized-table-actions">
+  <% if mode != :parity_refresh %>
+    <div class="cache-action-group">
+      <strong>View</strong>
+      <%= link_to "Show", distillator_cache_path(cache[:id]), data: { copy_url: distillator_cache_path(cache[:id]) } %>
+      <%= link_to "Raw", cache_raw_view_url(cache), data: { copy_url: cache_raw_url(cache) } %>
+      <%= link_to ".json", cache_wring_json_url(cache), data: { copy_url: cache_wring_json_url(cache) } %>
+      <%= link_to "Pretty JSON", cache_wring_json_view_url(cache), data: { copy_url: cache_wring_json_url(cache) } %>
+    </div>
+    <div class="cache-action-group">
+      <strong>Diagnose</strong>
+      <%= link_to "Compare", cache_compare_url(cache), data: { copy_url: cache_compare_url(cache) } %>
+    </div>
+  <% end %>
+
+  <% if refresh_ui_enabled %>
+    <div class="cache-action-group">
+      <strong>Refresh</strong>
+      <%= button_to cache_fetch_kind_label("normal"), fetch_distillator_cache_index_path, method: :post, params: preserved_index_params.merge(uri: cache[:normalized_url], fetch_kind: "normal", force_scrape: true), form_class: "cache-refresh-button" %>
+      <%= button_to cache_fetch_kind_label("rendered"), fetch_distillator_cache_index_path, method: :post, params: preserved_index_params.merge(uri: cache[:normalized_url], fetch_kind: "rendered", force_scrape: true, include_fragment: true), form_class: "cache-refresh-button" %>
+      <%= button_to cache_fetch_kind_label("post"), fetch_distillator_cache_index_path, method: :post, params: preserved_index_params.merge(uri: cache[:normalized_url], fetch_kind: "post", force_scrape: true), form_class: "cache-refresh-button" %>
+    </div>
+  <% end %>
+</div>

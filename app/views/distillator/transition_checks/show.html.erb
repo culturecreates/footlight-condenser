@@ -1,0 +1,34 @@
+<section class="website-rollout-panel website-show-section" id="transition-check-run"
+         data-transition-run data-run-id="<%= @run.id %>" data-status="<%= @run_status[:status] %>"
+         data-status-url="<%= distillator_transition_check_path(@run, format: :json) %>"
+         data-report-url="<%= @report_path %>" aria-busy="<%= @run_status[:status].in?(%w[queued running]) %>">
+  <h1>Transition check #<%= @run.id %></h1>
+  <p><%= link_to @website.name, website_path(@website) %> · <%= @website.seedurl %></p>
+  <p>Current mode: <strong><%= @website.distillator_mode.humanize %></strong> ·
+    Production backend: <strong><%= website_rollout_backend_for(@website) %></strong></p>
+  <p class="cache-page-note">This comparison does not change the website's rollout mode or stored statements.</p>
+
+  <dl class="website-identity-list">
+    <dt>Event sample</dt><dd><%= @run.options.selection_rule %></dd>
+    <dt>Field comparison</dt><dd><%= @run.options.field_policy_label %></dd>
+    <dt>Requested</dt><dd><%= @run.requested_at %></dd>
+  </dl>
+
+  <div role="status" aria-live="polite" aria-atomic="true">
+    <h2 data-run-label><%= @run_status[:label] %></h2>
+    <p data-run-message><%= @run_status[:message] %></p>
+    <p data-run-phases><%= "Recorded phases: #{@run_status[:phases_recorded].join(', ')}." if @run_status[:phases_recorded].any? %></p>
+    <p data-run-connection hidden></p>
+  </div>
+
+  <div data-run-completed <%= "hidden" unless @run_status[:status] == "completed" %>>
+    <%= link_to "Open completed report for run ##{@run.id}", @report_path %>
+  </div>
+  <div data-run-failed <%= "hidden" unless @run_status[:status].in?(%w[failed expired]) %>>
+    <%= button_to "Retry with the same options", distillator_transition_checks_path,
+      params: { website_id: @website.id, check_options: @run.options.to_h }, class: "website-transition-button" %>
+    <%= link_to "Change check options", website_path(@website, anchor: "website-batch-jobs-transition") %>
+  </div>
+  <p><%= link_to "Refresh status", distillator_transition_check_path(@run), data: { run_refresh: true } %></p>
+  <noscript><p>Automatic updates need JavaScript. Use Refresh status, then open the completed report.</p></noscript>
+</section>

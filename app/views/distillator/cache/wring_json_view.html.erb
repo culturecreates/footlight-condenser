@@ -1,0 +1,8 @@
+<h1>Cached Wringer-compatible JSON</h1>
+
+<p>This is the exact legacy-compatible cached payload. No fetch was performed.</p>
+<p><strong>Scrape date:</strong> <%= cache_timestamp_label(@cache_payload[:scrape_date]) %></p>
+<p><strong>Successful refresh:</strong> <%= cache_timestamp_label(@cache_payload[:successful_refresh]) %></p>
+<p><%= link_to "Open cached Wringer-compatible JSON endpoint", wring_json_distillator_cache_path(@cache) %></p>
+
+<pre><%= JSON.pretty_generate(@wring_payload) %></pre>

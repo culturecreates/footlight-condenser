@@ -1,0 +1,21 @@
+{
+  "url": "https://phase1.example/simple-event",
+  "recorded_at": "2026-04-27T00:00:00Z",
+  "response": {
+    "status": "ok",
+    "body": "<html><h1>Simple Fixture Event</h1></html>",
+    "headers": {
+      "content_type": "text/html"
+    },
+    "final_url": "https://phase1.example/simple-event",
+    "redirect_chain": [],
+    "wringer": {
+      "signals": {
+        "network_status": "ok",
+        "content_type": "html"
+      },
+      "hints": []
+    },
+    "duration_ms": 10.0
+  }
+}

@@ -1,44 +1,184 @@
 <div class="options-form">
   <h2>Options</h2>
+  <% trace_enabled = cookies[:dsl_trace] == "true" %>
+  <% trace_visibility = cookies[:trace_visibility] || "auto" %>
+  <% trace_view_mode = cookies[:trace_view_mode].presence || "3" %>
+  <% code_len = cookies[:trace_code_display_length] || StatementsController::TRACE_CODE_DEFAULT.to_s %>
+  <% output_len = cookies[:trace_output_display_length] || StatementsController::TRACE_OUTPUT_DEFAULT.to_s %>
+  <% wringer_target = cookies[:wringer_url].to_s.include?("localhost") ? "local" : "live" %>
 
-  <div class="buttons">
-    <p>Current Wringer: <strong><%= cookies[:wringer_url] || "default" %></strong></p>
-    <%= link_to "Switch to LOCAL", set_wringer_path("local"), class: "btn" %>
-    <%= link_to "Switch to LIVE", set_wringer_path("live"), class: "btn btn-secondary" %>
-  </div>
+  <style>
+    .options-form h3 {
+      margin-top: 1rem;
+      margin-bottom: 0.4rem;
+    }
 
-  <div class="buttons" style="margin-top: 1rem;">
-    <p>Current trace mode: <strong><%= cookies[:dsl_trace] == "true" ? "Enabled" : "Disabled" %></strong></p>
-    <%= link_to "Enable Trace", set_dsl_trace_options_path(state: "true"), class: "btn btn-primary" %>
-    <%= link_to "Disable Trace", set_dsl_trace_options_path(state: "false"), class: "btn btn-secondary" %>
-  </div>
+    .option-row {
+      margin-bottom: 0.75rem;
+    }
 
-  <h3>Trace Options</h3>
-  <%= form_with url: options_path, method: :post, local: true do %>
-    <label>
-      Trace Code Display Length
-      <%= number_field_tag :trace_code_display_length, cookies[:trace_code_display_length], min: 1 %>
-    </label>
+    .option-row a {
+      margin-right: 0.4rem;
+    }
 
-    <label>
-      Trace Code Tooltip Length
-      <%= number_field_tag :trace_code_tooltip_length, cookies[:trace_code_tooltip_length], min: 1 %>
-    </label>
+    .option-row a.active {
+      font-weight: 700;
+      text-decoration: underline;
+    }
+  </style>
 
-    <label>
-      Trace Output Display Length
-      <%= number_field_tag :trace_output_display_length, cookies[:trace_output_display_length], min: 1 %>
-    </label>
-
-    <label>
-      Trace Output Tooltip Length
-      <%= number_field_tag :trace_output_tooltip_length, cookies[:trace_output_tooltip_length], min: 1 %>
-    </label>
-
-    <%= submit_tag "Save Settings", class: "btn btn-primary" %>
+  <hr>
+  <h3>Preflight</h3>
+  <% if @production_preflight.present? %>
+    <p>
+      <strong>Status:</strong>
+      <%= @production_preflight.ok? ? "PASS" : "FAIL" %>
+    </p>
+    <ul>
+      <% @production_preflight.entries.each do |entry| %>
+        <li><strong><%= entry.label %>:</strong> <%= entry.value %></li>
+      <% end %>
+    </ul>
   <% end %>
+  <% if @staging_rollout_repair_preview.present? %>
+    <p>
+      <strong>Invalid staging websites:</strong>
+      <%= @staging_rollout_repair_preview.invalid_count %>
+    </p>
+    <details>
+      <summary>Dry run</summary>
+      <% if @staging_rollout_repair_preview.websites.any? %>
+        <ul>
+          <% @staging_rollout_repair_preview.websites.each do |website| %>
+            <li>#<%= website.id %> <%= website.name %> (<%= website.seedurl %>) - <%= website.mode %></li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p>No invalid staging websites.</p>
+      <% end %>
+    </details>
+    <% if Distillator::TransitionRuntime.staging? && @staging_rollout_repair_preview.invalid_count.positive? %>
+      <p>This action only runs on staging.</p>
+      <p>It records rollout events.</p>
+      <p>It changes only invalid modes to Shadow; Active and Shadow are unchanged.</p>
+      <div class="option-row">
+        <%= button_to "Move invalid staging websites to Shadow",
+                      repair_staging_rollout_options_path,
+                      method: :post,
+                      data: {
+                        turbo: false,
+                        confirm: "Move all invalid staging websites to Shadow?"
+                      } %>
+      </div>
+    <% end %>
+  <% end %>
+
+  <hr>
+  <h3>Mode</h3>
+  <div class="option-row">
+    <%= link_to "Clean", set_trace_preset_path("clean"), method: :post %>
+    <%= link_to "Debug", set_trace_preset_path("debug"), method: :post %>
+  </div>
+
+  <hr>
+  <h3>Environment</h3>
+  <p><strong><%= current_wringer_status_text %></strong></p>
+  <div class="option-row">
+    <%= link_to "LOCAL", set_wringer_path("local"), class: (wringer_target == "local" ? "active" : "") %>
+    <%= link_to "LIVE", set_wringer_path("live"), class: (wringer_target == "live" ? "active" : "") %>
+  </div>
+
+  <hr>
+  <h3>Trace</h3>
+  <div class="option-row">
+    Trace:
+    <%= link_to "Enable", set_dsl_trace_options_path(state: "true"), class: (trace_enabled ? "active" : "") %> /
+    <%= link_to "Disable", set_dsl_trace_options_path(state: "false"), class: (!trace_enabled ? "active" : "") %>
+  </div>
+
+  <% if trace_enabled %>
+    <div class="option-row">
+      Visibility:
+      <%= link_to "Auto", set_trace_visibility_options_path(state: "auto"), class: (trace_visibility == "auto" ? "active" : "") %> |
+      <%= link_to "Always", set_trace_visibility_options_path(state: "always"), class: (trace_visibility == "always" ? "active" : "") %> |
+      <%= link_to "Hidden", set_trace_visibility_options_path(state: "hidden"), class: (trace_visibility == "hidden" ? "active" : "") %>
+    </div>
+
+    <div class="option-row">
+      View:
+      <%= link_to "Clean", set_trace_view_mode_path(1), method: :post, class: (trace_view_mode == "1" ? "active" : "") %> |
+      <%= link_to "Trace", set_trace_view_mode_path(3), method: :post, class: (trace_view_mode == "3" ? "active" : "") %> |
+      <%= link_to "Interactive", set_trace_view_mode_path(4), method: :post, class: (trace_view_mode == "4" ? "active" : "") %> |
+      <%= link_to "Debug", set_trace_view_mode_path(5), method: :post, class: (trace_view_mode == "5" ? "active" : "") %>
+    </div>
+  <% else %>
+    <fieldset disabled>
+      <div class="option-row">Visibility: Auto | Always | Hidden</div>
+      <div class="option-row">View: Clean | Trace | Interactive | Debug</div>
+    </fieldset>
+  <% end %>
+
+  <hr>
+  <h3>Display</h3>
+  <% if trace_enabled %>
+    <div class="option-row">
+      Code length:
+      <%= link_to "140", set_trace_code_length_options_path(length: 140), class: (code_len == "140" ? "active" : "") %> |
+      <%= link_to "180", set_trace_code_length_options_path(length: 180), class: (code_len == "180" ? "active" : "") %> |
+      <%= link_to "200", set_trace_code_length_options_path(length: 200), class: (code_len == "200" ? "active" : "") %>
+    </div>
+
+    <div class="option-row">
+      Output length:
+      <%= link_to "140", set_trace_output_length_options_path(length: 140), class: (output_len == "140" ? "active" : "") %> |
+      <%= link_to "180", set_trace_output_length_options_path(length: 180), class: (output_len == "180" ? "active" : "") %> |
+      <%= link_to "200", set_trace_output_length_options_path(length: 200), class: (output_len == "200" ? "active" : "") %>
+    </div>
+  <% else %>
+    <fieldset disabled>
+      <div class="option-row">Code length: 140 | 180 | 200</div>
+      <div class="option-row">Output length: 140 | 180 | 200</div>
+    </fieldset>
+  <% end %>
+
+  <hr>
+  <h3 onclick="toggleAdvanced()" style="cursor:pointer;">
+    Advanced ▼
+  </h3>
+
+  <div id="advanced-options" style="display:none; margin-top:10px;">
+    <fieldset <%= "disabled" unless trace_enabled %>>
+      <%= form_with url: options_path, method: :post, local: true do %>
+        <div class="option-row">
+          <label>
+            Trace Code Tooltip Length
+            <%= number_field_tag :trace_code_tooltip_length, cookies[:trace_code_tooltip_length], min: 1 %>
+          </label>
+        </div>
+
+        <div class="option-row">
+          <label>
+            Trace Output Tooltip Length
+            <%= number_field_tag :trace_output_tooltip_length, cookies[:trace_output_tooltip_length], min: 1 %>
+          </label>
+        </div>
+
+        <%= submit_tag "Save Settings" %>
+      <% end %>
+    </fieldset>
+  </div>
+
+  <script>
+    function toggleAdvanced() {
+      const el = document.getElementById("advanced-options");
+      el.style.display = el.style.display === "none" ? "block" : "none";
+    }
+  </script>
 
   <% if flash[:notice] %>
     <p class="flash notice"><%= flash[:notice] %></p>
+  <% end %>
+  <% if flash[:alert] %>
+    <p class="flash alert"><%= flash[:alert] %></p>
   <% end %>
 </div>

@@ -47,6 +47,17 @@
     <%= form.text_field :graph_name, id: :website_graph_name %>
   </div>
 
+  <div class="field">
+    <%= form.label :distillator_mode, "Rollout mode (advanced)" %>
+    <%= form.select :distillator_mode, Distillator::RolloutCopy.website_form_options %>
+    <div class="rollout-note">
+      <p>Use the website Transition card for normal promotion, override, and rollback.</p>
+      <p><strong>Legacy:</strong> <%= Distillator::RolloutCopy.description(:legacy) %></p>
+      <p><strong>Shadow:</strong> <%= Distillator::RolloutCopy.description(:shadow) %></p>
+      <p><strong>Active:</strong> <%= Distillator::RolloutCopy.description(:active) %></p>
+    </div>
+  </div>
+
   <div class="actions">
     <%= form.submit %>
   </div>

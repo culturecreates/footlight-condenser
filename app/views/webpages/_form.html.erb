@@ -1,4 +1,5 @@
 <%= form_with(model: webpage, local: true) do |form| %>
+  <%= hidden_field_tag :return_to, @return_to if @return_to.present? %>
   <% if webpage.errors.any? %>
     <div id="error_explanation">
       <h2><%= pluralize(webpage.errors.count, "error") %> prohibited this webpage from being saved:</h2>

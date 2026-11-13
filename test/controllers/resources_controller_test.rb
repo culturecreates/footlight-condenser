@@ -27,6 +27,69 @@ class ResourcesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "place"
   end
 
+  test "resources json index preserves grouped resource contract" do
+    get website_all_resources_path(seedurl: websites(:one).seedurl, format: :json)
+
+    assert_response :success
+    payload = JSON.parse(@response.body)
+    assert payload.is_a?(Hash)
+    assert_includes payload.keys, "event"
+    assert_includes payload.keys, "place"
+  end
+
+  test "resources index renders harmonized table shell and sortable headers" do
+    assert_read_only_page_does_not_fetch
+    get website_all_resources_path(seedurl: websites(:one).seedurl)
+
+    assert_response :success
+    assert_select ".harmonized-table-shell", 1
+    assert_select 'th a[href*="sort=rdf_uri"]'
+    assert_select 'th a[href*="sort=rdfs_class_name"]'
+  end
+
+  test "resources index falls back safely for invalid sort and direction" do
+    get website_all_resources_path(seedurl: websites(:one).seedurl, sort: "bogus", direction: "sideways")
+
+    assert_response :redirect
+    assert_redirected_to website_all_resources_path(seedurl: websites(:one).seedurl)
+  end
+
+  test "resources nested canonical redirect does not duplicate seedurl query param" do
+    get website_all_resources_path(seedurl: "one"), params: {
+      sort: "bogus",
+      direction: "sideways",
+      seedurl: "one"
+    }
+
+    assert_response :redirect
+    assert_redirected_to website_all_resources_path(seedurl: "one")
+    assert_not_includes response.location, "?seedurl=one"
+  end
+
+  test "resources index renders empty state when website has no resources" do
+    assert_read_only_page_does_not_fetch
+    website = Website.create!(
+      name: "empty resource website",
+      seedurl: "empty-resource-website",
+      graph_name: "http://example.com/empty-resource-website",
+      default_language: "en",
+      distillator_mode: "legacy"
+    )
+
+    get website_all_resources_path(seedurl: website.seedurl)
+
+    assert_response :success
+    assert_select ".harmonized-table-empty-state", 1
+  end
+
+  test "resources index does not fetch" do
+    assert_read_only_page_does_not_fetch
+
+    get website_all_resources_path(seedurl: websites(:one).seedurl)
+
+    assert_response :success
+  end
+
   test "index returns 404 if seedurl missing" do
     get "/websites//resources.json"
     assert_response :not_found
@@ -38,6 +101,16 @@ class ResourcesControllerTest < ActionDispatch::IntegrationTest
     get uri_resources_path(uri: webpages(:one).rdf_uri)
     assert_response :success
     assert_match webpages(:one).rdf_uri, @response.body
+  end
+
+  test "resource uri page renders harmonized card hooks" do
+    get uri_resources_path(uri: webpages(:one).rdf_uri)
+
+    assert_response :success
+    assert_select ".harmonized-card-grid", minimum: 1
+    assert_select ".harmonized-card", minimum: 1
+    assert_select ".harmonized-card-title", minimum: 1
+    assert_select ".harmonized-card-value", minimum: 1
   end
 
   test "uri returns 400 if no param given" do
@@ -168,5 +241,14 @@ class ResourcesControllerTest < ActionDispatch::IntegrationTest
   test "webpage_urls with invalid rdf_uri returns 404" do
     get "/resources/unknown-uri/webpage_urls", as: :json
     assert_response :not_found
+  end
+
+  private
+
+  def assert_read_only_page_does_not_fetch
+    Distillator::FetchCacheStore.expects(:fetch).never
+    Distillator::FetchService.expects(:fetch).never
+    Distillator::NativeFetch.expects(:call).never
+    Distillator::FetchShadowComparator.expects(:call).never
   end
 end

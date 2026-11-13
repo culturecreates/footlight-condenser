@@ -2,6 +2,8 @@ class Statement < ApplicationRecord
   belongs_to :source
   belongs_to :webpage
 
+  scope :selected_for_transition, -> { where(selected_individual: true) }
+
   STATUSES = {
     initial: 'Initial',
     missing: 'Missing',
@@ -183,6 +185,10 @@ end
   def convert_array(str)
     return str if str.class == Array
     begin [*JSON[str]] rescue Array(str) end
+  end
+
+  def transition_problem?
+    !%w[ok updated].include?(status.to_s)
   end
 
 

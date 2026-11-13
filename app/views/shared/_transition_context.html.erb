@@ -1,0 +1,13 @@
+<details class="transition-context-card" data-transition-context>
+  <summary>Transition context · <%= context[:mode] %> · <%= context[:backend] %></summary>
+  <div class="transition-context-body">
+    <p><strong>Website:</strong> <%= website.name %>
+      <span class="transition-context-seedurl">(<%= website.seedurl %>)</span></p>
+    <p><strong>Latest check:</strong> <%= context[:check_label] %></p>
+    <ul class="transition-context-links">
+      <% context[:links].each do |link| %>
+        <li><%= link_to link[:label], link[:path] %></li>
+      <% end %>
+    </ul>
+  </div>
+</details>

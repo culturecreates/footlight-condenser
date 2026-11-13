@@ -1,0 +1,9 @@
+<h1>Raw Cached HTML</h1>
+
+<p><strong>Warning:</strong> cached HTML only; no refresh performed.</p>
+<p><strong>Safety:</strong> the raw endpoint is sandboxed to reduce app-origin script execution.</p>
+<p><strong>Scrape date:</strong> <%= cache_timestamp_label(@cache_payload[:scrape_date]) %></p>
+<p><strong>Successful refresh:</strong> <%= cache_timestamp_label(@cache_payload[:successful_refresh]) %></p>
+<p><%= link_to "Open raw cached HTML endpoint", raw_distillator_cache_path(@cache) %></p>
+
+<pre><%= @cache.html.to_s %></pre>

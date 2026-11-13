@@ -5,7 +5,7 @@ json.array! @websites do |website|
   json.statements_grouped @statements_grouped[website[:seedurl]]
   json.statements_refreshed_24hr @statements_refreshed_24hr[website[:seedurl]] ||= 0
   json.statements_updated_24hr @statements_updated_24hr[website[:seedurl]] ||= 0
-  json.webpages @webpages[website]
+  json.webpages @webpage_summaries.fetch(website.id, Distillator::WebsiteWebpageSummary.empty_summary)[:total]
   json.flags @flags[website[:seedurl]]
   json.updates @updated[website[:seedurl]]
 end

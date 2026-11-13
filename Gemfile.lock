@@ -322,7 +322,7 @@ GEM
     observer (0.1.2)
     ostruct (0.6.1)
     parallel (1.27.0)
-    parser (3.3.8.0)
+    parser (3.3.13.0)
       ast (~> 2.4.1)
       racc
     pg (1.5.9)
@@ -510,7 +510,7 @@ GEM
       sprockets-rails
       tilt
     scanf (1.0.0)
-    scout_apm (5.6.4)
+    scout_apm (5.7.1)
       parser
     securerandom (0.4.1)
     selenium-webdriver (4.33.0)
@@ -666,7 +666,7 @@ DEPENDENCIES
   rubocop-performance
   rubocop-rails
   sassc-rails
-  scout_apm
+  scout_apm (~> 5.7.1)
   selenium-webdriver (>= 4.0)
   sidekiq
   simplecov
@@ -680,7 +680,7 @@ DEPENDENCIES
   will_paginate (~> 3.3)
 
 RUBY VERSION
-   ruby 3.4.8p72
+   ruby 3.4.12p148
 
 BUNDLED WITH
    2.6.9

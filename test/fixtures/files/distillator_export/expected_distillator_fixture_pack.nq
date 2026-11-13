@@ -1,0 +1,15 @@
+<http://kg.footlight.io/resource/distillator-full-event#Offer_0> <http://schema.org/price> "15.00" .
+<http://kg.footlight.io/resource/distillator-full-event#Offer_0> <http://schema.org/url> "https://tickets.example.org/distillator-full-event" .
+<http://kg.footlight.io/resource/distillator-full-event#Offer_0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://schema.org/Offer> .
+<http://kg.footlight.io/resource/distillator-full-event> <http://schema.org/additionalType> <http://ontology.artsdata.ca/Performance> .
+<http://kg.footlight.io/resource/distillator-full-event> <http://schema.org/additionalType> <http://schema.org/MusicEvent> .
+<http://kg.footlight.io/resource/distillator-full-event> <http://schema.org/description> "A fixture-backed full event used to prove stable Artsdata export."@en .
+<http://kg.footlight.io/resource/distillator-full-event> <http://schema.org/endDate> "2026-05-10T21:15:00-04:00"^^<http://www.w3.org/2001/XMLSchema#dateTime> .
+<http://kg.footlight.io/resource/distillator-full-event> <http://schema.org/eventAttendanceMode> <http://schema.org/OnlineEventAttendanceMode> .
+<http://kg.footlight.io/resource/distillator-full-event> <http://schema.org/eventStatus> <http://schema.org/EventScheduled> .
+<http://kg.footlight.io/resource/distillator-full-event> <http://schema.org/location> <http://kg.footlight.io/resource/distillator-main-hall> .
+<http://kg.footlight.io/resource/distillator-full-event> <http://schema.org/offers> <http://kg.footlight.io/resource/distillator-full-event#Offer_0> .
+<http://kg.footlight.io/resource/distillator-full-event> <http://schema.org/photo> "https://fixtures.example/distillator/assets/poster.jpg" .
+<http://kg.footlight.io/resource/distillator-full-event> <http://schema.org/startDate> "2026-05-10T19:30:00-04:00"^^<http://www.w3.org/2001/XMLSchema#dateTime> .
+<http://kg.footlight.io/resource/distillator-full-event> <http://schema.org/url> "https://fixtures.example/distillator/event-full" .
+<http://kg.footlight.io/resource/distillator-full-event> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://schema.org/Event> .

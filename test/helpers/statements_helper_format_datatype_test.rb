@@ -66,6 +66,32 @@ class StatementsHelperTest < ActionView::TestCase
     end
   end
 
+  test "array string input for any:URI returns structured abort when a downstream linked-data lookup aborts" do
+    property = properties(:nine)
+    webpage = webpages(:one)
+    abort_payload = [
+      "abort_update",
+      {
+        error: "No server running at http://example.test",
+        error_type: "LinkedDataLookupError",
+        source: "search_cckg",
+        query: "ArtistsSantee Smith",
+        expected_class: "Organization"
+      }
+    ]
+
+    expects(:search_for_uri).with("CompanyKaha:wi Dance Theatre", property, webpage).returns(
+      ["CompanyKaha:wi Dance Theatre", "Organization", ["Kaha:wi Dance Theatre", "http://kg.artsdata.ca/resource/K10-206"]]
+    )
+    expects(:search_for_uri).with("ArtistsSantee Smith", property, webpage).returns(abort_payload)
+
+    assert_equal abort_payload, format_datatype(
+      ["CompanyKaha:wi Dance Theatre", "ArtistsSantee Smith"],
+      property,
+      webpage
+    )
+  end
+
   test "format_datatype with time_zone" do
     property = properties(:ten)
     scraped_data = ["time_zone:  Eastern Time (US & Canada) ","2020-05-28T22:00:00-00:00", "2020-05-31T22:00:00-00:00"]

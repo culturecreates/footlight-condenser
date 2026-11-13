@@ -1,0 +1,37 @@
+{
+  "site": "distillator_phase1_export",
+  "seedurl": "distillator-phase1-export",
+  "name": "Distillator Phase 1 Export Fixture",
+  "pages": [
+    {
+      "case": "simple_event_page",
+      "url": "https://phase1.example/simple-event",
+      "rdf_uri": "footlight:phase1-simple-event",
+      "title": "Simple Fixture Event",
+      "start_date": "2026-05-01T20:00:00Z",
+      "virtual_location": "https://phase1.example/simple-event"
+    },
+    {
+      "case": "jsonld_event_page",
+      "url": "https://phase1.example/jsonld-event",
+      "rdf_uri": "footlight:phase1-jsonld-event",
+      "title": "JSON-LD Fixture Event",
+      "start_date": "2026-05-02T20:00:00Z",
+      "virtual_location": "https://phase1.example/jsonld-event"
+    },
+    {
+      "case": "redirect_final_url",
+      "url": "https://phase1.example/redirected-event",
+      "rdf_uri": "footlight:phase1-redirect-event",
+      "title": "Redirect Fixture Event",
+      "start_date": "2026-05-03T20:00:00Z",
+      "virtual_location": "https://phase1.example/final-event"
+    },
+    {
+      "case": "stored_404_failure",
+      "url": "https://phase1.example/missing-event",
+      "rdf_uri": "footlight:phase1-missing-event",
+      "failure": true
+    }
+  ]
+}

@@ -1,82 +1,40 @@
 require 'test_helper'
 
 # Part of StatmentsHelper. See other test files for search_cckg and format_datatype tests. 
+# Keep this file unit-fast. Do not add recorded scrape/network tests here.
+# Put recorded scrape coverage in test/integration/statements_helper_scrape_integration_test.rb.
 class StatementsHelperTest < ActionView::TestCase
+  include DslRunnerTestHelper
 
+  setup do
+    Distillator::FetchCacheStore.expects(:fetch).never
+    Dsl::Support::WringerClient.any_instance.expects(:fetch).never
+  end
 
 #process algorithm
-test "process_algorithm sparql" do
-  expected = ["DOMINIC PAQUET • LAISSE-MOI PARTIR"]
-  VCR.use_cassette('StatementsHelper:complexeculturelfelixleclerc') do
-    assert_equal expected, process_algorithm(algorithm: "sparql={?s a schema:Event. ?s schema:name ?answer}", url: "https://www.complexeculturelfelixleclerc.com/event-details/dominic-paquet-laisse-moi-partir")
-  end
-end
-test "process_algorithm sparql with nested image" do
-  expected = ["https://static.wixstatic.com/media/28fd07_aa7b850feecb4363878aa75c34296221~mv2.jpg/v1/fill/w_537,h_534,al_c,q_80/28fd07_aa7b850feecb4363878aa75c34296221~mv2.jpg"]
-  VCR.use_cassette('StatementsHelper:complexeculturelfelixleclerc') do
-    assert_equal expected, process_algorithm(algorithm: "sparql={?s a schema:Event. ?s schema:image/schema:url ?answer}", url: "https://www.complexeculturelfelixleclerc.com/event-details/dominic-paquet-laisse-moi-partir")
-  end
-end
-test "process_algorithm sparql with filter" do
-  expected = ["https://static.wixstatic.com/media/28fd07_aa7b850feecb4363878aa75c34296221~mv2.jpg/v1/fill/w_537,h_534,al_c,q_80/28fd07_aa7b850feecb4363878aa75c34296221~mv2.jpg"]
-  VCR.use_cassette('StatementsHelper:complexeculturelfelixleclerc') do
-    assert_equal expected, process_algorithm(algorithm: "sparql={?s a schema:Event. ?s schema:image/schema:url ?answer . FILTER isURI(?answer) }", url: "https://www.complexeculturelfelixleclerc.com/event-details/dominic-paquet-laisse-moi-partir")
-  end
-end
+test "process_algorithm sparql preserves structured captcha aborts" do
+  abort_payload = [
+    "abort_update",
+    {
+      error: "captcha detected",
+      error_type: "system_captcha",
+      source: "wringer",
+      step: "sparql"
+    }
+  ]
+  stubs(:safe_wringer_call).returns(abort_payload)
 
+  assert_equal abort_payload, process_algorithm(
+    algorithm: "sparql={?s a schema:Event. ?s schema:name ?answer}",
+    url: "https://example.org/captcha"
+  )
+  assert_no_wringer_requests
+end
 
 test "process_algorithm manual" do
   expected = ["Test"]
   assert_equal expected, process_algorithm(algorithm: "manual=Test", url: "http://culturecreates.com")
-end
-test "process_algorithm xpath" do
-  expected = ["Culture Creates | Digital knowledge management for the arts"]
-  VCR.use_cassette('StatementsHelper:culturecreates.com') do
-    assert_equal expected, process_algorithm(algorithm: "xpath=//title", url: "http://culturecreates.com")
-  end
-end
-test "process_algorithm if_xpath continue" do
-  expected = ["Culture Creates | Digital knowledge management for the arts", "Arts metadata compatible with an AI-powered world"]
-  VCR.use_cassette('StatementsHelper:culturecreates.com') do
-    assert_equal expected, process_algorithm(algorithm: "if_xpath=//title;xpath=(//h1)[1]", url: "http://culturecreates.com")
-  end
-end
-test "process_algorithm if_xpath break" do
-  expected = []
-  VCR.use_cassette('StatementsHelper:culturecreates.com') do
-    assert_equal expected, process_algorithm(algorithm: "if_xpath=//nothing;xpath=(//h1)[1]", url: "http://culturecreates.com")
-  end
-end
-test "process_algorithm unless_xpath break" do
-  expected = []
-  VCR.use_cassette('StatementsHelper:culturecreates.com') do
-    assert_equal expected, process_algorithm(algorithm: "unless_xpath=//title;xpath=(//h1)[1]", url: "http://culturecreates.com")
-  end
-end
-test "process_algorithm unless_xpath continue" do
-  expected = ["Arts metadata compatible with an AI-powered world"]
-  VCR.use_cassette('StatementsHelper:culturecreates.com') do
-    assert_equal expected, process_algorithm(algorithm: "unless_xpath=//nothing;xpath=(//h1)[1]", url: "http://culturecreates.com")
-  end
-end
-test "process_algorithm url and xpath" do
-  expected = ["ArtsdataApi"]
-  VCR.use_cassette('StatementsHelper:process_algorithm url and xpath') do
-    assert_equal expected, process_algorithm(algorithm: "url='http://api.artsdata'+'.ca';xpath=//title", url: "http://culturecreates.com")
-  end
-end
-test "process_algorithm double xpath" do
-  expected = ["Culture Creates | Digital knowledge management for the arts", "IE=edge"]
-  VCR.use_cassette('StatementsHelper:culturecreates.com') do
-    assert_equal expected, process_algorithm(algorithm: "xpath=//title;xpath=(//meta/@content)[1]", url: "http://culturecreates.com")
-  end
-end
-test "process_algorithm url and json and ruby" do
-  expected = ["2021-04-10 10:00:00", "time_zone: 'Eastern Time (US & Canada)'"]
-  algo = "url=$url + '.json';json=$json.dig('date','end');ruby=$array[0] ? [$json.dig('date','start')] : $array;time_zone='Eastern Time (US & Canada)'"
-  VCR.use_cassette('StatementsHelper: process_algorithm url and json and ruby') do
-    assert_equal expected, process_algorithm(algorithm: algo,  url: "https://signelaval.com/fr/evenements/14650/du-fond-de-mon-garde-robe")
-  end
+  assert_no_wringer_requests
 end
 #test "process_algorithm ruby syntax error" do
 #  expected = ["abort_update", {:error=>"(eval):1: syntax error, unexpected end-of-input, expecting '}'", :error_type=>SyntaxError, :results_prior=>[], :algorithm_rescued=>"ruby=$array.each {|a| a"}]
@@ -88,44 +46,98 @@ test "process_algorithm ruby syntax error" do
   assert_equal "abort_update", result[0]
   details = result[1]
   assert_kind_of Hash, details
-  assert_equal SyntaxError, details[:error_type]
+  assert_equal "SyntaxError", details[:error_type]
   assert_includes details[:error].downcase, "syntax error"
-  assert_includes details[:algorithm_rescued], "ruby=$array.each {|a| a"
+  assert_no_wringer_requests
 end
+
 test "process_algorithm invalid algorithm prefix" do
-  expected = [["abort_update", {:error=>"Missing DSL prefix", :algorithm=>"//title"}]]
   algo = "//title"
-  assert_equal expected, process_algorithm(algorithm: algo,  url: "https://signelaval.com/fr/evenements/14650/du-fond-de-mon-garde-robe")
+  result = process_algorithm(algorithm: algo,  url: "https://signelaval.com/fr/evenements/14650/du-fond-de-mon-garde-robe")
+  assert_equal "abort_update", result.first
+  assert_match(/Missing DSL prefix/, result.last[:error])
+  assert_no_wringer_requests
 end
 
+test "process_algorithm_scrape_options adds wringer compatibility for plain helper calls" do
+  options = process_algorithm_scrape_options({})
 
-#scrape
-  test "should scrape title from html" do
-    source = sources(:one)
-    source.algorithm_value = "xpath=//title"
-    expected_output = ['Culture Creates | Digital knowledge management for the arts']
-    VCR.use_cassette('StatementsHelper: should scrape title from html') do
-      assert_equal expected_output, scrape(source, "http://culturecreates.com")
-    end
-  end
+  assert_equal true, options[:wringer_compatibility]
+end
 
-  test "should scrape 2 items from html" do
-    source = OpenStruct.new(algorithm_value: 'xpath=//title;xpath=//meta[@property="og:title"]/@content')
-    expected_output = ['Culture Creates | Digital knowledge management for the arts', "Culture Creates Inc"]
-    VCR.use_cassette('StatementsHelper: should scrape 2 items from html') do
-      assert_equal expected_output, scrape(source, "http://culturecreates.com")
-    end
-  end
+test "process_algorithm_scrape_options preserves cache-backed refresh options" do
+  options = process_algorithm_scrape_options(
+    force_scrape_every_hrs: "1",
+    log_context: { statement_id: 1, website_id: 2 }
+  )
 
+  assert_nil options[:wringer_compatibility]
+  assert_equal "1", options["force_scrape_every_hrs"]
+  assert_equal({ "statement_id" => 1, "website_id" => 2 }, options["log_context"])
+end
 
-  test "should concatenate 2 items from html" do
-    source = OpenStruct.new(algorithm_value: 'xpath=//title;xpath=//meta[@property="og:title"]/@content;ruby=$array[0]+ " | " + $array[1]')
-    expected_output = "Culture Creates | Digital knowledge management for the arts | Culture Creates Inc"
-    VCR.use_cassette('StatementsHelper: should concatenate 2 items from html') do
-      assert_equal expected_output, scrape(source, "http://culturecreates.com")
-    end
-  end
+test "process_algorithm_uses_cache_path is true for statement refresh context" do
+  assert_equal true, process_algorithm_uses_cache_path?(
+    website_id: 2,
+    log_context: { statement_id: 1 }
+  )
+end
 
+test "process_algorithm_uses_cache_path is false for plain helper extraction" do
+  assert_equal false, process_algorithm_uses_cache_path?({})
+end
+
+test "process_algorithm_uses_cache_path is true for force_scrape_every_hrs" do
+  assert_equal true, process_algorithm_uses_cache_path?(force_scrape_every_hrs: "24")
+end
+
+test "process_algorithm_uses_cache_path is true for explicit mode" do
+  assert_equal true, process_algorithm_uses_cache_path?(mode: :internal)
+end
+
+test "build_refresh_proxy preserves logger and route helper context" do
+  proxy = StatementsHelper.build_refresh_proxy(cookies: { dsl_trace: "false" })
+
+  assert_respond_to proxy, :logger
+  assert_respond_to proxy, :statement_path
+  assert_equal ["2020-05-31"], proxy.convert_datetime("2020-05-31")
+end
+
+test "search_everywhere aborts when cckg lookup fails and no local reconciliation is available" do
+  stubs(:search_condenser).returns({ data: [] })
+  stubs(:search_cckg).returns({ error: "No server running at http://example.invalid/reconcile" })
+  stubs(:logger).returns(stub(error: true))
+
+  result = search_everywhere("Broken Venue", "Place")
+
+  assert_equal "abort_update", result.first
+  assert_equal "LinkedDataLookupError", result.second[:error_type]
+  assert_equal "search_cckg", result.second[:source]
+  assert_equal "Broken Venue", result.second[:query]
+  assert_equal "Place", result.second[:expected_class]
+end
+
+test "refresh_statement_helper keeps existing good uri links when linked-data reconciliation aborts" do
+  @statement = statements(:four)
+  original_cache = "[\"Existing venue\",\"Place\",[\"Good Venue\",\"http://kg.artsdata.ca/resource/K11-3\"]]"
+  @statement.update!(status: "ok", cache: original_cache)
+
+  stubs(:run_dsl).returns(["Broken Venue"])
+  stubs(:format_datatype).returns(
+    ["abort_update", {
+      error: "No server running at http://example.invalid/reconcile",
+      error_type: "LinkedDataLookupError",
+      source: "search_cckg",
+      query: "Broken Venue",
+      expected_class: "Place"
+    }]
+  )
+
+  result = refresh_statement_helper(@statement)
+
+  assert_includes result[:errors].join(" "), "Scrape aborted (LinkedDataLookupError)"
+  assert_equal original_cache, @statement.reload.cache
+end
 
   # french_to_english_month
   test "french_to_english_month: should covert french month mai to english" do
@@ -333,5 +345,53 @@ end
     scraped_data = ["The Show Reporté","again"]
     expected_output = ["The Show Reporté - again", "EventStatusType", ["EventRescheduled", "http://schema.org/EventRescheduled"]]
     assert_equal expected_output, reconcile_event_status(scraped_data)
+  end
+
+  test "pipeline ok + missing yields extraction hint" do
+    diagnosis = { status: :ok }
+    hint = TracePresenter.new([]).diagnosis_relationship_hint(diagnosis, "missing")
+
+    assert_match(/no data extracted/i, hint)
+  end
+
+  test "pipeline error + missing yields failure hint" do
+    diagnosis = { status: :error }
+    hint = TracePresenter.new([]).diagnosis_relationship_hint(diagnosis, "missing")
+
+    assert_match(/pipeline failure/i, hint)
+  end
+
+  test "pipeline ok + problem yields content warning hint" do
+    diagnosis = { status: :ok }
+    hint = TracePresenter.new([]).diagnosis_relationship_hint(diagnosis, "problem")
+
+    assert_match(/problematic/i, hint)
+  end
+
+  test "first empty step is detected" do
+    steps = [
+      { step: 1, output_full: ["a"], type: "xpath" },
+      { step: 2, output_full: [], type: "xpath" }
+    ]
+
+    diagnosis = { status: :ok }
+
+    hint = TracePresenter.new([]).diagnosis_relationship_hint(diagnosis, "missing", steps)
+
+    assert_match(/step 2/i, hint)
+  end
+
+  test "freshness label for recent cache" do
+    statement = OpenStruct.new(cache_refreshed: Time.current - 1800)
+    label = cache_freshness_label(statement)
+
+    assert_equal "fresh", label
+  end
+
+  test "freshness label for old cache" do
+    statement = OpenStruct.new(cache_refreshed: Time.current - 40.days)
+    label = cache_freshness_label(statement)
+
+    assert_equal "stale", label
   end
 end

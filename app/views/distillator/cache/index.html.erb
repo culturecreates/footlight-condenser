@@ -1,0 +1,62 @@
+<h1>Condenser Cache</h1>
+
+<% if refresh_ui_enabled? %>
+  <p class="cache-page-note">Fetch and refresh cache entries from this page.</p>
+<% else %>
+  <p class="cache-page-notice">Cache inspection mode. Refresh actions are not available in this environment.</p>
+<% end %>
+<% if @last_action_result.present? %>
+  <div class="cache-page-notice cache-last-action-result">
+    <h2>Last Action Result</h2>
+    <p><strong>Fetch mode:</strong> <%= @last_action_result["fetch_kind_label"] %></p>
+    <p><strong>Normalized URL:</strong> <%= @last_action_result["normalized_url"] %></p>
+    <p><strong>HTTP response code:</strong> <%= @last_action_result["http_response_code"] || "Not recorded" %></p>
+    <p><strong>Fetch path:</strong> <%= @last_action_result["fetch_path"].presence || "unknown" %></p>
+    <p><strong>Cache reason:</strong> <%= @last_action_result["cache_reason"].presence || "unknown" %></p>
+    <p><strong>HTML result:</strong> <%= @last_action_result["html_state"].presence || "unknown" %></p>
+  </div>
+<% end %>
+<p class="cache-page-note"><strong>Scrape date</strong> means the last attempted scrape. <strong>Successful refresh</strong> means the last successful 2xx content refresh.</p>
+<p class="cache-page-note">Cache rows are operational fetch records, not manually edited website records. Refresh instead of edit or destroy.</p>
+
+<%= render "shared/cards/card_grid",
+           cards: cache_operator_summary_cards(@summary_cards),
+           variant: :summary,
+           css_class: "cache-summary-cards" %>
+
+<%= render "shared/tables/toolbar", preserved_index_params: @preserved_index_params, view_mode: @view_mode, refresh_ui_enabled: refresh_ui_enabled? %>
+
+<% sortable_filters = @filters.merge(per_page: @pagination[:per_page]) %>
+<%= render "shared/tables/table_shell",
+           caches: @caches,
+           filters: @filters,
+           pagination: @pagination,
+           sort: @sort,
+           direction: @direction,
+           view_mode: @view_mode,
+           sortable_filters: sortable_filters,
+           preserved_index_params: @preserved_index_params,
+           refresh_ui_enabled: refresh_ui_enabled? %>
+
+<p class="cache-pagination-summary">
+  Showing page <%= @pagination[:page] %> of <%= @pagination[:total_pages] %>.
+  <%= @pagination[:total_count] %> total cache rows.
+</p>
+
+<p class="cache-pagination-links">
+  <% if @pagination[:page] > 1 %>
+    <%= link_to "Previous page", distillator_cache_index_path(request.query_parameters.merge(page: @pagination[:page] - 1)) %>
+  <% end %>
+  <% if @pagination[:page] < @pagination[:total_pages] %>
+    <%= link_to "Next page", distillator_cache_index_path(request.query_parameters.merge(page: @pagination[:page] + 1)) %>
+  <% end %>
+</p>
+
+<div class="cache-shortcuts">
+  <h2>Compatibility API</h2>
+  <ul class="cache-help-list">
+    <li><strong>Legacy-compatible endpoint:</strong> <code>/websites/wring.json?uri=URL</code></li>
+    <li><strong>Cached Wringer-compatible JSON:</strong> available from each cache row&rsquo;s <code>.json</code> link</li>
+    <li><strong>Cache fetch actions:</strong> use <code>Direct fetch</code>, <code>Rendered fetch</code>, and <code>POST fetch</code> from the cache actions.</li>
+  </ul>
+</div>

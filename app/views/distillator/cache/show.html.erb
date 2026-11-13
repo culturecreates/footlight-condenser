@@ -1,0 +1,173 @@
+<h1>Condenser Cache Detail</h1>
+
+<% if refresh_ui_enabled? %>
+  <p class="cache-page-note">Fetch and refresh cache entries from this page.</p>
+<% else %>
+  <p class="cache-page-notice">Cache inspection mode. Refresh actions are not available in this environment.</p>
+<% end %>
+<p class="cache-page-note">Cache rows are operational fetch records, not manually edited website records. Refresh instead of edit or destroy.</p>
+
+<%= render "shared/cards/card_grid",
+           variant: :record,
+           css_class: "cache-detail-cards",
+           cards: [
+             {
+               title: "Status card",
+               status: { label: "Operator health", value: cache_health_badge(@cache_payload) },
+               rows: [
+                 { label: "HTTP status", value: cache_status_badge(@cache_payload), html: true },
+                 { label: "Fetch diagnosis", value: @cache_payload[:health_label] },
+                 { label: "Fetched response", value: cache_fetch_response_summary(@cache_payload) },
+                 { label: "Fetched body", value: cache_fetched_body_summary(@cache_payload) },
+                 { label: "Stored cache body", value: cache_stored_body_summary(@cache_payload) },
+                 { label: "Storage decision", value: cache_storage_decision(@cache_payload) },
+                 { label: "Transport", value: cache_transport_status(@cache_payload) },
+                 { label: "Content", value: cache_content_status(@cache_payload) },
+                 { label: "Blocking issue", value: cache_blocking_issue_key(@cache_payload).presence || "none" },
+                 { label: "Last good preserved", value: cache_last_good_content_preserved?(@cache_payload) ? "yes" : "no" },
+                 { label: "Health reasons", value: Array(@cache_payload[:health_reasons]).presence&.join(", ") || "None" },
+                 { label: "Primary issue match", value: cache_primary_issue_match_summary(@cache_payload).presence || "Not recorded" }
+               ],
+               body: (
+                 if cache_content_failure_warning(@cache_payload).present?
+                   content_tag(:p, content_tag(:strong, cache_content_failure_warning(@cache_payload)), class: "cache-content-warning") +
+                     content_tag(:p, raw("<strong>Failed attempt body:</strong> <span class=\"harmonized-card-value\">not stored separately.</span>"))
+                 end
+               )
+             },
+             {
+               title: "Identity card",
+               rows: [
+                 { label: "Normalized URL", value: cache_linked_source_url(@cache_payload[:normalized_url]), value_class: "cache-normalized-url", html: true },
+                 { label: "URI key", value: @cache_payload[:uri_key], value_class: "cache-uri-key" },
+                 { label: "URI alias", value: @cache_payload[:uri], value_class: "cache-uri-key" },
+                 { label: "Name", value: @cache_payload[:name] },
+                 { label: "Final URL", value: cache_linked_final_url(@cache_payload), value_class: "cache-normalized-url", html: true },
+                 { label: "Redirect summary", value: cache_redirect_summary(@cache_payload) }
+               ]
+             },
+             {
+               title: "Last fetch card",
+               rows: [
+                 { label: "Scrape date", value: cache_timestamp_label(@cache_payload[:scrape_date]) },
+                 { label: "Successful refresh", value: cache_timestamp_label(@cache_payload[:successful_refresh]) },
+                 { label: "Fetch path", value: @cache_payload[:fetch_path].presence || "unknown" },
+                 { label: "Native ineligible reason", value: @cache_payload[:native_ineligible_reason].presence || "None" },
+                 { label: "Network status", value: @cache_payload[:network_status].presence || "unknown" },
+                 { label: "Content type", value: @cache_payload[:content_type].presence || "unknown" },
+                 { label: "Redirect type", value: @cache_payload[:redirect_type].presence || "none" },
+                 { label: "Updated at", value: cache_timestamp_label(@cache_payload[:updated_at]) },
+                 { label: "Created at", value: cache_timestamp_label(@cache_payload[:created_at]) }
+               ] + (
+                 if @last_action_result.present?
+                   [
+                     { label: "Last fetch mode", value: @last_action_result["fetch_kind_label"] },
+                     { label: "Last fetch path", value: @last_action_result["fetch_path"] },
+                     { label: "Last cache reason", value: @last_action_result["cache_reason"] },
+                     { label: "Last HTML result", value: @last_action_result["html_state"] }
+                   ]
+                 else
+                   []
+                 end
+               )
+             },
+             {
+               title: "Content card",
+               rows: [
+                 { label: "HTML bytes", value: number_with_delimiter(@cache_payload[:html_bytes]) },
+                 { label: "Body bytes", value: number_with_delimiter(@cache_payload[:body_bytes]) },
+                 { label: "Has HTML", value: @cache_payload[:has_html] },
+                 { label: "Raw cached HTML", value: link_to("Open raw cached HTML", cache_raw_view_url(@cache), data: { copy_url: cache_raw_url(@cache) }), html: true }
+               ],
+               body: content_tag(:div, class: "cache-content-preview") do
+                 content_tag(:strong, "Content sample:") + content_tag(:p, cache_html_preview_text(@cache_payload), class: "harmonized-card-value")
+               end
+             }
+           ] %>
+
+<details class="cache-detail-details">
+  <summary>Diagnostics card</summary>
+  <div class="cache-detail-card">
+    <p><strong>Signals</strong></p>
+    <pre class="cache-json-block"><%= JSON.pretty_generate(@cache_payload[:signals] || {}) %></pre>
+
+    <p><strong>Hints</strong></p>
+    <% if cache_hints(@cache_payload).any? %>
+      <ul>
+        <% cache_hints(@cache_payload).each do |hint| %>
+          <li><%= hint %></li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p>None.</p>
+    <% end %>
+
+    <p><strong>Redirect Chain</strong></p>
+    <% if cache_redirect_chain(@cache_payload).any? %>
+      <ol>
+        <% cache_redirect_chain(@cache_payload).each do |hop| %>
+          <li><%= hop %></li>
+        <% end %>
+      </ol>
+    <% else %>
+      <p>None.</p>
+    <% end %>
+  </div>
+</details>
+
+<details class="cache-detail-details">
+  <summary>Compatibility card</summary>
+  <div class="cache-detail-card cache-shortcuts">
+    <h2>Compatibility API</h2>
+    <ul class="cache-help-list">
+      <li><strong>Legacy-compatible endpoint:</strong> <code>/websites/wring.json?uri=URL</code></li>
+      <li><strong>Cached Wringer-compatible JSON:</strong> <%= link_to "Open cached Wringer-compatible JSON", cache_wring_json_view_url(@cache), data: { copy_url: cache_wring_json_url(@cache) } %></li>
+      <li><strong>Compare:</strong> <%= link_to "Open cache comparison", cache_compare_url(@cache), data: { copy_url: cache_compare_url(@cache) } %></li>
+      <li><strong>Legacy JSON compatibility URL:</strong> <%= link_to "Open legacy compatibility JSON", legacy_wring_json_url(@cache), data: { copy_url: legacy_wring_json_url(@cache) } %></li>
+    </ul>
+
+    <h2>Compatibility actions</h2>
+    <%= render "shared/cards/action_bar",
+               groups: [
+                 {
+                   title: "View",
+                   links: [
+                     { label: "Show", url: distillator_cache_path(@cache), options: { data: { copy_url: distillator_cache_path(@cache) } } },
+                     { label: "Raw", url: cache_raw_view_url(@cache), options: { data: { copy_url: cache_raw_url(@cache) } } },
+                     { label: ".json", url: cache_wring_json_url(@cache), options: { data: { copy_url: cache_wring_json_url(@cache) } } },
+                     { label: "Pretty JSON", url: cache_wring_json_view_url(@cache), options: { data: { copy_url: cache_wring_json_url(@cache) } } }
+                   ]
+                 },
+                 {
+                   title: "Diagnose",
+                   links: [
+                     { label: "Compare", url: cache_compare_url(@cache), options: { data: { copy_url: cache_compare_url(@cache) } } }
+                   ]
+                 }
+               ] %>
+  </div>
+</details>
+
+<% if refresh_ui_enabled? %>
+  <div class="cache-action-group">
+    <strong>Refresh</strong>
+    <%= button_to cache_fetch_kind_label("normal"), fetch_distillator_cache_index_path, method: :post, params: { uri: @cache.normalized_url, fetch_kind: "normal", force_scrape: true }, form_class: "cache-refresh-button" %>
+    <%= button_to cache_fetch_kind_label("rendered"), fetch_distillator_cache_index_path, method: :post, params: { uri: @cache.normalized_url, fetch_kind: "rendered", force_scrape: true, include_fragment: true }, form_class: "cache-refresh-button" %>
+    <%= button_to cache_fetch_kind_label("post"), fetch_distillator_cache_index_path, method: :post, params: { uri: @cache.normalized_url, fetch_kind: "post", force_scrape: true }, form_class: "cache-refresh-button" %>
+  </div>
+<% end %>
+
+<% if @preview.present? %>
+  <div class="cache-detail-card">
+    <h2>Refresh Diagnostic</h2>
+    <p><strong>Chosen fetch mode:</strong> <%= @preview[:fetch_kind] %></p>
+    <p><strong>Would refresh?</strong> <%= @preview[:would_refresh] %></p>
+    <p><strong>Reason:</strong> <%= @preview[:reason] %></p>
+    <p><strong>Cache exists?</strong> <%= @preview[:cache_exists] %></p>
+    <p><strong>Scrape date:</strong> <%= cache_timestamp_label(@preview[:scrape_date]) %></p>
+    <p><strong>Successful refresh:</strong> <%= cache_timestamp_label(@preview[:successful_refresh]) %></p>
+    <p><strong>HTTP response code:</strong> <%= @preview[:http_response_code] %></p>
+    <p><strong>URI key:</strong> <%= @preview[:uri_key] %></p>
+    <p><strong>Normalized URL:</strong> <%= @preview[:normalized_url] %></p>
+  </div>
+<% end %>

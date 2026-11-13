@@ -4,7 +4,7 @@ class DslContentParserTest < ActiveSupport::TestCase
   # === Set up a parser from raw HTML or text ===
 
   def parser_for_html(html)
-    Dsl::DslContentParser.new(html: html)
+    Dsl::Parsing::ContentParser.new(html: html)
   end
 
   def test_xpath_extracts_text
@@ -25,7 +25,7 @@ class DslContentParserTest < ActiveSupport::TestCase
     json_hash = { "name" => "value", "nested" => { "k" => "v" } }
     json_str = json_hash.to_json
 
-    parser = Dsl::DslContentParser.new(html: json_str)
+    parser = Dsl::Parsing::ContentParser.new(html: json_str)
     result = parser.parse_step("json", "$json['nested']['k']")
 
     assert_equal "v", result
@@ -82,7 +82,7 @@ class DslContentParserTest < ActiveSupport::TestCase
 
   def test_parse_json_raises_on_invalid_json
     invalid_json = "not a json string"
-    parser = Dsl::DslContentParser.new(html: invalid_json)
+    parser = Dsl::Parsing::ContentParser.new(html: invalid_json)
 
     assert_raises(JSON::ParserError) do
       parser.parse_step("json", "$json['foo']")

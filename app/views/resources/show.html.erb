@@ -1,12 +1,34 @@
+<%= render "shared/cards/card_grid",
+           cards: [
+             {
+               title: @resource.rdf_uri,
+               rows: [
+                 { label: "Rdfs class", value: @resource.rdfs_class },
+                 { label: "Statement keys", value: @statement_keys.length },
+                 { label: "Seedurl", value: @resource.seedurl },
+                 { label: "Archive date", value: @resource.archive_date }
+               ],
+               actions: [
+                 {
+                   title: "Actions",
+                   links: [
+                     { label: "Statements", url: statements_path(rdf_uri: @resource.rdf_uri) },
+                     { label: "Webpage URLs", url: "/resources/#{@resource.rdf_uri}/webpage_urls" }
+                   ]
+                 }
+               ]
+             }
+           ],
+           variant: :record,
+           css_class: "resource-detail-cards" %>
 
-<ul>
+<div class="resource-statements-list">
   <% @statement_keys.each do |statement_key| %>
-
-        [<%= @resource.statements[statement_key]["status"] %>] <%= @resource.statements[statement_key][:label] %><%=format_language @resource.statements[statement_key]["language"] %>
-     --> <%= @resource.statements[statement_key][:value] %> <br> alternatives:<%= @resource.statements[statement_key][:alternatives] %> 
-
-
-      <br>
-      <br>
+    <p>
+      [<%= @resource.statements[statement_key]["status"] %>]
+      <strong><%= @resource.statements[statement_key][:label] %><%= format_language @resource.statements[statement_key]["language"] %></strong>
+      <span><%= @resource.statements[statement_key][:value] %></span>
+      <span>alternatives: <%= @resource.statements[statement_key][:alternatives] %></span>
+    </p>
   <% end %>
-</ul>
+</div>

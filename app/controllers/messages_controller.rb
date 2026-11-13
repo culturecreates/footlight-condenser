@@ -1,11 +1,28 @@
 class MessagesController < ApplicationController
+  include HarmonizedIndexParams
+  PER_PAGE = 100
   skip_before_action :verify_authenticity_token, :authenticate
   before_action :set_message, only: [:show, :edit, :update, :destroy]
 
   # GET /messages
   # GET /messages.json
   def index
-    @messages = Message.all.order(created_at: :desc)
+    options = harmonized_index_params(allowed_filters: [:seedurl], allowed_sorts: ["created_at"],
+      default_sort: "created_at", default_direction: "desc", default_per_page: PER_PAGE, max_per_page: PER_PAGE)
+    @seedurl = options[:filters][:seedurl].presence
+    @seedurl = nil if @seedurl == "all"
+    scope = Message.order(created_at: options[:direction], id: options[:direction])
+    scope = scope.where(artifact: @seedurl) if @seedurl
+    @messages = scope.paginate(page: options[:page], per_page: options[:per_page])
+    @pagination_params = { seedurl: @seedurl, per_page: options[:per_page], direction: options[:direction] }.compact
+
+    # Databus callback artifacts are website seedurls. Include historical
+    # artifacts as well, so deleting a website does not hide its message history.
+    sites = Website.where.not(seedurl: [nil, ""]).order(:name, :id).pluck(:name, :seedurl).uniq { |_, seedurl| seedurl }
+    artifacts = Message.where.not(artifact: [nil, ""]).distinct.pluck(:artifact)
+    known = sites.map(&:last)
+    @site_options = sites.map { |name, seedurl| [name.present? ? "#{name} (#{seedurl})" : seedurl, seedurl] }
+    @site_options.concat((artifacts - known).sort.map { |artifact| [artifact, artifact] })
   end
 
   # GET /messages/1

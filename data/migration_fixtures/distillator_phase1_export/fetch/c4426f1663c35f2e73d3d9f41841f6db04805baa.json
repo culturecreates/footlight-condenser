@@ -1,0 +1,26 @@
+{
+  "url": "https://phase1.example/redirected-event",
+  "recorded_at": "2026-04-27T00:00:00Z",
+  "response": {
+    "status": "ok",
+    "body": "<html><h1>Redirect Fixture Event</h1></html>",
+    "headers": {
+      "content_type": "text/html"
+    },
+    "final_url": "https://phase1.example/final-event",
+    "redirect_chain": [
+      "https://phase1.example/redirected-event",
+      "https://phase1.example/final-event"
+    ],
+    "wringer": {
+      "signals": {
+        "network_status": "ok",
+        "content_type": "html"
+      },
+      "hints": [
+        "redirected"
+      ]
+    },
+    "duration_ms": 12.0
+  }
+}

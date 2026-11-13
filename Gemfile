@@ -1,6 +1,6 @@
 source 'https://rubygems.org'
 
-ruby '3.4.8'
+ruby file: '.ruby-version'
 
 # Core
 gem 'rails', '~> 8.0.2'
@@ -26,7 +26,7 @@ gem 'sidekiq'
 gem 'aws-sdk-s3'
 
 # Monitoring
-gem 'scout_apm'
+gem 'scout_apm', '~> 5.7.1'
 
 # CORS
 gem 'rack-cors'

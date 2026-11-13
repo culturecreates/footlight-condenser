@@ -2,6 +2,8 @@
 
 Footlight Condenser Server used with Footlight **Wringer Server**, Footlight **Code Snippet Server**, and Footlight **Console Servers** (multiple skins)
 
+Distillator migration fetch modes, replay behavior, refresh UI guarding, and rollback notes are documented in [docs/distillator_migration.md](docs/distillator_migration.md).
+
 
 # Local Development
 To setup for local development clone this repo.
@@ -14,6 +16,34 @@ To setup for local development clone this repo.
 To run tests use:
 
 > `Rails test`
+
+## Fast Distillator/Wringer unit preflight
+
+Use this while working on the Distillator/Wringer replacement seam:
+
+```bash
+DISABLE_SPRING=1 bin/rails test:distillator_fast
+```
+
+This command runs fast unit tests only. It intentionally excludes VCR-backed scrape integration tests and full export/graph coverage.
+
+For recorded scrape behavior:
+
+```bash
+DISABLE_SPRING=1 bundle exec rails test test/integration/statements_helper_scrape_integration_test.rb
+```
+
+Before merging release-sensitive changes, run:
+
+```bash
+DISABLE_SPRING=1 bin/rails test
+```
+
+Optional slow-test reporting:
+
+```bash
+REPORT_SLOW_TESTS=1 SLOW_TEST_THRESHOLD=1.0 DISABLE_SPRING=1 bin/rails test
+```
 
 Note: The PRODUCTION server initializes with a fresh copy of the artsdata.ca database for performance reasons (code snippet related.) The DEV and TEST servers initialize the artsdata.ca database with a static local dump of the artsdata.ca triple store. To update the static dump of the triple store (beware tests may fail if data changes) uncomment the following line in config/initializers/artsdata_graph.rb: 
 
