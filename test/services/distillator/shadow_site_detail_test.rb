@@ -112,4 +112,60 @@ class Distillator::ShadowSiteDetailTest < ActiveSupport::TestCase
     assert_not fresh.pending_transition_batch_check
     assert_equal run.completed_at.to_i, fresh.latest_transition_evidence_checked_at.to_i
   end
+
+  test "statement blocker counts distinct failed URLs rather than sampled pages or fields" do
+    website = websites(:one)
+    urls = 9.times.map { |index| "https://example.org/event/#{index}" }
+    website.transition_evidences.create!(check_kind: "statement_delta", url: urls.first,
+      status: "failed", statement_count_delta_acceptable: false, checked_at: Time.current,
+      details: {
+        reason: "strict_statement_parity_failed", comparison_basis: "paired_dsl",
+        representative_webpages: urls, representative_webpage_count: 9,
+        representative_url_statement_results: urls.each_with_index.map { |url, index|
+          { url: url, status: index == 1 ? "failed" : (index == 2 ? "warning" : "passed") }
+        },
+        critical_failing_statements: ["Title", "Performed by"].map { |source|
+          { source: source, webpage_url: urls.second }
+        }
+      })
+    publish_transition_fixture(website)
+
+    detail = Distillator::ShadowSiteDetail.call(website: website)
+    assert_equal "statements", detail.root_cause[:failed_layer]
+    assert_equal 1, detail.root_cause[:affected_url_count]
+    assert_equal 9, detail.checked_scope[:representative_webpage_count]
+    assert_equal 2, detail.statement_failure_groups.length
+  end
+
+  test "unlocated legacy statement failures do not claim the whole sample failed" do
+    website = websites(:one)
+    website.transition_evidences.create!(check_kind: "statement_delta", url: "https://example.org/first",
+      status: "failed", statement_count_delta_acceptable: false, checked_at: Time.current,
+      details: { reason: "statement_refresh_failed", representative_webpage_count: 9,
+        statements_failed_count: 2, failing_statements: [{ source: "Title" }, { source: "Performed by" }] })
+    publish_transition_fixture(website)
+
+    detail = Distillator::ShadowSiteDetail.call(website: website)
+    assert_equal "statements", detail.root_cause[:failed_layer]
+    assert_nil detail.root_cause[:affected_url_count]
+  end
+
+  test "export blocker counts only URLs with unsuccessful export results" do
+    website = websites(:one)
+    urls = 9.times.map { |index| "https://example.org/event/#{index}" }
+    website.transition_evidences.create!(check_kind: "export_diff", url: urls.first,
+      status: "failed", export_diff_checked: true, export_diff_status: "failed", checked_at: Time.current,
+      details: { reason: "export_diff_failed", representative_webpages: urls, representative_webpage_count: 9,
+        representative_url_export_results: urls.each_with_index.map { |url, index|
+          { url: url, status: index == 1 ? "failed" : "checked" }
+        } })
+    publish_transition_fixture(website, defaults: {
+      "statement_delta" => { status: "checked", statement_count_delta_acceptable: true },
+      "fetch_parity" => { status: "checked" }
+    })
+
+    detail = Distillator::ShadowSiteDetail.call(website: website)
+    assert_equal "export", detail.root_cause[:failed_layer]
+    assert_equal 1, detail.root_cause[:affected_url_count]
+  end
 end

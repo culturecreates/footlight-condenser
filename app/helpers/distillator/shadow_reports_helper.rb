@@ -265,7 +265,7 @@ module Distillator::ShadowReportsHelper
     [
       "Failed layer: #{detail.root_cause[:failed_layer]}",
       "Reason: #{detail.root_cause[:concrete_reason]}",
-      "Affected sampled URLs: #{detail.root_cause[:affected_url_count]}"
+      "Affected sampled URLs: #{detail.root_cause[:affected_url_count] || 'Not recorded'}"
     ]
   end
 
@@ -382,7 +382,7 @@ module Distillator::ShadowReportsHelper
     [
       "Failed layer: #{root_cause[:failed_layer]}",
       "Concrete reason: #{root_cause[:concrete_reason]}",
-      "Affected sampled URLs: #{root_cause[:affected_url_count]}",
+      "Affected sampled URLs: #{root_cause[:affected_url_count] || 'Not recorded'}",
       "Next operator action: #{root_cause[:next_operator_action]}"
     ]
   end

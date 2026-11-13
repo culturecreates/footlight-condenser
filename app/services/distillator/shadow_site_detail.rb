@@ -204,14 +204,14 @@ module Distillator
           {
             failed_layer: "statements",
             concrete_reason: primary_blocker.headline,
-            affected_url_count: checked_scope[:representative_webpage_count],
+            affected_url_count: affected_evidence_url_count("statement_delta", "representative_url_statement_results"),
             next_operator_action: transition_status.primary_action
           }
         elsif primary_blocker&.key == "export_diff"
           {
             failed_layer: "export",
             concrete_reason: primary_blocker.headline,
-            affected_url_count: checked_scope[:representative_webpage_count],
+            affected_url_count: affected_evidence_url_count("export_diff", "representative_url_export_results"),
             next_operator_action: transition_status.primary_action
           }
         elsif fetch_rows.any?
@@ -248,6 +248,26 @@ module Distillator
 
     def primary_blocker
       @primary_blocker ||= transition_evidence_explanations.find { |explanation| explanation.severity == "blocker" && explanation.state != "passed" }
+    end
+
+    def affected_evidence_url_count(kind, results_key)
+      details = transition_evidence_by_kind[kind]&.details.to_h || {}
+      if details.key?(results_key)
+        entries = Array(details[results_key]).map { |row| symbolize_row(row) }
+          .reject { |row| row[:status].in?(%w[passed checked warning]) }
+      elsif kind == "statement_delta"
+        entries = statement_failure_entries(details).reject { |entry| entry[:severity] == "warning" }
+      else
+        return nil
+      end
+      # Older evidence may name failures without identifying their webpages.
+      # The sample size does not establish how many URLs actually failed.
+      return nil if entries.empty?
+
+      urls = entries.map { |entry| entry[:url].presence || entry[:webpage_url].presence }
+      return nil if urls.any?(&:blank?)
+
+      urls.uniq.count
     end
 
     def statement_failure_groups

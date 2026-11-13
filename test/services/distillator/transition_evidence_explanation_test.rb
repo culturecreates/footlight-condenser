@@ -1,6 +1,30 @@
 require "test_helper"
 
 class Distillator::TransitionEvidenceExplanationTest < ActiveSupport::TestCase
+  test "paired differences identify the failing page and suggest checking snapshot freshness" do
+    website = websites(:one)
+    affected_url = "https://example.org/changed-event"
+    evidence = Distillator::TransitionEvidence.new(website: website, url: "https://example.org/first-event",
+      check_kind: "statement_delta", status: "failed", details: {
+        reason: "strict_statement_parity_failed", comparison_basis: "paired_dsl",
+        statement_artifacts: [
+          { property_label: "Title", language: "fr", webpage_url: affected_url,
+            legacy: "Original title", condenser: "Updated title", verdict: "DIFFERENT_VALUE" },
+          { property_label: "Title", language: "fr", webpage_url: "https://example.org/first-event",
+            legacy: "Matching title", condenser: "Matching title", verdict: "MATCH" }
+        ]
+      })
+    explanation = Distillator::TransitionEvidenceExplanation.call(check_kind: "statement_delta",
+      evidence: evidence, website: website, state: :failed)
+
+    assert_equal "Sources compared: 2", explanation.details.first
+    assert_includes explanation.details.second, affected_url
+    assert_includes explanation.details.second, 'Wringer "Original title"; Condenser "Updated title"'
+    assert_equal 2, explanation.details.length
+    assert_includes explanation.next_action, "snapshots and their fetch times"
+    assert_includes explanation.next_action, "If equivalent snapshots still produce different values"
+  end
+
   test "fetch explanation distinguishes comparison failure from fetch failure" do
     website = websites(:one)
     evidence = Distillator::TransitionEvidence.new(

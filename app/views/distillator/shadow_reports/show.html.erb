@@ -280,7 +280,7 @@
       <summary><%= explanation.check %> details</summary>
       <p><strong>State:</strong> <%= shadow_report_transition_evidence_status_label(explanation.state) %></p>
       <p><strong>Checked at:</strong> <%= shadow_report_timestamp(evidence&.checked_at) %></p>
-      <% if evidence&.url.present? %><p><strong>URL:</strong> <%= external_website_link(evidence.url, max: 120) %></p><% end %>
+      <% if evidence&.url.present? %><p><strong>Representative URL:</strong> <%= external_website_link(evidence.url, max: 120) %></p><% end %>
       <p><strong>Headline:</strong> <%= explanation.headline %></p>
       <% detail_lines = explanation.details.reject { |line| evidence&.url.present? && line.to_s.strip == "URL: #{evidence.url}" } %>
       <% if detail_lines.any? %>

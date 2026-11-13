@@ -174,7 +174,8 @@ module Distillator
         entries = Array(details_hash["statement_artifacts"]).map(&:symbolize_keys)
         differences = entries.reject { |entry| entry[:verdict] == "MATCH" }
         return ["Sources compared: #{entries.length}"] + differences.first(10).map do |entry|
-          "#{entry[:property_label]} / #{entry[:language]}: Wringer #{entry[:legacy].inspect}; Condenser #{entry[:condenser].inspect} (#{entry[:verdict]})"
+          location = entry[:webpage_url].present? ? "#{entry[:webpage_url]} — " : ""
+          "#{location}#{entry[:property_label]} / #{entry[:language]}: Wringer #{entry[:legacy].inspect}; Condenser #{entry[:condenser].inspect} (#{entry[:verdict]})"
         end
       end
       details = []
@@ -236,7 +237,7 @@ module Distillator
         state == :passed ? "No fetch action is needed right now." : "Fix the fetch/cache failure first, then rerun the transition batch check."
       when "statement_delta"
         if reason.in?(%w[critical_statement_parity_failed strict_statement_parity_failed])
-          "Compare the differing values and fix the affected sources before activating."
+          "Compare the affected page snapshots and their fetch times first. A live-page change can differ from cached Wringer content. If equivalent snapshots still produce different values, investigate the affected sources before activating."
         elsif reason == "optional_statement_parity_warning"
           "Review optional value differences before activating."
         elsif reason == "paired_extraction_inconclusive"
