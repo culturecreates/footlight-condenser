@@ -17,7 +17,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_includes coverage, "8/9 successful; 9 attempted"
     assert_includes coverage, "Wringer: 9/9 fresh results available"
     assert_includes coverage, "Both snapshots available: 8/9"
-    assert_includes coverage, "Pages compared: 8/9"
+    assert_select '[data-check="statement_delta"]', text: /Pages compared: 8\/9/
     assert_no_match /selected 9, fetched 9/, @response.body
     assert_operator @response.body.index('id="transition-fetch-issues"'), :<, @response.body.index('id="transition-url-diagnostics"')
     assert_select '#transition-fetch-issues details', count: 0
@@ -219,10 +219,10 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_match "This report is read-only. Checks compare extracted values without updating stored statements.", @response.body
-    assert_match "Summary", @response.body
-    assert_match "Decision", @response.body
+    assert_select ".transition-decision h2", count: 1
+    assert_select ".transition-next-action", count: 1
     assert_match "Statement equivalence", @response.body
-    assert_match "Fetch diagnostic", @response.body
+    assert_match "Fresh fetch parity", @response.body
     assert_match "Sampled URL diagnostics", @response.body
     assert_match "Checked scope", @response.body
     assert_match "Audit", @response.body
@@ -235,7 +235,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Representative URL Matrix", @response.body
     assert_no_match "Fetch parity</strong>", @response.body
     assert_no_match "Run transition check", @response.body
-    assert_match(/Decision.*Sampled URL diagnostics.*Checked scope/m, @response.body)
+    assert_operator @response.body.index('id="transition-report-summary"'), :<, @response.body.index('id="transition-url-diagnostics"')
   end
 
   test "shadow report row shows run batch check for shadow sites with missing evidence" do
@@ -271,7 +271,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_match "Promote to active", @response.body
-    assert_match "Safe to promote", @response.body
+    assert_select ".transition-decision--passed h2", text: "Ready to activate"
     decision_html = assert_select('#transition-report-summary').first.to_html
     assert_match "Export serializer compatibility", decision_html
     assert_match "Passed", decision_html
@@ -396,11 +396,11 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match "Blocked", @response.body
     assert_match %r{<strong>Statement equivalence</strong>.*Failed}m, @response.body
-    assert_match %r{<strong>Fetch diagnostic</strong>.*Passed}m, @response.body
-    assert_no_match %r{<strong>Export confirmation</strong>}m, @response.body
+    assert_match %r{<strong>Fresh fetch parity</strong>.*Passed}m, @response.body
+    assert_select '[data-check="export_diff"] .transition-result--passed', text: /Passed/
     assert_match "Critical statement refresh failed for 1 statement.", @response.body
     visible_html = @response.body.split('<summary>Audit</summary>').first
-    assert_includes visible_html, "Statement failure summary"
+    assert_includes visible_html, "Recorded statement failures"
     assert_includes visible_html, "Blocking statement failures"
     assert_includes visible_html, "Blank DSL result - Dates / fr - 1 affected"
     assert_not_includes visible_html, "Statement ID: #{statement.id}"
@@ -410,7 +410,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Sampled count: 1", @response.body
     assert_match Distillator::TransitionCheck::SELECTION_RULE, @response.body
     assert_match "This check used a limited sample of representative webpages.", @response.body
-    assert_match "Do not activate yet", @response.body
+    assert_select ".transition-decision--failed h2", text: "Blocked — stay in Shadow"
   end
 
   test "shadow report detail shows optional statement warnings separately without blocking activation" do
@@ -659,15 +659,15 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
       details: { export_compared: true, export_basis: "current export vs production-equivalent export" }
     )
 
-    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "checked" } }) if website.transition_evidences.where(transition_run_id: nil).exists?
+    publish_transition_fixture(website, defaults: { "fetch_parity" => { status: "failed", details: { reason: "cache_health_failed" } } }) if website.transition_evidences.where(transition_run_id: nil).exists?
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
     assert_match %r{<strong>Statement equivalence</strong>.*Not evaluated}m, @response.body
-    assert_match %r{<strong>Fetch diagnostic</strong>.*Failed}m, @response.body
+    assert_match %r{<strong>Fresh fetch parity</strong>.*Failed}m, @response.body
     assert_match "Fetch failed before statements could be refreshed.", @response.body
     assert_match "Fix the fetch/cache failure first, then rerun the transition batch check.", @response.body
-    assert_no_match %r{<strong>Export confirmation</strong>}m, @response.body
+    assert_select '[data-check="export_diff"] .transition-result--passed', text: /Passed/
     assert_no_match "failed on 0 representative webpages", @response.body
     assert_operator @response.body.scan("Cannot promote yet").count, :<=, 1
   end
@@ -759,10 +759,10 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match %r{all websites</a>\s*\|\s*<a[^>]+href="/websites/#{website.id}">#{Regexp.escape(website.name)}</a>\s*\|\s*<a[^>]+href="/webpages\?seedurl=#{Regexp.escape(website.seedurl)}"}, @response.body
     assert_match "Condenser fetch/cache failed for one or more sampled URLs.", @response.body
-    assert_match "Main blocker", @response.body
-    assert_match "Failed layer: statements", @response.body
+    assert_select ".transition-recorded-failure, #transition-fetch-comparison-findings", minimum: 1
+    assert_select '[data-check="statement_delta"] .transition-result--neutral', text: /Not evaluated/
     assert_match "Fetch failed before statements could be refreshed.", @response.body
-    assert_match "Fetch diagnostic", @response.body
+    assert_match "Fresh fetch parity", @response.body
     assert_match "generic_error_text", @response.body
     assert_match "High: Generic error text observed", @response.body
     assert_match "Latest attempt", @response.body
@@ -1002,8 +1002,8 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
-    assert_match "Main blocker", @response.body
-    assert_match "Failed layer: cache compare", @response.body
+    assert_select ".transition-recorded-failure, #transition-fetch-comparison-findings", minimum: 1
+    assert_select '#transition-fetch-comparison-findings', text: /Recorded fetch evidence/
     assert_match "Condenser and Wringer have a blocking parity mismatch.", @response.body
     assert_no_match "Fetch/cache failed for the representative URL.", @response.body
     assert_match "Sampled URL diagnostics", @response.body
@@ -1183,9 +1183,9 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_select '#transition-fetch-issues td', text: url_three
     assert_select '#transition-fetch-issues td', text: /detailed error was not recorded/
     assert_match "Statement equivalence", @response.body
-    assert_match "Fetch diagnostic", @response.body
-    assert_match "Fetch diagnostic", @response.body
-    assert_match "Affected sampled URLs: 1", @response.body
+    assert_select '.transition-check-results > li', count: 3
+    assert_match "Fresh fetch parity", @response.body
+    assert_select '#transition-fetch-issues tbody tr', count: 1
     assert_match url_one, @response.body
     assert_match url_two, @response.body
     assert_match url_three, @response.body
@@ -1335,9 +1335,9 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_select '#transition-fetch-issues td', text: url_two
     assert_select '#transition-fetch-issues td', text: /Runtime budget reached/
     assert_match "Statement equivalence", @response.body
-    assert_match "Fetch diagnostic", @response.body
-    assert_match "Fetch diagnostic", @response.body
-    assert_match "Affected sampled URLs: 1", @response.body
+    assert_select '.transition-check-results > li', count: 3
+    assert_match "Fresh fetch parity", @response.body
+    assert_select '#transition-fetch-issues tbody tr', count: 1
     assert_match "Transition check reached its runtime budget before all sampled URLs were fetched.", @response.body
     assert_match "Timed out", @response.body
     assert_match "Blocked by fetch", @response.body

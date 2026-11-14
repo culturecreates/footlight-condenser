@@ -1,4 +1,26 @@
 module Distillator::ShadowReportsHelper
+  def shadow_report_result_badge(state, label: nil)
+    tone = Distillator::TransitionReportPresentation.tone(state)
+    content_tag(:span, class: "transition-result transition-result--#{tone}") do
+      safe_join([content_tag(:span, shadow_report_check_icon(state), aria: { hidden: true }),
+        label || Distillator::TransitionReportPresentation.state_label(state)], " ")
+    end
+  end
+
+  def shadow_report_recorded_evidence_path(detail, index)
+    return unless detail.completed_transition_run_id
+
+    id = "recorded-fetch-#{index}"
+    distillator_shadow_report_site_path(detail.summary.website, run_id: detail.completed_transition_run_id,
+      evidence: id, anchor: id)
+  end
+
+  def shadow_report_recorded_value(entry, side)
+    return "Not recorded" unless entry.key?(side)
+
+    JSON.pretty_generate(entry[side])
+  end
+
   def shadow_report_status_options
     [
       ["All statuses", ""],
@@ -252,6 +274,7 @@ module Distillator::ShadowReportsHelper
   def shadow_report_completed_comparison_label(detail)
     return "No completed comparison recorded." unless detail.completed_transition_status
     return "Reviewed and accepted for this activation." if detail.operation_status.reviewed_completed_comparison?
+    return "Comparison is incomplete." if Distillator::TransitionReportPresentation.new(detail: detail).comparison_label == "Incomplete"
 
     { ready: "Comparison passed.", review: "Comparison needs review.", blocked: "Comparison has blocking differences.",
       not_checked: "Comparison is incomplete." }.fetch(detail.completed_transition_status.status)

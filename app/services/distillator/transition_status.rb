@@ -334,32 +334,26 @@ module Distillator
     end
 
     def checks
-      checks = [
+      [
+        {
+          key: "fetch_diagnostic",
+          label: "Fresh fetch parity",
+          state: fetch_status,
+          role: "prerequisite"
+        },
         {
           key: "statement_equivalence",
           label: "Statement equivalence",
           state: statements_status,
           role: "gate"
-        }
-      ]
-
-      if statements_status == :passed
-        checks << {
+        },
+        {
           key: "export_confirmation",
           label: "Export serializer compatibility",
           state: export_status,
           role: "confirmation"
         }
-      elsif fetch_status != :missing
-        checks << {
-          key: "fetch_diagnostic",
-          label: "Fetch diagnostic",
-          state: fetch_status,
-          role: "diagnostic"
-        }
-      end
-
-      checks
+      ]
     end
 
     def activation_recommendation

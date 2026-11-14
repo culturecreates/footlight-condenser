@@ -1,0 +1,122 @@
+<% if fetches.issues.any? %>
+  <section id="transition-fetch-issues" aria-label="Fetch failures in the completed run">
+    <h2>Fresh retrieval failures · run #<%= @detail.completed_transition_run_id %></h2>
+    <table class="cache-table transition-issues-table">
+      <thead><tr><th scope="col">Affected URL</th><th scope="col">Backend</th><th scope="col">What happened</th><th scope="col">Recorded evidence</th></tr></thead>
+      <tbody>
+        <% fetches.issues.each do |issue| %>
+          <% index = @presentation.fetch_rows.index { |row| row[:url] == issue[:url] } %>
+          <tr>
+            <td><%= issue[:url].present? ? external_website_link(issue[:url], max: 180) : "URL not recorded" %></td>
+            <td><strong><%= issue[:backend] %></strong></td>
+            <td><% if issue[:http_code].present? %><strong>HTTP <%= issue[:http_code] %>.</strong> <% end %><%= issue[:reason] %></td>
+            <td><%= link_to "Recorded fetch evidence", shadow_report_recorded_evidence_path(@detail, index) if index %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    <p>Missing snapshot pairs leave selected values unverified for those URLs. A missing comparison does not establish an extraction difference.</p>
+    <% unless @historical_run %>
+      <% if @detail.pending_transition_batch_check %>
+        <p><%= link_to "Follow the running check", distillator_transition_check_path(@detail.transition_run_id) %></p>
+      <% elsif operation.completed_run %>
+        <%= button_to "Retry transition check", distillator_transition_checks_path, method: :post,
+              params: { website_id: @website.id, check_options: operation.completed_run.options.to_h }, form: { id: "retry-completed-transition-check" } %>
+      <% end %>
+    <% end %>
+  </section>
+<% end %>
+
+<% if @presentation.field_findings.any? %>
+  <section id="transition-field-findings" aria-label="Recorded selected-field differences">
+    <h2>Selected-field differences and errors · <%= @presentation.field_findings.length %></h2>
+    <% @presentation.field_findings.each_with_index.group_by { |entry, _| entry[:webpage_url] }.each do |url, entries| %>
+      <h3 class="transition-page-url"><%= url.present? ? external_website_link(url, max: 180) : "Page URL not recorded" %></h3>
+      <% entries.each do |entry, index| %>
+        <article class="transition-field-finding" id="recorded-statement-<%= index %>">
+          <h4><%= entry[:property_label].presence || entry[:source].presence || "Property not recorded" %>
+            <% if entry[:source_id] %> · Source #<%= entry[:source_id] %><% end %>
+            <% if entry[:language].present? %> · <%= entry[:language] %><% end %>
+            <%= shadow_report_result_badge(@presentation.finding_state(entry), label: entry[:verdict].to_s.humanize) %></h4>
+          <div class="transition-values">
+            <% { "Wringer" => :legacy, "Condenser" => :condenser }.each do |label, side| %>
+              <div><strong><%= label %></strong>
+                <pre><%= shadow_report_recorded_value(entry, side) %></pre>
+                <% if entry["#{side}_error"].present? %><p class="transition-extraction-error"><strong>Extraction error:</strong> <%= entry["#{side}_error"].to_json %></p><% end %>
+              </div>
+            <% end %>
+          </div>
+          <p class="transition-secondary">Recorded in run #<%= @detail.completed_transition_run_id %>.
+            <%= link_to "Link to this evidence", distillator_shadow_report_site_path(@website, run_id: @detail.completed_transition_run_id, anchor: "recorded-statement-#{index}") %>
+            <% if entry[:source_id].present? %> · <%= link_to "Edit current source ##{entry[:source_id]}", edit_source_path(entry[:source_id]) %><% end %></p>
+        </article>
+      <% end %>
+    <% end %>
+  </section>
+<% elsif @detail.statement_failure_groups.any? %>
+  <section id="transition-field-findings" class="website-rollout-panel">
+    <h2>Recorded statement failures</h2>
+    <p>Compared values were not recorded by this older check. Run a new check for detailed evidence.</p>
+    <% [:blocker, :warning, :unknown].each do |severity| %>
+      <% groups = shadow_report_statement_failure_groups(@detail, severity: severity) %>
+      <% if groups.any? %>
+        <h3><%= { blocker: "Blocking statement failures", warning: "Optional statement warnings", unknown: "Unclassified historical failures" }.fetch(severity) %></h3>
+        <ul><% groups.each do |group| %><li><%= [group[:reason], group[:source], "#{group[:count]} affected"].compact.join(" - ") %></li><% end %></ul>
+      <% end %>
+    <% end %>
+  </section>
+<% end %>
+
+<% unverified = @presentation.unverified_pages.reject { |entry| fetches.issues.any? { |issue| issue[:url] == entry[:url] } } %>
+<% if unverified.any? %>
+  <section id="transition-unverified-pages">
+    <h2>Not compared · <%= unverified.length %> pages</h2>
+    <ul><% unverified.each do |entry| %><li><%= external_website_link(entry[:url], max: 180) %> — <%= entry[:reason].to_s.humanize %></li><% end %></ul>
+    <p>Selected values remain unverified for these pages; no differing values are established.</p>
+  </section>
+<% end %>
+
+<% compare_rows = @presentation.fetch_rows.each_with_index.select { |row, _| row[:comparison_status].in?(%w[failed review unknown missing]) && fetches.issues.none? { |issue| issue[:url] == row[:url] } } %>
+<% if compare_rows.any? %>
+  <section id="transition-fetch-comparison-findings">
+    <h2>Fetch comparison findings</h2>
+    <ul><% compare_rows.each do |row, index| %>
+      <li><%= external_website_link(row[:url], max: 180) %> — <%= row[:comparison_status].humanize %>
+        <% fields = Array(row[:compare_summary].to_h["blocking_regressions"]).presence || Array(row[:compare_summary].to_h["review_needed_diffs"]).presence %>
+        <% if fields %> · Fields: <%= fields.join(", ") %><% end %> ·
+        <%= link_to "Recorded fetch evidence", shadow_report_recorded_evidence_path(@detail, index) %></li>
+    <% end %></ul>
+  </section>
+<% end %>
+
+<% @detail.transition_evidence_explanations.each do |explanation| %>
+  <% next unless explanation.state == "failed" %>
+  <% next if explanation.key == "statement_delta" && (@presentation.field_findings.any? || @detail.statement_failure_groups.any?) %>
+  <% next if explanation.key == "fetch_parity" && (fetches.issues.any? || compare_rows.any?) %>
+  <section class="transition-recorded-failure" id="recorded-phase-<%= explanation.key %>">
+    <h2><%= explanation.check %> · <%= shadow_report_result_badge(:failed) %></h2>
+    <p><strong><%= explanation.headline %></strong></p>
+    <p class="transition-secondary">Recorded in completed run #<%= @detail.completed_transition_run_id %>.
+      <%= link_to "Link to this evidence", distillator_shadow_report_site_path(@website, run_id: @detail.completed_transition_run_id, anchor: "recorded-phase-#{explanation.key}") %></p>
+    <details><summary>Recorded check details</summary>
+      <pre class="transition-recorded-json"><%= JSON.pretty_generate(@detail.transition_evidence_by_kind[explanation.key]&.details || {}) %></pre>
+    </details>
+  </section>
+<% end %>
+
+<% if @presentation.fetch_rows.any? %>
+  <details id="transition-recorded-fetches" class="website-rollout-panel" <%= "open" if @presentation.fetch_rows.each_index.any? { |index| params[:evidence] == "recorded-fetch-#{index}" } %>>
+    <summary>Recorded fetch evidence · <%= @presentation.fetch_rows.length %> pages</summary>
+    <% @presentation.fetch_rows.each_with_index do |row, index| %>
+      <% id = "recorded-fetch-#{index}" %>
+      <details id="<%= id %>" class="website-rollout-panel" <%= "open" if params[:evidence] == id %>>
+        <summary>Recorded fetch evidence · <%= truncated_url_label(row[:url], max: 100) %></summary>
+        <p>Run #<%= @detail.completed_transition_run_id %> · These are recorded results, not the current cache.</p>
+        <pre class="transition-recorded-json"><%= JSON.pretty_generate(row) %></pre>
+        <p class="transition-secondary">Current inspection, which may differ from this run:
+          <%= shadow_report_fetch_issue_link({ url: row[:url], backend: "Condenser" }, @website) %> |
+          <%= shadow_report_fetch_issue_link({ url: row[:url], backend: "Wringer" }, @website) %></p>
+      </details>
+    <% end %>
+  </details>
+<% end %>

@@ -53,3 +53,41 @@ the resolved backend. The read-only paired check shows source comparisons rather
 than a misleading zero statement-refresh count.
 
 No database migration is required.
+
+## Report layout and evidence links
+
+The header identifies current operation; it is separate from a single decision
+banner and the latest attempt's lifecycle. A pending/failed attempt never borrows
+the previous run's passing verdict as permission to activate. Historical reports
+offer neither activation guidance nor retry controls. Active sites remain Active
+when a later comparison fails; those failures remain visible as evidence.
+
+Every report displays all three checks, in order: fresh fetch parity, selected
+statement equivalence, and export serializer compatibility. Green means passed,
+amber means review/incomplete/stale, red means a recorded failure, blue identifies
+an in-progress run, and grey means not evaluated or not recorded. Each colour is
+paired with a text label; the checks do not disappear when another check fails.
+The serializer check uses stored data and is explicitly separate from fresh
+extraction coverage. Its passing result must not imply full end-to-end parity.
+
+Retrieval failures name the affected URL, backend, HTTP result and recorded error.
+Attempts, successes, available pairs and compared pages are separate counts.
+Incomplete coverage is distinct from a confirmed difference. Known selected-field
+or export failures remain blocking even if other pages could not be compared.
+Only non-MATCH recorded statement artifacts appear in the findings section, grouped
+by page and identifying the property, source and language. Both recorded values
+and any extraction errors are visible. Unsupported comparison fetch steps remain
+inconclusive, rather than being relabelled as confirmed data regressions.
+Standard and Strict both compare selected sources only. The report never expands
+the source scope using current selections or re-executes the DSL on GET.
+
+Recorded-fetch links include the completed run ID and evidence key; opening one
+expands that exact stored record without JavaScript. Recorded-value permalinks
+point to the same run and artifact. Later checks/cache refreshes cannot replace
+that evidence. Current source editing and cache inspection are separately labelled.
+Older checks that lack compared values say so rather than inventing values.
+
+Timing, all-URL diagnostics, scope and audit details are closed by default.
+The layout expands with the browser width; long values wrap and paired values
+stack on smaller screens. Existing activation and rollback services remain the
+authority for state changes; the presentation layer cannot activate a website.

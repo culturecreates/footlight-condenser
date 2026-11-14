@@ -51,7 +51,7 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     assert_select '#transition-report-summary strong', text: "Active on Condenser"
     assert_select '#latest-transition-check strong', text: "Run ##{run.id}: Running"
     assert_select '#latest-transition-check', text: /Results below remain from completed run ##{@completed.id}/
-    assert_includes response.body, "Wait for run ##{run.id} to finish"
+    assert_includes response.body, "Follow the running check and wait for its completed result."
     assert_select 'strong', text: "Reviewed and accepted for this activation."
     assert_not_includes response.body, "Do not activate yet"
     assert_not_includes response.body, "Safety:</strong> Unsafe"
@@ -101,7 +101,7 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select 'strong', text: "Comparison has blocking differences."
     assert_select 'strong', text: "Reviewed and accepted for this activation.", count: 0
-    assert_includes response.body, "Findings in completed comparison"
+    assert_select '#recorded-phase-statement_delta', count: 1
     assert_includes response.body, "Investigate the differences in the latest comparison."
     assert_not_includes response.body, "Do not activate yet"
     assert_select 'a', text: "Open failed cache result", count: 0
@@ -143,7 +143,7 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     assert_select 'strong', text: "Reviewed and accepted for this activation.", count: 0
     assert_select 'a', text: "Open active Wringer cache"
     assert_select 'a', text: "Open active Condenser cache", count: 0
-    assert_not_includes response.body, "Safe to promote"
+    assert_select ".transition-primary-action", text: "Review activation", count: 0
     assert_not_includes response.body, "Review checklist"
     assert_equal :wringer, Distillator::FetchMode.rollout_resolution_object(website: @website.reload).active_backend
   end
@@ -174,7 +174,7 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select '#transition-report-summary strong', text: "Legacy Wringer active"
     assert_select 'strong', text: "Comparison passed."
-    assert_not_includes response.body, "Safe to promote"
+    assert_select ".transition-primary-action", text: "Review activation", count: 0
     assert_not Distillator::ShadowSiteSummary.call(website: @website, cache: @cache).promotable
     direct = Distillator::RolloutTransition.call(website: @website, to_mode: "active")
     assert_not direct.success?
@@ -221,10 +221,10 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select '#historical-transition-run', text: /Historical comparison for run ##{@completed.id}/
     assert_select '#transition-report-summary', text: /Completed transition run:\s*##{@completed.id}/
-    assert_select '#transition-report-summary', text: /Current mode:\s*Shadow/
+    assert_select '.transition-report-heading', text: /Current mode:\s*Shadow/
     assert_select '#transition-url-diagnostics td:nth-child(5)', text: /\APassed\b/
     assert_not_includes response.body, "Review checklist"
-    assert_not_includes response.body, "Safe to promote"
+    assert_select ".transition-primary-action", text: "Review activation", count: 0
 
     get distillator_shadow_report_site_path(@website, run_id: newer.id)
     assert_response :success
@@ -269,9 +269,9 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     get distillator_shadow_report_site_path(@website, run_id: run.id)
     assert_response :success
     summary = assert_select('#transition-report-summary').first
-    assert_equal 1, summary.text.scan("Safe to promote").length
+    assert_equal 1, summary.text.scan("Ready to activate").length
     assert_equal 1, summary.text.scan("Next step:").length
-    assert_select '#transition-report-summary > p', text: /Data field comparison:\s*Strict/
+    assert_select '.transition-completed-context > p', text: /Data field comparison:\s*Strict/
     assert_select 'h2', text: "Decision", count: 0
     assert_select '#transition-report-audit', text: /Evidence confidence:\s*High/
     assert_select '#transition-report-audit', text: /Cache diagnostics policy:\s*Review known destination changes/

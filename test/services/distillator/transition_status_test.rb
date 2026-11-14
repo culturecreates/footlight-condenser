@@ -160,7 +160,8 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     assert_equal :failed, status.statements
     assert_equal :passed, status.export
     assert_equal "Blocked", status.activation_recommendation[:label]
-    assert_equal "Fetch diagnostic", status.checks.last[:label]
+    assert_equal %w[fetch_diagnostic statement_equivalence export_confirmation], status.checks.map { |check| check[:key] }
+    assert_equal "Fresh fetch parity", status.checks.first[:label]
     assert_equal :passed, status.checks.last[:state]
   end
 

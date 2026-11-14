@@ -1,0 +1,63 @@
+.transition-report {
+  --transition-text: #17223b;
+  --transition-muted: #475569;
+  --transition-line: #dce2ec;
+  --transition-surface: #f5f7fa;
+  color: var(--transition-text);
+  margin: 1.5rem clamp(0.75rem, 2vw, 2rem);
+}
+
+.transition-report *, .transition-report *::before, .transition-report *::after { box-sizing: border-box; }
+.transition-report h1 { margin: 0 0 0.4rem; }
+.transition-report h2 { font-size: 1.25rem; margin: 0 0 0.6rem; }
+.transition-report h3 { font-size: 1.05rem; }
+.transition-report p { margin: 0.5rem 0; }
+.transition-report a { color: #2455aa; text-underline-offset: 0.15em; }
+.transition-report-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.transition-report .transition-secondary { color: var(--transition-muted); }
+.transition-decision { padding: 1rem; margin: 1rem 0; background: var(--transition-surface); border-left: 4px solid #64748b; }
+.transition-decision--passed { background: #eaf6ee; border-color: #236844; }
+.transition-decision--review { background: #fff6df; border-color: #815100; }
+.transition-decision--failed { background: #fff0f1; border-color: #aa293a; }
+.transition-decision--running { background: #edf3ff; border-color: #2757b1; }
+.transition-history-notice, .transition-current-check:not(:empty) { margin: 1rem 0; }
+.transition-check-results { padding: 0; list-style: none; margin: 1rem 0; }
+.transition-check-results > li { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding: 0.9rem 0; border-bottom: 1px solid var(--transition-line); }
+.transition-check-results > li > div { min-width: 0; }
+.transition-result { display: inline-block; border-radius: 0.3rem; padding: 0.25rem 0.55rem; white-space: nowrap; color: var(--transition-muted); background: var(--transition-surface); }
+.transition-result--passed { color: #236844; background: #eaf6ee; }
+.transition-result--review { color: #815100; background: #fff6df; }
+.transition-result--failed { color: #aa293a; background: #fff0f1; }
+.transition-result--running { color: #2757b1; background: #edf3ff; }
+.transition-next-action { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; margin: 1rem 0 1.5rem; }
+.transition-next-action > p { flex: 1 1 25rem; }
+.transition-report .transition-primary-action { display: inline-block; color: #fff; background: #2455aa; border-radius: 0.3rem; padding: 0.65rem 0.9rem; text-decoration: none; }
+.transition-report > section, .transition-report > details { margin: 1.5rem 0; }
+.transition-report details { padding: 0.8rem 0; border-top: 1px solid var(--transition-line); }
+.transition-report summary { cursor: pointer; overflow-wrap: anywhere; }
+.transition-page-url, .transition-report td, .transition-report p, .transition-field-finding { overflow-wrap: anywhere; }
+.transition-issues-table { width: 100%; table-layout: fixed; }
+.transition-issues-table th:nth-child(1) { width: 35%; }
+.transition-issues-table th:nth-child(2) { width: 12%; }
+.transition-issues-table th:nth-child(3) { width: 35%; }
+.transition-issues-table td, .transition-issues-table th { vertical-align: top; }
+.transition-field-finding { border-left: 3px solid var(--transition-line); padding: 0.75rem 1rem; margin: 0.75rem 0 1.25rem; background: var(--transition-surface); }
+.transition-field-finding h4 { margin: 0 0 0.75rem; }
+.transition-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.transition-values pre, .transition-recorded-json { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
+.transition-extraction-error { color: #aa293a; }
+.transition-report .transition-observation { background: #fff0f1; border-color: #aa293a; }
+
+@media (max-width: 700px) {
+  .transition-check-results > li { flex-direction: column; gap: 0.4rem; }
+  .transition-values { grid-template-columns: minmax(0, 1fr); }
+  .transition-issues-table, .transition-issues-table tbody, .transition-issues-table tr, .transition-issues-table td { display: block; width: 100%; }
+  .transition-issues-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .transition-issues-table tr { padding: 0.5rem 0; border-bottom: 1px solid var(--transition-line); }
+  .transition-issues-table td { border: 0; }
+  .transition-result { white-space: normal; }
+}
+
+@media (forced-colors: active) {
+  .transition-result { border: 1px solid currentColor; }
+}

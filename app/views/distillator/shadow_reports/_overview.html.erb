@@ -1,0 +1,108 @@
+<header class="transition-report-heading">
+  <div>
+    <h1><%= @website.name %> · Transition report</h1>
+    <p class="transition-secondary"><%= @website.seedurl %> · Website #<%= @website.id %></p>
+  </div>
+  <p>Current mode: <strong><%= @website.distillator_mode.humanize %></strong> ·
+    Serving backend: <strong><%= website_rollout_backend_for(@website) %></strong></p>
+</header>
+<p class="transition-secondary">This report is read-only. Checks compare extracted values without updating stored statements.</p>
+
+<% if @historical_run %>
+  <p class="transition-history-notice" id="historical-transition-run"><strong>Historical comparison for run #<%= @report_run.id %>.</strong>
+    A newer check exists. <%= link_to "View current transition status", distillator_shadow_report_site_path(@website) %>.</p>
+<% end %>
+
+<section id="transition-report-summary" aria-label="Transition decision">
+  <div class="transition-decision transition-decision--<%= @presentation.decision_tone %>">
+    <h2><strong><%= @presentation.decision_title %></strong></h2>
+    <p><%= @presentation.decision_reason %></p>
+    <% if @website.distillator_mode == "active" && !@historical_run %>
+      <% if operation.activation %>
+        <p><%= Distillator::WebsiteOperationStatus.event_label(operation.activation) %> · <%= shadow_report_timestamp(operation.activation.created_at) %></p>
+        <% if operation.activation.reason.present? %><p>Activation reason: <%= operation.activation.reason %></p><% end %>
+      <% end %>
+      <% observed = operation.observed_fetch %>
+      <% if observed[:failed] || observed[:backend].in?(%w[legacy replay]) %>
+        <p class="cache-page-notice transition-observation"><strong><%= observed[:label] %></strong>
+          · <%= shadow_report_timestamp(observed[:attempted_at]) %> · <%= observed[:url] %></p>
+      <% end %>
+    <% end %>
+  </div>
+
+  <div id="latest-transition-check" class="transition-current-check">
+    <% if @detail.pending_transition_batch_check %>
+      <p><span class="transition-result transition-result--running">In progress</span>
+        <strong>Run #<%= @detail.transition_run_id %>: <%= @detail.transition_run_status.humanize %></strong>
+        · requested <%= time_ago_in_words(@detail.transition_check_requested_at) %> ago.</p>
+      <% requested_options = operation.latest_run.options %>
+      <p class="transition-secondary">Requested scope: <%= requested_options.selection_rule %> <%= requested_options.field_policy_label %>.</p>
+      <p><%= @detail.completed_transition_run_id ? "Results below remain from completed run ##{@detail.completed_transition_run_id}." : "Results will appear when all phases finish." %></p>
+    <% elsif @detail.transition_run_status == "failed" %>
+      <p><span class="transition-result transition-result--failed">Failed attempt</span>
+        <strong>Run #<%= @detail.transition_run_id %> failed:</strong> <%= @detail.transition_run_error %></p>
+      <% if @detail.completed_transition_run_id %><p>Results below remain from completed run #<%= @detail.completed_transition_run_id %>.</p><% end %>
+    <% end %>
+  </div>
+
+  <div class="transition-completed-context">
+    <% if @detail.completed_transition_run_id %>
+      <p><strong>Completed transition run:</strong> #<%= @detail.completed_transition_run_id %> ·
+        <strong><%= @report_run ? "Completed at" : "Latest completed evidence" %>:</strong> <%= shadow_report_timestamp(@detail.latest_transition_evidence_checked_at) %> ·
+        <strong>Data field comparison:</strong> <%= operation.completed_run.options.strictness.humanize %> · Selected sources only</p>
+      <% if @website.distillator_mode != "shadow" || @historical_run %>
+        <p>Recorded comparison: <strong><%= shadow_report_completed_comparison_label(@detail) %></strong></p>
+      <% end %>
+      <% if @detail.checked_scope[:fetch_basis] != "fresh_both" %>
+        <p class="transition-secondary">Older run: fresh requests to both backends were not established. Run a new check.</p>
+      <% end %>
+    <% else %>
+      <p>No completed comparison recorded.</p>
+    <% end %>
+  </div>
+
+  <ol class="transition-check-results" aria-label="Checks in the completed run">
+    <% @presentation.checks.each do |check| %>
+      <li data-check="<%= check[:key] %>">
+        <div>
+          <strong><%= check[:label] %></strong>
+          <% if check[:key] == "fetch_parity" %>
+            <p class="transition-secondary">Both backends must return fresh HTML; older cached HTML is rejected.</p>
+            <% if fetches.selected.positive? %>
+              <div id="transition-fetch-coverage" class="transition-secondary">
+                <p><strong>Condenser:</strong> <%= fetches.condenser_succeeded.nil? ? "Success count not recorded" : "#{fetches.condenser_succeeded}/#{fetches.selected} successful" %>;
+                  <%= fetches.attempted.nil? ? "attempt count not recorded" : "#{fetches.attempted} attempted" %>.
+                  <strong>Wringer:</strong> <%= fetches.wringer_available.nil? ? "Availability not recorded" : "#{fetches.wringer_available}/#{fetches.selected} #{fetches.fresh ? 'fresh results available' : 'snapshots available'}" %>.</p>
+                <% unless fetches.paired.nil? %><p>Both snapshots available: <%= fetches.paired %>/<%= fetches.selected %>.</p><% end %>
+              </div>
+            <% end %>
+          <% elsif check[:key] == "statement_delta" %>
+            <p class="transition-secondary">Selected sources only, in Standard and Strict modes.
+              <% unless fetches.compared.nil? %>Pages compared: <%= fetches.compared %>/<%= fetches.selected %>.<% end %></p>
+          <% elsif check[:key] == "export_diff" %>
+            <p class="transition-secondary">Serializer compatibility using stored data in this environment; separate from fresh extraction coverage.</p>
+          <% end %>
+        </div>
+        <%= shadow_report_result_badge(check[:state]) %>
+      </li>
+    <% end %>
+  </ol>
+
+  <% unless @historical_run %>
+    <section class="transition-next-action" aria-label="Next action">
+      <p><strong>Next step:</strong> <%= @presentation.next_action %></p>
+      <% if @detail.pending_transition_batch_check %>
+        <%= link_to "Follow the running check", distillator_transition_check_path(@detail.transition_run_id), class: "transition-primary-action" %>
+      <% elsif @detail.transition_run_status == "failed" %>
+        <%= link_to "Inspect failed run ##{@detail.transition_run_id}", distillator_transition_check_path(@detail.transition_run_id), class: "transition-primary-action" %>
+      <% elsif @presentation.field_findings.any? %>
+        <%= link_to "Inspect recorded values", "#transition-field-findings", class: "transition-primary-action" %>
+      <% elsif fetches.issues.any? %>
+        <%= link_to "Inspect recorded failure", "#transition-fetch-issues", class: "transition-primary-action" %>
+      <% else %>
+        <%= link_to(@website.distillator_mode == "shadow" && @detail.transition_status.status == :ready ? "Review activation" : "Open website controls",
+          website_path(@website, anchor: "website-transition"), class: "transition-primary-action") %>
+      <% end %>
+    </section>
+  <% end %>
+</section>

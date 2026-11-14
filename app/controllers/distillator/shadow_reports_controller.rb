@@ -56,6 +56,7 @@ module Distillator
       end
       @historical_run = @report_run && @report_run.id != @website.latest_transition_run&.id
       @detail = Distillator::ShadowSiteDetail.call(website: @website, transition_run: @report_run)
+      @presentation = Distillator::TransitionReportPresentation.new(detail: @detail, historical: @historical_run)
     end
 
     private
