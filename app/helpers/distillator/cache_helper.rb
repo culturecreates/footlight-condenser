@@ -179,20 +179,22 @@ module Distillator::CacheHelper
   end
 
   def cache_redirected_badge(payload)
-    redirected = cache_redirect_chain(payload).any? || payload.fetch("final_url", payload[:final_url]).to_s.present? && payload.fetch("final_url", payload[:final_url]).to_s != payload.fetch("normalized_url", payload[:normalized_url]).to_s
+    redirected = cache_redirect_hop_count(payload).positive?
     content_tag(:span, redirected ? "Redirected" : "Direct", class: "cache-badge cache-badge-redirect")
   end
 
   def cache_redirect_summary(payload)
-    hop_count = cache_redirect_chain(payload).count
-    final_url = payload.fetch("final_url", payload[:final_url]).to_s
-    normalized_url = payload.fetch("normalized_url", payload[:normalized_url]).to_s
-
-    if hop_count.positive? || (final_url.present? && final_url != normalized_url)
+    hop_count = cache_redirect_hop_count(payload)
+    if hop_count.positive?
       "Redirected (#{hop_count} hop#{'s' unless hop_count == 1})"
     else
       "Direct"
     end
+  end
+
+  def cache_redirect_hop_count(payload)
+    Distillator::FetchService.redirect_hop_count(url: payload.fetch("normalized_url", payload[:normalized_url]),
+      final_url: payload.fetch("final_url", payload[:final_url]), redirect_chain: cache_redirect_chain(payload))
   end
 
   def cache_timestamp_label(timestamp)

@@ -597,6 +597,7 @@ module Distillator
       signals = normalize_signals(payload.dig(:wringer, :signals)).dup
       hints = normalize_hints(payload.dig(:wringer, :hints)).dup
       http_code = payload[:http_code] || payload.dig(:wringer, :http_code) || default_http_code_for(payload)
+      signals[:cf_mitigated] = headers[:cf_mitigated].to_s.strip.downcase if headers[:cf_mitigated].present?
 
       content_type = detect_content_type(headers, body)
       signals[:content_type] ||= content_type
@@ -691,11 +692,12 @@ module Distillator
     end
 
     def self.redirected?(url:, final_url:, redirect_chain:)
-      chain = normalize_redirect_chain(redirect_chain)
-      return true if chain.length > 1
-      return false if final_url.blank?
+      redirect_hop_count(url: url, final_url: final_url, redirect_chain: redirect_chain).positive?
+    end
 
-      final_url.to_s != url.to_s
+    def self.redirect_hop_count(url:, final_url:, redirect_chain:)
+      urls = [url, *normalize_redirect_chain(redirect_chain), final_url].map { |value| value.to_s.strip }.reject(&:blank?)
+      urls.each_cons(2).count { |from, to| from != to }
     end
 
     def self.sanitize_scrape_options(scrape_options, explicit_log_context)

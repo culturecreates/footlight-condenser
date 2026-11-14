@@ -215,8 +215,8 @@ module Distillator
     #
     # @return [Boolean]
     def redirected?
-      Array(cache.redirect_chain).any? ||
-        (cache.final_url.present? && cache.final_url.to_s != cache.normalized_url.to_s)
+      Distillator::FetchService.redirect_hop_count(url: cache.normalized_url,
+        final_url: cache.final_url, redirect_chain: cache.redirect_chain).positive?
     end
 
     def primary_issue_for(issue_set)

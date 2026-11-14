@@ -4,6 +4,24 @@ system_exceptions:
   # HIGH-SPECIFICITY (FIRST)
   # -------------------------
 
+  cloudflare_response_header:
+    label: Cloudflare challenge response header
+    severity: blocked
+    category: anti_bot
+    expose_in_ui: true
+    export_to_apify: false
+    hints:
+      - system_cloudflare
+      - cloudflare
+    match:
+      signals:
+        cf_mitigated: challenge
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      error_code: system_cloudflare
+
   cloudflare:
     label: Cloudflare interstitial
     severity: blocked
@@ -17,6 +35,9 @@ system_exceptions:
       body_contains:
         - "Attention Required"
         - "Cloudflare"
+      # A provider reference in scripts, assets or a footer is not an interstitial.
+      page_identity_patterns:
+        - '\A(?:Attention Required\b|Just a moment\b|Checking your browser\b|Sorry, you have been blocked\b|Cloudflare (?:security|challenge)\b)'
     policy:
       action: abort_update
       retry: true
@@ -115,6 +136,9 @@ system_exceptions:
         - "captcha"
         - "Captcha"
         - "CAPTCHA"
+      # Embedded reCAPTCHA/Turnstile widgets must not invalidate an event page.
+      page_identity_patterns:
+        - '\A(?:captcha(?: challenge)?[.!]?|(?:Please )?(?:complete|solve|enter) (?:the |this )?captcha[.!]?|(?:Please )?Verify (?:that )?you are (?:a )?human[.!]?|Human verification[.!]?|Security (?:check|verification)[.!]?|Are you (?:a )?human\??|Robot check[.!]?)\z'
     policy:
       action: abort_update
       retry: true

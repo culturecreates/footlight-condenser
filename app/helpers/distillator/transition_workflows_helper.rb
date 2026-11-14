@@ -43,4 +43,22 @@ module Distillator::TransitionWorkflowsHelper
     link_to "##{run.id} · #{data['state'].presence || run.status.humanize}",
       distillator_shadow_report_site_path(item.website_id, run_id: run.id)
   end
+
+  def workflow_challenge_reported?(item)
+    item.reason.to_s.split(" — ", 2).first.to_s.match?(/\b(?:system_cloudflare|cloudflare|system_captcha|captcha)\b/i)
+  end
+
+  def workflow_reason_summary(item)
+    return item.reason unless workflow_challenge_reported?(item)
+
+    backend = item.reason.to_s[/\A(Condenser|Wringer):/, 1] || "The fetch check"
+    "#{backend} reported a Cloudflare/CAPTCHA challenge. Inspect the recorded response before retrying."
+  end
+
+  def workflow_failure_report_path(item)
+    run = item.post_run || item.pre_run
+    return unless run && item.website_id
+
+    distillator_shadow_report_site_path(item.website_id, run_id: run.id, anchor: "transition-fetch-issues")
+  end
 end

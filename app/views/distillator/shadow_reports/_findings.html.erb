@@ -28,7 +28,8 @@
           <tr>
             <td><%= issue[:url].present? ? external_website_link(issue[:url], max: 180) : "URL not recorded" %></td>
             <td><strong><%= issue[:backend] %></strong></td>
-            <td><% if issue[:http_code].present? %><strong>HTTP <%= issue[:http_code] %>.</strong> <% end %><%= issue[:reason] %></td>
+            <td><% if issue[:http_code].present? %><strong>HTTP <%= issue[:http_code] %>.</strong> <% end %><%= issue[:summary] || issue[:reason] %>
+              <% if issue[:kind] == "challenge" && issue[:reason].present? %><details><summary>Technical detail</summary><%= issue[:reason] %></details><% end %></td>
             <td><%= link_to "Recorded fetch evidence", shadow_report_recorded_evidence_path(@detail, index) if index %></td>
           </tr>
         <% end %>

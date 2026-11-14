@@ -27,6 +27,22 @@ require "test_helper"
 #   must not become the primary issue.
 #
 class Distillator::CacheHealthMaterializerTest < ActiveSupport::TestCase
+  test "starting URL and repeated identical entries are not redirects but destination changes and loops are" do
+    url = "https://example.org/event"
+    [[], [url], [url, url]].each do |chain|
+      cache = build_cache(uri: url, final_url: url, redirect_chain: chain)
+      Distillator::CacheHealthMaterializer.call(cache)
+      assert_equal false, cache.redirected
+      assert_equal 0, Distillator::FetchService.redirect_hop_count(url: url, final_url: url, redirect_chain: chain)
+    end
+    destination = "https://example.org/other"
+    cache = build_cache(uri: url, final_url: destination, redirect_chain: [url, destination])
+    Distillator::CacheHealthMaterializer.call(cache)
+    assert_equal true, cache.redirected
+    assert_equal 1, Distillator::FetchService.redirect_hop_count(url: url, final_url: destination, redirect_chain: [url, destination])
+    assert_equal 2, Distillator::FetchService.redirect_hop_count(url: url, final_url: url, redirect_chain: [url, destination, url])
+  end
+
   test "materializes health status sizes signals and hints" do
     cache = build_cache(
       uri: "http://example.org/json",

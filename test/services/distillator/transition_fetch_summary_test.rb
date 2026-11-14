@@ -63,6 +63,17 @@ class Distillator::TransitionFetchSummaryTest < ActiveSupport::TestCase
     assert_includes summarize(rows).issues.first[:action], "still valid"
   end
 
+  test "successful HTTP rejected as a challenge is distinguished from a network failure" do
+    rows = successful_rows
+    rows[0].merge!(fetch_status: "failed", fetch_reason: "captcha_detected", http_response_code: 200,
+      condenser_error: "system_cloudflare; cloudflare; system_captcha; captcha")
+    issue = summarize(rows).issues.sole
+    assert_equal "challenge", issue[:kind]
+    assert_equal "Content was rejected as a Cloudflare/CAPTCHA challenge.", issue[:summary]
+    assert_includes issue[:action], "confirm whether"
+    assert_includes issue[:reason], "system_cloudflare"
+  end
+
   private
 
   def successful_rows

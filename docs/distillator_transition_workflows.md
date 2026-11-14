@@ -93,6 +93,30 @@ through that workflow; admission never bypasses their ownership.
 Successful site reports display one final verdict and concise linked verification
 results. Findings expand only when there is a warning, failure or other finding.
 
+## Content rejection and inspection context
+
+Cloudflare/CAPTCHA keywords in cookie descriptions, script URLs or embedded forms
+do not by themselves establish a challenge page. These rules also require a
+recognizable primary page title/heading (or a short plain-text challenge response).
+An explicit `cf-mitigated: challenge` response header independently blocks content,
+even with a large body or a familiar title. Genuine challenge pages and HTTP
+failures still reject content. Selected-source
+statement and export gates are unchanged; accepted HTML alone cannot activate a site.
+
+New comparisons record transport/content success separately, the fresh HTTP code,
+and bounded primary matcher evidence (source, pattern and snippet). A reported
+HTTP-200 challenge is described as rejected content rather than a network failure.
+Previously completed runs retain their recorded results and require a new check
+to validate a detector correction. Do not exclude valid event URLs to bypass an
+incorrect detector. Adaptive fingerprints and profile backfills are not part of
+this correction and are not prerequisites for accepting ordinary event HTML.
+
+Cache inspection resolves site context from an unambiguous exact webpage URL.
+Unknown/shared URLs and the global cache list do not inherit a previous site's
+navigation cookie. Redirect counts use destination changes; a chain containing
+only the requested URL is Direct. Existing materialized redirect flags are updated
+on the next cache save/refresh, while inspection computes the corrected summary.
+
 Deploy migrations through `20261114000300_add_transition_batch_reconciliation.rb`
 and run:
 

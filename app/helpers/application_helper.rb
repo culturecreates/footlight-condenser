@@ -49,6 +49,12 @@ module ApplicationHelper
     statements_path(contextual_seedurl_params)
   end
 
+  def contextual_console_url
+    url = "#{get_console_url_per_environment}/events"
+    context = contextual_seedurl_params
+    context.present? ? "#{url}?#{context.to_query}" : url
+  end
+
   def operator_return_to_params(path = request.fullpath)
     preserved_return_to_params(path)
   end
@@ -96,6 +102,10 @@ module ApplicationHelper
   end
 
   def transition_context_website
+    # A cache URL can belong to another site than the last navigation cookie.
+    # Unknown or ambiguous ownership must not inherit that unrelated context.
+    return current_transition_website if controller_path == "distillator/cache"
+
     @transition_context_website ||=
       begin
         direct = current_transition_website

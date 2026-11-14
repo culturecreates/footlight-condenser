@@ -40,8 +40,11 @@ module Distillator
         else
           row[:fetch_reason].to_s.humanize.presence || "Fetch failed; no further error was recorded."
         end
+        challenge = [row[:fetch_reason], reason].join(" ").match?(/captcha|cloudflare/i)
         issues << { url: row[:url], backend: "Condenser", reason: reason, http_code: code,
-          action: action_for(code, row[:fetch_reason]) }
+          kind: challenge ? "challenge" : "fetch_failure",
+          summary: challenge ? "Content was rejected as a Cloudflare/CAPTCHA challenge." : reason,
+          action: action_for(code, [row[:fetch_reason], reason].join(" ")) }
       end
       if row[:legacy_lookup_status].present? && row[:legacy_lookup_status] != "ok"
         metadata = row[:legacy_fetch].to_h.with_indifferent_access
@@ -55,7 +58,8 @@ module Distillator
 
     def self.action_for(code, reason)
       return "Check whether this event URL is still valid, then rerun the check." if code.to_i.in?([404, 410])
-      return "Resolve the captcha or rendering problem, then rerun the check." if reason.to_s.match?(/captcha|phantomjs|renderer/i)
+      return "Inspect the recorded response to confirm whether it is a challenge page, then rerun the check." if reason.to_s.match?(/captcha|cloudflare/i)
+      return "Resolve the rendering problem, then rerun the check." if reason.to_s.match?(/phantomjs|renderer/i)
 
       "Retry the transition check; both backends will fetch fresh results again."
     end

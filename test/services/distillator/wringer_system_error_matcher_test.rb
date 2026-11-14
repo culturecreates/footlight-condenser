@@ -1,6 +1,53 @@
 require "test_helper"
 
 class Distillator::WringerSystemErrorMatcherTest < ActiveSupport::TestCase
+  test "Culture Gaspesie cookie explanation and embedded captcha do not reject the event page" do
+    html = <<~HTML
+      <html><head><title>Dimanche à Sodome - Culture Gaspésie</title>
+      <script src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script></head>
+      <body><main><h1>Dimanche à Sodome</h1><time>2026-12-01</time></main>
+      <footer><ul><li><div>Description</div><div><p>Cloudflare a placé ce témoin pour prendre en charge la gestion des robots Cloudflare.</p></div></li></ul>
+      <form><div class="g-recaptcha">CAPTCHA</div></form></footer></body></html>
+    HTML
+    assert_nil match_for(body: html, http_code: 200)
+    payload = Distillator::FetchService.enrich_wringer_metadata(url: "https://example.org/event",
+      result: { status: :ok, body: html, raw_body: html, http_code: 200, headers: { "content-type" => "text/html" } })
+    assert_equal true, payload.dig(:wringer, :signals, :transport_success)
+    assert_equal true, payload.dig(:wringer, :signals, :content_success)
+    assert_nil payload.dig(:wringer, :signals, :blocking_issue_key)
+  end
+
+  test "genuine Cloudflare and captcha challenge pages still block successful HTTP responses" do
+    [
+      ['<title>Just a moment...</title><h1>Checking your browser</h1><p>Cloudflare</p>', "system_cloudflare"],
+      ['<title>Attention Required! | Cloudflare</title><p>Enable cookies</p>', "system_cloudflare"],
+      ['<title>Robot Check</title><h1>Verify you are human</h1><div class="captcha"></div>', "system_captcha"]
+    ].each do |html, type|
+      issue = match_for(body: html, http_code: 200)
+      assert_equal type, issue[:error_type]
+      assert_equal "page_identity", issue.dig(:match_details, :source)
+      payload = Distillator::FetchService.enrich_wringer_metadata(url: "https://example.org/event",
+        result: { status: :ok, body: html, http_code: 200, headers: {} })
+      assert_equal false, payload.dig(:wringer, :signals, :content_success)
+    end
+  end
+
+  test "challenge words in scripts and a secondary form heading do not identify the page" do
+    html = '<title>Concert</title><h1>Concert</h1><script>const captcha = "Attention Required Cloudflare";</script><footer><h2>Verify you are human</h2><div class="captcha"></div></footer>'
+    assert_nil match_for(body: html, http_code: 200)
+    assert_equal "http_403", match_for(body: html, http_code: 403)[:error_type]
+  end
+
+  test "explicit Cloudflare challenge header still blocks even with ordinary title and a large body" do
+    html = '<title>Concert</title><h1>Concert</h1>' + '<p>Event content</p>' * 10000
+    payload = Distillator::FetchService.enrich_wringer_metadata(url: "https://example.org/event",
+      result: { status: :ok, body: html, http_code: 200, headers: { "Cf-Mitigated" => "challenge" } })
+    assert_equal true, payload.dig(:wringer, :signals, :transport_success)
+    assert_equal false, payload.dig(:wringer, :signals, :content_success)
+    assert_equal "cloudflare_response_header", payload.dig(:wringer, :signals, :blocking_issue_key)
+    assert_equal "signal", payload.dig(:wringer, :signals, :primary_issue_match, "source")
+  end
+
   test "matches high specificity and generic yaml rules in order" do
     assert_equal "system_cloudflare", match_for(body: "Attention Required by Cloudflare", http_code: 200)[:error_type]
     assert_equal "system_queue", match_for(body: "Queue-it Please wait while we redirect you", http_code: 200)[:error_type]

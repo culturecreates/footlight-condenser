@@ -102,6 +102,24 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     assert_includes html.text, "Title differs"
   end
 
+  test "group results show one attention label and pin challenge inspection to the failed run" do
+    post distillator_transition_batches_path, params: params_for([@one.id, @two.id])
+    batch = Distillator::TransitionBatch.last
+    item = batch.site_transitions.order(:position).first
+    run = @one.transition_runs.create!(status: "completed", requested_at: 1.minute.ago, completed_at: Time.current,
+      configuration_digest: Distillator::TransitionFingerprint.call(@one))
+    item.update!(status: "attention", phase: "finished", pre_run: run, final_mode: "shadow", final_backend: "wringer",
+      reason: "Condenser: system_cloudflare; cloudflare; system_captcha; captcha — https://example.org/event")
+    get distillator_transition_batch_path(batch)
+    assert_response :success
+    assert_select 'tr[data-workflow-result="attention"]' do
+      assert_select 'td:nth-child(2)', text: "AttentionNot started"
+      assert_select 'p', text: /Condenser reported a Cloudflare\/CAPTCHA challenge/
+      assert_select 'a', text: "Inspect recorded failure", href: distillator_shadow_report_site_path(@one.id, run_id: run.id, anchor: "transition-fetch-issues")
+      assert_select 'details', text: /system_cloudflare/
+    end
+  end
+
   test "run page processing progress and history based estimate are visible without claiming parity" do
     started = 1.hour.ago
     run = @one.transition_runs.create!(status: "completed", requested_at: started, started_at: started,

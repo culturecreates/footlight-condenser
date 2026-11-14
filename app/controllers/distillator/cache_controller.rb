@@ -19,6 +19,7 @@ module Distillator
     SORT_DIRECTIONS = %w[asc desc].freeze
 
     before_action :set_cache, only: [:show, :raw, :wring_json, :raw_view, :wring_json_view]
+    before_action :set_inspection_website, only: [:show, :raw_view, :wring_json_view, :compare, :preview]
 
     def index
       @filters = current_filters
@@ -167,6 +168,14 @@ module Distillator
 
     def set_cache
       @cache = Distillator::FetchCache.find_by(id: params[:id])
+    end
+
+    def set_inspection_website
+      url = @cache&.normalized_url.presence || params[:uri].presence
+      return if url.blank?
+
+      ids = Webpage.where(url: url).distinct.limit(2).pluck(:website_id)
+      @website = Website.find_by(id: ids.first) if ids.one?
     end
 
     def serialize(cache)

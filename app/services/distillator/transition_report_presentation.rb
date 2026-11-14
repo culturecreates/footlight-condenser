@@ -135,6 +135,9 @@ module Distillator
       return "Selected-field or export failures were recorded. Inspect the evidence below." if blocked_fields?
       if detail.fetch_summary.issues.any?
         count = detail.fetch_summary.issues.map { |issue| issue[:url] }.uniq.length
+        if detail.fetch_summary.issues.all? { |issue| issue[:backend] == "Condenser" && issue[:kind] == "challenge" && issue[:http_code].to_i.between?(200, 299) }
+          return "Condenser received successful HTTP responses but rejected the content for #{count} of #{detail.fetch_summary.selected} selected URLs as a challenge. Inspect the recorded evidence below."
+        end
         return "Fresh HTML is unavailable for #{count} of #{detail.fetch_summary.selected} selected URLs. The affected backend and error are below."
       end
 

@@ -3,7 +3,8 @@ require "test_helper"
 class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
   include WebMock::API
   setup { WebMock.reset! }
-  FetchResult = Struct.new(:cache, :transport_success_value, :content_success_value, :blocking_issue_key, :cache_hit, keyword_init: true) do
+  FetchResult = Struct.new(:cache, :transport_success_value, :content_success_value, :blocking_issue_key, :cache_hit,
+    :signals, :scrape_date, :http_response_code, keyword_init: true) do
     def transport_success?
       transport_success_value
     end
@@ -558,6 +559,28 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal "fetch", result.records[:fetch_parity].details["failed_layer"]
     assert_equal "captcha_detected", result.records[:statement_delta].details["representative_url_statement_results"].first["reason"]
     assert_equal "captcha_detected", result.records[:export_diff].details["representative_url_export_results"].first["reason"]
+  end
+
+  test "rejected HTTP 200 content retains attempt flags and the actual bounded matcher evidence" do
+    website = build_website
+    cache = Distillator::FetchCache.find_by!(normalized_url: website.webpages.first.url)
+    failure = Distillator::FetchCacheStore::Result.new(cache: cache, cache_hit: false, body: nil, http_response_code: 200,
+      fetch_path: "native", scrape_date: Time.current, hints: %w[system_cloudflare cloudflare], signals: {
+        transport_success: true, content_success: false, blocking_issue_key: "cloudflare", primary_issue_key: "cloudflare",
+        primary_issue_match: { source: "page_identity", pattern: "Just a moment", snippet: "Just a moment " + "x" * 500, irrelevant: "omit" }
+      })
+    result = Distillator::TransitionCheckRunner.call(website: website,
+      fetch_cache_store: FakeFetchCacheStore.new(cache.normalized_url => failure), cache_compare: fake_cache_compare_for(website))
+    row = result.records[:fetch_parity].details["representative_url_results"].first
+    assert_equal "failed", row["fetch_status"]
+    assert_equal 200, row["http_response_code"]
+    evidence = row.fetch("condenser_fetch")
+    assert_equal true, evidence["transport_success"]
+    assert_equal false, evidence["content_success"]
+    assert_equal "cloudflare", evidence["blocking_issue_key"]
+    assert_equal "page_identity", evidence.dig("match", "source")
+    assert_equal 300, evidence.dig("match", "snippet").length
+    assert_nil evidence.dig("match", "irrelevant")
   end
 
   test "missing phantomjs api key is recorded explicitly for rendered fetch failure" do

@@ -127,7 +127,7 @@ module OperatorContextHelper
     rows << ["Cache id", cache.id] if cache.present?
     rows << ["Fetch kind", params[:fetch_kind]] if params[:fetch_kind].present?
     rows += Array(context[:diagnostics])
-    rows.reject { |_label, value| value.blank? }
+    rows.reject { |_label, value| value.blank? }.uniq
   end
 
   private

@@ -95,6 +95,19 @@ module Distillator
         }
       end
 
+      identity_patterns = value(match, :page_identity_patterns)
+      if identity_patterns
+        identity_match = Array(identity_patterns).filter_map do |pattern|
+          text = page_identity_texts.find { |candidate| Regexp.new(pattern, Regexp::IGNORECASE).match?(candidate) }
+          { source: "page_identity", pattern: pattern, snippet: text.first(140) } if text
+        rescue RegexpError
+          nil
+        end.first
+        return nil unless identity_match
+
+        details = identity_match
+      end
+
       body_not_contains = value(match, :body_not_contains)
       if body_not_contains
         blocked_text = Array(body_not_contains).find { |text| body.include?(text) }
@@ -210,6 +223,20 @@ module Distillator
       @body_text ||= Nokogiri::HTML(body.to_s).text.to_s.squish
     rescue StandardError
       body.to_s
+    end
+
+    # Judge the primary page, not code or a CAPTCHA on an ordinary contact form.
+    # Short plain-text error responses also remain recognizable.
+    def page_identity_texts
+      @page_identity_texts ||= begin
+        document = Nokogiri::HTML(body)
+        content = document.at_css("body") || document
+        content.css("script, style, noscript, template, svg").remove
+        identities = [document.at_css("title"), content.at_css("h1")].compact.map { |node| node.text.squish }
+        text = content.text.squish
+        identities << text if text.length <= 300
+        identities.reject(&:blank?).uniq
+      end
     end
 
     def matched_snippet(text, pattern, max_length: 140)

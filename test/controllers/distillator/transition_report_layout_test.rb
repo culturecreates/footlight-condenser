@@ -33,6 +33,27 @@ class Distillator::TransitionReportLayoutTest < ActionDispatch::IntegrationTest
     assert_equal "shadow", @website.reload.distillator_mode
   end
 
+  test "challenge rejection reports successful HTTP transport separately and preserves the actual match" do
+    run = completed_run
+    evidence = run.transition_evidences.find_by!(check_kind: "fetch_parity")
+    details = evidence.details.deep_dup
+    details["representative_url_results"].each do |row|
+      row.merge!("fetch_status" => "failed", "fetch_reason" => "captcha_detected",
+        "condenser_error" => "system_cloudflare; cloudflare; system_captcha; captcha",
+        "condenser_fetch" => { transport_success: true, content_success: false,
+          match: { source: "page_identity", pattern: "Just a moment", snippet: "Just a moment..." } })
+    end
+    evidence.update!(status: "failed", details: details)
+    get distillator_shadow_report_site_path(@website)
+    assert_response :success
+    assert_select '.transition-decision', text: /successful HTTP responses but rejected the content for 2 of 2/
+    assert_select '#transition-fetch-issues', text: /HTTP 200.*Content was rejected/m
+    assert_select '#transition-fetch-issues details', text: /system_cloudflare/, count: 2
+    assert_select '.transition-next-action', text: /confirm whether it is a challenge page/
+    get distillator_shadow_report_site_path(@website, run_id: run.id, evidence: "recorded-fetch-0")
+    assert_select '#recorded-fetch-0[open]', text: /page_identity.*Just a moment/m
+  end
+
   test "missing Wringer snapshot is red retrieval amber coverage and green stored export with an immutable evidence link" do
     run = completed_run(missing_wringer: true)
     get distillator_shadow_report_site_path(@website)

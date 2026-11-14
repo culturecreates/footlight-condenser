@@ -500,7 +500,7 @@ module Distillator
         condenser_html: fetch_result.cache&.html,
         attempted_condenser_fetch: true,
         condenser_fetch_success: fetch_status == "passed",
-        http_response_code: fetch_result.cache&.http_response_code,
+        http_response_code: fetch_result.http_response_code.presence || fetch_result.cache&.http_response_code,
         cache_health_status: fetch_result.cache&.health_status,
         stored_html: fetch_result.cache&.html.present?,
         stored_body_bytes: fetch_result.cache&.body.to_s.bytesize,
@@ -512,13 +512,25 @@ module Distillator
         legacy_lookup_status: comparison&.dig(:legacy_lookup_status),
         legacy_lookup_error: comparison&.dig(:legacy_lookup_error),
         legacy_fetch: comparison&.dig(:legacy_fetch),
-        condenser_fetch: { attempted_at: fetch_result.cache&.scrape_date, cache_hit: fetch_result.cache_hit,
-          fetch_path: fetch_result.respond_to?(:fetch_path) ? fetch_result.fetch_path : nil, active_path_verification: @verify_active_path },
+        condenser_fetch: recorded_fetch_diagnostics(fetch_result),
         condenser_source: comparison&.dig(:condenser_source),
         compare_missing: comparison&.dig(:missing),
         compare_summary: comparison&.dig(:summary),
         comparison_status: comparison_status(comparison)
       }
+    end
+
+    def recorded_fetch_diagnostics(result)
+      signals = result.signals.to_h.with_indifferent_access
+      matched = signals[:primary_issue_match].to_h.with_indifferent_access
+      {
+        attempted_at: result.scrape_date || result.cache&.scrape_date, cache_hit: result.cache_hit,
+        fetch_path: result.respond_to?(:fetch_path) ? result.fetch_path : nil, active_path_verification: @verify_active_path,
+        transport_success: result.transport_success?, content_success: result.content_success?,
+        blocking_issue_key: result.blocking_issue_key,
+        matched_rule: signals[:primary_issue_key],
+        match: matched.slice(:source, :pattern, :snippet).transform_values { |value| value.to_s.first(300) }.presence
+      }.compact
     end
 
     def collect_representative_url_results(representative_webpages, comparison_policy)

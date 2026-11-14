@@ -392,6 +392,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
       successful_refresh: nil
     )
     assert_read_only_page_does_not_fetch
+    website.webpages.create!(url: cache.normalized_url, rdf_uri: "rdf:owned-cache", rdfs_class: rdfs_classes(:one), language: "en")
     get website_url(website)
     assert_response :success
 
@@ -420,6 +421,45 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_match %r{all websites</a>\s*\|\s*<a[^>]+href="/webpages"}, @response.body
+  end
+
+  test "cache owner overrides an unrelated sticky website and singleton redirect is Direct" do
+    previous = Website.create!(name: "Previous Active", seedurl: "previous-active", graph_name: "https://example.org/previous", distillator_mode: "active")
+    owner = Website.create!(name: "Culture Owner", seedurl: "culture-owner", graph_name: "https://example.org/culture-owner", distillator_mode: "shadow")
+    cache = create_cache(uri: "https://example.org/culture-owner/event", final_url: "https://example.org/culture-owner/event",
+      redirect_chain: ["https://example.org/culture-owner/event"])
+    owner.webpages.create!(url: cache.normalized_url, rdf_uri: "rdf:owned-event", rdfs_class: rdfs_classes(:one), language: "en")
+    get website_url(previous)
+    get distillator_cache_path(cache)
+    assert_response :success
+    assert_select '[data-transition-context]', text: /Culture Owner.*culture-owner/m
+    assert_select '[data-transition-context]', text: /Shadow.*Wringer/m
+    assert_select '[data-transition-context]', text: /Previous Active/, count: 0
+    assert_select 'a', text: "console" do |links|
+      assert_includes links.first["href"], "seedurl=culture-owner"
+      assert_not_includes links.first["href"], "previous-active"
+    end
+    assert_match "Redirect summary: Direct", visible_text(response.body)
+    assert_equal false, cache.reload.redirected
+  end
+
+  test "unknown and ambiguous cache ownership never reuse the previously selected site" do
+    previous = Website.create!(name: "Unrelated Active", seedurl: "unrelated-active", graph_name: "https://example.org/unrelated", distillator_mode: "active")
+    cache = create_cache(uri: "https://example.org/unscoped/event")
+    get website_url(previous)
+    get distillator_cache_path(cache)
+    assert_select '[data-transition-context]', count: 0
+    assert_select 'a', text: "console" do |links|
+      assert_not_includes links.first["href"], "seedurl="
+    end
+    [previous, websites(:two)].each do |site|
+      site.webpages.create!(url: cache.normalized_url, rdf_uri: "rdf:shared-#{site.id}", rdfs_class: rdfs_classes(:one), language: "en")
+    end
+    get distillator_cache_path(cache)
+    assert_select '[data-transition-context]', count: 0
+    get distillator_cache_index_path
+    follow_redirect! if response.redirect?
+    assert_select '[data-transition-context]', count: 0
   end
 
   test "show page keeps non http normalized urls as escaped text instead of external links" do

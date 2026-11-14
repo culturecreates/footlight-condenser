@@ -14,14 +14,20 @@
     <tbody><% @items.each do |item| %>
       <tr data-workflow-result="<%= item.status %>">
         <th scope="row"><%= link_to item.website_name, distillator_site_transition_path(item) %></th>
-        <td><%= workflow_state_badge(item.status) %><br><%= workflow_phase_label(item) %><br><%= workflow_elapsed(item) %></td>
+        <td><%= workflow_state_badge(item.status) %><% unless item.terminal? %><br><%= workflow_phase_label(item) %><% end %><br><%= workflow_elapsed(item) %></td>
         <td><%= item.initial_mode.humanize %></td>
         <td><%= workflow_check_link(item, :pre) %></td>
         <td><%= workflow_check_link(item, :post) %></td>
         <td><%= item.final_mode&.humanize || (item.terminal? ? "Not run" : "Pending") %>
           <% if item.final_backend %> · <%= item.final_backend.humanize %><% end %>
-          <% if item.website && item.website.distillator_mode != item.final_mode %><br>Current: <%= item.website.distillator_mode.humanize %><% end %></td>
-        <td><%= item.reason %><br><%= link_to "Site workflow report", distillator_site_transition_path(item) %></td>
+          <% if item.website && item.website.distillator_mode != (item.terminal? ? item.final_mode : item.initial_mode) %><br>Current: <%= item.website.distillator_mode.humanize %><% end %></td>
+        <td><% if item.reason.present? %>
+          <p><%= workflow_reason_summary(item) %></p>
+          <% if workflow_challenge_reported?(item) %>
+            <% if (path = workflow_failure_report_path(item)) %><p><%= link_to "Inspect recorded failure", path %></p><% end %>
+            <details><summary>Technical detail</summary><p><%= item.reason %></p></details>
+          <% end %>
+        <% end %><%= link_to "Site workflow report", distillator_site_transition_path(item) %></td>
       </tr>
     <% end %></tbody>
   </table>
