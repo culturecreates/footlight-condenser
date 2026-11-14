@@ -76,6 +76,32 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     end
   end
 
+  test "successful site report has one verdict and links both checks without empty findings" do
+    post distillator_transition_batches_path, params: params_for([@one.id])
+    item = Distillator::SiteTransition.last
+    runs = 2.times.map do
+      @one.transition_runs.create!(status: "completed", requested_at: 2.minutes.ago, completed_at: Time.current,
+        configuration_digest: Distillator::TransitionFingerprint.call(@one))
+    end
+    ready = { state: "ready", fetch: "passed", statements: "passed", export: "passed", warnings: [], blockers: [] }
+    item.update!(status: "passed", phase: "finished", pre_run: runs[0], post_run: runs[1], final_mode: "active", final_backend: "condenser",
+      phase_results: { precheck: ready, postcheck: ready })
+    get distillator_site_transition_path(item)
+    assert_response :success
+    assert_select "h2", text: "Passed"
+    assert_select "details[id$='-findings']", count: 0
+    assert_includes response.body, "Pre-activation verification passed."
+    assert_includes response.body, "Active verification passed."
+    runs.each do |run|
+      assert_select "a[href='#{distillator_shadow_report_site_path(@one.id, run_id: run.id)}']", minimum: 1
+    end
+    item.update!(status: "attention", phase_results: { postcheck: ready.merge(state: "blocked", statements: "failed", blockers: ["Title differs"]) })
+    get distillator_site_transition_path(item, format: :json)
+    html = Nokogiri::HTML(response.parsed_body.fetch("html"))
+    assert_equal 1, html.css("details[open]").length
+    assert_includes html.text, "Title differs"
+  end
+
   test "run page processing progress and history based estimate are visible without claiming parity" do
     started = 1.hour.ago
     run = @one.transition_runs.create!(status: "completed", requested_at: started, started_at: started,

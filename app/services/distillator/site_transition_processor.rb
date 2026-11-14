@@ -64,33 +64,36 @@ module Distillator
         return
       end
       website.with_lock do
-        item.with_lock do
-          next if item.terminal? || item.phase != requested_phase || item.phase_started_at
-          unless matches_operator_state?(item, website)
-            finish(item, website, "cancelled", "The operator changed the website mode; automation stopped without changing it.")
-            next
-          end
-          unless EventSiteSelection.eligible_ids([website]).include?(website.id) && website.webpages.event_pages.exists?
-            finish(item, website, "attention", "No eligible event pages are available, or this site is no longer an event site.")
-            next
-          end
-          if requested_phase == "queued"
-            if website.distillator_mode == "legacy"
-              result = @rollout.call(website: website, to_mode: "shadow", actor: item.actor, reason: "Start validation workflow ##{item.id}")
-              raise result.errors.join(", ") unless result.success?
+        item.batch.with_lock do
+          item.with_lock do
+            next if item.terminal? || item.phase != requested_phase || item.phase_started_at
+            next if requested_phase == "queued" && item.batch.site_transitions.where(status: "running").where.not(id: item.id).exists?
+            unless matches_operator_state?(item, website)
+              finish(item, website, "cancelled", "The operator changed the website mode; automation stopped without changing it.")
+              next
             end
-            item.phase = website.distillator_mode == "active" ? "postcheck" : "precheck"
-            item.expected_mode = website.distillator_mode
-            item.expected_event_id = website.rollout_events.maximum(:id)
+            unless EventSiteSelection.eligible_ids([website]).include?(website.id) && website.webpages.event_pages.exists?
+              finish(item, website, "attention", "No eligible event pages are available, or this site is no longer an event site.")
+              next
+            end
+            if requested_phase == "queued"
+              if website.distillator_mode == "legacy"
+                result = @rollout.call(website: website, to_mode: "shadow", actor: item.actor, reason: "Start validation workflow ##{item.id}")
+                raise result.errors.join(", ") unless result.success?
+              end
+              item.phase = website.distillator_mode == "active" ? "postcheck" : "precheck"
+              item.expected_mode = website.distillator_mode
+              item.expected_event_id = website.rollout_events.maximum(:id)
+            end
+            item.status = "running"
+            item.started_at ||= Time.current
+            item.phase_started_at = Time.current
+            item.deadline_at = Time.current + TransitionRun::LEASE + 2.minutes
+            item.phase_token = token = SecureRandom.hex(16)
+            run = TransitionRun.request!(website: website, options: item.batch.check_options, workflow_item: item).run
+            item.public_send("#{item.phase == 'postcheck' ? 'post' : 'pre'}_run=", run)
+            item.save!
           end
-          item.status = "running"
-          item.started_at ||= Time.current
-          item.phase_started_at = Time.current
-          item.deadline_at = Time.current + TransitionRun::LEASE + 2.minutes
-          item.phase_token = token = SecureRandom.hex(16)
-          run = TransitionRun.request!(website: website, options: item.batch.check_options, workflow_item: item).run
-          item.public_send("#{item.phase == 'postcheck' ? 'post' : 'pre'}_run=", run)
-          item.save!
         end
       end
       item.batch.enqueue_next! if item.terminal?

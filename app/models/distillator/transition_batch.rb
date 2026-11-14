@@ -26,7 +26,13 @@ module Distillator
         unless websites.size == ids.size && EventSiteSelection.eligible_ids(websites).sort == ids
           raise ArgumentError, "Only event sites are eligible. Templates, tests and place/person sites are excluded."
         end
-        busy = SiteTransition.active.where(website_id: ids).pluck(:website_id) | TransitionRun.active.where(website_id: ids).pluck(:website_id)
+        # Website locks also serialize admission against standalone requests and
+        # late result publication. Workflow-owned runs must recover via their owner.
+        owned_ids = SiteTransition.active.where(website_id: ids).pluck(:website_id)
+        TransitionRun.active.where(website_id: ids - owned_ids).where(requested_at: ..(Time.current - TransitionRun::LEASE)).each do |run|
+          run.fail!("Check expired. Replaced by a validation workflow request.")
+        end
+        busy = owned_ids | TransitionRun.active.where(website_id: ids).pluck(:website_id)
         if busy.any?
           names = websites.select { |website| busy.include?(website.id) }.first(5).map { |website| website.name.presence || website.seedurl }.join(", ")
           raise ArgumentError, "Already running or queued: #{names}. Follow the existing check before starting another workflow."
@@ -48,18 +54,48 @@ module Distillator
     end
 
     def enqueue_next!
-      return if stopped_at || site_transitions.where(status: "running").exists?
-      item = site_transitions.where(status: "queued").order(:position).first
-      return unless item
-      job = SiteTransitionJob.perform_later(item.id, phase: "queued")
-      raise "Job enqueue declined" unless job
-    rescue StandardError
-      stop_remaining!(reason: "Unable to queue the workflow. Check the worker connection, then start a new selection.")
+      with_lock do
+        return if stopped_at || site_transitions.where(status: "running").exists?
+        item = site_transitions.where(status: "queued").order(:position).first
+        dispatch!(SiteTransitionJob, item.id, phase: "queued") if item
+      end
+    rescue StandardError => error
+      # Keep the durable queued selection available for the periodic reconciler.
+      Rails.logger.warn(event: "distillator.batch.enqueue_failed", id: id, error_class: error.class.name)
+      false
+    end
+
+    def reconcile!
+      with_lock do
+        return if last_reconciled_at && last_reconciled_at > 1.minute.ago
+        item = site_transitions.where(status: "running").order(:position).first
+        if item
+          if item.deadline_at && item.deadline_at <= Time.current
+            dispatch!(SiteTransitionWatchdogJob, item.id)
+          elsif item.phase_started_at.nil?
+            dispatch!(SiteTransitionJob, item.id, phase: item.phase)
+          end
+        elsif !stopped_at
+          item = site_transitions.where(status: "queued").order(:position).first
+          dispatch!(SiteTransitionJob, item.id, phase: "queued") if item
+        end
+        update_column(:last_reconciled_at, Time.current)
+      end
     end
 
     def stop_remaining!(reason: "Stopped by the operator before this site started")
-      update!(stopped_at: Time.current)
-      site_transitions.where(status: "queued").update_all(status: "cancelled", phase: "finished", reason: reason, completed_at: Time.current)
+      with_lock do
+        update!(stopped_at: Time.current)
+        site_transitions.where(status: "queued").update_all(status: "cancelled", phase: "finished", reason: reason, completed_at: Time.current)
+      end
+    end
+
+    private
+
+    def dispatch!(job_class, *args, **kwargs)
+      job = job_class.perform_later(*args, **kwargs)
+      raise "Job enqueue declined" unless job
+      job
     end
   end
 end

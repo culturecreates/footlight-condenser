@@ -200,6 +200,99 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     assert_equal "active", other.reload.distillator_mode
   end
 
+  test "queued duplicate jobs cannot start another site while the group has running work" do
+    other = create_site("sequential-other")
+    batch = Distillator::TransitionBatch.request!(website_ids: [@website.id, other.id], request_key: SecureRandom.uuid)
+    first, second = batch.site_transitions.order(:position).to_a
+    @runner.callback = ->(_, _) { @processor.perform(second.id, phase: "queued") }
+    @processor.perform(first.id, phase: "queued")
+    assert_equal "running", first.reload.status
+    assert_equal "queued", second.reload.status
+    assert_equal "legacy", other.reload.distillator_mode
+    assert_nil second.pre_run
+  end
+
+  test "a mixed three-site group records a pass a failure and an already Active verification" do
+    other = create_site("mixed-attention")
+    active = create_site("mixed-active")
+    active.update_column(:distillator_mode, "active")
+    batch = Distillator::TransitionBatch.request!(website_ids: [@website.id, other.id, active.id], request_key: SecureRandom.uuid)
+    first, second, third = batch.site_transitions.order(:position).to_a
+    @processor.perform(first.id, phase: "queued")
+    @processor.perform(first.id, phase: "postcheck")
+    @runner.pre_failure = true
+    @processor.perform(second.id, phase: "queued")
+    @runner.pre_failure = false
+    @processor.perform(third.id, phase: "queued")
+    assert_equal %w[passed attention passed], batch.site_transitions.order(:position).pluck(:status)
+    assert_equal %w[active shadow active], batch.site_transitions.order(:position).pluck(:final_mode)
+    assert_nil third.reload.pre_run
+    assert_equal "completed", third.post_run.status
+    assert_equal 3, batch.site_transitions.count
+  end
+
+  test "expired queued and running standalone checks no longer block admission" do
+    %w[queued running].each do |state|
+      site = create_site("expired-#{state}")
+      run = Distillator::TransitionRun.request!(website: site).run
+      run.update!(status: state, requested_at: 2.hours.ago)
+      batch = Distillator::TransitionBatch.request!(website_ids: [site.id], request_key: SecureRandom.uuid)
+      assert_equal site.id, batch.site_transitions.sole.website_id
+      assert_equal "failed", run.reload.status
+      assert run.completed_at
+      assert_includes run.error_message, "expired"
+      executed = false
+      run.execute { executed = true }
+      assert_not executed, "An expired worker must not publish or execute a replacement check"
+    end
+  end
+
+  test "admission respects the exact lease boundary and preserves healthy standalone checks" do
+    travel_to Time.current.change(usec: 0) do
+      run = Distillator::TransitionRun.request!(website: @website).run
+      run.update!(requested_at: Time.current - Distillator::TransitionRun::LEASE + 1.second)
+      assert_raises(ArgumentError) { request }
+      assert_equal "queued", run.reload.status
+      run.update!(requested_at: Time.current - Distillator::TransitionRun::LEASE)
+      assert_difference "Distillator::TransitionBatch.count", 1 do
+        request
+      end
+      assert_equal "failed", run.reload.status
+    end
+  end
+
+  test "an expired workflow-owned run cannot be bypassed by a new selection" do
+    _, item = request
+    @processor.send(:claim, item, "queued")
+    run = item.reload.pre_run
+    run.update!(requested_at: 2.hours.ago, status: "running")
+    assert_raises(ArgumentError) { request }
+    assert_equal "running", run.reload.status
+    assert_equal "running", item.reload.status
+  end
+
+  test "periodic recovery covers a crash before the per-site guard was enqueued" do
+    _, item = request
+    @processor.send(:claim, item, "queued")
+    item.update!(deadline_at: 1.minute.ago)
+    Distillator::TransitionBatchReconcileJob.perform_now
+    Distillator::SiteTransitionWatchdogJob.perform_now(item.id)
+    assert_equal "attention", item.reload.status
+    assert_equal "failed", item.pre_run.status
+    assert_equal "shadow", @website.reload.distillator_mode
+  end
+
+  test "a failed normal enqueue leaves committed selection available to the sweep" do
+    Distillator::SiteTransitionJob.expects(:perform_later).returns(false)
+    batch, item = request
+    assert_nil batch.stopped_at
+    assert_equal "queued", item.status
+    Distillator::SiteTransitionJob.unstub(:perform_later)
+    Distillator::TransitionBatchReconcileJob.perform_now
+    assert batch.reload.last_reconciled_at
+    assert_equal "queued", item.reload.status
+  end
+
   test "template test and entity sites are rejected including forged selections" do
     %w[footlight-manual-fr pilot-test pilot-place].each do |seed|
       site = create_site(seed)

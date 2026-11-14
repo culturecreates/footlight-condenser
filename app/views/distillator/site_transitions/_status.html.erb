@@ -1,5 +1,5 @@
 <section class="transition-decision transition-decision--<%= workflow_status_tone(@item.status) %>">
-  <h2 aria-live="polite"><%= workflow_state_badge(@item.status) %> · <%= workflow_phase_label(@item) %></h2>
+  <h2 aria-live="polite"><%= workflow_state_badge(@item.status) %><% unless @item.terminal? %> · <%= workflow_phase_label(@item) %><% end %></h2>
   <% if @item.terminal? %>
     <p><strong>Recorded final state:</strong> <%= @item.final_mode&.humanize || "Not run" %> · <%= @item.final_backend&.humanize || "Backend not recorded" %></p>
     <p><strong>Why:</strong> <%= @item.reason %></p>
@@ -18,9 +18,15 @@
 </ol>
 <% %w[precheck postcheck].each do |phase| %>
   <% if (result = @item.phase_results[phase]) %>
-    <details id="workflow-<%= phase %>-findings" <%= "open" unless result["state"] == "ready" %>><summary id="workflow-<%= phase %>-toggle"><%= phase == "precheck" ? "Pre-activation findings" : "Active verification findings" %></summary>
+    <% findings = (Array(result["blockers"]) + Array(result["warnings"]) + Array(result["reason"])).reject(&:blank?).uniq %>
+    <% label = phase == "precheck" ? "Pre-activation verification" : "Active verification" %>
+    <% if result["state"] == "ready" && findings.empty? %>
+      <p class="transition-result--passed"><strong><%= label %> passed.</strong> <%= workflow_check_link(@item, phase == "precheck" ? :pre : :post) %></p>
+    <% else %>
+    <details id="workflow-<%= phase %>-findings" open><summary id="workflow-<%= phase %>-toggle"><%= label %> · <%= result["state"]&.humanize %></summary>
       <p>Fetch: <%= result["fetch"] || "Not recorded" %> · Statements: <%= result["statements"] || "Not recorded" %> · Export: <%= result["export"] || "Not recorded" %></p>
-      <ul><% (Array(result["blockers"]) + Array(result["warnings"]) + Array(result["reason"])).each do |reason| %><li><%= reason %></li><% end %></ul>
+      <% if findings.any? %><ul><% findings.each do |reason| %><li><%= reason %></li><% end %></ul><% end %>
     </details>
+    <% end %>
   <% end %>
 <% end %>

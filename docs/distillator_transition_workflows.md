@@ -73,7 +73,28 @@ handoff. It follows the current deadline, fails an abandoned run, and attempts
 Shadow recovery after expiration. Queue failures during handoff also trigger
 recovery. Recovery failures are surfaced rather than being reported as success.
 
-Deploy migration `20261114000200_create_transition_batches.rb` and run:
+A separate group reconciler is scheduled every minute by Sidekiq's recurring
+worker heartbeat, including after worker restarts. It resumes groups stranded
+between sites or before their first enqueue, retries unclaimed Active-check
+handoffs, and queues recovery for expired running work even when the original
+per-site watchdog was never enqueued. A stopped group still receives recovery
+for its current site, but its cancelled sites never restart. Database locks keep
+group steps sequential and throttle duplicate sweeps across worker processes.
+Queue failures leave committed queued work available for a later sweep. Sweeps
+and recovery jobs still depend on an available worker and queue; queue waiting
+adds to the one-minute sweep interval. Claimed checks are not run twice: an
+abandoned claimed phase is recovered after its existing one-hour lease/grace.
+
+Admission expires standalone queued/running checks whose one-hour lease elapsed,
+recording the failure before creating the workflow. Healthy standalone checks
+still block admission. Runs owned by another workflow must finish or recover
+through that workflow; admission never bypasses their ownership.
+
+Successful site reports display one final verdict and concise linked verification
+results. Findings expand only when there is a warning, failure or other finding.
+
+Deploy migrations through `20261114000300_add_transition_batch_reconciliation.rb`
+and run:
 
 ```sh
 heroku run rails db:migrate --app footlight-condenser-test
