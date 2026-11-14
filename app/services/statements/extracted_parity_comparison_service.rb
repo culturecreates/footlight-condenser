@@ -37,7 +37,7 @@ module Statements
         legacy_html: legacy_html, condenser_html: condenser_html, sources: source_list, refresh_helper: refresh_helper).compare_statements
       groups_by_verdict = {
         "MATCH" => :same, "EXTRA_STATEMENT" => :added, "MISSING_STATEMENT" => :removed,
-        "DIFFERENT_VALUE" => :changed, "PARSE_ERROR" => :extraction_errors
+        "DIFFERENT_VALUE" => :changed, "PARSE_ERROR" => :extraction_errors, "SHARED_EXTRACTION_ERROR" => :shared_extraction_errors
       }
       rows = comparison.artifacts.map do |artifact|
         artifact.merge(group: groups_by_verdict.fetch(artifact[:verdict]),
@@ -58,14 +58,16 @@ module Statements
           added: groups.fetch(:added, []),
           removed: groups.fetch(:removed, []),
           changed: groups.fetch(:changed, []),
-          extraction_errors: groups.fetch(:extraction_errors, [])
+          extraction_errors: groups.fetch(:extraction_errors, []),
+          shared_extraction_errors: groups.fetch(:shared_extraction_errors, [])
         },
         counts: {
           same: groups.fetch(:same, []).count,
           added: groups.fetch(:added, []).count,
           removed: groups.fetch(:removed, []).count,
           changed: groups.fetch(:changed, []).count,
-          extraction_errors: groups.fetch(:extraction_errors, []).count
+          extraction_errors: groups.fetch(:extraction_errors, []).count,
+          shared_extraction_errors: groups.fetch(:shared_extraction_errors, []).count
         }
       )
     end

@@ -94,6 +94,39 @@ class Distillator::TransitionReportLayoutTest < ActionDispatch::IntegrationTest
     assert_select '.transition-check-results > li', count: 3
   end
 
+  test "older repeated parse errors become one source diagnosis with variants without changing evidence or permitting activation" do
+    run = completed_run(findings: true)
+    evidence = run.transition_evidences.find_by!(check_kind: "statement_delta")
+    errors = ["undefined method 'drop' for ActiveSupport::SafeBuffer", "undefined method 'drop' for nil"]
+    artifacts = 3.times.map do |index|
+      error = { error_type: "NoMethodError", error: errors[index == 2 ? 1 : 0], source: "ruby" }
+      { source_id: 7023, property_label: "Availability", language: "fr", webpage_url: "https://example.org/#{index}",
+        legacy: nil, condenser: nil, legacy_error: error, condenser_error: error, verdict: "PARSE_ERROR", severity: "blocker" }
+    end
+    evidence.update!(details: evidence.details.merge("statement_artifacts" => artifacts))
+    fetch = run.transition_evidences.find_by!(check_kind: "fetch_parity")
+    fetch_details = fetch.details.deep_dup
+    fetch_details["representative_url_results"].first.merge!("url" => artifacts.first[:webpage_url], "comparison_performed" => true,
+      "compare_summary" => { html_hash_difference: false, body_byte_difference: false })
+    fetch.update!(details: fetch_details)
+    original = evidence.reload.attributes
+    get distillator_shadow_report_site_path(@website)
+    assert_response :success
+    assert_select '.transition-decision h2', text: "Extraction unverified — stay in Shadow"
+    assert_select '.transition-shared-failure', count: 1, text: /Availability.*7023.*3 shared local extraction errors/m
+    assert_select '.transition-shared-failure', text: /same local Condenser DSL engine/
+    assert_select '.transition-shared-failure', text: /Matching HTML hashes and byte counts recorded for 1 affected URL/
+    assert_select '.transition-shared-failure li', text: /2 affected.*SafeBuffer/m
+    assert_select '.transition-shared-failure li', text: /1 affected.*nil/m
+    assert_select '.transition-shared-failure details:not([open])', count: 1
+    assert_select '.transition-field-finding', count: 0
+    assert_select '.transition-primary-action', text: "Review activation", count: 0
+    assert_not Distillator::RolloutTransition.call(website: @website, to_mode: "active").success?
+    assert_equal original, evidence.reload.attributes
+    get distillator_shadow_report_site_path(@website, run_id: run.id, evidence: "recorded-statement-2", anchor: "recorded-statement-2")
+    assert_select '.transition-shared-failure details[open] #recorded-statement-2', text: /drop.*nil/m
+  end
+
   test "known differences remain blocked even when another page lacks a snapshot" do
     completed_run(missing_wringer: true, findings: true)
     get distillator_shadow_report_site_path(@website)

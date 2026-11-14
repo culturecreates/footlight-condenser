@@ -8,6 +8,7 @@ module Distillator
     EXTRA_STATEMENT = "EXTRA_STATEMENT".freeze
     DIFFERENT_VALUE = "DIFFERENT_VALUE".freeze
     PARSE_ERROR = "PARSE_ERROR".freeze
+    SHARED_EXTRACTION_ERROR = "SHARED_EXTRACTION_ERROR".freeze
     class BudgetExceeded < StandardError
       attr_accessor :artifacts
     end
@@ -16,7 +17,8 @@ module Distillator
       PARSE_ERROR,
       DIFFERENT_VALUE,
       MISSING_STATEMENT,
-      EXTRA_STATEMENT
+      EXTRA_STATEMENT,
+      SHARED_EXTRACTION_ERROR
     ].freeze
 
     STATEMENT_METADATA_KEYS = %w[
@@ -49,6 +51,15 @@ module Distillator
 
     def self.call(...)
       new(...).call
+    end
+
+    # Also recognizes older PARSE_ERROR artifacts without rewriting their audit.
+    def self.shared_extraction_failure?(entry)
+      data = entry.to_h.with_indifferent_access
+      left = data[:legacy_error].to_h.stringify_keys.slice("error", "error_type", "source", "step")
+      right = data[:condenser_error].to_h.stringify_keys.slice("error", "error_type", "source", "step")
+      left["error"].present? && left["error_type"].present? && left == right &&
+        !left["error_type"].match?(/FetchUnsupported|MissingComparisonHtml/)
     end
 
     def initialize(
@@ -263,6 +274,9 @@ module Distillator
     end
 
     def classify_statement_verdict(legacy, condenser)
+      if self.class.shared_extraction_failure?(legacy_error: normalized_error(legacy[:error]), condenser_error: normalized_error(condenser[:error]))
+        return SHARED_EXTRACTION_ERROR
+      end
       return PARSE_ERROR if legacy[:error].present? || condenser[:error].present?
       return MATCH if normalized_statement_value_equal?(legacy[:value], condenser[:value])
       return MISSING_STATEMENT if blank_value?(condenser[:value]) && !blank_value?(legacy[:value])

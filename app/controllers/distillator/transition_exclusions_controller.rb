@@ -3,8 +3,9 @@ module Distillator
     def create
       @website = Website.find(params[:website_id])
       run = @website.transition_runs.find(params[:source_run_id])
-      TransitionExclusionReview.create!(website: @website, run: run, url: params[:url], reason: params[:reason])
-      redirect_to distillator_shadow_report_site_path(@website), notice: "Reviewed exclusion recorded. Run a new check to compare the remaining eligible pages."
+      urls = params.key?(:urls) ? params[:urls] : [params[:url]]
+      reviews = TransitionExclusionReview.create_many!(website: @website, run: run, urls: urls, reason: params[:reason])
+      redirect_to distillator_shadow_report_site_path(@website), notice: "#{reviews.length} reviewed exclusion(s) recorded. Run a new check to compare the remaining eligible pages."
     rescue TransitionExclusionReview::InvalidReview, ActiveRecord::RecordInvalid => error
       redirect_to distillator_shadow_report_site_path(@website), alert: error.message
     rescue ActiveRecord::RecordNotUnique

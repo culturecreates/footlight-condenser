@@ -101,7 +101,7 @@ class Distillator::ComparisonRefreshProxyTest < ActiveSupport::TestCase
     HTTParty.expects(:get).twice.raises(Net::ReadTimeout)
     comparison = Distillator::MigrationComparator.new(website: site, webpage: page, sources: [source],
       legacy_html: "<span>Unknown venue</span>", condenser_html: "<span>Unknown venue</span>", refresh_helper: @helper).compare_statements
-    assert_equal Distillator::MigrationComparator::PARSE_ERROR, comparison.verdict
+    assert_equal Distillator::MigrationComparator::SHARED_EXTRACTION_ERROR, comparison.verdict
     assert_equal "LinkedDataLookupError", comparison.artifacts.first[:legacy_error]["error_type"]
   end
 end

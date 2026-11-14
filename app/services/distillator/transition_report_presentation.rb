@@ -16,7 +16,7 @@ module Distillator
     def checks
       [
         { key: "fetch_parity", label: "Fresh fetch parity", state: fetch_state },
-        { key: "statement_delta", label: "Statement equivalence", state: completed_status&.statements || :missing },
+        { key: "statement_delta", label: "Statement equivalence", state: shared_failures_only? ? :inconclusive : (completed_status&.statements || :missing) },
         { key: "export_diff", label: "Export serializer compatibility", state: completed_status&.export || :missing }
       ]
     end
@@ -49,10 +49,36 @@ module Distillator
 
     def blocked_fields?
       field_findings.any? { |entry| finding_state(entry) == :failed } ||
-        completed_status&.statements == :failed || completed_status&.export == :failed
+        (completed_status&.statements == :failed && !shared_failures_only?) || completed_status&.export == :failed
+    end
+
+    def shared_failures_only?
+      field_findings.any? && field_findings.all? { |entry| MigrationComparator.shared_extraction_failure?(entry) }
+    end
+
+    def shared_failure_groups
+      field_findings.each_with_index.select { |entry, _| MigrationComparator.shared_extraction_failure?(entry) }
+        .group_by { |entry, _| [entry[:source_id], entry[:property_id], entry[:language]] }.values
+    end
+
+    def matching_html_count(entries)
+      urls = entries.map { |entry, _| entry[:webpage_url] }.compact.uniq
+      fetch_rows.select do |row|
+        summary = row[:compare_summary].to_h.with_indifferent_access
+        urls.include?(row[:url]) && row[:fetch_status] == "passed" && row[:legacy_lookup_status] == "ok" &&
+          row[:comparison_performed] == true && summary[:html_hash_difference] == false && summary[:body_byte_difference] == false
+      end.map { |row| row[:url] }.uniq.length
+    end
+
+    def finding_label(entry)
+      return "Shared extraction failure — parity unverified" if MigrationComparator.shared_extraction_failure?(entry)
+      return "Extraction difference" if entry[:legacy_error].present? || entry[:condenser_error].present?
+
+      entry[:verdict].to_s.humanize
     end
 
     def finding_state(entry)
+      return :inconclusive if MigrationComparator.shared_extraction_failure?(entry)
       unsupported = [entry[:legacy_error], entry[:condenser_error]].compact.any? do |error|
         error.to_h.with_indifferent_access[:error_type].to_s.include?("FetchUnsupported")
       end
@@ -89,6 +115,7 @@ module Distillator
       return "Scope or configuration changed — run a new check" if configuration_changed?
       return "No eligible pages remain — stay in Shadow" if no_eligible_pages?
       return "Blocked — stay in Shadow" if blocked_fields?
+      return "Extraction unverified — stay in Shadow" if shared_failures_only?
       return "Incomplete evidence — stay in Shadow" if incomplete?
       return "Blocked — stay in Shadow" if detail.transition_status.status == :blocked
       return "Review before activating" if detail.transition_status.status == :review
@@ -132,6 +159,9 @@ module Distillator
       return "Run a fresh comparison before considering activation." unless completed_status
       return "The completed comparison is unchanged. A new check must verify the current scope and configuration." if configuration_changed?
       return "All eligible candidates were excluded after review. An empty comparison cannot establish parity." if no_eligible_pages?
+      if shared_failures_only? && completed_status&.export != :failed
+        return "The same local DSL errors occurred on both HTML inputs for #{field_findings.length} source/page comparisons. Parity remains unverified; this does not establish different extracted values."
+      end
       return "Selected-field or export failures were recorded. Inspect the evidence below." if blocked_fields?
       if detail.fetch_summary.issues.any?
         count = detail.fetch_summary.issues.map { |issue| issue[:url] }.uniq.length
@@ -151,6 +181,7 @@ module Distillator
       return "Inspect the failed attempt, then run a new check." if detail.transition_run_status == "failed"
       return "Run a new check with the reviewed exclusions applied to its scope." if configuration_changed?
       return "Restore at least one URL to transition scope before running another check." if no_eligible_pages?
+      return "Inspect the affected selected source and test one page per error variant; also review any unavailable URLs below." if shared_failures_only?
       return "Compare the recorded values and errors below, then fix the affected selected sources." if field_findings.any?
       return detail.fetch_summary.issues.first[:action] if detail.fetch_summary.issues.any?
 

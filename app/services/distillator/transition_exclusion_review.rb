@@ -7,7 +7,7 @@ module Distillator
     def self.eligible_rows(run)
       return [] unless run&.status == "completed"
 
-      details = run.transition_evidences.find_by(check_kind: "fetch_parity")&.details.to_h.with_indifferent_access
+      details = run.transition_evidences.to_a.find { |record| record.check_kind == "fetch_parity" }&.details.to_h.with_indifferent_access
       return [] unless details[:fetch_basis] == "fresh_both"
 
       Array(details[:representative_url_results]).map { |row| row.to_h.with_indifferent_access }.select do |row|
@@ -22,17 +22,32 @@ module Distillator
     end
 
     def self.create!(website:, run:, url:, reason:)
+      create_many!(website: website, run: run, urls: [url], reason: reason).sole
+    end
+
+    def self.create_many!(website:, run:, urls:, reason:)
+      unless urls.is_a?(Array) && urls.any? && urls.all? { |url| url.is_a?(String) && url.present? }
+        raise InvalidReview, "Select at least one verified source URL"
+      end
+      urls = urls.uniq
       website.with_lock do
         ensure_no_running_check!(website)
         unless run.website_id == website.id && website.latest_transition_run&.id == run.id && run.status == "completed"
           raise InvalidReview, "Review the latest completed check for this website before excluding a URL"
         end
-        row = eligible_rows(run).find { |entry| entry[:url] == url }
-        raise InvalidReview, "Both backends must have recorded fresh source HTTP 404 or 410 responses for this URL" unless row
-        raise InvalidReview, "The webpage URL is no longer part of this website" unless website.webpages.exists?(url: url)
-        raise InvalidReview, "This URL is already excluded" if website.transition_exclusions.active.exists?(url: url)
+        rows = eligible_rows(run).index_by { |entry| entry[:url] }
+        unless (urls - rows.keys).empty?
+          raise InvalidReview, "Both backends must have recorded fresh source HTTP 404 or 410 responses for every selected URL"
+        end
+        present_urls = website.webpages.where(url: urls).distinct.pluck(:url)
+        raise InvalidReview, "A webpage URL is no longer part of this website" unless (urls - present_urls).empty?
+        raise InvalidReview, "A selected URL is already excluded" if website.transition_exclusions.active.where(url: urls).exists?
 
-        website.transition_exclusions.create!(source_run: run, url: url, reason: reason.to_s.strip, recorded_evidence: row)
+        # One transaction and one justification; each URL retains its own audit
+        # evidence and can be independently restored. A bad selection saves none.
+        urls.map do |url|
+          website.transition_exclusions.create!(source_run: run, url: url, reason: reason.to_s.strip, recorded_evidence: rows.fetch(url))
+        end
       end
     end
 

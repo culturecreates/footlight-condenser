@@ -5,6 +5,7 @@
 <p class="cache-page-notice cache-compare-warning">Read-only diagnostic only. No statements, webpages, caches, or rollout state were changed.</p>
 <p class="cache-page-notice">These are stored snapshot diagnostics. Run a transition batch check from the website page for a fresh comparison of both backends.</p>
 <p class="cache-page-notice">Only website-selected sources are compared, within properties <%= property_scope_text %>.</p>
+<p class="cache-page-notice">Both HTML inputs are evaluated by the same local Condenser DSL engine. Matching extraction errors leave parity unverified.</p>
 
 <p><strong>URL:</strong> <%= external_website_link(@statement_parity.url) %></p>
 <p><strong>Website:</strong> <%= link_to @webpage.website.name, website_path(@webpage.website) %></p>
@@ -22,6 +23,7 @@
   <p><strong>Removed:</strong> <%= @statement_parity.counts[:removed] %></p>
   <p><strong>Changed:</strong> <%= @statement_parity.counts[:changed] %></p>
   <p><strong>Extraction errors:</strong> <%= @statement_parity.counts[:extraction_errors] %></p>
+  <% if @statement_parity.counts[:shared_extraction_errors].to_i.positive? %><p><strong>Shared extraction failures — parity unverified:</strong> <%= @statement_parity.counts[:shared_extraction_errors] %></p><% end %>
 </section>
 
 <% {
@@ -29,8 +31,10 @@
   "Added statements" => @statement_parity.groups[:added],
   "Removed statements" => @statement_parity.groups[:removed],
   "Changed statements" => @statement_parity.groups[:changed],
-  "Extraction errors" => @statement_parity.groups[:extraction_errors]
+  "Extraction errors" => @statement_parity.groups[:extraction_errors],
+  "Shared extraction failures — parity unverified" => Array(@statement_parity.groups[:shared_extraction_errors])
 }.each do |heading, rows| %>
+  <% next if heading.start_with?("Shared extraction") && rows.empty? %>
   <section class="website-rollout-panel">
     <h2><%= heading %></h2>
     <% if rows.empty? %>

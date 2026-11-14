@@ -50,6 +50,49 @@ class Distillator::TransitionExclusionsControllerTest < ActionDispatch::Integrat
     end
   end
 
+  test "shared source failures have one unchecked selection form and one review can record individually reversible exclusions" do
+    second = @pages[-2]
+    evidence = @run.transition_evidences.find_by!(check_kind: "fetch_parity")
+    details = evidence.details.deep_dup
+    row = details["representative_url_results"].find { |entry| entry["url"] == second.url }
+    row.merge!("fetch_status" => "failed", "http_response_code" => 410, "legacy_lookup_status" => "unreachable",
+      "legacy_fetch" => { force_scrape: true, response_http_code: 200, upstream_http_code: 410 })
+    evidence.update!(details: details)
+    original = @run.transition_evidences.map(&:attributes)
+    get distillator_shadow_report_site_path(@website)
+    assert_response :success
+    assert_select '#transition-batch-exclusion-review form', count: 1
+    assert_select '#transition-batch-exclusion-review input[name="urls[]"]:not([checked])', count: 2
+    assert_select '#transition-batch-exclusion-review textarea[name="reason"][required]', count: 1
+    assert_no_difference "Distillator::TransitionExclusion.count" do
+      post distillator_transition_exclusions_path, params: { website_id: @website.id, source_run_id: @run.id,
+        urls: [@gone.url, @pages.first.url], reason: "Reviewed retired URLs" }
+      assert_includes flash[:alert], "every selected URL"
+    end
+    assert_difference "Distillator::TransitionExclusion.count", 2 do
+      post distillator_transition_exclusions_path, params: { website_id: @website.id, source_run_id: @run.id,
+        urls: [@gone.url, second.url], reason: "Reviewed retired URLs" }
+    end
+    reviews = @website.transition_exclusions.active.to_a
+    assert_equal [@gone.url, second.url].sort, reviews.map(&:url).sort
+    assert reviews.all? { |review| review.reason == "Reviewed retired URLs" && review.source_run_id == @run.id }
+    assert_equal original, @run.transition_evidences.reload.map(&:attributes)
+    patch distillator_transition_exclusion_path(reviews.first), params: { reason: "Restored separately" }
+    assert_equal 1, @website.transition_exclusions.active.count
+    assert_equal "shadow", @website.reload.distillator_mode
+  end
+
+  test "empty bulk selections and blank shared reasons never save partial exclusions" do
+    [[], nil, "not an array"].each do |selection|
+      assert_no_difference "Distillator::TransitionExclusion.count" do
+        post distillator_transition_exclusions_path, params: { website_id: @website.id, source_run_id: @run.id, urls: selection, reason: "Reviewed" }
+      end
+    end
+    assert_no_difference "Distillator::TransitionExclusion.count" do
+      post distillator_transition_exclusions_path, params: { website_id: @website.id, source_run_id: @run.id, urls: [@gone.url], reason: " " }
+    end
+  end
+
   test "restore keeps the review record and requires a new comparison" do
     post_review
     review = @website.transition_exclusions.active.sole

@@ -1,6 +1,32 @@
 require "test_helper"
 
 class Distillator::MigrationComparatorTest < ActiveSupport::TestCase
+  test "matching local execution errors are shared failures rather than value differences" do
+    website, webpage = build_fixture("shared-error")
+    create_source(website: website, property: property_fixture(89, "Availability"), algorithm: "ruby=raise NoMethodError, 'drop is unavailable'")
+    result = Distillator::MigrationComparator.call(website: website, webpage: webpage,
+      legacy_html: "<title>Event</title>", condenser_html: "<title>Event</title>")
+    assert_equal Distillator::MigrationComparator::SHARED_EXTRACTION_ERROR, result.statement_verdict
+    assert_equal result.statement_artifacts.first[:legacy_error], result.statement_artifacts.first[:condenser_error]
+    assert_nil result.export_verdict
+    assert_not_equal Distillator::MigrationComparator::MATCH, result.statement_verdict
+  end
+
+  test "one sided and different errors remain extraction differences and valid unequal values remain differences" do
+    website, webpage = build_fixture("error-categories")
+    comparator = Distillator::MigrationComparator.new(website: website, webpage: webpage, legacy_html: "a", condenser_html: "b")
+    error = { error_type: "NoMethodError", error: "drop on nil", source: "ruby", step: "ruby" }
+    valid = { value: "value", error: nil }
+    failed = { value: nil, error: error }
+    different = { value: nil, error: error.merge(error: "drop on String") }
+    assert_equal "PARSE_ERROR", comparator.send(:classify_statement_verdict, valid, failed)
+    assert_equal "PARSE_ERROR", comparator.send(:classify_statement_verdict, failed, valid)
+    assert_equal "PARSE_ERROR", comparator.send(:classify_statement_verdict, failed, different)
+    assert_equal "DIFFERENT_VALUE", comparator.send(:classify_statement_verdict, valid, valid.merge(value: "other"))
+    assert_equal "MATCH", comparator.send(:classify_statement_verdict, valid, valid)
+    assert_not Distillator::MigrationComparator.shared_extraction_failure?(legacy_error: {}, condenser_error: {})
+  end
+
   test "unselected alternate Dates sources are excluded even from an explicit source list" do
     website, webpage = build_fixture("selected-dates")
     property = property_fixture(88, "Dates")

@@ -103,6 +103,9 @@ module Distillator
     end
 
     def statement_headline
+      if reason == "shared_extraction_failure" || shared_statement_failures?
+        return "The same local extraction errors occurred on both HTML inputs; statement parity is unverified."
+      end
       return "Wringer and Condenser differ in critical extracted values." if reason == "critical_statement_parity_failed"
       return "Selected field values differ under strict comparison." if reason == "strict_statement_parity_failed"
       return "Optional extracted values differ and need review." if reason == "optional_statement_parity_warning"
@@ -122,6 +125,13 @@ module Distillator
       return "Statement check not yet recorded." if state == :missing
 
       "Statements check passed."
+    end
+
+    def shared_statement_failures?
+      return false unless details_hash["comparison_basis"] == "paired_dsl"
+
+      failures = Array(details_hash["statement_artifacts"]).reject { |entry| entry.to_h["verdict"] == "MATCH" }
+      failures.any? && failures.all? { |entry| MigrationComparator.shared_extraction_failure?(entry) }
     end
 
     def export_headline
@@ -175,6 +185,9 @@ module Distillator
         differences = entries.reject { |entry| entry[:verdict] == "MATCH" }
         return ["Sources compared: #{entries.length}"] + differences.first(10).map do |entry|
           location = entry[:webpage_url].present? ? "#{entry[:webpage_url]} — " : ""
+          if MigrationComparator.shared_extraction_failure?(entry)
+            next "#{location}#{entry[:property_label]} / #{entry[:language]}: Shared local extraction failure; parity unverified (#{entry[:legacy_error].to_h['error_type']})."
+          end
           "#{location}#{entry[:property_label]} / #{entry[:language]}: Wringer #{entry[:legacy].inspect}; Condenser #{entry[:condenser].inspect} (#{entry[:verdict]})"
         end
       end
@@ -236,7 +249,9 @@ module Distillator
 
         state == :passed ? "No fetch action is needed right now." : "Fix the fetch/cache failure first, then rerun the transition batch check."
       when "statement_delta"
-        if reason.in?(%w[critical_statement_parity_failed strict_statement_parity_failed])
+        if reason == "shared_extraction_failure" || shared_statement_failures?
+          "Inspect the selected source algorithm and test one representative page per shared error variant. Matching local errors do not establish parity."
+        elsif reason.in?(%w[critical_statement_parity_failed strict_statement_parity_failed])
           "Compare the affected page snapshots and their fetch times first. If either snapshot came from an older cache, run a new transition check to fetch both backends fresh. Investigate any remaining differences before activating."
         elsif reason == "optional_statement_parity_warning"
           "Review optional value differences before activating."

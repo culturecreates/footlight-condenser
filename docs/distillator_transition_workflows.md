@@ -117,6 +117,34 @@ navigation cookie. Redirect counts use destination changes; a chain containing
 only the requested URL is Direct. Existing materialized redirect flags are updated
 on the next cache save/refresh, while inspection computes the corrected summary.
 
+## Shared extraction failures and grouped source review
+
+Both fresh HTML inputs are evaluated by the same local Condenser DSL runner.
+The comparison does not independently execute the production Wringer DSL engine.
+Identical, nonempty error type/message/source/step artifacts are recorded as
+`SHARED_EXTRACTION_ERROR`, not a successful value match. One-sided or different
+errors remain `PARSE_ERROR`; differing valid values retain their value verdict.
+Shared selected-source errors leave activation pending in Standard and Strict
+checks; they are not counted as confirmed critical or optional differences.
+Matching errors support equivalent behavior on those inputs without proving
+successful extraction. Missing snapshots and unsupported nested fetches remain unverified.
+
+Reports group matching failures by source/language, show each error variant and
+its count, and link one representative page per variant. All affected URL evidence
+remains expandable. Older completed PARSE_ERROR records with matching errors get
+the same presentation without rewriting their evidence or making them promotable.
+Inspect the actual algorithm and compare with a stored production statement before
+deciding whether a shared runner failure is an existing DSL defect or a compatibility
+regression. A repeated `.drop` error alone is insufficient to choose a DSL rewrite.
+
+Multiple bilateral fresh 404/410 candidates have one review form with unchecked
+URL selections and one required justification. The server validates the entire
+selection against the latest completed run under the website lock and records all
+reviews atomically, each with its own URL/evidence and independent restoration.
+Redirects, one-sided failures, stale caches and arbitrary URLs do not qualify.
+These reviews change comparison scope only; they never delete events or convert
+shared extraction failures into passing evidence. A new check is required afterward.
+
 Deploy migrations through `20261114000300_add_transition_batch_reconciliation.rb`
 and run:
 

@@ -1,6 +1,19 @@
 require "test_helper"
 
 class Statements::ExtractedParityComparisonServiceTest < ActiveSupport::TestCase
+  test "shared execution errors have their own non passing diagnostic group" do
+    website, webpage = build_statement_compare_fixture(suffix: "shared-execution-error")
+    source = create_statement_compare_source(website: website, property: essential_property(1, "Availability"),
+      algorithm: "ruby=raise NoMethodError, 'drop is unavailable'")
+    result = Statements::ExtractedParityComparisonService.call(webpage: webpage, sources: [source],
+      legacy_html: "<title>Event</title>", condenser_html: "<title>Event</title>")
+    assert_equal 0, result.counts[:same]
+    assert_equal 0, result.counts[:changed]
+    assert_equal 0, result.counts[:extraction_errors]
+    assert_equal 1, result.counts[:shared_extraction_errors]
+    assert_equal "SHARED_EXTRACTION_ERROR", result.groups[:shared_extraction_errors].sole[:verdict]
+  end
+
   test "diagnostics compare only the selected Dates source and count only executed sources" do
     website, webpage = build_statement_compare_fixture(suffix: "selected-dates")
     property = essential_property(1, "Dates")

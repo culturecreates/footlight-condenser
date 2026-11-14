@@ -40,7 +40,7 @@ module Distillator
             artifact[:verdict]
           end
           artifact.merge(verdict: verdict, webpage_url: page.url, source: artifact[:property_label],
-            core_field: critical, severity: (critical || strict) ? "blocker" : "warning")
+            core_field: critical, severity: MigrationComparator.shared_extraction_failure?(artifact) ? "unverified" : ((critical || strict) ? "blocker" : "warning"))
         end
         artifacts.concat(entries)
         required = page.rdfs_class.name == "Event" ? Webpage.publishable_required_property_labels : []
@@ -55,6 +55,8 @@ module Distillator
           { url: page.url, status: "inconclusive", reason: "paired_extraction_inconclusive" }
         elsif entries.any? { |entry| entry[:severity] == "blocker" && entry[:verdict] != MigrationComparator::MATCH }
           { url: page.url, status: "failed", reason: strict ? "strict_statement_parity_failed" : "critical_statement_parity_failed" }
+        elsif entries.any? { |entry| MigrationComparator.shared_extraction_failure?(entry) }
+          { url: page.url, status: "unverified", reason: "shared_extraction_failure" }
         elsif entries.any? { |entry| entry[:verdict] != MigrationComparator::MATCH }
           { url: page.url, status: "warning", reason: "optional_statement_parity_warning" }
         else
@@ -63,7 +65,7 @@ module Distillator
       end
       progress&.call(webpages.length, webpages.length)
       critical, optional = artifacts.reject do |entry|
-        entry[:verdict] == MigrationComparator::MATCH ||
+        entry[:verdict] == MigrationComparator::MATCH || MigrationComparator.shared_extraction_failure?(entry) ||
           [entry[:legacy_error], entry[:condenser_error]].compact.any? { |error| error.to_h["error_type"].to_s.include?("FetchUnsupported") }
       end
         .partition { |entry| entry[:severity] == "blocker" }
@@ -75,6 +77,8 @@ module Distillator
         [:pending, "transition_check_timeout_budget_exceeded"]
       elsif rows.empty? || rows.any? { |row| row[:status] == "inconclusive" }
         [:pending, "paired_extraction_inconclusive"]
+      elsif rows.any? { |row| row[:status] == "unverified" }
+        [:pending, "shared_extraction_failure"]
       elsif rows.any? { |row| row[:status] == "failed" }
         [:failed, "critical_statement_parity_failed"]
       elsif rows.any? { |row| row[:status] == "warning" }

@@ -23,6 +23,29 @@ class Distillator::StatementParityCheckTest < ActiveSupport::TestCase
     assert_equal fingerprint, Distillator::TransitionFingerprint.call(@website)
   end
 
+  test "shared optional source errors hold activation without counting a confirmed regression in either mode" do
+    @sources["Price"].update!(algorithm_value: "ruby=raise NoMethodError, 'drop is unavailable'")
+    [false, true].each do |strict|
+      result = compare(html, html, strict: strict)
+      assert_equal :pending, result.status
+      assert_equal "shared_extraction_failure", result.reason
+      assert_equal "shared_extraction_failure", result.url_results.first[:reason]
+      assert_equal "unverified", result.url_results.first[:status]
+      assert_empty result.critical_failures
+      assert_empty result.optional_failures
+      assert_equal "SHARED_EXTRACTION_ERROR", result.artifacts.find { |entry| entry[:property_label] == "Price" }[:verdict]
+    end
+  end
+
+  test "a shared error cannot hide a real critical value difference" do
+    @sources["Price"].update!(algorithm_value: "ruby=raise NoMethodError, 'drop is unavailable'")
+    result = compare(html, html(title: "Different"), strict: true)
+    assert_equal :failed, result.status
+    assert_equal ["Title"], result.critical_failures.map { |entry| entry[:property_label] }
+    assert_equal "strict_statement_parity_failed", result.reason
+    assert_equal 1, result.artifacts.count { |entry| entry[:verdict] == "SHARED_EXTRACTION_ERROR" }
+  end
+
   test "standard and strict ignore an unselected alternative Dates source and its rendering profile" do
     @website.sources.create!(property: @sources["Dates"].property, language: "en", selected: false, render_js: true,
       algorithm_value: "ruby=raise 'Unselected Dates must not execute'")
