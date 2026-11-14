@@ -51,6 +51,7 @@ class Distillator::TransitionExclusionReviewTest < ActiveSupport::TestCase
       { "http_response_code" => 503 },
       { "attempted_condenser_fetch" => false },
       { "condenser_fetch" => { "cache_hit" => true } },
+      { "condenser_fetch" => { "cache_hit" => false, "fetch_path" => "legacy" } },
       { "legacy_fetch" => { "force_scrape" => true, "response_http_code" => 404 } },
       { "legacy_fetch" => { "force_scrape" => true, "upstream_http_code" => 503 } },
       { "legacy_fetch" => { "force_scrape" => false, "upstream_http_code" => 404 } }

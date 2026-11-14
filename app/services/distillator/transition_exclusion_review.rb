@@ -14,6 +14,7 @@ module Distillator
         legacy = row[:legacy_fetch].to_h.with_indifferent_access
         row[:url].to_s.match?(/\Ahttps?:\/\//) && row[:attempted_condenser_fetch] == true && row[:fetch_status] == "failed" &&
           row[:condenser_fetch].to_h.with_indifferent_access[:cache_hit] == false &&
+          row[:condenser_fetch].to_h.with_indifferent_access[:fetch_path].in?([nil, "native"]) &&
           [404, 410, "404", "410"].include?(row[:http_response_code]) &&
           row[:legacy_lookup_status] == "unreachable" && legacy[:response_http_code].to_i.between?(200, 299) &&
           legacy[:force_scrape] == true && [404, 410, "404", "410"].include?(legacy[:upstream_http_code])
@@ -47,6 +48,9 @@ module Distillator
     end
 
     def self.ensure_no_running_check!(website)
+      if SiteTransition.active.where(website_id: website.id).exists?
+        raise InvalidReview, "Wait for the validation workflow to finish before changing exclusions"
+      end
       if website.transition_runs.active.where("requested_at > ?", Time.current - TransitionRun::LEASE).exists?
         raise InvalidReview, "Wait for the running transition check to finish before changing exclusions"
       end

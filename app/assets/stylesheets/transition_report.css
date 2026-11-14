@@ -51,6 +51,11 @@
 .transition-review-form { display: grid; gap: 0.5rem; max-width: 45rem; }
 .transition-review-form textarea { width: 100%; box-sizing: border-box; font: inherit; }
 .transition-review-form input[type="submit"] { justify-self: start; padding: 0.5rem 0.75rem; }
+.workflow-group-table { min-width: 65rem; }
+.workflow-group-table th, .workflow-group-table td { overflow-wrap: anywhere; }
+.transition-workflow-phases li { margin: 0.8rem 0; }
+.website-transition-selection { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem; padding: 1rem 0; }
+.website-transition-selection details { flex-basis: 100%; }
 
 @media (max-width: 700px) {
   .transition-check-results > li { flex-direction: column; gap: 0.4rem; }

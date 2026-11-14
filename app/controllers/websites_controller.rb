@@ -82,12 +82,12 @@ class WebsitesController < ApplicationController
     @websites = @websites.where(preferred: true) if @website_index_view == "preferred"
 
     if @filters[:q]
-      keyword = "%#{@filters[:q].downcase}%"
+      keyword = website_search_pattern(@filters[:q])
       @websites = @websites.where("LOWER(name) LIKE ? OR LOWER(seedurl) LIKE ?", keyword, keyword)
     end
 
     if @filters[:seed_filter]
-      keyword = "%#{@filters[:seed_filter].downcase}%"
+      keyword = website_search_pattern(@filters[:seed_filter])
       @websites = @websites.where("LOWER(seedurl) LIKE ?", keyword)
     end
 
@@ -116,6 +116,7 @@ class WebsitesController < ApplicationController
     end
 
     @rollout_counts = Website.group(:distillator_mode).count
+    @transition_eligible_ids = Distillator::EventSiteSelection.eligible_ids(@websites)
 
     @total_statements = Statement.all.count
     @statements_errors = Statement.where("cache LIKE ?", "%error%")
@@ -148,6 +149,12 @@ class WebsitesController < ApplicationController
     @website.update_columns(preferred: Distillator::BooleanParam.parse(value))
     redirect_to safe_return_to_param || websites_path, status: :see_other
   end
+
+  def website_search_pattern(value)
+    pattern = Website.sanitize_sql_like(value.downcase).gsub("*", "%")
+    value.include?("*") ? pattern : "%#{pattern}%"
+  end
+  private :website_search_pattern
 
   def default_view
     value = params.require(:view)

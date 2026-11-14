@@ -4,7 +4,8 @@
       <h1>Websites</h1>
       <p class="muted"><%= @filters.present? ? "#{@websites.size} of #{@rollout_counts.values.sum} sites match" : "#{@rollout_counts.values.sum} sites" %> · <%= number_to_human(@total_statements) %> statements across all websites</p>
     </div>
-    <%= link_to "New Website", new_website_path, class: "website-index-primary-action" %>
+    <div><%= link_to "Recent transitions", distillator_transition_batches_path %> ·
+      <%= link_to "New Website", new_website_path, class: "website-index-primary-action" %></div>
   </header>
 
   <div class="website-index-view-controls">
@@ -44,7 +45,7 @@
       <%= hidden_field_tag :direction, @current_direction if @current_direction.present? %>
       <%= hidden_field_tag :view, @website_index_view if @filters[:view].present? %>
       <div class="website-index-filter-row">
-        <div class="website-index-search"><%= label_tag :q, "Find a website" %><%= text_field_tag :q, @filters[:q], placeholder: "Name or seedurl", autocomplete: "off" %></div>
+        <div class="website-index-search"><%= label_tag :q, "Find a website" %><%= text_field_tag :q, @filters[:q], placeholder: "Name or seedurl, e.g. culture*", autocomplete: "off" %></div>
         <div><%= label_tag :distillator_mode, "Mode" %><%= select_tag :distillator_mode, options_for_select(website_rollout_filter_form_options, @filters[:distillator_mode]) %></div>
         <div><%= label_tag :cohort, "Cohort" %><%= select_tag :cohort, options_for_select(website_cohort_filter_options, @filters[:cohort]) %></div>
         <%= submit_tag "Apply filters" %>
@@ -59,6 +60,15 @@
           <div class="website-index-extra-sorts">Sort: <%= sortable("seedurl", "Seedurl") %> · <%= sortable("default_language", "Language") %> · <%= sortable("schedule_every_days", "Schedule interval") %> · <%= sortable("schedule_time", "Schedule time") %> · <%= sortable("graph_name", "Graph") %></div>
         </div>
       </details>
+    <% end %>
+
+    <%= form_with url: distillator_transition_batches_path, method: :post, local: true, id: "website-transition-batch", class: "website-transition-selection" do %>
+      <%= hidden_field_tag :request_key, SecureRandom.uuid %>
+      <%= hidden_field_tag :selection_context, @filters.map { |key, value| "#{key}: #{value}" }.join(" · ") %>
+      <label hidden data-transition-master-label><input type="checkbox" data-transition-master> Select all <%= @transition_eligible_ids.length %> matching event sites (includes Unscheduled)</label>
+      <span data-transition-selection-count aria-live="polite">Select sites using the Transition column.</span>
+      <%= submit_tag "Validate and activate selected", data: { transition_submit: true } %>
+      <details><summary>What this action does</summary><p>Processes selected event sites one at a time: Shadow check, activation when all required checks pass, then verification through the Active serving path. Failed verification returns the site to Shadow. Templates, test sites and place/person sites are excluded. Review-needed results stop for manual attention.</p></details>
     <% end %>
 
     <% if @website_index_view == "preferred" %>

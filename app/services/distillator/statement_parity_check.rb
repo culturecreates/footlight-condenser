@@ -2,9 +2,10 @@ module Distillator
   class StatementParityCheck
     Result = Struct.new(:status, :reason, :artifacts, :url_results, :critical_failures, :optional_failures, keyword_init: true)
 
-    def self.call(website:, webpages:, url_results:, refresh_helper:, comparator: Distillator::MigrationComparator, strict: false, stop_requested: nil)
+    def self.call(website:, webpages:, url_results:, refresh_helper:, comparator: Distillator::MigrationComparator, strict: false, stop_requested: nil, progress: nil)
       artifacts = []
-      rows = webpages.map do |page|
+      rows = webpages.each_with_index.map do |page, index|
+        progress&.call(index, webpages.length)
         if stop_requested&.call
           next { url: page.url, status: "inconclusive", reason: "transition_check_timeout_budget_exceeded" }
         end
@@ -60,6 +61,7 @@ module Distillator
           { url: page.url, status: "passed", reason: "paired_statements_match" }
         end
       end
+      progress&.call(webpages.length, webpages.length)
       critical, optional = artifacts.reject do |entry|
         entry[:verdict] == MigrationComparator::MATCH ||
           [entry[:legacy_error], entry[:condenser_error]].compact.any? { |error| error.to_h["error_type"].to_s.include?("FetchUnsupported") }

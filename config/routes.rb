@@ -34,6 +34,8 @@ Rails.application.routes.draw do
     get "shadow_report/:id", to: "shadow_reports#show", as: :shadow_report_site
     resources :transition_checks, only: [:create, :show]
     resources :transition_exclusions, only: [:create, :update]
+    resources :transition_batches, only: [:index, :create, :show, :update]
+    resources :site_transitions, only: [:show]
 
     resources :cache, only: [:index, :show], controller: "cache" do
       collection do

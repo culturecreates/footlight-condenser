@@ -1,0 +1,18 @@
+<main class="transition-report">
+  <h1>Recent transitions</h1>
+  <p><%= link_to "Select event sites", websites_path %></p>
+  <table class="cache-table">
+    <thead><tr><th>Workflow</th><th>Started</th><th>Selection</th><th>Progress</th></tr></thead>
+    <tbody><% @batches.each do |batch| %>
+      <% counts = @counts.fetch(batch.id, {}) %>
+      <% total = counts.values.sum %>
+      <% item = @single_items[batch.id] %>
+      <tr><td><%= link_to(item ? item.website_name : "Group ##{batch.id} · #{total} sites",
+        item ? distillator_site_transition_path(item) : distillator_transition_batch_path(batch)) %></td>
+        <td><%= batch.created_at %></td><td><%= batch.selection_context %></td>
+        <td><%= total - counts.fetch("queued", 0) - counts.fetch("running", 0) %>/<%= total %> finished ·
+          <%= counts.fetch("passed", 0) %> passed · <%= counts.fetch("attention", 0) + counts.fetch("recovery_failed", 0) %> need attention</td></tr>
+    <% end %></tbody>
+  </table>
+  <%= will_paginate @batches %>
+</main>

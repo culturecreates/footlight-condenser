@@ -2,6 +2,7 @@
   <table class="cache-table website-index-table">
     <caption class="website-index-sr-only">Website modes, page counts, statement activity and last refresh. Open Details for settings and operations.</caption>
     <thead><tr>
+      <th scope="col">Transition</th>
       <th scope="col"><%= website_index_sortable("name", "Website", group: group) %></th>
       <th scope="col">Mode</th>
       <th scope="col" class="website-index-number"><%= website_index_sortable("webpages_count", "Pages", group: group) %></th>
@@ -15,6 +16,10 @@
       <% websites.each do |website| %>
         <% pages = @webpage_summaries.fetch(website.id, Distillator::WebsiteWebpageSummary.empty_summary) %>
         <tr class="website-index-row" data-website-id="<%= website.id %>">
+          <td><% if @transition_eligible_ids.include?(website.id) %>
+            <%= check_box_tag "website_ids[]", website.id, false, id: "website-transition-#{website.id}", form: "website-transition-batch",
+              data: { transition_site: true }, aria: { label: "Select for transition: #{website.name}" } %>
+          <% else %>—<% end %></td>
           <th scope="row" class="website-index-name">
             <div class="website-index-identity">
               <%= form_with url: preference_website_path(website), method: :patch, local: true, class: "website-index-preference" do %>
@@ -38,7 +43,7 @@
             <noscript><%= link_to "Details", website %></noscript>
           </td>
         </tr>
-        <tr id="website-details-<%= website.id %>" class="website-index-detail-row" hidden><td colspan="8">
+        <tr id="website-details-<%= website.id %>" class="website-index-detail-row" hidden><td colspan="9">
           <div class="website-index-detail-grid">
             <section aria-label="Website settings">
               <h2><%= website.name %></h2>

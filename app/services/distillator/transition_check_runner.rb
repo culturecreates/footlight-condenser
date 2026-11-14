@@ -68,7 +68,9 @@ module Distillator
       cache_compare: Distillator::CacheCompare,
       budget_seconds: nil,
       timeout_guard_seconds: TIMEOUT_GUARD_SECONDS,
-      clock: nil
+      clock: nil,
+      verify_active_path: false,
+      require_native_path: false
     )
       @transition_run = transition_run
       @check_options = transition_run ? transition_run.options : Distillator::TransitionCheckOptions.coerce(check_options)
@@ -87,6 +89,8 @@ module Distillator
       @clock = clock || -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
       @started_at = monotonic_now
       @representative_result_cache = {}
+      @verify_active_path = verify_active_path
+      @require_native_path = require_native_path || verify_active_path
     end
 
     def call
@@ -101,10 +105,12 @@ module Distillator
     def perform_checks
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       @phase_timings = {}
+      transition_run&.record_progress!("selection")
       check_args = { website: website, run_fetch: false }
       check_args[:check_options] = @check_options unless @check_options.default?
       transition_check = timed_phase("selection") { transition_check_service.call(**check_args) }
       representative_webpages = Array(transition_check.representative_webpages)
+      transition_run&.record_progress!("fetch", completed: 0, total: representative_webpages.length)
       representative_url_results = @representative_url_results = timed_phase("fetch") do
         collect_representative_url_results(representative_webpages, transition_check.comparison_policy)
       end
@@ -114,6 +120,7 @@ module Distillator
         statement_delta: timed_phase("statements") { record_statement_check(transition_check, representative_webpages, representative_url_results) },
         export_diff: timed_phase("export") { record_export_check(transition_check, representative_webpages, representative_url_results) }
       }
+      transition_run&.record_progress!("completed", completed: representative_webpages.length, total: representative_webpages.length)
       performance = performance_snapshot(records, started)
       records[:export_diff].update!(details: records[:export_diff].details.merge("performance" => performance))
       Rails.logger.info(event: "distillator.transition.performance", website_id: website.id, run_id: transition_run&.id, performance: performance)
@@ -164,6 +171,7 @@ module Distillator
     end
 
     def record_statement_check(transition_check, representative_webpages, representative_url_results)
+      transition_run&.record_progress!("statements", completed: 0, total: representative_webpages.length)
       latest_cache = representative_url_results.first&.dig(:cache) || transition_check.cache
       return record_missing_representatives(latest_cache, :statement_delta, transition_check) if representative_webpages.blank?
       if timeout_budget_exceeded?
@@ -172,7 +180,8 @@ module Distillator
       end
       parity = Distillator::StatementParityCheck.call(website: website, webpages: representative_webpages,
         url_results: representative_url_results, refresh_helper: refresh_helper, comparator: statement_comparator,
-        strict: @check_options.strict?, stop_requested: -> { timeout_budget_exceeded? })
+        strict: @check_options.strict?, stop_requested: -> { timeout_budget_exceeded? },
+        progress: ->(completed, total) { transition_run&.record_progress!("statements", completed: completed, total: total) })
       failing = parity.critical_failures + parity.optional_failures
       Distillator::TransitionEvidenceRecorder.call(
         website: website, transition_run: transition_run,
@@ -196,6 +205,7 @@ module Distillator
     end
 
     def record_export_check(transition_check, representative_webpages, representative_url_results)
+      transition_run&.record_progress!("export")
       latest_cache = representative_url_results.first&.dig(:cache) || transition_check.cache
       return record_missing_representatives(latest_cache, :export_diff, transition_check) if representative_webpages.blank?
       fetched_webpages, failed_fetch_results = partition_representative_webpages(representative_webpages, representative_url_results)
@@ -437,6 +447,7 @@ module Distillator
         selection_rule: transition_check.selection_rule,
         check_options: @check_options.to_h,
         fetch_basis: "fresh_both",
+        active_path_verification: @verify_active_path,
         fetch_attempted_webpage_count: Array(@representative_url_results).count { |row| row[:attempted_condenser_fetch] },
         sample_small: transition_check.selected_candidate_tier_count.to_i > representative_webpages.count
       }
@@ -448,11 +459,15 @@ module Distillator
 
       render_js = Statements::RefreshWebpageStatementsService.sources_for_webpage(webpage,
         default_language: website.default_language).any? { |source| source.selected? && source.render_js == true }
+      if @verify_active_path
+        resolution = FetchMode.rollout_resolution_object(website: website.reload)
+        raise "Active serving path is not Condenser" unless website.distillator_mode == "active" && resolution.active_backend == :condenser
+      end
       fetch_result = fetch_cache_store.fetch(
         uri: webpage.url,
         render_js: render_js,
         force_scrape: true,
-        mode: "internal",
+        mode: @verify_active_path ? nil : "internal",
         website: website,
         log_context: {
           source: "transition_check",
@@ -475,6 +490,8 @@ module Distillator
 
     def build_representative_url_result(webpage, fetch_result, comparison)
       fetch_status = fetch_result.cache_hit != true && fetch_result.transport_success? && fetch_result.content_success? ? "passed" : "failed"
+      active_path_failed = @require_native_path && (!fetch_result.respond_to?(:fetch_path) || fetch_result.fetch_path != "native")
+      fetch_status = "failed" if active_path_failed
       {
         url: webpage.url,
         webpage_id: webpage.id,
@@ -488,14 +505,15 @@ module Distillator
         stored_html: fetch_result.cache&.html.present?,
         stored_body_bytes: fetch_result.cache&.body.to_s.bytesize,
         fetch_status: fetch_status,
-        fetch_reason: fetch_status == "failed" ? fetch_failure_reason_from_result(fetch_result) : "ok",
+        fetch_reason: active_path_failed ? (@verify_active_path ? "active_path_did_not_use_condenser" : "native_fetch_not_established") : (fetch_status == "failed" ? fetch_failure_reason_from_result(fetch_result) : "ok"),
         condenser_error: fetch_status == "failed" ? recorded_fetch_error(fetch_result) : nil,
         comparison_performed: comparison.present?,
         legacy_source: comparison&.dig(:legacy_source),
         legacy_lookup_status: comparison&.dig(:legacy_lookup_status),
         legacy_lookup_error: comparison&.dig(:legacy_lookup_error),
         legacy_fetch: comparison&.dig(:legacy_fetch),
-        condenser_fetch: { attempted_at: fetch_result.cache&.scrape_date, cache_hit: fetch_result.cache_hit },
+        condenser_fetch: { attempted_at: fetch_result.cache&.scrape_date, cache_hit: fetch_result.cache_hit,
+          fetch_path: fetch_result.respond_to?(:fetch_path) ? fetch_result.fetch_path : nil, active_path_verification: @verify_active_path },
         condenser_source: comparison&.dig(:condenser_source),
         compare_missing: comparison&.dig(:missing),
         compare_summary: comparison&.dig(:summary),
@@ -512,6 +530,7 @@ module Distillator
         end
 
         collected << representative_url_result_for(webpage, comparison_policy)
+        transition_run&.record_progress!("fetch", completed: index + 1, total: representative_webpages.length)
       end
 
       collected

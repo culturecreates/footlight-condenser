@@ -118,7 +118,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     Nokogiri::HTML(@response.body).css('.website-index-table').each do |table|
-      assert_equal 8, table.css('thead th').length
+      assert_equal 9, table.css('thead th').length
     end
     assert_select '.website-index-row', count: Website.count
     assert_select 'tr.website-index-detail-row[hidden]', count: Website.count

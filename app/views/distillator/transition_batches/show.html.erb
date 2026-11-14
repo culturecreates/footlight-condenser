@@ -1,0 +1,9 @@
+<main class="transition-report" data-workflow-follow data-status-url="<%= distillator_transition_batch_path(@batch, format: :json) %>">
+  <h1>Event-site transition group #<%= @batch.id %></h1>
+  <p><%= @batch.selection_context.presence || "Selected event sites" %> · All eligible pages · Strict · Selected sources only</p>
+  <label>Show results <select data-workflow-filter><option value="all">All sites</option><option value="attention">Needs attention</option><option value="passed">Passed</option><option value="pending">Queued / running</option></select></label>
+  <div data-workflow-status><%= render "status" %></div>
+  <p data-workflow-poll-note aria-live="polite"></p>
+  <noscript><p><%= link_to "Refresh group status", distillator_transition_batch_path(@batch) %></p></noscript>
+  <p><%= link_to "Back to websites", websites_path %></p>
+</main>

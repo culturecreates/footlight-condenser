@@ -81,6 +81,39 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     end
   end
 
+  test "active verification uses website mode and rejects a legacy fallback despite HTTP success" do
+    website = build_website
+    website.update_column(:distillator_mode, "active")
+    cache = Distillator::FetchCache.find_by!(normalized_url: website.webpages.first.url)
+    %w[native legacy].each do |path|
+      fetcher = FakeFetchCacheStore.new(cache.normalized_url => Distillator::FetchCacheStore::Result.new(
+        cache: cache, cache_hit: false, body: cache.html, signals: { transport_success: true, content_success: true }, fetch_path: path))
+      result = Distillator::TransitionCheckRunner.call(website: website, verify_active_path: true,
+        fetch_cache_store: fetcher, cache_compare: fake_cache_compare_for(website),
+        export_service: FakeExportService.new(actual: '{}', expected: '{}'))
+      assert_nil fetcher.calls.first[:mode]
+      assert_equal true, fetcher.calls.first[:force_scrape]
+      row = result.records[:fetch_parity].details["representative_url_results"].first
+      assert_equal path == "native" ? "passed" : "failed", row["fetch_status"]
+      assert_equal "active_path_did_not_use_condenser", row["fetch_reason"] if path == "legacy"
+      assert_equal true, result.records[:fetch_parity].details["active_path_verification"]
+      assert_equal "completed", website.latest_transition_run.progress["phase"]
+    end
+  end
+
+  test "automated prechecks cannot certify two Wringer fallbacks as native parity" do
+    website = build_website
+    cache = Distillator::FetchCache.find_by!(normalized_url: website.webpages.first.url)
+    fetcher = FakeFetchCacheStore.new(cache.normalized_url => Distillator::FetchCacheStore::Result.new(
+      cache: cache, cache_hit: false, body: cache.html, signals: { transport_success: true, content_success: true }, fetch_path: "legacy"))
+    result = Distillator::TransitionCheckRunner.call(website: website, require_native_path: true,
+      fetch_cache_store: fetcher, cache_compare: fake_cache_compare_for(website),
+      export_service: FakeExportService.new(actual: '{}', expected: '{}'))
+    assert_equal "internal", fetcher.calls.first[:mode]
+    assert_equal "failed", result.records[:fetch_parity].status
+    assert_equal "native_fetch_not_established", result.records[:fetch_parity].details["representative_url_results"].first["fetch_reason"]
+  end
+
   test "creates checked statement and export evidence from real transition checks without changing rollout mode" do
     website = build_website(with_webpage: false)
     cache = create_cache(website, signals: { "transport_success" => true, "content_success" => true })

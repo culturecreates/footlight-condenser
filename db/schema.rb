@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_14_000100) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_14_000200) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -87,6 +87,49 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_14_000100) do
     t.index ["website_id"], name: "index_distillator_rollout_events_on_website_id"
   end
 
+  create_table "distillator_site_transitions", force: :cascade do |t|
+    t.bigint "batch_id", null: false
+    t.bigint "website_id"
+    t.bigint "pre_run_id"
+    t.bigint "post_run_id"
+    t.string "website_name", null: false
+    t.string "seedurl"
+    t.integer "position", null: false
+    t.string "status", default: "queued", null: false
+    t.string "phase", default: "queued", null: false
+    t.string "initial_mode", null: false
+    t.string "expected_mode", null: false
+    t.bigint "expected_event_id"
+    t.string "phase_token"
+    t.datetime "started_at"
+    t.datetime "phase_started_at"
+    t.datetime "deadline_at"
+    t.datetime "completed_at"
+    t.string "final_mode"
+    t.string "final_backend"
+    t.text "reason"
+    t.jsonb "phase_results", default: {}, null: false
+    t.integer "estimated_seconds"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["batch_id", "position"], name: "index_distillator_site_transitions_on_batch_id_and_position", unique: true
+    t.index ["batch_id"], name: "index_distillator_site_transitions_on_batch_id"
+    t.index ["post_run_id"], name: "index_distillator_site_transitions_on_post_run_id"
+    t.index ["pre_run_id"], name: "index_distillator_site_transitions_on_pre_run_id"
+    t.index ["website_id"], name: "index_distillator_site_transitions_on_website_id"
+    t.index ["website_id"], name: "one_active_site_transition", unique: true, where: "((status)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying])::text[]))"
+  end
+
+  create_table "distillator_transition_batches", force: :cascade do |t|
+    t.string "request_key", null: false
+    t.string "selection_context"
+    t.datetime "stopped_at"
+    t.jsonb "check_options", default: {"strictness" => "strict", "sample_mode" => "all"}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["request_key"], name: "index_distillator_transition_batches_on_request_key", unique: true
+  end
+
   create_table "distillator_transition_evidence", force: :cascade do |t|
     t.bigint "website_id", null: false
     t.string "url", null: false
@@ -146,6 +189,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_14_000100) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "check_options", default: {}, null: false
+    t.jsonb "progress", default: {}, null: false
     t.index ["website_id"], name: "index_distillator_transition_runs_on_website_id"
     t.index ["website_id"], name: "one_active_transition_run_per_website", unique: true, where: "((status)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying])::text[]))"
   end
@@ -261,6 +305,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_14_000100) do
   end
 
   add_foreign_key "distillator_rollout_events", "websites"
+  add_foreign_key "distillator_site_transitions", "distillator_transition_batches", column: "batch_id"
+  add_foreign_key "distillator_site_transitions", "distillator_transition_runs", column: "post_run_id", on_delete: :nullify
+  add_foreign_key "distillator_site_transitions", "distillator_transition_runs", column: "pre_run_id", on_delete: :nullify
+  add_foreign_key "distillator_site_transitions", "websites", on_delete: :nullify
   add_foreign_key "distillator_transition_evidence", "distillator_transition_runs", column: "transition_run_id"
   add_foreign_key "distillator_transition_evidence", "websites"
   add_foreign_key "distillator_transition_exclusions", "distillator_transition_runs", column: "source_run_id"

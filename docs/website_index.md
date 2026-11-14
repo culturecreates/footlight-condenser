@@ -1,6 +1,6 @@
 # Website overview
 
-The overview uses eight columns and the full available browser width. Rows keep
+The overview uses nine columns and the full available browser width. Rows keep
 names, counts, mode, 24-hour statement activity and last refresh on one line;
 smaller viewports can scroll the table horizontally. Sources are directly
 accessible. Details opens a separate inline row for identity, schedule, graph,
@@ -72,8 +72,23 @@ graph and seedurl filters, plus less common sorting keys, are available
 under More filters and sorting; active advanced filters stay open. Mode chips
 keep the other filters and sort direction. Cohort and mode filters compose
 before the result is grouped. Empty searches retain reset and sorting controls.
+`*` supports wildcard searches such as `culture*`; ordinary text remains a
+contains search. SQL wildcard characters are escaped unless expressed with `*`.
 
 All resource types count toward Pages and Publishable. Publishable is not a
 count of upcoming events. The detailed breakdown retains its scoped links.
 Summary statement totals are explicitly global; mode counts remain global too.
 The scheduling and staging rollout policies are unchanged.
+
+## Automated transition selection
+
+The Transition column is separate from Preferred. Select individual event sites
+or use Select all matching event sites, which includes collapsed Unscheduled
+rows but excludes templates, tests and entity-only sites. The action operates
+on the selected IDs, not on a fresh expansion of the filter after submission.
+
+**Validate and activate selected** runs the complete guarded transition workflow.
+One site opens its own report; multiple sites open a group report. Recent
+transitions provides paginated access to running and finished work. See
+`distillator_transition_workflows.md` for progress, timing, failure recovery and
+the required migration.

@@ -5,6 +5,7 @@ module Distillator
     STATUSES = %w[queued running completed failed].freeze
     class ConfigurationChanged < StandardError; end
     class OptionsConflict < StandardError; end
+    class WorkflowBusy < ArgumentError; end
     Request = Struct.new(:run, :created?, keyword_init: true)
 
     belongs_to :website
@@ -15,9 +16,13 @@ module Distillator
     scope :active, -> { where(status: %w[queued running]) }
     scope :completed, -> { where(status: "completed") }
 
-    def self.request!(website:, options: {})
+    def self.request!(website:, options: {}, workflow_item: nil)
       requested_options = Distillator::TransitionCheckOptions.coerce(options)
       website.with_lock do
+        owner = SiteTransition.active.find_by(website_id: website.id)
+        if owner && owner.id != workflow_item&.id
+          raise WorkflowBusy, "This website belongs to validation workflow ##{owner.id}. Follow that workflow before starting another check."
+        end
         current = active.find_by(website_id: website.id)
         if current && current.requested_at > Time.current - LEASE
           unless current.options.to_h == requested_options.to_h
@@ -35,6 +40,12 @@ module Distillator
 
     def options
       Distillator::TransitionCheckOptions.new(check_options)
+    end
+
+    def record_progress!(phase, completed: nil, total: nil)
+      self.class.where(id: id, status: "running").update_all(progress: {
+        phase: phase, completed: completed, total: total, updated_at: Time.current.iso8601(6)
+      }.compact)
     end
 
     def execute

@@ -1,0 +1,28 @@
+<% finished = @items.count(&:terminal?) %>
+<p aria-live="polite"><strong><%= finished %>/<%= @items.length %> sites finished</strong> ·
+  <%= @items.count { |item| item.status == "passed" } %> passed ·
+  <%= @items.count { |item| item.status.in?(%w[attention recovery_failed]) } %> need attention ·
+  <%= @items.count { |item| item.status == "cancelled" } %> stopped</p>
+<progress value="<%= finished %>" max="<%= [@items.length, 1].max %>" aria-label="Sites finished"></progress>
+<p class="transition-secondary"><%= workflow_estimate(@items) %></p>
+<% if @items.any? { |item| item.status == "queued" } %>
+  <%= button_to "Stop remaining sites", distillator_transition_batch_path(@batch), method: :patch, id: "workflow-stop-remaining" %>
+<% end %>
+<div class="website-index-table-scroll" role="region" aria-label="Group transition results" tabindex="0" data-workflow-scroll>
+  <table class="cache-table workflow-group-table">
+    <thead><tr><th>Site</th><th>Progress</th><th>Initial mode</th><th>Pre-check</th><th>Active check</th><th>Final state</th><th>Why / next action</th></tr></thead>
+    <tbody><% @items.each do |item| %>
+      <tr data-workflow-result="<%= item.status %>">
+        <th scope="row"><%= link_to item.website_name, distillator_site_transition_path(item) %></th>
+        <td><%= workflow_state_badge(item.status) %><br><%= workflow_phase_label(item) %><br><%= workflow_elapsed(item) %></td>
+        <td><%= item.initial_mode.humanize %></td>
+        <td><%= workflow_check_link(item, :pre) %></td>
+        <td><%= workflow_check_link(item, :post) %></td>
+        <td><%= item.final_mode&.humanize || (item.terminal? ? "Not run" : "Pending") %>
+          <% if item.final_backend %> · <%= item.final_backend.humanize %><% end %>
+          <% if item.website && item.website.distillator_mode != item.final_mode %><br>Current: <%= item.website.distillator_mode.humanize %><% end %></td>
+        <td><%= item.reason %><br><%= link_to "Site workflow report", distillator_site_transition_path(item) %></td>
+      </tr>
+    <% end %></tbody>
+  </table>
+</div>
