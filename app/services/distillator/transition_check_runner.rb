@@ -362,6 +362,7 @@ module Distillator
 
     def fetch_failure_reason_from_result(result)
       return "missing_condenser_attempt" unless result.present?
+      return "cached_response_rejected" if result.cache_hit == true
       return "empty_body" if truthy?(cache_signal(result.cache, :empty_body))
       return "captcha_detected" if captcha_result?(result)
       return missing_renderer_reason(result) if missing_renderer_reason(result).present?
@@ -370,6 +371,15 @@ module Distillator
         cache_signal(result.cache, :primary_issue_key).presence ||
         cache_signal(result.cache, :network_status).presence ||
         "cache_health_failed"
+    end
+
+    def recorded_fetch_error(result)
+      body = result.respond_to?(:body) ? result.body : nil
+      error = body.is_a?(Array) ? body.find { |item| item.is_a?(Hash) } : (body if body.is_a?(Hash))
+      error = result.fetch_error if result.respond_to?(:fetch_error) && result.fetch_error.present?
+      detail = error.to_h.with_indifferent_access
+      hints = result.respond_to?(:hints) ? Array(result.hints).grep(String) : []
+      ([detail[:error_type], detail[:error]] + hints).compact.map(&:to_s).reject(&:blank?).uniq.join("; ").presence
     end
 
     def cache_signal(cache, key)
@@ -477,6 +487,7 @@ module Distillator
         stored_body_bytes: fetch_result.cache&.body.to_s.bytesize,
         fetch_status: fetch_status,
         fetch_reason: fetch_status == "failed" ? fetch_failure_reason_from_result(fetch_result) : "ok",
+        condenser_error: fetch_status == "failed" ? recorded_fetch_error(fetch_result) : nil,
         comparison_performed: comparison.present?,
         legacy_source: comparison&.dig(:legacy_source),
         legacy_lookup_status: comparison&.dig(:legacy_lookup_status),

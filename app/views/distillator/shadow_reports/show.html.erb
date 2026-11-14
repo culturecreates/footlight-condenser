@@ -12,6 +12,9 @@
 <% shadow = @website.distillator_mode == "shadow" %>
 <% operation = @detail.operation_status %>
 <% completed_status = @detail.completed_transition_status %>
+<% fetches = @detail.fetch_summary %>
+<% fetch_incomplete = fetches.issues.any? && completed_status && completed_status.statements != :failed && completed_status.export != :failed %>
+<% fetch_next_action = @detail.pending_transition_batch_check ? "Follow the running check and wait for its completed result." : fetches.issues.first&.dig(:action) %>
 
 <section id="transition-report-summary" class="website-rollout-panel">
   <h2>Summary</h2>
@@ -33,17 +36,19 @@
     <p><strong><%= shadow_report_decision_label(@detail.decision) %></strong></p>
   <% else %>
     <p><strong>Decision:</strong> <%= shadow_report_decision_label(@detail.decision) %></p>
-    <% if @detail.transition_status.blockers.any? %>
+    <% if fetch_incomplete %>
+      <p><strong>Primary blocker:</strong> Fresh HTML is unavailable for <%= fetches.issues.map { |issue| issue[:url] }.uniq.length %> of <%= fetches.selected %> selected URLs. See the affected URL and backend below.</p>
+    <% elsif @detail.transition_status.blockers.any? %>
       <p><strong>Primary blocker:</strong> <%= @detail.transition_status.blockers.first %></p>
     <% end %>
   <% end %>
   <% if @detail.completed_transition_run_id %>
-    <p><strong>Completed transition run:</strong> #<%= @detail.completed_transition_run_id %></p>
-    <p><strong><%= @report_run ? "Completed at" : "Latest completed evidence" %>:</strong> <%= shadow_report_timestamp(@detail.latest_transition_evidence_checked_at) %></p>
+    <p><strong>Completed transition run:</strong> #<%= @detail.completed_transition_run_id %> ·
+    <strong><%= @report_run ? "Completed at" : "Latest completed evidence" %>:</strong> <%= shadow_report_timestamp(@detail.latest_transition_evidence_checked_at) %> ·
     <% completed_options = operation.completed_run.options %>
-    <p><strong>Data field comparison:</strong>
+    <strong>Data field comparison:</strong>
       <span title="<%= completed_options.field_policy_label %>"><%= completed_options.strictness.humanize %></span></p>
-    <p><strong>Snapshot policy:</strong> <%= @detail.checked_scope[:fetch_basis] == "fresh_both" ? "Fresh requests to Wringer and Condenser; no fallback to older HTML." : "Older run: fresh requests to both backends were not established. Run a new check." %></p>
+    <p><strong>Snapshot policy:</strong> <%= @detail.checked_scope[:fetch_basis] == "fresh_both" ? "Both backends must return fresh HTML; older cached HTML is rejected." : "Older run: fresh requests to both backends were not established. Run a new check." %></p>
   <% else %>
     <p>No completed comparison recorded.</p>
   <% end %>
@@ -61,6 +66,42 @@
       <% if @detail.completed_transition_run_id %><p>Results below remain from completed run #<%= @detail.completed_transition_run_id %>.</p><% end %>
     <% end %>
   </div>
+  <% if fetches.selected.positive? %>
+    <div id="transition-fetch-coverage">
+      <p><strong>Condenser:</strong> <%= fetches.condenser_succeeded.nil? ? "Success count not recorded" : "#{fetches.condenser_succeeded}/#{fetches.selected} successful" %>;
+        <%= fetches.attempted.nil? ? "attempt count not recorded" : "#{fetches.attempted} attempted" %>.
+        <strong>Wringer:</strong> <%= fetches.wringer_available.nil? ? "Availability not recorded" : "#{fetches.wringer_available}/#{fetches.selected} #{fetches.fresh ? 'fresh results available' : 'snapshots available'}" %>.</p>
+      <% unless fetches.paired.nil? %><p><strong>Both snapshots available:</strong> <%= fetches.paired %>/<%= fetches.selected %>.
+        <% unless fetches.compared.nil? %><strong>Pages compared:</strong> <%= fetches.compared %>/<%= fetches.selected %>.<% end %></p><% end %>
+    </div>
+  <% end %>
+  <% if fetches.issues.any? %>
+    <section id="transition-fetch-issues" aria-label="Fetch failures in the completed run">
+      <h3>Fetch needs attention · run #<%= @detail.completed_transition_run_id %></h3>
+      <table class="cache-table cache-compare-table">
+        <thead><tr><th scope="col">Affected URL</th><th scope="col">Backend</th><th scope="col">What happened</th><th scope="col">Inspect</th></tr></thead>
+        <tbody>
+          <% fetches.issues.each do |issue| %>
+            <tr>
+              <td><%= issue[:url].present? ? external_website_link(issue[:url], max: 180) : "URL not recorded" %></td>
+              <td><%= issue[:backend] %></td>
+              <td><% if issue[:http_code].present? %><strong>HTTP <%= issue[:http_code] %>.</strong> <% end %><%= issue[:reason] %></td>
+              <td><%= shadow_report_fetch_issue_link(issue, @website) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+      <% if fetch_incomplete %><p>Statement comparison is incomplete because a fresh snapshot pair is missing. This does not by itself establish an extraction difference.</p><% end %>
+      <% unless @historical_run %>
+        <% if @detail.pending_transition_batch_check %>
+          <p><%= link_to "Follow the running check", distillator_transition_check_path(@detail.transition_run_id) %></p>
+        <% elsif operation.completed_run %>
+          <%= button_to "Retry transition check", distillator_transition_checks_path, method: :post,
+                params: { website_id: @website.id, check_options: operation.completed_run.options.to_h }, form: { id: "retry-completed-transition-check" } %>
+        <% end %>
+      <% end %>
+    </section>
+  <% end %>
   <% if !shadow || @historical_run %>
     <h3><%= @report_run ? "Completed comparison" : "Latest completed comparison" %></h3>
     <p><strong><%= shadow_report_completed_comparison_label(@detail) %></strong></p>
@@ -81,16 +122,16 @@
       </li>
     <% end %>
   </ul>
-  <% unless @historical_run %><p><strong>Next step:</strong> <%= @detail.decision[:recommended_action] %></p><% end %>
-  <p><strong>Links:</strong>
+  <% unless @historical_run %><p><strong>Next step:</strong> <%= shadow && fetch_incomplete ? fetch_next_action : @detail.decision[:recommended_action] %></p><% end %>
+  <% if fetches.issues.empty? %><p><strong>Links:</strong>
     <%= link_to "Website batch jobs", website_path(@website, anchor: "website-batch-jobs-transition") %> |
     <%= link_to "Inspect publishable event pages", website_publishable_event_pages_path(@website) %> |
     <%= link_to "Open cache diagnostics", website_cache_diagnostics_path(@website) %>
-  </p>
+  </p><% end %>
 </section>
 
 
-<% if @detail.primary_blocker.present? || shadow_report_statement_failure_groups(@detail, severity: :blocker).any? || shadow_report_statement_failure_groups(@detail, severity: :warning).any? %>
+<% if (!fetch_incomplete && @detail.primary_blocker.present?) || shadow_report_statement_failure_groups(@detail, severity: :blocker).any? || shadow_report_statement_failure_groups(@detail, severity: :warning).any? %>
   <section class="website-rollout-panel">
     <h2><%= shadow ? "Main blocker" : "Findings in completed comparison" %></h2>
     <p><strong><%= shadow_report_primary_blocker_heading(@detail.primary_blocker) %></strong></p>

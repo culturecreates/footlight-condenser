@@ -311,8 +311,7 @@ module Distillator::ShadowReportsHelper
 
     compared = scope[:compared_webpage_count]
     if !compared.nil? && compared < sampled_count
-      total = publishable_count.positive? ? publishable_count : scope[:candidate_webpage_count].to_i
-      lines << "Compared #{compared} of #{total} pages; selected #{sampled_count}, fetched #{scope[:fetch_attempted_webpage_count].to_i}."
+      lines << "Compared #{compared} of #{sampled_count} selected pages. Condenser fetch attempts: #{scope[:fetch_attempted_webpage_count].nil? ? 'not recorded' : scope[:fetch_attempted_webpage_count]}."
     elsif publishable_count.positive?
       lines << "Checked #{sampled_count} of #{publishable_count} publishable event pages."
     else
@@ -346,6 +345,16 @@ module Distillator::ShadowReportsHelper
     basis = scope[:export_basis] == "current export vs production-equivalent export" ? "Serializer compatibility using stored data in this environment" : scope[:export_basis]
     lines << "Export basis: #{basis}"
     lines
+  end
+
+  def shadow_report_fetch_issue_link(issue, website)
+    return unless issue[:url].to_s.match?(/\Ahttps?:\/\//) && issue[:backend].in?(%w[Condenser Wringer])
+
+    links = active_cache_links_for(issue[:url], website: website)
+    key = issue[:backend] == "Condenser" ? :distillator_cache_url : :legacy_cache_url
+    link_to "Inspect #{issue[:backend]}", links[key] if links[key].present?
+  rescue URI::InvalidURIError, Addressable::URI::InvalidURIError
+    nil
   end
 
   def shadow_report_scope_warning(scope)

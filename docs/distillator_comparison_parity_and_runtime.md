@@ -1,5 +1,32 @@
 # Transition comparison: data, reliability and diagnostics
 
+## Actionable fetch failures
+
+The report distinguishes Condenser request attempts from successful retrievals,
+available Wringer snapshots, complete snapshot pairs and pages actually compared.
+Counts come from the completed run's per-URL evidence. A missing per-URL count
+is shown as not recorded, never inferred as success from a current cache row.
+The old scope wording `fetched N` has been replaced with `Condenser fetch attempts`.
+
+Failed retrievals appear above collapsed diagnostics in an open table with the
+affected URL, backend, recorded HTTP status, error and a backend-specific inspection
+link. Failed URLs and request-budget exhaustion are different cases: the latter
+is attributed to the transition check, not a failed server. Incomplete statement
+coverage is explained as a consequence of the missing snapshot pair. Known actual
+statement/export failures still retain priority and remain visible.
+
+Retry transition check submits a new batch job with the completed run's immutable
+sample/strictness options; both backends fetch afresh. If another run is already
+pending, the report links to it instead. Historical reports show their findings
+without offering a retry as current guidance. No automatic retry or GET-triggered
+refresh is introduced, and activation safety criteria are unchanged.
+
+For future checks, `FetchCacheStore::Result#fetch_error` preserves the failed
+attempt's structured error separately from any last-good operational body. The
+runner records that error in the per-URL evidence. Existing runs can display only
+what was recorded at the time; the report never uses today's cache to invent the
+cause of an older failure. No additional database migration is needed.
+
 ## Selected source scope
 
 Standard and Strict compare website-selected sources only (`Source.selected?`),

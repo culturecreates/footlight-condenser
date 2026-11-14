@@ -42,6 +42,21 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     end
   end
 
+  test "records current fetch error even when a last good body remains in the operational cache" do
+    website = build_website
+    cache = Distillator::FetchCache.find_by!(normalized_url: website.webpages.first.url)
+    cache.update!(signals: { "network_status" => "failed", "transport_success" => false, "content_success" => false })
+    failure = Distillator::FetchCacheStore::Result.new(cache: cache, cache_hit: false, body: cache.html,
+      signals: cache.signals, fetch_error: { error_type: "TimeoutError", error: "Connection timed out" }, hints: ["timeout"])
+    result = Distillator::TransitionCheckRunner.call(website: website,
+      fetch_cache_store: FakeFetchCacheStore.new(cache.normalized_url => failure),
+      cache_compare: fake_cache_compare_for(website), export_service: FakeExportService.new(actual: '{}', expected: '{}'))
+    row = result.records[:fetch_parity].details["representative_url_results"].first
+    assert_equal "failed", row["fetch_status"]
+    assert_includes row["condenser_error"], "TimeoutError"
+    assert_includes row["condenser_error"], "Connection timed out"
+  end
+
   class FakeFetchCacheStore
     def initialize(results_by_url)
       @results_by_url = results_by_url
@@ -688,7 +703,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal 1, detail.checked_scope[:representative_webpage_count]
     assert_equal 0, detail.checked_scope[:fetch_attempted_webpage_count]
     assert_equal 0, detail.checked_scope[:compared_webpage_count]
-    assert_includes ApplicationController.helpers.shadow_report_scope_lines(detail.checked_scope), "Compared 0 of 1 pages; selected 1, fetched 0."
+    assert_includes ApplicationController.helpers.shadow_report_scope_lines(detail.checked_scope), "Compared 0 of 1 selected pages. Condenser fetch attempts: 0."
     assert_equal :failed, detail.transition_status.fetch
     assert_not detail.transition_status.review_activation_eligible
   end

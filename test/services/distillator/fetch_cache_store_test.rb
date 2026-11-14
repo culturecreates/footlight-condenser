@@ -377,6 +377,8 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
     assert_includes result.hints, "timeout"
     assert_includes result.hints, "last_good_preserved_failure"
     assert_equal "Last Good", cache.name
+    assert_equal "TimeoutError", result.fetch_error[:error_type]
+    assert_equal "execution expired", result.fetch_error[:error]
   end
 
   test "blocked abort preserves last good html body and successful_refresh while updating blocked metadata" do

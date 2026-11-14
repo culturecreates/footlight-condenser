@@ -19,6 +19,7 @@ module Distillator
       :url_matrix,
       :root_cause,
       :checked_scope,
+      :fetch_summary,
       :decision,
       :rollout_notes,
       :recent_rollout_events,
@@ -55,6 +56,7 @@ module Distillator
         url_matrix: url_matrix,
         root_cause: root_cause,
         checked_scope: checked_scope,
+        fetch_summary: fetch_summary,
         decision: decision,
         rollout_notes: rollout_notes,
         recent_rollout_events: website.rollout_events.order(created_at: :desc, id: :desc).limit(5)
@@ -157,6 +159,12 @@ module Distillator
       end
     end
 
+    def fetch_summary
+      @fetch_summary ||= Distillator::TransitionFetchSummary.call(
+        fetch_details: transition_evidence_by_kind["fetch_parity"]&.details,
+        statement_details: transition_evidence_by_kind["statement_delta"]&.details)
+    end
+
     def url_matrix
       @url_matrix ||= begin
         fetch_rows = Array(transition_evidence_by_kind["fetch_parity"]&.details.to_h&.[]("representative_url_results") ||
@@ -193,6 +201,14 @@ module Distillator
 
     def root_cause
       @root_cause ||= begin
+        data_failure = primary_blocker&.state == "failed" && primary_blocker.key.in?(%w[statement_delta export_diff])
+        if fetch_summary.issues.any? && !data_failure
+          issue = fetch_summary.issues.first
+          return @root_cause = { failed_layer: { "Condenser" => "fetch", "Wringer" => "legacy lookup" }.fetch(issue[:backend], "check runtime"),
+            concrete_reason: "#{issue[:backend]}: #{issue[:reason]}",
+            affected_url_count: fetch_summary.issues.map { |item| item[:url] }.uniq.length,
+            next_operator_action: issue[:action] }
+        end
         fetch_rows = url_matrix.select do |row|
           row[:fetch_reason].present? &&
             row[:fetch_reason] != "ok" &&
@@ -248,7 +264,12 @@ module Distillator
     end
 
     def primary_blocker
-      @primary_blocker ||= transition_evidence_explanations.find { |explanation| explanation.severity == "blocker" && explanation.state != "passed" }
+      @primary_blocker ||= begin
+        explanations = transition_evidence_explanations
+        data_failure = explanations.find { |item| item.key.in?(%w[statement_delta export_diff]) && item.state == "failed" }
+        fetch_failure = explanations.find { |item| item.key == "fetch_parity" } if fetch_summary.issues.any?
+        data_failure || fetch_failure || explanations.find { |item| item.severity == "blocker" && item.state != "passed" }
+      end
     end
 
     def affected_evidence_url_count(kind, results_key)

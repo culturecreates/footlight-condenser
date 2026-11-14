@@ -1,6 +1,67 @@
 require "test_helper"
 
 class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
+  test "partial fresh retrieval shows the failing URL and backend above collapsed diagnostics with truthful counts" do
+    website, run, failed_url = completed_partial_fetch_report(backend: "Condenser")
+    assert_read_only_page_does_not_fetch
+    get distillator_shadow_report_site_path(website)
+    assert_response :success
+    assert_select '#transition-fetch-issues', count: 1 do
+      assert_select 'td', text: failed_url
+      assert_select 'td', text: "Condenser"
+      assert_select 'td', text: /HTTP 503.*Service unavailable/
+      assert_select 'form[action="/distillator/transition_checks"] input[name="check_options[sample_mode]"][value="all"]', count: 1
+      assert_select 'form input[name="check_options[strictness]"][value="strict"]', count: 1
+    end
+    coverage = Nokogiri::HTML(@response.body).at_css('#transition-fetch-coverage').text.squish
+    assert_includes coverage, "8/9 successful; 9 attempted"
+    assert_includes coverage, "Wringer: 9/9 fresh results available"
+    assert_includes coverage, "Both snapshots available: 8/9"
+    assert_includes coverage, "Pages compared: 8/9"
+    assert_no_match /selected 9, fetched 9/, @response.body
+    assert_operator @response.body.index('id="transition-fetch-issues"'), :<, @response.body.index('id="transition-url-diagnostics"')
+    assert_select '#transition-fetch-issues details', count: 0
+    assert_select '#transition-url-diagnostics:not([open])', count: 1
+    detail = Distillator::ShadowSiteDetail.call(website: website)
+    assert_equal "fetch_parity", detail.primary_blocker.key
+    assert_equal "fetch", detail.root_cause[:failed_layer]
+    assert_equal "shadow", website.reload.distillator_mode
+    assert_equal run.id, detail.completed_transition_run_id
+  end
+
+  test "missing Wringer snapshot identifies Wringer rather than asking for a Condenser refresh" do
+    website, _, failed_url = completed_partial_fetch_report(backend: "Wringer")
+    get distillator_shadow_report_site_path(website)
+    assert_response :success
+    assert_select '#transition-fetch-issues td', text: failed_url
+    assert_select '#transition-fetch-issues td', text: "Wringer"
+    assert_select '#transition-fetch-issues td', text: /Wringer timed out/
+    coverage = Nokogiri::HTML(@response.body).at_css('#transition-fetch-coverage').text.squish
+    assert_includes coverage, "9/9 successful; 9 attempted"
+    assert_includes coverage, "Wringer: 8/9 fresh results available"
+    assert_equal "legacy lookup", Distillator::ShadowSiteDetail.call(website: website).root_cause[:failed_layer]
+  end
+
+  test "a pending run offers follow instead of another retry for the previous failed comparison" do
+    website, _, failed_url = completed_partial_fetch_report(backend: "Condenser")
+    pending = Distillator::TransitionRun.request!(website: website).run
+    get distillator_shadow_report_site_path(website)
+    assert_response :success
+    assert_select '#transition-fetch-issues td', text: failed_url
+    assert_select '#retry-completed-transition-check', count: 0
+    assert_select "#transition-fetch-issues a[href='#{distillator_transition_check_path(pending)}']", text: "Follow the running check"
+    assert_includes @response.body, "Follow the running check and wait for its completed result."
+  end
+
+  test "historical fetch failures retain their URL without current retry guidance" do
+    website, historical, failed_url = completed_partial_fetch_report(backend: "Condenser")
+    publish_transition_fixture(website)
+    get distillator_shadow_report_site_path(website), params: { run_id: historical.id }
+    assert_response :success
+    assert_select '#historical-transition-run', count: 1
+    assert_select '#transition-fetch-issues td', text: failed_url
+    assert_select '#retry-completed-transition-check', count: 0
+  end
   test "shadow report renders successfully without fetching" do
     create_shadow_website(name: "Shadow alpha", seedurl: "shadow-alpha")
     create_regular_website(name: "Legacy alpha", seedurl: "legacy-alpha", mode: "legacy")
@@ -1118,8 +1179,9 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
-    assert_match "Failed layer: fetch", @response.body
-    assert_match "Reason: Cache health failed", @response.body
+    assert_select '#transition-fetch-issues td', text: "Condenser"
+    assert_select '#transition-fetch-issues td', text: url_three
+    assert_select '#transition-fetch-issues td', text: /detailed error was not recorded/
     assert_match "Statement equivalence", @response.body
     assert_match "Fetch diagnostic", @response.body
     assert_match "Fetch diagnostic", @response.body
@@ -1269,8 +1331,9 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
-    assert_match "Failed layer: fetch", @response.body
-    assert_match "Reason: Transition check timeout budget exceeded", @response.body
+    assert_select '#transition-fetch-issues td', text: "Transition check"
+    assert_select '#transition-fetch-issues td', text: url_two
+    assert_select '#transition-fetch-issues td', text: /Runtime budget reached/
     assert_match "Statement equivalence", @response.body
     assert_match "Fetch diagnostic", @response.body
     assert_match "Fetch diagnostic", @response.body
@@ -1560,6 +1623,30 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def completed_partial_fetch_report(backend:)
+    website = create_shadow_website(name: "Fresh paired coverage #{backend}", seedurl: "fresh-paired-#{backend.downcase}")
+    urls = 9.times.map { |id| "https://example.org/#{backend.downcase}/event/#{id}" }
+    create_cache_for(website, url: urls.first)
+    rows = urls.map { |url| { url: url, attempted_condenser_fetch: true, fetch_status: "passed", fetch_reason: "ok",
+      legacy_lookup_status: "ok", comparison_status: "passed", compare_missing: { legacy: false, condenser: false } } }
+    if backend == "Condenser"
+      rows[2].merge!(fetch_status: "failed", fetch_reason: "cache_health_failed", condenser_error: "Service unavailable", http_response_code: 503)
+    else
+      rows[2].merge!(legacy_lookup_status: "unreachable", legacy_lookup_error: "Fresh Wringer timed out", comparison_status: "missing", compare_missing: { legacy: true })
+    end
+    scope = { representative_webpages: urls, representative_webpage_count: 9, publishable_event_page_count: 9 }
+    website.transition_evidences.create!(check_kind: "fetch_parity", url: urls.first, status: "failed", checked_at: Time.current,
+      details: scope.merge(fetch_basis: "fresh_both", fetch_attempted_webpage_count: 9, representative_url_results: rows, reason: backend == "Condenser" ? "cache_health_failed" : "legacy_lookup_unreachable"))
+    website.transition_evidences.create!(check_kind: "statement_delta", url: urls.first, status: "pending", checked_at: Time.current,
+      details: scope.merge(reason: "partial_fetch_failed_before_statement_refresh", compared_webpage_count: 8, comparison_basis: "paired_dsl",
+        representative_url_statement_results: urls.each_with_index.map { |url, id| { url: url, status: id == 2 ? "blocked_by_fetch" : "passed" } }))
+    website.transition_evidences.create!(check_kind: "export_diff", url: urls.first, status: "pending", checked_at: Time.current,
+      details: scope.merge(reason: "partial_fetch_failed_before_export_comparison"))
+    run = publish_transition_fixture(website)
+    run.update_column(:check_options, { sample_mode: "all", strictness: "strict" })
+    [website, run, urls[2]]
+  end
 
   def create_shadow_website(name:, seedurl:)
     create_regular_website(name: name, seedurl: seedurl, mode: "shadow")

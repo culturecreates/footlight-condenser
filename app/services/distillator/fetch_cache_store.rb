@@ -32,6 +32,7 @@ module Distillator
       :name,
       :scrape_date,
       :successful_refresh,
+      :fetch_error,
       :cache,
       keyword_init: true
     ) do
@@ -271,8 +272,17 @@ module Distillator
         name: cache&.name,
         scrape_date: cache&.scrape_date,
         successful_refresh: cache&.successful_refresh,
+        fetch_error: fetch_error_detail(fetch_result),
         cache: cache
       )
+    end
+
+    def fetch_error_detail(fetch_result)
+      return unless fetch_result && fetch_result[:status] != :ok
+
+      body = fetch_result[:body]
+      error = body.is_a?(Array) ? body.find { |item| item.is_a?(Hash) } : (body if body.is_a?(Hash))
+      error.to_h.with_indifferent_access.slice(:error, :error_type, :source).presence
     end
 
     def write_fetch_result(cache, key, fetch_result)
