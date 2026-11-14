@@ -71,6 +71,14 @@ module Distillator
       detail.summary.website.distillator_mode
     end
 
+    def configuration_changed?
+      detail.transition_status.blockers.include?("Source configuration changed since the last check. Run a new check.")
+    end
+
+    def no_eligible_pages?
+      detail.checked_scope[:transition_exclusions].present? && detail.checked_scope[:representative_webpage_count].to_i.zero?
+    end
+
     def decision_title
       return "Historical comparison: #{comparison_label}" if historical
       return "Active on Condenser" if mode == "active"
@@ -78,11 +86,15 @@ module Distillator
       return "Check in progress — stay in Shadow" if detail.pending_transition_batch_check
       return "Latest check failed — stay in Shadow" if detail.transition_run_status == "failed"
       return "Run checks before activating" unless completed_status
+      return "Scope or configuration changed — run a new check" if configuration_changed?
+      return "No eligible pages remain — stay in Shadow" if no_eligible_pages?
       return "Blocked — stay in Shadow" if blocked_fields?
       return "Incomplete evidence — stay in Shadow" if incomplete?
       return "Blocked — stay in Shadow" if detail.transition_status.status == :blocked
       return "Review before activating" if detail.transition_status.status == :review
-      return "Ready to activate" if detail.transition_status.status == :ready
+      if detail.transition_status.status == :ready
+        return detail.checked_scope[:transition_exclusions].present? ? "Ready to activate — with reviewed exclusions" : "Ready to activate"
+      end
 
       "Run checks before activating"
     end
@@ -91,6 +103,7 @@ module Distillator
       return "neutral" if historical || mode != "shadow"
       return "running" if detail.pending_transition_batch_check
       return "neutral" unless completed_status || detail.transition_run_status == "failed"
+      return "review" if configuration_changed?
       return "failed" if detail.transition_run_status == "failed" || blocked_fields?
       return "review" if incomplete?
 
@@ -117,6 +130,8 @@ module Distillator
       end
       return detail.transition_run_error if detail.transition_run_status == "failed"
       return "Run a fresh comparison before considering activation." unless completed_status
+      return "The completed comparison is unchanged. A new check must verify the current scope and configuration." if configuration_changed?
+      return "All eligible candidates were excluded after review. An empty comparison cannot establish parity." if no_eligible_pages?
       return "Selected-field or export failures were recorded. Inspect the evidence below." if blocked_fields?
       if detail.fetch_summary.issues.any?
         count = detail.fetch_summary.issues.map { |issue| issue[:url] }.uniq.length
@@ -131,6 +146,8 @@ module Distillator
       return "Follow the running check and wait for its completed result." if detail.pending_transition_batch_check
       return detail.decision[:recommended_action] if mode != "shadow"
       return "Inspect the failed attempt, then run a new check." if detail.transition_run_status == "failed"
+      return "Run a new check with the reviewed exclusions applied to its scope." if configuration_changed?
+      return "Restore at least one URL to transition scope before running another check." if no_eligible_pages?
       return "Compare the recorded values and errors below, then fix the affected selected sources." if field_findings.any?
       return detail.fetch_summary.issues.first[:action] if detail.fetch_summary.issues.any?
 

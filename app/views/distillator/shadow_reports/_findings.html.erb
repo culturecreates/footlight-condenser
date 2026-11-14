@@ -1,6 +1,25 @@
 <% if fetches.issues.any? %>
   <section id="transition-fetch-issues" aria-label="Fetch failures in the completed run">
     <h2>Fresh retrieval failures · run #<%= @detail.completed_transition_run_id %></h2>
+    <% @exclusion_candidates.each_with_index do |row, index| %>
+      <div class="transition-source-unavailable">
+        <p><strong>Source unavailable on both backends — not compared.</strong>
+          <%= external_website_link(row[:url], max: 180) %></p>
+        <p>Both fresh requests returned HTTP 404/410. This is not, by itself, evidence of a Condenser regression.</p>
+        <details>
+          <summary>Exclude this URL from transition checks</summary>
+          <p>Confirm that the source was removed rather than moved to another URL. Record why it can be excluded. A new check is required afterward.</p>
+          <%= form_with url: distillator_transition_exclusions_path, method: :post, local: true, class: "transition-review-form" do |form| %>
+            <%= form.hidden_field :website_id, value: @website.id %>
+            <%= form.hidden_field :source_run_id, value: @detail.completed_transition_run_id %>
+            <%= form.hidden_field :url, value: row[:url] %>
+            <%= form.label :reason, "Reason for exclusion", for: "exclude-url-#{index}" %>
+            <%= form.text_area :reason, id: "exclude-url-#{index}", required: true, maxlength: 2000, rows: 2 %>
+            <%= form.submit "Record reviewed exclusion" %>
+          <% end %>
+        </details>
+      </div>
+    <% end %>
     <table class="cache-table transition-issues-table">
       <thead><tr><th scope="col">Affected URL</th><th scope="col">Backend</th><th scope="col">What happened</th><th scope="col">Recorded evidence</th></tr></thead>
       <tbody>
@@ -19,7 +38,7 @@
     <% unless @historical_run %>
       <% if @detail.pending_transition_batch_check %>
         <p><%= link_to "Follow the running check", distillator_transition_check_path(@detail.transition_run_id) %></p>
-      <% elsif operation.completed_run %>
+      <% elsif operation.completed_run && !@presentation.configuration_changed? %>
         <%= button_to "Retry transition check", distillator_transition_checks_path, method: :post,
               params: { website_id: @website.id, check_options: operation.completed_run.options.to_h }, form: { id: "retry-completed-transition-check" } %>
       <% end %>

@@ -12,6 +12,8 @@ module Distillator
         Property.where(id: website.sources.select(:property_id)).order(:id).pluck(*Property.column_names),
         RdfsClass.order(:id).pluck(:id, :name),
         website.webpages.order(:id).pluck(*Webpage.column_names)]
+      exclusions = website.transition_exclusions.active.order(:id).pluck(:id, :url, :reason, :source_run_id, :created_at)
+      inputs << ["reviewed_transition_exclusions_v1", exclusions] if exclusions.any?
       Digest::SHA256.hexdigest(JSON.generate(inputs))
     end
   end

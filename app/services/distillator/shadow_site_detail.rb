@@ -135,6 +135,8 @@ module Distillator
           representative_webpage_count: representative_count,
           candidate_webpage_count: candidate_count,
           publishable_event_page_count: publishable_count,
+          original_publishable_event_page_count: integer_detail(fetch_details, "original_publishable_event_page_count"),
+          transition_exclusions: Array(fetch_details["transition_exclusions"]),
           representative_webpages: representative_urls,
           selection_rule: statement_details["selection_rule"] || export_details["selection_rule"] || fetch_details["selection_rule"] || Distillator::TransitionCheck::SELECTION_RULE,
           selected_candidate_tier_count: (statement_details["selected_candidate_tier_count"] || export_details["selected_candidate_tier_count"] || fetch_details["selected_candidate_tier_count"]).to_i,
@@ -153,7 +155,7 @@ module Distillator
             statement_details["sample_small"] == true ||
             export_details["sample_small"] == true ||
             fetch_details["sample_small"] == true ||
-            (publishable_count.positive? ? publishable_count : candidate_count) > representative_count
+            (integer_detail(fetch_details, "selected_candidate_tier_count") || (publishable_count.positive? ? publishable_count : candidate_count)) > representative_count
           )
         }
       end

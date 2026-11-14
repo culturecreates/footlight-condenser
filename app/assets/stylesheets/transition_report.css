@@ -47,6 +47,10 @@
 .transition-values pre, .transition-recorded-json { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
 .transition-extraction-error { color: #aa293a; }
 .transition-report .transition-observation { background: #fff0f1; border-color: #aa293a; }
+.transition-source-unavailable, .transition-reviewed-exclusion { border-left: 3px solid #815100; padding: 0.5rem 1rem; margin: 1rem 0; background: #fff6df; }
+.transition-review-form { display: grid; gap: 0.5rem; max-width: 45rem; }
+.transition-review-form textarea { width: 100%; box-sizing: border-box; font: inherit; }
+.transition-review-form input[type="submit"] { justify-self: start; padding: 0.5rem 0.75rem; }
 
 @media (max-width: 700px) {
   .transition-check-results > li { flex-direction: column; gap: 0.4rem; }

@@ -52,7 +52,8 @@ cache is labeled as a Condenser cache, never a failed cache. Active-cache links 
 the resolved backend. The read-only paired check shows source comparisons rather
 than a misleading zero statement-refresh count.
 
-No database migration is required.
+The report layout itself requires no migration. Reviewed URL exclusions add the
+table described below.
 
 ## Report layout and evidence links
 
@@ -91,3 +92,45 @@ Timing, all-URL diagnostics, scope and audit details are closed by default.
 The layout expands with the browser width; long values wrap and paired values
 stack on smaller screens. Existing activation and rollback services remain the
 authority for state changes; the presentation layer cannot activate a website.
+
+## Reviewed URL exclusions
+
+When the latest completed fresh check records **source HTTP 404 or 410 on both
+backends**, its report offers **Exclude this URL from transition checks**. The
+operator confirms that the URL was removed rather than moved and records a reason.
+This does not mean the event was cancelled and does not delete/archive its data.
+
+The review records the website, exact URL, reason, time, supporting run and the
+recorded per-URL evidence. A Wringer API endpoint error, timeout, one-sided 404,
+server error, missing freshness metadata or cached response is insufficient.
+Historical runs and in-flight checks do not accept scope changes. All controls
+use authenticated, CSRF-protected POST/PATCH requests; GET remains read-only.
+
+An active exclusion applies to that website's exact URL until it is explicitly
+restored. There is no automatic retirement after a failed request. **Restore URL
+to transition checks** requires a reason and retains the earlier review and
+revocation history. The original review cannot be edited in place. A new review
+after restoration creates a separate record.
+The current report's Audit section includes the latest ten reviews and their
+restoration reasons. Pinned historical reports retain only their recorded scope.
+
+Changing scope invalidates the current configuration fingerprint. Use **Run a new
+check**; the existing completed run, its phase evidence and verdict are unchanged.
+Exclusions are applied before choosing Default/Count/All samples, including the
+generic fallback, and each new phase records an immutable copy of the applied
+reviews. Reports keep original candidates, eligible/selected/compared pages and
+reviewed exclusions distinct: for example, **9 original candidates · 8 compared ·
+1 excluded after review**. A passing report explicitly says it has reviewed
+exclusions; no fresh parity is claimed for excluded URLs. Restoring a URL cannot
+rewrite a historical report or authorize activation without a new comparison.
+
+If all publishable event candidates are excluded, the runner does not fall back
+to an unrelated listing page. It records an incomplete check and requires an
+eligible URL to be restored. Normal refresh, archive dates, stored statements,
+last-good cache preservation and Artsdata export behavior are unchanged.
+
+Deploy migration `20261114000100_create_distillator_transition_exclusions.rb`:
+
+```sh
+heroku run rails db:migrate --app footlight-condenser-test
+```

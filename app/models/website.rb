@@ -3,6 +3,7 @@ class Website < ApplicationRecord
   # They intentionally do not expose Distillator's internal execution naming.
   DISTILLATOR_MODES = %w[legacy shadow active].freeze
 
+  has_many :transition_exclusions, class_name: "Distillator::TransitionExclusion", dependent: :destroy
   has_many :transition_runs, class_name: "Distillator::TransitionRun", dependent: :destroy
   has_many :webpages, dependent: :destroy
   has_many :sources, dependent: :destroy

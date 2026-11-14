@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_13_000200) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_14_000100) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -118,6 +118,21 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_13_000200) do
     t.index ["website_id", "check_kind", "checked_at"], name: "index_transition_evidence_on_site_kind_checked_at"
     t.index ["website_id", "url", "check_kind", "checked_at"], name: "index_transition_evidence_on_site_url_kind_checked_at"
     t.index ["website_id"], name: "index_distillator_transition_evidence_on_website_id"
+  end
+
+  create_table "distillator_transition_exclusions", force: :cascade do |t|
+    t.bigint "website_id", null: false
+    t.bigint "source_run_id", null: false
+    t.text "url", null: false
+    t.text "reason", null: false
+    t.jsonb "recorded_evidence", default: {}, null: false
+    t.datetime "revoked_at"
+    t.text "revocation_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["source_run_id"], name: "index_distillator_transition_exclusions_on_source_run_id"
+    t.index ["website_id", "url"], name: "idx_transition_exclusions_active_url", unique: true, where: "(revoked_at IS NULL)"
+    t.index ["website_id"], name: "index_distillator_transition_exclusions_on_website_id"
   end
 
   create_table "distillator_transition_runs", force: :cascade do |t|
@@ -248,6 +263,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_13_000200) do
   add_foreign_key "distillator_rollout_events", "websites"
   add_foreign_key "distillator_transition_evidence", "distillator_transition_runs", column: "transition_run_id"
   add_foreign_key "distillator_transition_evidence", "websites"
+  add_foreign_key "distillator_transition_exclusions", "distillator_transition_runs", column: "source_run_id"
+  add_foreign_key "distillator_transition_exclusions", "websites"
   add_foreign_key "distillator_transition_runs", "websites"
   add_foreign_key "properties", "rdfs_classes"
   add_foreign_key "search_exceptions", "rdfs_classes"

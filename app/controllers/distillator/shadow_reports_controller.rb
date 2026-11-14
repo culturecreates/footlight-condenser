@@ -57,6 +57,14 @@ module Distillator
       @historical_run = @report_run && @report_run.id != @website.latest_transition_run&.id
       @detail = Distillator::ShadowSiteDetail.call(website: @website, transition_run: @report_run)
       @presentation = Distillator::TransitionReportPresentation.new(detail: @detail, historical: @historical_run)
+      @current_exclusions = @website.transition_exclusions.active.order(:id).to_a unless @historical_run
+      @exclusion_history = @website.transition_exclusions.order(id: :desc).limit(10).to_a unless @historical_run
+      @exclusion_candidates = if !@historical_run && !@detail.pending_transition_batch_check
+        Distillator::TransitionExclusionReview.eligible_rows(@detail.operation_status.completed_run)
+          .reject { |row| @current_exclusions.any? { |exclusion| exclusion.url == row[:url] } }
+      else
+        []
+      end
     end
 
     private

@@ -1,0 +1,8 @@
+<details>
+  <summary>Restore URL to transition checks</summary>
+  <%= form_with url: distillator_transition_exclusion_path(exclusion), method: :patch, local: true, class: "transition-review-form" do |form| %>
+    <%= form.label :reason, "Reason for restoring this URL", for: "restore-exclusion-#{exclusion.id}" %>
+    <%= form.text_area :reason, id: "restore-exclusion-#{exclusion.id}", required: true, maxlength: 2000, rows: 2 %>
+    <%= form.submit "Restore URL" %>
+  <% end %>
+</details>

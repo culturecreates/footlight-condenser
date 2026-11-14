@@ -28,6 +28,8 @@ module Distillator
       :representative_webpage_count,
       :candidate_webpage_count,
       :publishable_event_page_count,
+      :original_publishable_event_page_count,
+      :transition_exclusions,
       :selected_candidate_tier_count,
       :selection_rule,
       :attempted_condenser_fetch,
@@ -91,8 +93,10 @@ module Distillator
         representative_webpage_count: representative_webpages.count,
         candidate_webpage_count: candidate_webpage_count,
         publishable_event_page_count: publishable_event_page_count,
+        original_publishable_event_page_count: original_publishable_event_page_count,
+        transition_exclusions: excluded_records.map(&:snapshot),
         selected_candidate_tier_count: selected_candidate_tier_count,
-        selection_rule: @check_options.selection_rule,
+        selection_rule: @check_options.selection_rule + (excluded_records.any? ? " Reviewed URL exclusions apply before sampling." : ""),
         attempted_condenser_fetch: fetch_attempt[:attempted],
         condenser_fetch_result: fetch_attempt[:result],
         comparison: fetch_attempt[:comparison],
@@ -149,7 +153,7 @@ module Distillator
     end
 
     def representative_webpages
-      if publishable_event_page_count.positive?
+      if original_publishable_event_page_count.positive?
         publishable_representative_webpages
       else
         size = @check_options.size_for(generic_representative_scope.count, default: FALLBACK_REPRESENTATIVE_SAMPLE_SIZE)
@@ -166,7 +170,7 @@ module Distillator
     end
 
     def selected_candidate_tier_count
-      publishable_event_page_count.positive? ? publishable_event_page_count : generic_representative_scope.count
+      original_publishable_event_page_count.positive? ? publishable_event_page_count : generic_representative_scope.count
     end
 
     def publishable_representative_webpages
@@ -193,7 +197,33 @@ module Distillator
     end
 
     def publishable_event_scope
+      without_reviewed_urls(original_publishable_event_scope)
+    end
+
+    def original_publishable_event_scope
       website.webpages.publishable.event_pages
+    end
+
+    def original_publishable_event_page_count
+      @original_publishable_event_page_count ||= original_publishable_event_scope.count
+    end
+
+    def excluded_records
+      @excluded_records ||= begin
+        scope = original_publishable_event_page_count.positive? ? original_publishable_event_scope : website.webpages
+        website.transition_exclusions.active.where(url: scope.select(:url)).order(:id).to_a
+      end
+    end
+
+    def excluded_urls
+      excluded_records.map(&:url)
+    end
+
+    def without_reviewed_urls(scope)
+      return scope if excluded_urls.empty?
+
+      # NOT IN alone would also discard NULL URLs that were never reviewed.
+      scope.where.not(url: excluded_urls).or(scope.where(url: nil))
     end
 
     def future_publishable_event_scope
@@ -216,7 +246,7 @@ module Distillator
     end
 
     def generic_representative_scope
-      website.webpages.reorder(updated_at: :desc, created_at: :desc, id: :asc)
+      without_reviewed_urls(website.webpages).reorder(updated_at: :desc, created_at: :desc, id: :asc)
     end
 
     def run_fetch?

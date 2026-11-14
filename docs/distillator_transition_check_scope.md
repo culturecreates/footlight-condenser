@@ -40,6 +40,10 @@ fewer than five exist. For Petit Théâtre's nine publishable events, choose **A
 to check nine instead of five. Explicit counts and All bypass the default cap of 25.
 If no publishable event pages exist, the existing fallback to other website pages
 still applies. Future/undated/past event selection order remains deterministic.
+Reviewed URL exclusions are applied before sampling. Their URL, reason and
+supporting run are copied into each new check. Excluding all publishable events
+does not trigger a fallback to unrelated pages; an empty eligible scope cannot
+pass. See `distillator_transition_report_states.md` for the review/restore workflow.
 
 Both field policies compare all selected sources. Standard makes Title, Dates and
 Location differences blocking; other differences produce warnings. Strict makes

@@ -6,6 +6,7 @@
 <% fetches = @detail.fetch_summary %>
 
 <%= render "overview", operation: operation, fetches: fetches %>
+<%= render "exclusions" %>
 <%= render "findings", operation: operation, fetches: fetches %>
 
 <% performance = @detail.transition_evidence_by_kind["export_diff"]&.details.to_h["performance"] %>
@@ -173,6 +174,19 @@
 
   <h3>Recent rollout events</h3>
   <%= render "websites/rollout_history", events: @detail.recent_rollout_events %>
+
+  <% if @exclusion_history.present? %>
+    <details id="transition-exclusion-history">
+      <summary>URL exclusion history · latest 10 reviews</summary>
+      <ul><% @exclusion_history.each do |review| %>
+        <li><%= external_website_link(review.url, max: 180) %> — excluded <%= shadow_report_timestamp(review.created_at) %>.
+          Reason: <%= review.reason %>.
+          <%= link_to "Supporting run ##{review.source_run_id}", distillator_shadow_report_site_path(@website, run_id: review.source_run_id) %>
+          <% if review.revoked_at %><br>Restored <%= shadow_report_timestamp(review.revoked_at) %>. Reason: <%= review.revocation_reason %>.<% end %>
+        </li>
+      <% end %></ul>
+    </details>
+  <% end %>
 
   <% if shadow && !@historical_run && @detail.transition_status.review_activation_eligible %>
     <h3>Review checklist</h3>

@@ -431,12 +431,14 @@ module Distillator
         representative_webpage_count: representative_webpages.count,
         candidate_webpage_count: transition_check.candidate_webpage_count,
         publishable_event_page_count: publishable_event_page_count,
+        original_publishable_event_page_count: transition_check.respond_to?(:original_publishable_event_page_count) ? transition_check.original_publishable_event_page_count : publishable_event_page_count,
+        transition_exclusions: transition_check.respond_to?(:transition_exclusions) ? Array(transition_check.transition_exclusions) : [],
         selected_candidate_tier_count: transition_check.selected_candidate_tier_count,
         selection_rule: transition_check.selection_rule,
         check_options: @check_options.to_h,
         fetch_basis: "fresh_both",
         fetch_attempted_webpage_count: Array(@representative_url_results).count { |row| row[:attempted_condenser_fetch] },
-        sample_small: (publishable_event_page_count.positive? ? publishable_event_page_count : transition_check.candidate_webpage_count.to_i) > representative_webpages.count
+        sample_small: transition_check.selected_candidate_tier_count.to_i > representative_webpages.count
       }
     end
 

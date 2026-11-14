@@ -56,6 +56,15 @@
       <% if @detail.checked_scope[:fetch_basis] != "fresh_both" %>
         <p class="transition-secondary">Older run: fresh requests to both backends were not established. Run a new check.</p>
       <% end %>
+      <% exclusions = @detail.checked_scope[:transition_exclusions] %>
+      <% if exclusions.present? %>
+        <% original_count = @detail.checked_scope[:original_publishable_event_page_count].to_i %>
+        <% original_count = @detail.checked_scope[:candidate_webpage_count] if original_count.zero? %>
+        <p id="transition-exclusion-coverage"><strong><%= original_count %> original candidates ·
+          <%= fetches.compared.nil? ? "Comparison count not recorded" : "#{fetches.compared} compared" %> ·
+          <%= exclusions.length %> excluded after review</strong> · <%= fetches.selected %> selected for this check.
+          <%= link_to "Review exclusions", "#transition-reviewed-exclusions" %></p>
+      <% end %>
     <% else %>
       <p>No completed comparison recorded.</p>
     <% end %>
@@ -95,6 +104,11 @@
         <%= link_to "Follow the running check", distillator_transition_check_path(@detail.transition_run_id), class: "transition-primary-action" %>
       <% elsif @detail.transition_run_status == "failed" %>
         <%= link_to "Inspect failed run ##{@detail.transition_run_id}", distillator_transition_check_path(@detail.transition_run_id), class: "transition-primary-action" %>
+      <% elsif @presentation.configuration_changed? && operation.completed_run %>
+        <%= button_to "Run a new check", distillator_transition_checks_path, method: :post, class: "transition-primary-action",
+              params: { website_id: @website.id, check_options: operation.completed_run.options.to_h } %>
+      <% elsif @presentation.no_eligible_pages? %>
+        <%= link_to "Restore a URL", "#transition-reviewed-exclusions", class: "transition-primary-action" %>
       <% elsif @presentation.field_findings.any? %>
         <%= link_to "Inspect recorded values", "#transition-field-findings", class: "transition-primary-action" %>
       <% elsif fetches.issues.any? %>
