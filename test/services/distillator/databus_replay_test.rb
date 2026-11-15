@@ -53,6 +53,66 @@ class Distillator::DatabusReplayTest < ActiveSupport::TestCase
     assert_empty reader.observations
   end
 
+  test "Culture Mauricie API mapping replays an explicit snapshot and retains missing category keys" do
+    api = "https://footlight-condenser.herokuapp.com/statements.json?prop=121&seedurl=culturemauricie_lepointdevente-com-RList"
+    body = [{ cache: { url_to_categories: { "65g261128001" => ["1"], "8uj270228001" => ["11"] } }.to_json }].to_json
+    reader = Distillator::DatabusReplay::CacheReader.new(base_url: @base, api_inputs: {
+      api => { body: body, captured_at: "2026-11-15T12:00:00Z", provenance: "Production Condenser RList response" }
+    })
+    service = build_service(reader: reader)
+    service.send(:install_guards)
+    algorithm = <<~RUBY
+      api="#{api}"
+      ;ruby=JSON.parse($array.first['cache'])
+      ;ruby=
+      category_mapping = {"1" => "Musique", "3" => "Théâtre", "4" => "Danse", "5" => "Arts Visuels", "6" => "Arts littéraires", "11" => "Humour"}
+      result = ''
+      url_key=$url.gsub(/\\?lang=fr/,'').gsub(/.*\\/billets\\//,'')
+      if $array['url_to_categories'].key?(url_key)
+        result = $array['url_to_categories'][url_key].map { |id| category_mapping[id] }
+      else
+        result = "Key '\#{url_key}' not found in any category"
+      end
+      result
+    RUBY
+    { "65g261128001" => ["Musique"], "8uj270228001" => ["Humour"],
+      "06n261114001" => "Key '06n261114001' not found in any category" }.each do |key, expected|
+      runner = Distillator::DatabusReplay::CacheRunner.new(
+        { url: "https://lepointdevente.com/billets/#{key}?lang=fr", render_js: false, scrape_options: {},
+          tracer: Dsl::Tracing::NullTracer.new }, reader: reader)
+      assert_equal expected, service.send(:with_cache_only) { runner.run(algorithm) }
+    end
+    assert_empty reader.missing
+    evidence = reader.snapshot.sole
+    assert_equal "supplied_api_snapshot", evidence[:source]
+    assert_equal "2026-11-15T12:00:00Z", evidence[:captured_at]
+    assert_equal "Production Condenser RList response", evidence[:provenance]
+    assert_equal Digest::SHA256.hexdigest(body), evidence[:sha256]
+    assert_equal body.b, Base64.strict_decode64(evidence[:body_base64])
+    assert_not_requested :get, api
+    assert_not_requested :get, %r{\A#{Regexp.escape(@base)}/}
+
+    # A snapshot for this exact API must not become a general live fallback.
+    changed_api = api.sub("prop=121", "prop=122")
+    key = Distillator::WringerUrlKey.legacy(changed_api, include_fragment: true).uri_key
+    stub_request(:get, "#{@base}/websites.json").with(query: { term: key }).to_return(json_response([]))
+    assert_raises(Distillator::DatabusReplay::MissingInput) do
+      service.send(:with_cache_only) { HTTParty.get(changed_api) }
+    end
+    assert_not_requested :get, changed_api
+  end
+
+  test "API snapshots require valid JSON capture time and provenance before replay starts" do
+    input = { body: '{"value":1}', captured_at: "2026-11-15T12:00:00Z", provenance: "Captured response" }
+    [{ body: "<html>not JSON</html>" }, { captured_at: "unknown" }, { provenance: "" }].each do |invalid|
+      assert_raises(ArgumentError, JSON::ParserError) do
+        Distillator::DatabusReplay::CacheReader.new(base_url: @base, api_inputs: { @url => input.merge(invalid) })
+      end
+    end
+    reader = Distillator::DatabusReplay::CacheReader.new(base_url: @base)
+    assert_raises(ArgumentError) { build_service(reader: reader, api_inputs: { @url => input }) }
+  end
+
   test "RDF comparison ignores blank node labels while retaining exact review timestamp differences" do
     service = build_service
     old = RDF::Graph.new << [RDF::Node.new("old"), RDF::Vocab::SCHEMA.name, "Event"]
@@ -223,6 +283,31 @@ class Distillator::DatabusReplayTest < ActiveSupport::TestCase
     assert_equal "legacy", website.reload.distillator_mode
     assert File.exist?(File.join(@directory, "cache-inputs.json"))
     assert File.exist?(File.join(@directory, "co-motion-ca-selected-sources.json"))
+  end
+
+  test "report identifies used API snapshots separately from Wringer HTML and preserves both bodies" do
+    _website, webpage = create_replay_records
+    source = @created_website.sources.find_by!(selected: true, property_id: @created_properties.first)
+    api = "https://condenser.replay.test/statements.json?prop=121"
+    source.update!(algorithm_value: "api=\"#{api}\";ruby=$array.fetch('title')")
+    @created_website.sources.find_by!(property_id: @created_properties.last).update!(algorithm_value: "xpath=//h1;ruby=$url")
+    body = '{"title":"Supplied API title"}'
+    input = { body: body, captured_at: "2026-11-15T12:00:00Z", provenance: "Current production API observation" }
+    expected = [{ "@id" => webpage.rdf_uri, "@type" => "http://schema.org/Event",
+      "http://schema.org/name" => [{ "@value" => "Supplied API title" }], "http://schema.org/url" => [{ "@value" => @url }] }].to_json
+    stub_cache("<h1>Wringer HTML still used for XPath extraction</h1>")
+    report = build_service(api_inputs: { api => input }, export_loader: ->(_) { expected }).call
+    assert_equal "equivalent_event_data", report[:sites].first[:status], report.inspect
+    assert_equal "remote_wringer_cache", report[:input_backend]
+    assert_equal api, report[:api_inputs].sole[:url]
+    assert_equal input[:provenance], report[:api_inputs].sole[:provenance]
+    assert_equal report[:api_inputs], Distillator::DatabusReplay.summary(report)[:api_inputs]
+    recorded = JSON.parse(File.read(File.join(@directory, "cache-inputs.json")))
+    assert_equal 2, recorded.count
+    snapshot = recorded.find { |entry| entry["source"] == "supplied_api_snapshot" }
+    assert_equal body.b, Base64.strict_decode64(snapshot.fetch("body_base64"))
+    assert recorded.any? { |entry| entry["cache_id"] == @row["id"] }
+    assert_not_requested :get, api
   end
 
   test "binary tagged UTF8 Databus HTTP responses retain accented literals and exact downloaded bytes" do

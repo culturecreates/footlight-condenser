@@ -93,6 +93,50 @@ network guard and can make their normal read-only lookups. Reconciliation HTTP
 responses are reused within the run. They are current observations, not historical
 production inputs. Their drift must be reviewed separately.
 
+## Explicit API dependencies
+
+Some `api=` sources read another Condenser site's resource-list statements,
+rather than fetching a source webpage through Wringer. For example, Culture
+Mauricie source 7885 reads category mappings from its `-RList` site. Those
+responses need not exist in Wringer. An uncaptured dependency remains incomplete;
+the replay never silently fetches it live or substitutes staging statement data.
+
+Capture the production API response explicitly before starting the replay:
+
+```ruby
+api_url = "https://footlight-condenser.herokuapp.com/statements.json?prop=121&seedurl=culturemauricie_lepointdevente-com-RList"
+response = HTTParty.get(api_url, timeout: 30, follow_redirects: false)
+raise "API HTTP #{response.code}" unless response.code.to_i == 200
+api_inputs = {
+  api_url => {
+    body: response.body,
+    captured_at: Time.now.utc.iso8601,
+    provenance: "Production Condenser resource-list API; captured for this replay"
+  }
+}
+report = Distillator::DatabusReplay.call(
+  sites: ["culturemauricie_lepointdevente-com"], per_site: 20, api_inputs: api_inputs
+); nil
+puts JSON.pretty_generate(Distillator::DatabusReplay.summary(report))
+```
+
+The explicitly supplied JSON is copied and reused for GETs to that exact request
+URL throughout the run. Different parameters still require their own snapshot or
+an existing Wringer cache entry. HTML navigation continues to use Wringer. No
+stored source algorithm changes, and no synthetic category mapping is created.
+
+Used API snapshots appear separately in `api_inputs` in the report and console
+summary, with capture time, provenance, byte count and SHA-256. Their exact bodies
+are saved alongside Wringer inputs in `cache-inputs.json` as base64. A snapshot
+captured today is not evidence that the API returned identical data on the dated
+export's day; review resource-list changes independently. Supplied snapshots must
+contain valid JSON, an ISO-8601 capture time and non-empty provenance.
+
+Missing keys inside a successfully captured mapping remain the DSL's ordinary
+results. Source 7885 returns `Key '...' not found in any category` for such keys;
+this is a category-coverage issue, distinct from a missing replay input or an
+execution failure. The replay preserves that behavior for comparison.
+
 ## Reading the result
 
 - `equivalent_event_data`: sampled RDF matches after ignoring only

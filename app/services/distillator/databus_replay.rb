@@ -3,6 +3,7 @@ require "digest"
 require "fileutils"
 require "base64"
 require "net/http"
+require "time"
 require "rdf/normalize"
 
 module Distillator
@@ -57,11 +58,23 @@ module Distillator
     class CacheReader
       attr_reader :observations, :missing
 
-      def initialize(base_url:, http_options: {})
+      def initialize(base_url:, http_options: {}, api_inputs: {})
         @base_url = base_url.to_s.delete_suffix("/")
         raise ArgumentError, "Configure a remote Wringer URL" unless @base_url.match?(%r{\Ahttps?://})
         @http_options = http_options
         @bodies, @observations, @missing = {}, [], []
+        @api_inputs = api_inputs.to_h.each_with_object({}) do |(url, input), inputs|
+          uri = URI.parse(url.to_s)
+          raise ArgumentError, "API snapshot needs an absolute HTTP(S) URL" unless uri.is_a?(URI::HTTP) && uri.host.present? && uri.fragment.nil?
+          input = input.to_h.symbolize_keys
+          body = input.fetch(:body)
+          raise ArgumentError, "API snapshot body must be a JSON string" unless body.is_a?(String)
+          JSON.parse(body)
+          captured_at = Time.iso8601(input.fetch(:captured_at).to_s).utc.iso8601
+          provenance = input.fetch(:provenance).to_s
+          raise ArgumentError, "API snapshot needs provenance" if provenance.blank?
+          inputs[url.to_s] = { body: body.dup.freeze, captured_at: captured_at, provenance: provenance.dup.freeze }.freeze
+        end
       end
 
       def missing!(reason)
@@ -113,7 +126,16 @@ module Distillator
         # Decoding/re-encoding an existing query changes Wringer's exact key
         # (notably Culture3R's doWork::WSmap parameters and encoded spaces).
         target = HTTParty::Request.new(Net::HTTP::Get, url.to_s, options.dup).uri
-        body = fetch(target.to_s)
+        input = @api_inputs[target.to_s]
+        if input
+          body = input.fetch(:body).dup
+          unless @observations.any? { |entry| entry[:source] == "supplied_api_snapshot" && entry[:url] == target.to_s }
+            @observations << input.except(:body).merge(url: target.to_s, source: "supplied_api_snapshot",
+              bytes: body.bytesize, sha256: Digest::SHA256.hexdigest(body))
+          end
+        else
+          body = fetch(target.to_s)
+        end
         response = Net::HTTPOK.new("1.1", "200", "OK")
         response.instance_variable_set(:@body, body)
         response.instance_variable_set(:@read, true)
@@ -124,8 +146,13 @@ module Distillator
 
       def snapshot
         observations.map do |entry|
-          key = Distillator::WringerUrlKey.legacy(entry.fetch(:url), include_fragment: true)
-          entry.merge(body_base64: Base64.strict_encode64(@bodies.fetch(key.uri_key)))
+          body = if entry[:source] == "supplied_api_snapshot"
+            @api_inputs.fetch(entry.fetch(:url)).fetch(:body)
+          else
+            key = Distillator::WringerUrlKey.legacy(entry.fetch(:url), include_fragment: true)
+            @bodies.fetch(key.uri_key)
+          end
+          entry.merge(body_base64: Base64.strict_encode64(body))
         end
       end
 
@@ -158,7 +185,8 @@ module Distillator
     def self.call(**options) = new(**options).call
 
     def self.summary(report)
-      { report_path: report[:report_path], input_backend: report[:input_backend], wringer_url: report[:wringer_url], sites: report[:sites].map do |site|
+      { report_path: report[:report_path], input_backend: report[:input_backend], wringer_url: report[:wringer_url],
+        api_inputs: report.fetch(:api_inputs, []), sites: report[:sites].map do |site|
         site.slice(:seedurl, :rollout_mode, :export_date, :status, :selected_pages, :source_executions, :exact_match, :error).merge(
           data_added: Array(site[:data_added]).count, data_removed: Array(site[:data_removed]).count,
           input_or_extraction_errors: Array(site[:pages]).flat_map { |page| page[:errors].map { |error| error.merge(url: page[:url]) } }
@@ -169,14 +197,15 @@ module Distillator
     end
 
     def initialize(sites: EXPORTS.keys, per_site: 20, output_dir: nil, wringer_url: DEFAULT_WRINGER_URL,
-      reader: nil, export_loader: nil, progress: $stdout)
+      reader: nil, export_loader: nil, progress: $stdout, api_inputs: {})
       raise ArgumentError, "Choose between 1 and 20 pages per site" unless per_site.is_a?(Integer) && per_site.between?(1, 20)
       raise ArgumentError, "Choose known export sites" unless sites.any? && (sites - EXPORTS.keys).empty?
       @sites, @per_site, @progress = sites, per_site, progress
       @output_dir = Pathname.new(output_dir || Rails.root.join("tmp", "databus-replay-#{Time.now.utc.strftime('%Y%m%dT%H%M%S')}-#{SecureRandom.hex(3)}"))
       # Pin input identity independently of rollout/compatibility configuration.
       # In particular, Shadow must not invoke native fetching or a shadow pair.
-      @reader = reader || CacheReader.new(base_url: wringer_url)
+      raise ArgumentError, "Pass API snapshots to the custom reader itself" if reader && api_inputs.present?
+      @reader = reader || CacheReader.new(base_url: wringer_url, api_inputs: api_inputs)
       @export_loader = export_loader || lambda do |url|
         response = HTTParty.get(url, timeout: 60, follow_redirects: false)
         raise "Databus HTTP #{response.code}" unless response.code.to_i == 200
@@ -196,6 +225,7 @@ module Distillator
         generated_at: Time.now.utc.iso8601, scope: "Selected source regeneration; preview statuses, no publication or statement saves",
         caveats: ["Historical HTML, source settings, manual corrections and reconciliation may have changed.",
           "Formatting and entity enrichment use current read-only lookup results, not a frozen production snapshot.",
+          "Supplied API snapshots are separate inputs with recorded provenance; their capture time does not establish historical equivalence.",
           "Cache hydration checks existing entries and versions; the Wringer API has no atomic cache-only body endpoint."], sites: [] }
       connection.transaction do
         connection.execute("SET TRANSACTION READ ONLY")
@@ -212,6 +242,7 @@ module Distillator
       end
       report[:report_path] = @output_dir.join("report.json").to_s
       report[:cache_inputs] = @reader.observations
+      report[:api_inputs] = @reader.observations.select { |entry| entry[:source] == "supplied_api_snapshot" }
       report[:reconciliation_performance] = @helper.reconciliation_performance
       write_json("cache-inputs.json", @reader.snapshot)
       write_json("report.json", report)
