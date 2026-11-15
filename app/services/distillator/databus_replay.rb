@@ -76,7 +76,7 @@ module Distillator
       end
 
       def fetch(url)
-        key = Distillator::WringerUrlKey.call(url, include_fragment: true)
+        key = Distillator::WringerUrlKey.legacy(url, include_fragment: true)
         return @bodies.fetch(key.uri_key).dup if @bodies.key?(key.uri_key)
         rows = request("/websites.json", term: key.uri_key)
         rows = rows.is_a?(Array) ? rows : [rows]
@@ -88,13 +88,16 @@ module Distillator
         # rendering or POST flags to /wring. Recheck the version after hydration.
         # /wring can fetch on a cache miss; a concurrent removal is therefore
         # detected and reported, rather than accepted as a historical replay.
-        payload = row["html"].present? ? row : request("/websites/wring.json", uri: key.normalized_url, include_fragment: true)
+        # Send the original input: Wringer performs its own one-pass decoding.
+        # Sending normalized_url would decode reserved characters twice.
+        payload = row["html"].present? ? row : request("/websites/wring.json", uri: url.to_s, include_fragment: true)
         after = request("/websites/#{Integer(row.fetch('id'))}.json")
         version = %w[id uri successful_refresh updated_at http_response_code]
         missing!("Wringer cache changed while reading: #{url}") unless row.slice(*version) == after.slice(*version)
         body = payload["html"] if payload.is_a?(Hash)
         missing!("Wringer cached body unavailable: #{url}") unless body.is_a?(String) && body.present?
-        @observations << { url: key.normalized_url, cache_id: row["id"], successful_refresh: row["successful_refresh"],
+        @observations << { url: url.to_s, canonical_url: key.normalized_url, cache_uri_key: key.uri_key,
+          cache_id: row["id"], successful_refresh: row["successful_refresh"],
           bytes: body.bytesize, sha256: Digest::SHA256.hexdigest(body) }
         @bodies[key.uri_key] = body
         body.dup
@@ -121,7 +124,7 @@ module Distillator
 
       def snapshot
         observations.map do |entry|
-          key = Distillator::WringerUrlKey.call(entry.fetch(:url), include_fragment: true)
+          key = Distillator::WringerUrlKey.legacy(entry.fetch(:url), include_fragment: true)
           entry.merge(body_base64: Base64.strict_encode64(@bodies.fetch(key.uri_key)))
         end
       end

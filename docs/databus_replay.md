@@ -82,8 +82,11 @@ complex pricing DSLs; those cases are incomplete, not extraction regressions.
 Secondary HTTP cache lookups preserve the request URI using HTTParty's URI
 builder. Existing query spelling, duplicate parameters and escapes remain
 intact; additional query options are appended as HTTParty would send them.
-Wringer's exact cache keys distinguish `::` from `%3A%3A`, so rewriting the
-original query can otherwise produce a false cache miss.
+The subsequent remote-cache lookup follows Wringer's historical key algorithm:
+decode the target once with `CGI.unescape`, then build and escape the stored key.
+This is separate from native Distillator cache keys. Sending the original target
+for body hydration prevents a second decode of reserved characters. Input
+evidence records the requested URL, canonical URL and exact stored cache key.
 
 Formatting/reconciliation and RDF entity enrichment run outside the raw-DSL
 network guard and can make their normal read-only lookups. Reconciliation HTTP

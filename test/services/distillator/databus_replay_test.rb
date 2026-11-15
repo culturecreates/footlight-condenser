@@ -10,7 +10,7 @@ class Distillator::DatabusReplayTest < ActiveSupport::TestCase
     @directory = Dir.mktmpdir("databus-replay")
     @base = "https://wringer.replay.test"
     @url = "https://example.org/event"
-    @key = Distillator::WringerUrlKey.call(@url, include_fragment: true).uri_key
+    @key = Distillator::WringerUrlKey.legacy(@url, include_fragment: true).uri_key
     @row = { "id" => 42, "uri" => @key, "http_response_code" => 200,
       "successful_refresh" => "2026-11-07T10:00:00Z", "updated_at" => "2026-11-07T10:00:00Z" }
   end
@@ -119,7 +119,7 @@ class Distillator::DatabusReplayTest < ActiveSupport::TestCase
   test "Culture3R secondary ticket requests preserve the exact existing Wringer query key" do
     @url = "https://billets.culture3r.com/Online/mapSelect.asp?doWork::WSmap::loadMap=Load&createBO::WSmap=1" \
       "&BOparam::WSmap::loadMap::performance_ids=4654FB70-AE58-44D8-B264-6E44B1BB9FC6&label=a%20b&label=a+b"
-    @key = Distillator::WringerUrlKey.call(@url, include_fragment: true).uri_key
+    @key = Distillator::WringerUrlKey.legacy(@url, include_fragment: true).uri_key
     @row = @row.merge("uri" => @key)
     stub_cache('{"price":53}')
     reader = Distillator::DatabusReplay::CacheReader.new(base_url: @base)
@@ -137,7 +137,7 @@ class Distillator::DatabusReplayTest < ActiveSupport::TestCase
   test "secondary query options are appended without rewriting the existing query" do
     url = "https://billets.culture3r.com/Online/mapSelect.asp?doWork::WSmap::loadMap=Load&label=a%20b&label=a+b"
     @url = "#{url}&lang=fr"
-    @key = Distillator::WringerUrlKey.call(@url, include_fragment: true).uri_key
+    @key = Distillator::WringerUrlKey.legacy(@url, include_fragment: true).uri_key
     @row = @row.merge("uri" => @key)
     stub_cache('{"price":53}')
     reader = Distillator::DatabusReplay::CacheReader.new(base_url: @base)
@@ -151,13 +151,59 @@ class Distillator::DatabusReplayTest < ActiveSupport::TestCase
 
   test "already encoded secondary URLs retain their original escape spelling" do
     @url = "https://billets.culture3r.com/Online/mapSelect.asp?doWork%3a%3aWSmap%3a%3aloadMap=Load&path=a%2fb&label=a%20b"
-    @key = Distillator::WringerUrlKey.call(@url, include_fragment: true).uri_key
+    @key = Distillator::WringerUrlKey.legacy(@url, include_fragment: true).uri_key
     @row = @row.merge("uri" => @key)
     stub_cache('{"price":53}')
     reader = Distillator::DatabusReplay::CacheReader.new(base_url: @base)
     assert_equal({ "price" => 53 }, reader.http_response(@url, {}).parsed_response)
     assert_equal @url, reader.observations.sole.fetch(:url)
     assert_empty reader.missing
+  end
+
+  test "source 5832 renderjs navigation finds the existing decoded Culture3R ticket cache" do
+    main = "https://www.culture3r.com/evenements/18_p_r_a_c_t_i_c_e_s/"
+    ticket = "https://billets.culture3r.com/Online/mapSelect.asp?doWork%3A%3AWSmap%3A%3AloadMap=Load&createBO%3A%3AWSmap=1" \
+      "&BOparam%3A%3AWSmap%3A%3AloadMap%3A%3Aperformance_ids=4654FB70-AE58-44D8-B264-6E44B1BB9FC6"
+    main_key = Distillator::WringerUrlKey.legacy(main, include_fragment: true).uri_key
+    ticket_key = Distillator::WringerUrlKey.legacy(ticket, include_fragment: true).uri_key
+    main_row = @row.merge("id" => 41, "uri" => main_key)
+    ticket_row = @row.merge("id" => 113047, "uri" => ticket_key)
+    stub_cache('<div class="c-event-details__tickets"><a class="o-button" href="' + ticket.gsub('&', '&amp;') + '">Billets</a></div>',
+      url: main, key: main_key, row: main_row)
+    ticket_body = '<div class="tuxCmsEdit__webEventSelection--category"><span>Catégories</span><span>Danse</span><span>Performance</span></div>'
+    stub_cache(ticket_body, url: ticket, key: ticket_key, row: ticket_row)
+    reader = Distillator::DatabusReplay::CacheReader.new(base_url: @base)
+    runner = Distillator::DatabusReplay::CacheRunner.new(
+      { url: main, render_js: false, scrape_options: {}, tracer: Dsl::Tracing::NullTracer.new }, reader: reader)
+    Distillator::FetchCacheStore.expects(:fetch).never
+    Distillator::FetchService.expects(:fetch).never
+    algorithm = <<~'DSL'
+      ruby=$array << "C3R NoEventTypeFound"
+      ;if_xpath=//div[@class='c-event-details__tickets']//a[contains(@class,'o-button')]/@href
+      ;renderjs_url=$array.uniq.second.gsub(/\/202.*/,'')
+      ;ruby=$array.clear()
+      ;xpath=//div[@class='tuxCmsEdit__webEventSelection--category']/span
+      ;ruby=$array.size > 1 ? $array.drop(1).map{|e| e.squish} : $array
+    DSL
+    assert_equal ["Danse", "Performance"], runner.run(algorithm)
+    observation = reader.observations.find { |entry| entry[:cache_id] == 113047 }
+    assert_equal ticket, observation[:url]
+    assert_equal CGI.unescape(ticket), observation[:canonical_url]
+    assert_equal ticket_key, observation[:cache_uri_key]
+    assert_equal ticket_body.b, Base64.strict_decode64(reader.snapshot.find { |entry| entry[:cache_id] == 113047 }[:body_base64])
+    assert_empty reader.missing
+    assert_not_requested :get, %r{\Ahttps://billets\.culture3r\.com/}
+  end
+
+  test "legacy key normalization does not double decode the URL sent for cache hydration" do
+    @url = "https://example.org/event?value=a%2526b%2Bc"
+    @key = Distillator::WringerUrlKey.legacy(@url, include_fragment: true).uri_key
+    @row = @row.merge("uri" => @key)
+    stub_cache("<h1>Known cached response</h1>")
+    reader = Distillator::DatabusReplay::CacheReader.new(base_url: @base)
+    assert_equal "<h1>Known cached response</h1>", reader.fetch(@url)
+    assert_equal "https://example.org/event?value=a%26b+c", reader.observations.sole[:canonical_url]
+    assert_requested :get, "#{@base}/websites/wring.json", query: { uri: @url, include_fragment: "true" }
   end
 
   test "console replay regenerates selected source values and does not save statements or change website mode" do
@@ -269,10 +315,10 @@ class Distillator::DatabusReplayTest < ActiveSupport::TestCase
     { status: 200, headers: { "Content-Type" => "application/json" }, body: JSON.generate(value) }
   end
 
-  def stub_cache(body, after: @row)
-    stub_request(:get, "#{@base}/websites.json").with(query: { term: @key }).to_return(json_response([@row]))
-    stub_request(:get, "#{@base}/websites/wring.json").with(query: { uri: @url, include_fragment: "true" }).to_return(json_response({ "html" => body }))
-    stub_request(:get, "#{@base}/websites/42.json").to_return(json_response(after))
+  def stub_cache(body, url: @url, key: @key, row: @row, after: nil)
+    stub_request(:get, "#{@base}/websites.json").with(query: { term: key }).to_return(json_response([row]))
+    stub_request(:get, "#{@base}/websites/wring.json").with(query: { uri: url, include_fragment: "true" }).to_return(json_response({ "html" => body }))
+    stub_request(:get, "#{@base}/websites/#{row.fetch('id')}.json").to_return(json_response(after || row))
   end
 
   def build_service(**options)

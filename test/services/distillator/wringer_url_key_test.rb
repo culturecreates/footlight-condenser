@@ -1,6 +1,25 @@
 require "test_helper"
 
 class Distillator::WringerUrlKeyTest < ActiveSupport::TestCase
+  test "legacy Culture3R input matches the recorded remote Wringer key after one decode" do
+    url = "https://billets.culture3r.com/Online/mapSelect.asp?doWork%3A%3AWSmap%3A%3AloadMap=Load&createBO%3A%3AWSmap=1" \
+      "&BOparam%3A%3AWSmap%3A%3AloadMap%3A%3Aperformance_ids=4654FB70-AE58-44D8-B264-6E44B1BB9FC6"
+    # Exact key supplied by remote Wringer cache #113047.
+    expected = "https%3A%2F%2Fbillets.culture3r.com%2FOnline%2FmapSelect.asp%3FdoWork%3A%3AWSmap%3A%3AloadMap%3DLoad%26createBO%3A%3AWSmap%3D1%26BOparam%3A%3AWSmap%3A%3AloadMap%3A%3Aperformance_ids%3D4654FB70-AE58-44D8-B264-6E44B1BB9FC6"
+    assert_equal expected, Distillator::WringerUrlKey.legacy(url, include_fragment: true).uri_key
+    assert_equal expected, Distillator::WringerUrlKey.legacy(CGI.unescape(url), include_fragment: true).uri_key
+    assert_includes Distillator::WringerUrlKey.call(url, include_fragment: true).uri_key, "%253A"
+  end
+
+  test "legacy decoding is exactly once and native keys preserve escaped URL identity" do
+    url = "https://example.org/event?value=a%2526b%2Bc&label=a+b#section"
+    legacy = Distillator::WringerUrlKey.legacy(url, include_fragment: true)
+    assert_equal "https://example.org/event?value=a%26b+c&label=a b#section", legacy.normalized_url
+    assert_equal CGI.escape(legacy.normalized_url), legacy.uri_key
+    assert_equal url, Distillator::WringerUrlKey.call(url, include_fragment: true).normalized_url
+    assert_not_equal Distillator::WringerUrlKey.call(url, include_fragment: true).uri_key, legacy.uri_key
+  end
+
   test "http culturecreates root matches legacy make_uri_key" do
     result = Distillator::WringerUrlKey.call("http://culturecreates.com/")
 

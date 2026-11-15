@@ -10,9 +10,16 @@ module Distillator
       new(url, include_fragment: include_fragment).call
     end
 
-    def initialize(url, include_fragment: false)
+    # Remote Wringer's validated_url decodes its input once before keying it.
+    # Keep that compatibility behavior separate from native cache URL identity.
+    def self.legacy(url, include_fragment: false)
+      new(url, include_fragment: include_fragment, legacy_decode: true).call
+    end
+
+    def initialize(url, include_fragment: false, legacy_decode: false)
       @url = url
       @include_fragment = include_fragment
+      @legacy_decode = legacy_decode
     end
 
     def call
@@ -30,11 +37,13 @@ module Distillator
 
     private
 
-    attr_reader :url, :include_fragment
+    attr_reader :url, :include_fragment, :legacy_decode
 
     def validated_url
       value = url.to_s.strip
-      return value if value.start_with?("http")
+      has_scheme = value.start_with?("http")
+      value = CGI.unescape(value) if legacy_decode
+      return value if has_scheme
 
       "http://#{value}"
     end
@@ -50,7 +59,7 @@ module Distillator
     def validate_key!(key)
       return if key == "Error: not a URI"
 
-      uri = URI.parse(key)
+      uri = legacy_decode ? Addressable::URI.parse(key) : URI.parse(key)
       raise URI::InvalidURIError, "Missing URL host: #{key}" if uri.host.blank?
     end
 
