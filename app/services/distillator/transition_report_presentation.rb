@@ -98,7 +98,7 @@ module Distillator
     end
 
     def configuration_changed?
-      detail.transition_status.blockers.include?("Source configuration changed since the last check. Run a new check.")
+      detail.transition_status.blockers.include?(Distillator::TransitionFingerprint::STALE_MESSAGE)
     end
 
     def no_eligible_pages?

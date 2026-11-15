@@ -20,7 +20,7 @@ class DslContractTest < ActiveSupport::TestCase
 
     result = runner.run("if_xpath=//title; xpath=//h1")
 
-    assert_equal ["H"], result
+    assert_equal ["T", "H"], result
     assert_no_wringer_requests
   end
 
@@ -44,13 +44,13 @@ class DslContractTest < ActiveSupport::TestCase
     assert_no_wringer_requests
   end
 
-  test "xpath replaces previous results" do
+  test "consecutive xpath instructions append their results" do
     expect_no_fetch_seams
     runner, = build_runner_with_html(html: "<html><p>A</p><h1>H</h1></html>")
 
     result = runner.run("xpath=//p/text(); xpath=//h1/text()")
 
-    assert_equal ["H"], result
+    assert_equal ["A", "H"], result
     assert_no_wringer_requests
   end
 
@@ -64,13 +64,13 @@ class DslContractTest < ActiveSupport::TestCase
     assert_no_wringer_requests
   end
 
-  test "json replaces previous results" do
+  test "json appends its evaluated result" do
     expect_no_fetch_seams
     runner, = build_runner_with_text(text: '{"name":"test"}')
 
     result = runner.run("json=$json['name']")
 
-    assert_equal "test", result
+    assert_equal ["test"], result
     assert_no_wringer_requests
   end
 
@@ -121,14 +121,13 @@ class DslContractTest < ActiveSupport::TestCase
     assert_no_wringer_requests
   end
 
-  test "no step accumulates results implicitly" do
+  test "ruby wrapping preserves prior results as a nested array before the next extraction" do
     expect_no_fetch_seams
     runner, = build_runner_with_html(html: "<html><p>a</p><h1>b</h1></html>")
 
-    result = runner.run("xpath=//p/text(); xpath=//h1/text()")
+    result = runner.run("xpath=//p/text();ruby=[$array];xpath=//h1/text()")
 
-    assert_not_includes result, "a"
-    assert_equal ["b"], result
+    assert_equal [["a"], "b"], result
     assert_no_wringer_requests
   end
 

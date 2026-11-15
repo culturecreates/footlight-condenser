@@ -683,7 +683,8 @@ module StatementsHelper
   end
 
   def legacy_sparql_algorithm?(algorithm)
-    algorithm.to_s.strip.start_with?("sparql=")
+    steps = algorithm.to_s.split(";").map(&:strip).reject(&:blank?)
+    steps.one? && steps.first.start_with?("sparql=")
   end
 
   def process_algorithm_sparql_compat(algorithm:, render_js:, url:, scrape_options:)

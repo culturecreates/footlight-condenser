@@ -447,6 +447,7 @@ module Distillator
         selected_candidate_tier_count: transition_check.selected_candidate_tier_count,
         selection_rule: transition_check.selection_rule,
         check_options: @check_options.to_h,
+        dsl_contract_version: Dsl::Core::AlgorithmRunner::CONTRACT_VERSION,
         fetch_basis: "fresh_both",
         active_path_verification: @verify_active_path,
         fetch_attempted_webpage_count: Array(@representative_url_results).count { |row| row[:attempted_condenser_fetch] },

@@ -188,16 +188,16 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     get distillator_shadow_report_site_path(@website)
     assert_response :success
     assert_select 'strong', text: "Reviewed and accepted for this activation."
-    assert_select '#transition-report-summary', text: /Source configuration changed since the last check/
+    assert_select '#transition-report-summary', text: /Comparison configuration changed since the last check/
     assert_not Distillator::WebsiteOperationStatus.new(website: @website).accepted_comparison?
     get website_path(@website)
     assert_select '#website-transition strong', text: "Reviewed and accepted for this activation."
-    assert_select '#website-batch-jobs-transition', text: /Source configuration changed since the last check/
+    assert_select '#website-batch-jobs-transition', text: /Comparison configuration changed since the last check/
 
     @website.update!(graph_name: original_graph)
     get distillator_shadow_report_site_path(@website)
     assert_response :success
-    assert_not_includes response.body, "Source configuration changed since the last check"
+    assert_not_includes response.body, "Comparison configuration changed since the last check"
     assert Distillator::WebsiteOperationStatus.new(website: @website).accepted_comparison?
     assert_equal "active", @website.reload.distillator_mode
   end

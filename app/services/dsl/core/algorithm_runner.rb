@@ -3,6 +3,7 @@ module Dsl
   module Core
     class AlgorithmRunner
     HALT = Object.new
+    CONTRACT_VERSION = "production_append_v1".freeze
 
     StepTrace = Struct.new(
       :step,
@@ -141,7 +142,8 @@ module Dsl
 
         url_after   = @url
         output      = trace_preview(out)
-        probe       = build_xpath_probe(previous_prefix, prefix, out, previous_step_index)
+        probe_output = prefix == 'xpath' ? @current_xpath_matches : out
+        probe       = build_xpath_probe(previous_prefix, prefix, probe_output, previous_step_index)
         if abort_structure?(probe)
           @tracer.step(
             step: step_index,
@@ -239,7 +241,9 @@ module Dsl
 
           sparql = "PREFIX schema: <http://schema.org/> select * where #{code}"
           rows = SPARQL.execute(sparql, @graph)
-          [*(rows.count == 1 ? rows.first.answer.value : rows.map { |r| r.answer.value })]
+          arr << (rows.count == 1 ? rows.first.answer.value : rows.map { |row| row.answer.value })
+          arr.flatten!
+          arr
         rescue StandardError => e
           abort_update(error: e.message, error_type: e.class.to_s, step: 'sparql')
         end
@@ -270,17 +274,22 @@ module Dsl
         JSON.parse(data.body)
 
       when 'xpath'
-        execute_xpath(code)
+        matches = execute_xpath(code)
+        return matches if abort_structure?(matches)
+
+        @current_xpath_matches = matches
+        append_results(arr, matches)
 
       when 'xpath_sanitize'
         page_status = ensure_page!(step: 'xpath_sanitize')
         return page_status if abort_structure?(page_status)
 
-        @page.xpath(code).map do |node|
+        values = @page.xpath(code).map do |node|
           sanitize(node.to_s,
                    tags: %w[h1 h2 h3 h4 h5 h6 p li ul ol strong em a i br],
                    attributes: %w[href])
         end
+        append_results(arr, values)
 
       when 'if_xpath'
         page_status = ensure_page!(step: 'if_xpath')
@@ -289,7 +298,7 @@ module Dsl
         nodes = @page.xpath(code)
         return [HALT, arr] if nodes.blank?
 
-        nodes.map { |n| n.text.to_s.squish }.reject(&:blank?)
+        append_results(arr, nodes.map(&:text))
 
       when 'unless_xpath'
         page_status = ensure_page!(step: 'unless_xpath')
@@ -304,19 +313,22 @@ module Dsl
         page_status = ensure_page!(step: 'css')
         return page_status if abort_structure?(page_status)
 
-        @page.css(code).map { |n| n.text.to_s.squish }.reject(&:blank?)
+        append_results(arr, @page.css(code).map(&:text))
 
       when 'json'
         page_status = ensure_page!(step: 'json')
         return page_status if abort_structure?(page_status)
 
         text = @page.respond_to?(:text) ? @page.text : @html.to_s
-        @json ||= JSON.parse(text)
+        @json = JSON.parse(text)
         Thread.current[:dsl_json] = @json
-        @dsl_binding.eval(sub(code, arr))
+        value = @dsl_binding.eval(sub(code, arr))
+        return value if abort_structure?(value)
+
+        arr << value
 
       when 'time_zone'
-        ["time_zone: #{code}"]
+        arr << "time_zone: #{code}"
 
       when 'ruby'
         # update thread-locals before eval
@@ -327,13 +339,8 @@ module Dsl
         result = @dsl_binding.eval(sub(code, arr))
 
         # sync back DSL state
-        current_array = Thread.current[:dsl_array]
         @url  = Thread.current[:dsl_url]
         @json = Thread.current[:dsl_json]
-
-        if result.nil? && current_array.equal?(arr)
-          result = current_array
-        end
 
         result
 
@@ -447,9 +454,12 @@ module Dsl
       page_status = ensure_page!(step: 'xpath')
       return page_status if abort_structure?(page_status)
 
-      #@page.xpath(code).map(&:text)
-      # new default behavior
-      @page.xpath(code).map { |n| node_value(n).to_s.squish }.reject(&:blank?)
+      @page.xpath(code).map(&:text)
+    end
+
+    def append_results(arr, values)
+      values.each { |value| arr << value }
+      arr
     end
 
     def halt_structure?(obj)

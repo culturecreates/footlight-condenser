@@ -100,12 +100,12 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     assert_no_wringer_requests
   end
 
-  test "if_xpath emits matches but later step replaces result" do
+  test "if_xpath and subsequent xpath both append results" do
     expect_no_fetch_seams
     runner, = build_runner_with_html(html: "<html><body><title>T</title><h1>H</h1></body></html>")
     result = runner.run("if_xpath=//title; xpath=//h1/text()")
 
-    assert_equal ["H"], result
+    assert_equal ["T", "H"], result
     assert_no_wringer_requests
   end
 
@@ -118,12 +118,12 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     assert_no_wringer_requests
   end
 
-  test "ruby step preserves current array when mutating method returns nil" do
+  test "ruby step returns nil when its expression returns nil as in production" do
     expect_no_fetch_seams
     runner, = build_runner_with_html(html: "<html><body><p>a</p><p>b</p></body></html>")
     result = runner.run("xpath=//p/text(); ruby=$array.uniq!")
 
-    assert_equal %w[a b], result
+    assert_nil result
     assert_no_wringer_requests
   end
 

@@ -46,7 +46,7 @@ module Dsl
         url_before: url_before,
         url_after: url_after,
         duration_ms: duration_ms
-      }
+      }.deep_dup
     end
 
     def to_h

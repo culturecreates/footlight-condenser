@@ -80,7 +80,7 @@ class Website < ApplicationRecord
     return "Run a transition check to establish paired extraction evidence." unless latest
     return "Transition check is #{latest.status}. Wait for all phases to finish." if latest.status.in?(%w[queued running])
     return latest.error_message.presence || "Transition check failed. Run a new check." if latest.status == "failed"
-    return "Source configuration changed since the last check. Run a new check." unless latest.configuration_digest == Distillator::TransitionFingerprint.call(self)
+    return Distillator::TransitionFingerprint::STALE_MESSAGE unless latest.configuration_digest == Distillator::TransitionFingerprint.call(self)
 
     nil
   end
