@@ -517,9 +517,15 @@ module Dsl
     def load_rdf_graph(body, fetch_result)
       source_url = fetch_result[:final_url].presence || @url
       headers = fetch_result[:headers] || {}
-      content_type = headers[:content_type] || headers["content_type"] || headers[:"content-type"] || headers["Content-Type"]
+      content_type = headers[:content_type] || headers["content_type"] || headers[:"content-type"] || headers["content-type"] || headers["Content-Type"]
       content_type = Array(content_type).first.to_s.presence
       text = body.to_s
+      # Extensionless HTML may contain its RDFa/JSON-LD beyond the reader's
+      # detection sample. Retain declared MIME types and infer HTML only when
+      # the response itself identifies an HTML document.
+      if content_type.blank? && text.lstrip.match?(/\A(?:<!doctype\s+html\b|<html\b)/i)
+        content_type = "text/html"
+      end
       reader = RDF::Reader.for(content_type: content_type, file_name: source_url) { text[0, 1000] }
       raise RDF::FormatError, "unknown RDF format for #{source_url}" unless reader
 
