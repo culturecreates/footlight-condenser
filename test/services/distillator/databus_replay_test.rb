@@ -116,6 +116,50 @@ class Distillator::DatabusReplayTest < ActiveSupport::TestCase
     assert_nil Thread.current[:footlight_databus_replay]
   end
 
+  test "Culture3R secondary ticket requests preserve the exact existing Wringer query key" do
+    @url = "https://billets.culture3r.com/Online/mapSelect.asp?doWork::WSmap::loadMap=Load&createBO::WSmap=1" \
+      "&BOparam::WSmap::loadMap::performance_ids=4654FB70-AE58-44D8-B264-6E44B1BB9FC6&label=a%20b&label=a+b"
+    @key = Distillator::WringerUrlKey.call(@url, include_fragment: true).uri_key
+    @row = @row.merge("uri" => @key)
+    stub_cache('{"price":53}')
+    reader = Distillator::DatabusReplay::CacheReader.new(base_url: @base)
+    service = build_service(reader: reader)
+    service.send(:install_guards)
+    service.send(:with_cache_only) do
+      assert_equal({ "price" => 53 }, HTTParty.get(@url).parsed_response)
+    end
+    assert_equal @url, reader.observations.sole.fetch(:url)
+    assert_empty reader.missing
+    assert_not_requested :get, %r{\Ahttps://billets\.culture3r\.com/}
+    assert_nil Thread.current[:footlight_databus_replay]
+  end
+
+  test "secondary query options are appended without rewriting the existing query" do
+    url = "https://billets.culture3r.com/Online/mapSelect.asp?doWork::WSmap::loadMap=Load&label=a%20b&label=a+b"
+    @url = "#{url}&lang=fr"
+    @key = Distillator::WringerUrlKey.call(@url, include_fragment: true).uri_key
+    @row = @row.merge("uri" => @key)
+    stub_cache('{"price":53}')
+    reader = Distillator::DatabusReplay::CacheReader.new(base_url: @base)
+    [{ lang: "fr" }, "lang=fr"].each do |query|
+      assert_equal({ "price" => 53 }, reader.http_response(url, query: query).parsed_response)
+    end
+    assert_equal @url, reader.observations.sole.fetch(:url)
+    assert_empty reader.missing
+    assert_not_requested :get, %r{\Ahttps://billets\.culture3r\.com/}
+  end
+
+  test "already encoded secondary URLs retain their original escape spelling" do
+    @url = "https://billets.culture3r.com/Online/mapSelect.asp?doWork%3a%3aWSmap%3a%3aloadMap=Load&path=a%2fb&label=a%20b"
+    @key = Distillator::WringerUrlKey.call(@url, include_fragment: true).uri_key
+    @row = @row.merge("uri" => @key)
+    stub_cache('{"price":53}')
+    reader = Distillator::DatabusReplay::CacheReader.new(base_url: @base)
+    assert_equal({ "price" => 53 }, reader.http_response(@url, {}).parsed_response)
+    assert_equal @url, reader.observations.sole.fetch(:url)
+    assert_empty reader.missing
+  end
+
   test "console replay regenerates selected source values and does not save statements or change website mode" do
     website, webpage = create_replay_records
     expected = [

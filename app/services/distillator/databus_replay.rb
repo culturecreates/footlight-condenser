@@ -106,10 +106,10 @@ module Distillator
 
       def http_response(url, options)
         missing!("Cannot replay a request body from a URL-only cache: #{url}") if options[:body].present?
-        target = URI.parse(url.to_s)
-        query = URI.decode_www_form(target.query.to_s)
-        query.concat(options.fetch(:query, {}).to_a) if options[:query]
-        target.query = URI.encode_www_form(query) unless query.empty?
+        # Match HTTParty's actual request URI without performing the request.
+        # Decoding/re-encoding an existing query changes Wringer's exact key
+        # (notably Culture3R's doWork::WSmap parameters and encoded spaces).
+        target = HTTParty::Request.new(Net::HTTP::Get, url.to_s, options.dup).uri
         body = fetch(target.to_s)
         response = Net::HTTPOK.new("1.1", "200", "OK")
         response.instance_variable_set(:@body, body)

@@ -79,6 +79,12 @@ calls also read cache. Request bodies and unsupported direct network calls are
 reported as missing inputs. This can expose uncached ticketing endpoints in
 complex pricing DSLs; those cases are incomplete, not extraction regressions.
 
+Secondary HTTP cache lookups preserve the request URI using HTTParty's URI
+builder. Existing query spelling, duplicate parameters and escapes remain
+intact; additional query options are appended as HTTParty would send them.
+Wringer's exact cache keys distinguish `::` from `%3A%3A`, so rewriting the
+original query can otherwise produce a false cache miss.
+
 Formatting/reconciliation and RDF entity enrichment run outside the raw-DSL
 network guard and can make their normal read-only lookups. Reconciliation HTTP
 responses are reused within the run. They are current observations, not historical
