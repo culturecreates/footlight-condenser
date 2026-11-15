@@ -52,6 +52,70 @@ module Statements
       assert_equal statement.id, Statement.find_by!(webpage_id: webpage.id, source_id: statement.source_id).id
     end
 
+    %w[legacy shadow active].each do |mode|
+      %w[ok updated].each do |status|
+        test "#{mode} refresh preserves #{status} reviewed performers while refreshing automatic statements" do
+          website = Website.create!(
+            name: "Reviewed performers #{mode} #{status}",
+            seedurl: "reviewed-performers-#{mode}-#{status}",
+            default_language: "fr",
+            distillator_mode: mode
+          )
+          webpage = Webpage.create!(
+            website: website,
+            rdfs_class: rdfs_classes(:one),
+            url: "https://fixtures.example/#{website.seedurl}/event",
+            rdf_uri: "footlight:#{website.seedurl}",
+            language: "fr"
+          )
+
+          # Production replay cases: a fresh lookup can lose OSM or add an
+          # incorrect Theatre Denise-Pelletier match to Patrick Watson.
+          # Ordinary refresh must retain the operator's reviewed relationships.
+          reviewed = [
+            ["OSM", "http://kg.artsdata.ca/resource/K10-555"],
+            ["Patrick Watson", "http://kg.artsdata.ca/resource/K12-450"]
+          ].map do |name, uri|
+            source = Source.create!(
+              website: website, property: properties(:nine), language: "fr",
+              selected: true, selected_by: "test", algorithm_value: "xpath=//h1/text()"
+            )
+            statement = Statement.create!(
+              webpage: webpage, source: source, manual: true,
+              selected_individual: true, status: "initial",
+              cache: [name, "Organization", [name, uri]].to_json
+            )
+            statement.update_columns(
+              status: status, status_origin: "operator_review",
+              cache_refreshed: 2.days.ago, cache_changed: 3.days.ago
+            )
+            statement
+          end
+          before = reviewed.to_h { |statement| [statement.id, statement.reload.attributes] }
+
+          automatic_source = Source.create!(
+            website: website, property: properties(:four), language: "fr",
+            selected: true, selected_by: "test", algorithm_value: "xpath=//h1/text()"
+          )
+          automatic = Statement.create!(
+            webpage: webpage, source: automatic_source, manual: false,
+            selected_individual: true, status: "initial", cache: "Automatic title"
+          )
+          helper = DummyRefreshHelper.new
+          result = Statements::RefreshWebpageStatementsService.new(refresh_helper: helper).call(
+            webpage: webpage, default_language: "fr", scrape_options: { force_scrape_every_hrs: "0" }
+          )
+
+          assert_equal [], result
+          assert_equal [automatic.id], helper.calls.map { |call| call[:statement_id] }
+          reviewed.each do |statement|
+            assert_equal before.fetch(statement.id), statement.reload.attributes,
+              "Reviewed performer, selection, audit metadata and timestamps must remain unchanged"
+          end
+        end
+      end
+    end
+
     test "call updates existing statement cache through the real refresh helper" do
       previous_mode = ENV["DISTILLATOR_FETCH_MODE"]
       ENV["DISTILLATOR_FETCH_MODE"] = "internal"
