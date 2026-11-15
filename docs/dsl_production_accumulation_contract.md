@@ -51,6 +51,14 @@ date must remain non-empty and become `2026-11-20T20:00:00-05:00` in the fixture
 Additional patterns cover parallel performer links, nested/drop logic, pagination,
 multiple JSON instructions and exact blank/whitespace preservation.
 
+Culture Mauricie Price #7870 is also preserved unchanged in a fixture. The old
+and new evaluators receive identical HTML and rates JSON across navigation back
+to the original page. Array rates, a single rate object, nil prices and multiple
+tariffs are covered, with tracing enabled and disabled. These are controlled
+inputs, not recovered historical rates responses. Agreement does not by itself
+explain the live `37.74` versus `42.99` discrepancy; cached input timestamps,
+source versions and historical refresh evidence still need separate review.
+
 The export's reported 38 compatibility-sensitive sources indicate investigation
 scope, not 38 established failures. These fixtures do not execute all 1,308
 definitions or establish live production parity for every source. Revalidate

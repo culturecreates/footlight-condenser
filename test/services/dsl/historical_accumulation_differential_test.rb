@@ -76,6 +76,23 @@ class Dsl::HistoricalAccumulationDifferentialTest < ActiveSupport::TestCase
       html: html, expected: ["/buy", "/buy"]
   end
 
+  test "unchanged Culture Mauricie price 7870 agrees with the historical evaluator on identical rates inputs" do
+    algorithm = Rails.root.join("test/fixtures/dsl/culture_mauricie_price.dsl").read.split(";").map(&:strip).join(";")
+    html = '<html><body data-reference="fixture-rates"><ul class="performances">' \
+      '<li><a href="/billets/performance">Performance</a></li></ul></body></html>'
+    # Representative JSON shapes, not claimed historical response snapshots.
+    # Freeze all navigation inputs for both independent engines and tracing modes.
+    [
+      [[{ "price" => 37.74 }], [37.74]],
+      [[{ "price" => 42.99 }, { "price" => nil }], [42.99]],
+      [[{ "price" => 128.32 }, { "price" => 68.17 }], [128.32, 68.17]],
+      [{ "price" => 42.99 }, [42.99]]
+    ].each do |rates, expected|
+      assert_differential algorithm, html: html, expected: expected,
+        pages: { "https://lepointdevente.com/plugins/rates/fixture-rates" => { rates: rates }.to_json }
+    end
+  end
+
   test "SPARQL accumulation and flattening agree with the independent evaluator" do
     RDF::Graph.stubs(:load).returns(RDF::Graph.new)
     rows = %w[a b].map { |value| OpenStruct.new(answer: OpenStruct.new(value: value)) }

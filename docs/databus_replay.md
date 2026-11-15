@@ -93,6 +93,15 @@ network guard and can make their normal read-only lookups. Reconciliation HTTP
 responses are reused within the run. They are current observations, not historical
 production inputs. Their drift must be reviewed separately.
 
+Reconciliation also treats spaced ` - ` separators as possible organization /
+venue aliases. Internal hyphens in names such as `Trois-Rivières` and
+`Denise-Pelletier` do not introduce an alias: matching only `Rivières` or
+`Pelletier` would incorrectly turn unrelated suggestions into published links.
+The recorded Partytime candidate names/identities are a regression fixture;
+with its one extracted venue, formatting retains only Le Memphis Cabaret and
+the six-date EventSeries can be generated. Existing multi-venue extraction via
+full names or spaced hierarchy separators remains supported.
+
 ## Explicit API dependencies
 
 Some `api=` sources read another Condenser site's resource-list statements,

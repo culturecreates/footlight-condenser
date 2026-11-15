@@ -1127,7 +1127,9 @@ module StatementsHelper
     noisy_hits = hits.select do |h|
       raw_name = h["name"].to_s
       name = normalize_string(raw_name)
-      trailing_segment = normalize_string(raw_name.split('-').last.to_s)
+      # "Organization - Venue" can supply a venue alias. Hyphens inside
+      # Trois-Rivières or Denise-Pelletier are part of the name, not aliases.
+      trailing_segment = normalize_string(raw_name.split(/\s+-\s+/).last.to_s)
 
       (name.length >= 8 && normalized_query.include?(name)) ||
         (trailing_segment.length >= 8 && normalized_query.include?(trailing_segment))
