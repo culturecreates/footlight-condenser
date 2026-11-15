@@ -58,6 +58,7 @@ system_exceptions:
       body_contains:
         - "Queue-it"
         - "Please wait while we redirect you"
+      unless_event_price: true
     policy:
       action: abort_update
       retry: true
@@ -96,7 +97,13 @@ system_exceptions:
     match:
       body_contains:
         - "Reservatech"
+        - "reservatech"
         - "Waiting room"
+      # Ordinary event pages load Reservatech's integration scripts. The page
+      # itself must identify a waiting room, not merely mention its provider.
+      page_identity_patterns:
+        - '\A(?:Reservatech(?:\.net)?[\s:|–—-]+(?:waiting room|salle d[\x27\u2019]attente)|(?:waiting room|salle d[\x27\u2019]attente)(?:[\s:|–—-]+Reservatech(?:\.net)?)?)[.!]?\z'
+      unless_event_price: true
     policy:
       action: abort_update
       retry: true
@@ -116,6 +123,7 @@ system_exceptions:
     match:
       body_contains:
         - "Salle d'attente"
+      unless_event_price: true
     policy:
       action: abort_update
       retry: true

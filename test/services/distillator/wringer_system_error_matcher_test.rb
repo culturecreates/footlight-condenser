@@ -1,6 +1,90 @@
 require "test_helper"
 
 class Distillator::WringerSystemErrorMatcherTest < ActiveSupport::TestCase
+  test "Co-motion Reservatech integration scripts are not a waiting room" do
+    html = Rails.root.join("test/fixtures/files/distillator_dsl/co_motion_ticketing_assets.html").read
+    assert_nil match_for(body: html, http_code: 200)
+    payload = Distillator::FetchService.enrich_wringer_metadata(url: "https://co-motion.ca/spectacles/2freres-origine/",
+      result: { status: :ok, body: html, raw_body: html, http_code: 200, headers: { "content-type" => "text/html" }, fetch_path: "legacy" })
+    assert_equal true, payload.dig(:wringer, :signals, :transport_success)
+    assert_equal true, payload.dig(:wringer, :signals, :content_success)
+    assert_nil payload.dig(:wringer, :signals, :blocking_issue_key)
+  end
+
+  test "waiting room text in scripts or a secondary link does not reject an event" do
+    html = '<h1>Origine</h1><script>const provider = "Reservatech"; const label = "Waiting room";</script>' \
+      '<p>2Frères présente Origine.</p><footer><a href="https://reservatech.net">Waiting room</a></footer>'
+    assert_nil match_for(body: html, http_code: 200)
+  end
+
+  test "genuine Reservatech waiting-room identities still abort with retry and no cache update" do
+    ["Reservatech waiting room", "reservatech waiting room", '<title>Waiting room | Reservatech</title><h1>Waiting room</h1>',
+      '<title>Reservatech - Waiting room</title><p>Please wait for tickets.</p>',
+      '<title>Salle d’attente — Reservatech</title><p>Veuillez patienter.</p>'].each do |html|
+      issue = match_for(body: html, http_code: 200)
+      assert_equal "system_reservatech_waiting_room", issue[:error_type]
+      assert_equal "abort_update", issue[:action]
+      assert_equal true, issue[:retry]
+      assert_equal false, issue[:cache]
+      assert_equal "page_identity", issue.dig(:match_details, :source)
+    end
+  end
+
+  test "response pricing vetoes waiting-room classifications including zero-priced offers" do
+    ["53 $", "53,00 $", "$53.00", "CAD 53.00", "53 CAD", "0 $"].each do |price|
+      ["Reservatech waiting room", "Queue-it", "Salle d'attente"].each do |identity|
+        html = "<title>#{identity}</title><h1>#{identity}</h1><p>Régulier #{price}</p>"
+        assert_nil match_for(body: html, http_code: 200), "#{identity}: #{price}"
+      end
+    end
+  end
+
+  test "structured offer prices in the response veto waiting-room classifications" do
+    [
+      { "@type" => "Event", "offers" => { "@type" => "Offer", "price" => "53.00", "priceCurrency" => "CAD" } },
+      { "@graph" => [{ "@type" => "https://schema.org/AggregateOffer", "lowPrice" => 0 }] },
+      { "@type" => "schema:Offer", "price" => 53 }
+    ].each do |data|
+      html = '<title>Reservatech waiting room</title><script type="application/ld+json">' + data.to_json + '</script>'
+      assert_nil match_for(body: html, http_code: 200), data.inspect
+    end
+    html = '<title>Reservatech waiting room</title><meta itemprop="price" content="0">'
+    assert_nil match_for(body: html, http_code: 200)
+  end
+
+  test "code comments invalid prices and retained statement values do not veto waiting rooms" do
+    [
+      '<script>const previousPrice = "$53.00";</script>',
+      '<style>p::after { content: "$53.00"; }</style>',
+      '<!-- Régulier 53 $ -->',
+      '<script type="application/ld+json">{invalid json}</script>',
+      '<script type="application/ld+json">{"@type":"Offer","price":"unknown"}</script>',
+      '<meta itemprop="price" content="unknown">',
+      '<p>53 tickets remaining</p>'
+    ].each do |extra|
+      html = '<title>Reservatech waiting room</title><h1>Reservatech waiting room</h1>' + extra
+      issue = match_for(body: html, http_code: 200, signals: { cached_price: 53 })
+      assert_equal "system_reservatech_waiting_room", issue&.dig(:error_type), extra
+    end
+  end
+
+  test "pricing does not override HTTP errors or explicit Cloudflare and captcha challenges" do
+    html = '<title>Reservatech waiting room</title><p>Régulier 53 $</p>'
+    assert_equal "http_server_error", match_for(body: html, http_code: 503)[:error_type]
+    assert_equal "http_403", match_for(body: html, http_code: 403)[:error_type]
+    payload = Distillator::FetchService.enrich_wringer_metadata(url: "https://example.org/event",
+      result: { status: :ok, body: html, http_code: 200, headers: { "Cf-Mitigated" => "challenge" } })
+    assert_equal false, payload.dig(:wringer, :signals, :content_success)
+    assert_equal "cloudflare_response_header", payload.dig(:wringer, :signals, :blocking_issue_key)
+
+    [
+      ['<title>Just a moment...</title><p>Cloudflare</p>', "system_cloudflare"],
+      ['<title>Robot Check</title><h1>Verify you are human</h1><div class="captcha"></div>', "system_captcha"]
+    ].each do |challenge, type|
+      assert_equal type, match_for(body: challenge + '<p>53 $</p>', http_code: 200)[:error_type]
+    end
+  end
+
   test "Culture Gaspesie cookie explanation and embedded captcha do not reject the event page" do
     html = <<~HTML
       <html><head><title>Dimanche à Sodome - Culture Gaspésie</title>

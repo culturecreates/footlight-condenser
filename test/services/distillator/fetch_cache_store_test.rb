@@ -54,6 +54,24 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
     assert_equal false, cache.signals["use_phantomjs"]
   end
 
+  test "Legacy cached Co-motion integration content remains usable by ordinary DSL extraction" do
+    url = "https://co-motion.ca/spectacles/2freres-origine/"
+    body = Rails.root.join("test/fixtures/files/distillator_dsl/co_motion_ticketing_assets.html").read
+    client = mock("Wringer cache client")
+    client.expects(:fetch).with(url: url).returns(status: :ok, body: body, http_code: 200,
+      headers: { content_type: "text/html" }, final_url: url, wringer: { signals: {}, hints: [] })
+    Distillator::FetchService.expects(:internal_fetch).never
+    result = Distillator::FetchCacheStore.fetch(uri: url, mode: :legacy, client: client)
+    assert result.content_success?
+    assert_equal "legacy", result.fetch_path
+    assert_equal body, result.body
+    assert_nil result.blocking_issue_key
+
+    runner = Dsl::Core::AlgorithmRunner.new(url: url, render_js: false, mode: :legacy,
+      scrape_options: {}, tracer: Dsl::Tracing::NullTracer.new)
+    assert_equal ["2Frères"], runner.run("xpath=//h1")
+  end
+
   test "website rollout context is forwarded to fetch service" do
     website = websites(:one)
     website.update!(distillator_mode: "active")

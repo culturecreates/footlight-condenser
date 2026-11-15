@@ -1,3 +1,5 @@
+require "json"
+
 module Distillator
   class WringerSystemErrorMatcher
     def self.call(body:, http_code:, final_url:, hints: [], signals: {}, rules: nil, logger: Rails.logger)
@@ -94,6 +96,10 @@ module Distillator
           snippet: matched_snippet(body, matched_text)
         }
       end
+
+      # Positive pricing in this response contradicts a text-based waiting-room
+      # diagnosis. It does not override HTTP errors or explicit challenge rules.
+      return nil if value(match, :unless_event_price) && response_price_present?
 
       identity_patterns = value(match, :page_identity_patterns)
       if identity_patterns
@@ -223,6 +229,54 @@ module Distillator
       @body_text ||= Nokogiri::HTML(body.to_s).text.to_s.squish
     rescue StandardError
       body.to_s
+    end
+
+    def response_price_present?
+      return @response_price_present unless @response_price_present.nil?
+
+      document = Nokogiri::HTML(body)
+      visible = (document.at_css("body") || document).dup
+      visible.css("script, style, noscript, template, svg").remove
+      text = visible.text.squish
+      monetary = text.match?(/(?:[$€£]|\b(?:CAD|USD|EUR|GBP)\b)\s*\d+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?\s*(?:[$€£]|\b(?:CAD|USD|EUR|GBP)\b)/i)
+      microdata = document.css('[itemprop~="price"], [itemprop~="lowPrice"], [itemprop~="highPrice"]').any? do |node|
+        numeric_price?(node["content"] || node["value"] || node.text)
+      end
+      jsonld = document.css('script[type="application/ld+json"]').any? do |node|
+        structured_price?(JSON.parse(node.text))
+      rescue JSON::ParserError
+        false
+      end
+      @response_price_present = monetary || microdata || jsonld
+    rescue StandardError
+      @response_price_present = false
+    end
+
+    def numeric_price?(value)
+      value.is_a?(Numeric) ? value.finite? && value >= 0 :
+        value.is_a?(String) && value.strip.match?(/\A\d+(?:[.,]\d+)?\z/)
+    end
+
+    def offer_price?(value)
+      entries = value.is_a?(Array) ? value : [value]
+      entries.any? { |entry| entry.is_a?(Hash) && %w[price lowPrice highPrice].any? { |key| numeric_price?(entry[key]) } }
+    end
+
+    def structured_price?(value)
+      queue = [value]
+      until queue.empty?
+        node = queue.pop
+        if node.is_a?(Hash)
+          types = Array(node["@type"]).map { |type| type.to_s.split(%r{[/#:]}).last }
+          return true if (types & %w[Event EventSeries Offer AggregateOffer]).any? && offer_price?(node)
+          return true if offer_price?(node["offers"])
+
+          queue.concat(node.values.select { |child| child.is_a?(Hash) || child.is_a?(Array) })
+        elsif node.is_a?(Array)
+          queue.concat(node)
+        end
+      end
+      false
     end
 
     # Judge the primary page, not code or a CAPTCHA on an ordinary contact form.
