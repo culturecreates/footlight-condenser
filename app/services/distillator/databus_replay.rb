@@ -367,7 +367,9 @@ module Distillator
     end
 
     def canonical_lines(graph) = graph.dump(:normalize, algorithm: :rdfc10).lines.map(&:strip).sort
-    def write_file(name, value) = @output_dir.join(name).write(value)
+    # Preserve HTTP response bytes even when the client tags UTF-8 JSON as
+    # ASCII-8BIT. Text-mode writes attempt an invalid binary-to-UTF-8 transcode.
+    def write_file(name, value) = @output_dir.join(name).binwrite(value)
     def write_json(name, value) = write_file(name, JSON.pretty_generate(value) + "\n")
   end
 end

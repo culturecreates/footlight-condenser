@@ -135,6 +135,22 @@ class Distillator::DatabusReplayTest < ActiveSupport::TestCase
     assert File.exist?(File.join(@directory, "co-motion-ca-selected-sources.json"))
   end
 
+  test "binary tagged UTF8 Databus HTTP responses retain accented literals and exact downloaded bytes" do
+    _website, webpage = create_replay_records
+    title = "Théâtre — décembre à Montréal"
+    export = [{ "@id" => webpage.rdf_uri, "@type" => "http://schema.org/Event",
+      "http://schema.org/name" => [{ "@value" => title }], "http://schema.org/url" => [{ "@value" => @url }] }].to_json.b
+    export_url = "https://data.culturecreates.com/databus/culture-creates/footlight/co-motion-ca/2026-11-07/co-motion-ca.json"
+    stub_request(:get, export_url).to_return(status: 200, body: export, headers: { "Content-Type" => "application/octet-stream" })
+    stub_cache("<h1>#{title}</h1>")
+    reader = Distillator::DatabusReplay::CacheReader.new(base_url: @base)
+    report = build_service(reader: reader).call
+    assert_equal "equivalent_event_data", report[:sites].first[:status], report.inspect
+    assert_equal export, File.binread(File.join(@directory, "co-motion-ca-production.json"))
+    assert_equal Digest::SHA256.hexdigest(export), report[:sites].first[:export_sha256]
+    assert_includes File.read(File.join(@directory, "co-motion-ca-actual.nq")), title
+  end
+
   test "the replay transaction prevents accidental SQL writes" do
     create_replay_records
     service = build_service(export_loader: lambda { |_| Website.where(id: @created_website.id).update_all(name: "must not persist") })
