@@ -13,3 +13,5 @@
 <http://kg.footlight.io/resource/distillator-full-event> <http://schema.org/startDate> "2026-05-10T19:30:00-04:00"^^<http://www.w3.org/2001/XMLSchema#dateTime> .
 <http://kg.footlight.io/resource/distillator-full-event> <http://schema.org/url> "https://fixtures.example/distillator/event-full" .
 <http://kg.footlight.io/resource/distillator-full-event> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://schema.org/Event> .
+<http://kg.footlight.io/resource/distillator-main-hall> <http://schema.org/name> "Main Hall" .
+<http://kg.footlight.io/resource/distillator-main-hall> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://schema.org/Place> .

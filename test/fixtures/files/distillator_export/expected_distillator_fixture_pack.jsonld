@@ -82,5 +82,10 @@
         "@value": "15.00"
       }
     ]
+  },
+  {
+    "@id": "http://kg.footlight.io/resource/distillator-main-hall",
+    "@type": ["http://schema.org/Place"],
+    "http://schema.org/name": [{ "@value": "Main Hall" }]
   }
 ]

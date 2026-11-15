@@ -131,11 +131,12 @@ class JsonldGenerator
 
   # Add triples from artsdata.ca AND Footlight database using URIs of people, places and organizations
   def self.add_triples_from_artsdata(local_graph)
+    descriptions, subjects = {}, {}
     uris = extract_object_uris(local_graph).map(&:to_s)
                                            .uniq
                                            .map { |u| RDF::URI(u) }
     uris.each do |uri|
-      additional_graph = describe_uri(uri)
+      additional_graph = describe_uri(uri, cache: descriptions, subject_cache: subjects)
       # TODO: fetch remote data from Wikidata if additional_graph.count == 0
       local_graph << additional_graph
     end
@@ -144,6 +145,7 @@ class JsonldGenerator
 
   # Add triples ONLY from Footlight database (not Artsdata) using URIs of people, places and organizations
   def self.add_triples_from_footlight(local_graph)
+    descriptions, subjects = {}, {}
     uris = extract_object_uris(local_graph)
            .map(&:to_s)
            .reject { |u| u.include?("http://kg.artsdata.ca/resource/K") }
@@ -151,7 +153,7 @@ class JsonldGenerator
            .map { |u| RDF::URI(u) }
 
     uris.each do |uri|
-      additional_graph = describe_uri(uri)
+      additional_graph = describe_uri(uri, cache: descriptions, subject_cache: subjects)
       local_graph << additional_graph
     end
 
@@ -516,28 +518,28 @@ class JsonldGenerator
     graph
   end
 
-  @describe_cache ||= {}
-  @subject_index_cache ||= {}
-
-  def self.describe_uri(uri)
-    @describe_cache[uri] ||= begin
+  # Reuse lookups within one enrichment pass, never across exports or DB changes.
+  def self.describe_uri(uri, cache: {}, subject_cache: {})
+    cache[uri.to_s] ||= begin
       if describe_candidate_uri?(uri)
-        if footlight_uri?(uri)
+        triples = subject_triples(uri, cache: subject_cache)
+        if triples.empty? && footlight_uri?(uri)
           describe_footlight_uri(uri)
         else
           graph = RDF::Graph.new
 
-          subject_triples(uri).each do |subject, predicate, object|
+          triples.each do |subject, predicate, object|
             graph << [subject, predicate, object]
 
-            if object.uri? && (!object.value.start_with?("http://kg.artsdata.ca/resource/K") || object.value.include?("#PostalAddress"))
-              subject_triples(object).each do |nested_subject, nested_predicate, nested_object|
+            if object.uri? && !vocabulary_uri?(object) &&
+                (!object.value.start_with?("http://kg.artsdata.ca/resource/K") || object.value.include?("#PostalAddress"))
+              subject_triples(object, cache: subject_cache).each do |nested_subject, nested_predicate, nested_object|
                 graph << [nested_subject, nested_predicate, nested_object]
               end
             end
 
             if object.node?
-              subject_triples(object).each do |nested_subject, nested_predicate, nested_object|
+              subject_triples(object, cache: subject_cache).each do |nested_subject, nested_predicate, nested_object|
                 graph << [nested_subject, nested_predicate, nested_object]
               end
             end
@@ -551,23 +553,28 @@ class JsonldGenerator
     end
   end
 
-  def self.subject_triples(subject)
+  def self.subject_triples(subject, cache: {})
     key = subject.to_s
 
-    @subject_index_cache[key] ||= ArtsdataGraph.graph
-                                               .query([subject, nil, nil])
-                                               .map { |statement| [statement.subject, statement.predicate, statement.object] }
+    cache[key] ||= ArtsdataGraph.graph.query([subject, nil, nil])
+      .map { |statement| [statement.subject, statement.predicate, statement.object] }
   end
 
   def self.describe_candidate_uri?(uri)
     value = uri.to_s
-    return false if value.start_with?("http://schema.org/", "https://schema.org/", "http://www.w3.org/")
-    return false unless value.start_with?("http://kg.artsdata.ca/resource/", "http://kg.footlight.io/resource/")
+    return false if vocabulary_uri?(uri)
     return false if value.start_with?("http://kg.footlight.io/resource/") &&
                     value.include?("#") &&
                     !value.end_with?("#PostalAddress")
 
-    true
+    # A known venue may use its own HTTPS identifier. This is a local graph
+    # lookup, not permission to dereference arbitrary websites or recurse.
+    value.start_with?("http://kg.artsdata.ca/resource/", "http://kg.footlight.io/resource/") ||
+      ArtsdataGraph.graph.has_subject?(uri)
+  end
+
+  def self.vocabulary_uri?(uri)
+    uri.to_s.start_with?("http://schema.org/", "https://schema.org/", "http://www.w3.org/", "https://www.w3.org/")
   end
 
   def self.footlight_uri?(subject)
@@ -576,7 +583,8 @@ class JsonldGenerator
   end
 
   def self.describe_footlight_uri(uri)
-    webpages = Webpage.where(rdf_uri: uri.to_s)
+    value = uri.to_s
+    webpages = Webpage.where(rdf_uri: [value, value.sub(/\Ahttp:\/\/kg\.footlight\.io\/resource\//, "footlight:")])
     return RDF::Graph.new if webpages.empty?
 
     statements =

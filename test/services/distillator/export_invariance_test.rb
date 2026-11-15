@@ -29,6 +29,9 @@ class Distillator::ExportInvarianceTest < ActiveSupport::TestCase
 
     assert graph.query([event, RDF.type, RDF::Vocab::SCHEMA.Event]).to_a.any?, "expected schema:Event triple"
     assert graph.query([event, RDF::Vocab::SCHEMA.location, nil]).to_a.any?, "expected linked schema:location"
+    place = RDF::URI("http://kg.footlight.io/resource/distillator-main-hall")
+    assert graph.has_statement?(RDF::Statement.new(place, RDF.type, RDF::Vocab::SCHEMA.Place))
+    assert graph.has_statement?(RDF::Statement.new(place, RDF::Vocab::SCHEMA.name, "Main Hall"))
     assert graph.query([event, RDF::Vocab::SCHEMA.offers, nil]).to_a.any?, "expected schema:offers"
     assert graph.query([event, RDF::Vocab::SCHEMA.eventStatus, RDF::URI("http://schema.org/EventScheduled")]).to_a.any?, "expected reconciled eventStatus URI"
     assert graph.query([event, RDF::Vocab::SCHEMA.eventAttendanceMode, RDF::URI("http://schema.org/OnlineEventAttendanceMode")]).to_a.any?, "expected reconciled attendance mode URI"
