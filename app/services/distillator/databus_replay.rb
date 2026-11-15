@@ -242,10 +242,12 @@ module Distillator
         { source: source.attributes, property: source.property.attributes, rdfs_class: source.property.rdfs_class.attributes }
       end)
       expected = sampled_graph(baseline, chosen)
+      @progress&.puts "#{seedurl}: generating RDF with linked local resource descriptions"
       actual = generate_graph(pages)
       write_file("#{seedurl}-expected.nq", expected.dump(:nquads))
       write_file("#{seedurl}-actual.nq", actual.dump(:nquads))
       write_json("#{seedurl}-extraction.json", pages.map { |page| page.except(:statements) })
+      @progress&.puts "#{seedurl}: comparing generated RDF with the production export"
       diff = graph_difference(expected, actual)
       incomplete = pages.any? { |page| page[:errors].any? }
       { seedurl: seedurl, rollout_mode: website.distillator_mode, export_date: date, export_url: url, export_sha256: Digest::SHA256.hexdigest(body),
