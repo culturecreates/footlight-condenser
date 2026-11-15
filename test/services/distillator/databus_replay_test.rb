@@ -394,6 +394,48 @@ class Distillator::DatabusReplayTest < ActiveSupport::TestCase
     assert_equal [1, 2], errors.first[:source_ids]
   end
 
+  test "EventSeries failure identifies its page and keeps other events as an incomplete preview" do
+    website, webpage = create_replay_records
+    healthy = Webpage.new(website: website, rdfs_class: webpage.rdfs_class, language: "en",
+      rdf_uri: "https://example.org/replay/healthy", url: "https://example.org/healthy")
+    pages = [webpage, healthy].map do |page|
+      bad = page == webpage
+      dates = (bad ? 6 : 1).times.map { |index| "2026-12-#{index + 10}T20:00:00-05:00" }
+      locations = ["Extracted venue", "Place"] + (bad ? 15 : 1).times.map do |index|
+        ["Candidate #{index}", "https://example.org/venue/#{index}"]
+      end
+      values = [[properties(:ten), dates.to_json], [properties(:seven), locations.to_json]]
+      statements = values.map do |property, cache|
+        source = Source.new(website: website, property: property, language: "", selected: true, algorithm_value: "ruby=[]")
+        Statement.new(source: source, webpage: page, cache: cache, status: "updated", selected_individual: true)
+      end
+      { url: page.url, statements: statements, sources: [], errors: [] }
+    end
+    baseline = [webpage, healthy].map do |page|
+      { "@id" => page.rdf_uri, "@type" => "http://schema.org/Event", "http://schema.org/url" => [{ "@value" => page.url }] }
+    end.to_json
+    service = build_service(per_site: 2, export_loader: ->(_) { baseline })
+    pages.each { |page| service.stubs(:extract_page).with(website, page[:url]).returns(page) }
+    report = service.call
+    site = report[:sites].sole
+    assert_equal "incomplete", site[:status], site.inspect
+    assert site[:pages], site.inspect
+    error = site[:pages].find { |page| page[:url] == webpage.url }[:errors].sole
+    assert_equal "export", error[:layer]
+    assert_equal webpage.rdf_uri, error[:rdf_uri]
+    assert_equal [6, 0, 15], error.values_at(:start_dates, :end_dates, :locations)
+    assert_empty site[:pages].find { |page| page[:url] == healthy.url }[:errors]
+    actual = File.read(File.join(@directory, "co-motion-ca-actual.nq"))
+    assert_includes actual, healthy.rdf_uri
+    summary_error = Distillator::DatabusReplay.summary(report)[:sites].sole[:input_or_extraction_errors].sole
+    assert_equal webpage.url, summary_error[:url]
+    assert_equal "export", summary_error[:layer]
+    assert_equal 15, summary_error[:locations]
+    assert_equal 0, summary_error[:affected_sources]
+    recorded = JSON.parse(File.read(File.join(@directory, "co-motion-ca-extraction.json")))
+    assert_equal "export", recorded.find { |page| page["url"] == webpage.url }["errors"].sole["layer"]
+  end
+
   private
 
   def json_response(value)

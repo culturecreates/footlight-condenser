@@ -1,6 +1,16 @@
 # Class to convert data in the Condensor data model to JSON-LD
 class JsonldGenerator
   extend ResourcesHelper # for method adjust_labels_for_api
+
+  class EventSeriesConversionError < StandardError
+    attr_reader :rdf_uri, :start_dates, :end_dates, :locations
+
+    def initialize(rdf_uri:, start_dates:, end_dates:, locations:, reason:)
+      @rdf_uri, @start_dates, @end_dates, @locations = rdf_uri, start_dates, end_dates, locations
+      super("Cannot export #{rdf_uri} as EventSeries: #{start_dates} start dates, #{end_dates} end dates, " \
+        "#{locations} location values. #{reason}")
+    end
+  end
   
   # main method to dump all event statements into a graph to push to artsdata
   def self.dump_events_old(events) # list of event uris
@@ -268,8 +278,13 @@ class JsonldGenerator
                 end
     
     
-    # TODO: Better handling of error 
-    return RDF::Graph.new unless filename
+    unless filename
+      raise EventSeriesConversionError.new(
+        rdf_uri: full_uri(uri), start_dates: number_of_start_dates,
+        end_dates: number_of_end_dates, locations: number_of_locations,
+        reason: "Location values must describe one shared location or one location per start date. Review extracted locations and reconciliation matches."
+      )
+    end
 
     sparql = RdfLoader.load_sparql(filename,["http://kg.artsdata.ca/resource/spec-qc-ca_broue", full_uri(uri)])
 
@@ -277,7 +292,11 @@ class JsonldGenerator
       sse = SPARQL.parse(sparql, update: true)
       local_graph.query(sse)
     rescue => exception
-      Rails.logger.error "ERROR: #{exception}"
+      raise EventSeriesConversionError.new(
+        rdf_uri: full_uri(uri), start_dates: number_of_start_dates,
+        end_dates: number_of_end_dates, locations: number_of_locations,
+        reason: "EventSeries transformation failed (#{exception.class}): #{exception.message}"
+      )
     end
     local_graph
   end

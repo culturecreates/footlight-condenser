@@ -191,7 +191,9 @@ module Distillator
           data_added: Array(site[:data_added]).count, data_removed: Array(site[:data_removed]).count,
           input_or_extraction_errors: Array(site[:pages]).flat_map { |page| page[:errors].map { |error| error.merge(url: page[:url]) } }
             .group_by { |error| error.values_at(:url, :error) }.map do |(url, error), rows|
-              { url: url, error: error, affected_sources: rows.count, source_ids: rows.filter_map { |row| row[:source_id] }.uniq }
+              rows.first.slice(:layer, :rdf_uri, :start_dates, :end_dates, :locations).merge(
+                url: url, error: error, affected_sources: rows.count { |row| row[:source_id] },
+                source_ids: rows.filter_map { |row| row[:source_id] }.uniq)
             end)
       end }
     end
@@ -393,6 +395,12 @@ module Distillator
         event_graph = JsonldGenerator.build_graph(data, for_artsdata: true)
         %i[make_contact_series make_offer_series make_event_series].each { |method| event_graph = JsonldGenerator.public_send(method, event_graph, uri) }
         graph << event_graph
+      rescue JsonldGenerator::EventSeriesConversionError => error
+        pages.select { |page| page[:statements].any? { |statement| statement.webpage.rdf_uri == uri } }.each do |page|
+          page[:errors] << { layer: "export", rdf_uri: error.rdf_uri,
+            start_dates: error.start_dates, end_dates: error.end_dates, locations: error.locations,
+            error: "#{error.class}: #{error.message}" }
+        end
       end
       graph = JsonldGenerator.add_triples_from_footlight(graph)
       JsonldGenerator.remove_annotations(graph)

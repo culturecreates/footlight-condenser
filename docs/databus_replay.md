@@ -148,6 +148,14 @@ execution failure. The replay preserves that behavior for comparison.
 - `incomplete`: missing webpage/cache, execution/formatting/export failure, or
   another input problem. A partial graph is never reported as proof of parity.
 
+If EventSeries conversion cannot align multiple location values with start
+dates, it raises `JsonldGenerator::EventSeriesConversionError` with the event URI
+and start-date, end-date and location counts. Normal export stops before upload.
+The replay records this as an `export`-layer error against each affected webpage
+and retains other pages' RDF for diagnosis. The site's result remains incomplete;
+the resulting partial graph is a diagnostic preview. A failed transformation
+does not silently count as an equivalent empty event.
+
 Graphs are compared using RDF blank-node canonicalization, preserving all actual
 event literals, types, language tags, ordering represented as RDF positions and
 URIs. The expected graph includes the sampled Event/EventSeries roots and their
