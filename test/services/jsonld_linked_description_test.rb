@@ -78,6 +78,48 @@ class JsonldLinkedDescriptionTest < ActiveSupport::TestCase
     assert_empty JsonldGenerator.describe_footlight_uri(RDF::URI("https://unknown.example.org/place"))
   end
 
+  test "a containing venue includes its thirteen description triples without bulk graph loading" do
+    expect_database_only
+    parent = RDF::URI("http://kg.footlight.io/resource/efff2c7b-43e1-46e9-99c1-d50f6ab0e45a")
+    parent_page = resource_page("footlight:efff2c7b-43e1-46e9-99c1-d50f6ab0e45a", "Place")
+    local_statement(@venue_page, @schema.containedInPlace, parent.to_s, uri: true)
+    local_statement(parent_page, @schema.name, "Maison de la culture de Trois-Rivières", language: "fr")
+    local_statement(parent_page, @schema.disambiguatingDescription,
+      "art_gallery, tourist_attraction, museum, point_of_interest, establishment at 1425 Pl. de l'Hôtel de Ville 3e Étage, Trois-Rivières, QC G9A 5H3, Canada", language: "en")
+    local_statement(parent_page, @schema.latitude, "46.34285000000001")
+    local_statement(parent_page, @schema.longitude, "-72.5423793")
+    local_statement(parent_page, @schema.sameAs, "https://maps.google.com/?cid=2346479477994560617", uri: true)
+    { "addressCountry" => ["CA", "fr"], "addressLocality" => ["Trois-Rivières", "fr"], "addressRegion" => ["QC", "fr"],
+      "postalCode" => ["G9A 5H3", nil], "streetAddress" => ["1425 Pl. de l'Hôtel de Ville", "fr"] }.each do |predicate, (value, language)|
+      local_statement(parent_page, @schema[predicate], value, language: language, property_class: "PostalAddress")
+    end
+
+    actual = JsonldGenerator.add_triples_from_footlight(event_graph)
+    assert_equal 29, actual.count # Original 15, containing-place link, 13 parent/address triples.
+    assert_equal 7, actual.query([parent, nil, nil]).count
+    address = RDF::URI("#{parent}#PostalAddress")
+    assert_equal 6, actual.query([address, nil, nil]).count
+    assert actual.has_statement?(RDF::Statement.new(parent, @schema.name, RDF::Literal("Maison de la culture de Trois-Rivières", language: :fr)))
+    assert actual.has_statement?(RDF::Statement.new(address, @schema.addressLocality, RDF::Literal("Trois-Rivières", language: :fr)))
+  end
+
+  test "containing-place expansion stops after one parent even with cycles or deeper local places" do
+    expect_database_only
+    parent = RDF::URI("https://example.org/parent")
+    grandparent = RDF::URI("https://example.org/grandparent")
+    parent_page = resource_page(parent, "Place")
+    grandparent_page = resource_page(grandparent, "Place")
+    local_statement(@venue_page, @schema.containedInPlace, parent.to_s, uri: true)
+    local_statement(parent_page, @schema.name, "Parent venue")
+    local_statement(parent_page, @schema.containedInPlace, grandparent.to_s, uri: true)
+    local_statement(parent_page, @schema.containedInPlace, @venue.to_s, uri: true)
+    local_statement(grandparent_page, @schema.name, "Do not recurse")
+    actual = JsonldGenerator.add_triples_from_footlight(event_graph)
+    assert_equal 20, actual.count
+    assert actual.has_subject?(parent)
+    assert_not actual.has_subject?(grandparent)
+  end
+
   private
 
   def expect_database_only

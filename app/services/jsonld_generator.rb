@@ -145,6 +145,9 @@ class JsonldGenerator
 
   # Add triples ONLY from Footlight database (not Artsdata) using URIs of people, places and organizations
   def self.add_triples_from_footlight(local_graph)
+    descriptions = {}
+    parent_places = []
+    contained_in_place = RDF::URI("http://schema.org/containedInPlace")
     uris = extract_object_uris(local_graph)
            .map(&:to_s)
            .reject { |u| u.include?("http://kg.artsdata.ca/resource/K") }
@@ -155,8 +158,19 @@ class JsonldGenerator
     uris.each do |uri|
       # Do not initialize ArtsdataGraph here: its first use loads entire remote
       # graphs. Local exports need only the explicitly linked database resources.
-      additional_graph = describe_footlight_uri(uri)
+      additional_graph = descriptions[uri.to_s] ||= describe_footlight_uri(uri)
       local_graph << additional_graph
+      additional_graph.query([nil, contained_in_place, nil]).each do |statement|
+        parent_places << statement.object if statement.object.uri?
+      end
+    end
+
+    # Include the containing venue and its inline address, once. Inspect only
+    # the root descriptions above; parent links never expand recursively.
+    parent_places.uniq.each do |uri|
+      next if vocabulary_uri?(uri) || uri.to_s.start_with?("http://kg.artsdata.ca/resource/", "https://kg.artsdata.ca/resource/")
+
+      local_graph << (descriptions[uri.to_s] ||= describe_footlight_uri(uri))
     end
 
     local_graph
