@@ -160,6 +160,41 @@ class Distillator::DatabusReplayTest < ActiveSupport::TestCase
     assert_not_equal "must not persist", @created_website.reload.name
   end
 
+  test "Shadow replay uses only Wringer cache and preserves the existing Shadow mode" do
+    website, webpage = create_replay_records(mode: "shadow")
+    expected = [{ "@id" => webpage.rdf_uri, "@type" => "http://schema.org/Event",
+      "http://schema.org/name" => [{ "@value" => "Fresh title" }], "http://schema.org/url" => [{ "@value" => @url }] }].to_json
+    stub_cache("<h1>Fresh title</h1>")
+    Distillator::FetchService.expects(:fetch).never
+    Distillator::FetchCacheStore.expects(:fetch).never
+    reader = Distillator::DatabusReplay::CacheReader.new(base_url: @base)
+    report = build_service(reader: reader, export_loader: ->(_) { expected }).call
+    assert_equal "equivalent_event_data", report[:sites].first[:status], report.inspect
+    assert_equal "shadow", report[:sites].first[:rollout_mode]
+    assert_equal "shadow", website.reload.distillator_mode
+    assert_equal "remote_wringer_cache", report[:input_backend]
+    assert_equal @base, report[:wringer_url]
+  end
+
+  test "default Wringer identity is independent of Condenser compatibility configuration" do
+    Distillator::WringerEndpoint.expects(:current).never
+    service = Distillator::DatabusReplay.new(output_dir: @directory, progress: nil)
+    assert_equal "https://footlight-wringer.herokuapp.com", service.instance_variable_get(:@reader).source_url
+    reader = Distillator::DatabusReplay::CacheReader.new(base_url: "https://user:password@wringer.replay.test")
+    assert_equal "https://wringer.replay.test", reader.source_url
+  end
+
+  test "Active sites are reported before fetching inputs and retain their mode" do
+    website, = create_replay_records(mode: "active")
+    loader = mock("export loader")
+    loader.expects(:call).never
+    report = build_service(export_loader: loader).call
+    assert_equal "incomplete", report[:sites].first[:status]
+    assert_match "Legacy or Shadow", report[:sites].first[:error]
+    assert_equal "active", website.reload.distillator_mode
+    assert_empty report[:cache_inputs]
+  end
+
   test "a failed site savepoint leaves the next site usable and mode is never changed" do
     create_replay_records
     service = Distillator::DatabusReplay.new(sites: %w[co-motion-ca culture3r-com], per_site: 1,
@@ -201,10 +236,10 @@ class Distillator::DatabusReplayTest < ActiveSupport::TestCase
       wringer_url: @base, progress: nil, **options)
   end
 
-  def create_replay_records
+  def create_replay_records(mode: "legacy")
     # Avoid touching any pre-existing fixture site with the same seed.
     @created_website = Website.create!(name: "Databus replay fixture", seedurl: "co-motion-ca",
-      graph_name: "https://example.org/replay", default_language: "en", distillator_mode: "legacy")
+      graph_name: "https://example.org/replay", default_language: "en", distillator_mode: mode)
     event_class = RdfsClass.find_by!(name: "Event")
     webpage = Webpage.create!(website: @created_website, rdfs_class: event_class, url: @url,
       rdf_uri: "https://example.org/replay/event", language: "en")

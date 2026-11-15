@@ -15,6 +15,7 @@ module Distillator
       "maisondelaculture-ca" => "2026-11-07", "tourismedeschenaux-ca" => "2026-11-08"
     }.freeze
     SCHEMA = "http://schema.org/".freeze
+    DEFAULT_WRINGER_URL = "https://footlight-wringer.herokuapp.com".freeze
     class MissingInput < StandardError; end
 
     # These guards are inert outside this thread's extraction phase. A DSL must
@@ -66,6 +67,12 @@ module Distillator
       def missing!(reason)
         @missing << reason
         raise MissingInput, reason
+      end
+
+      def source_url
+        uri = URI.parse(@base_url)
+        uri.user = uri.password = uri.query = uri.fragment = nil
+        uri.to_s
       end
 
       def fetch(url)
@@ -148,8 +155,8 @@ module Distillator
     def self.call(**options) = new(**options).call
 
     def self.summary(report)
-      { report_path: report[:report_path], sites: report[:sites].map do |site|
-        site.slice(:seedurl, :export_date, :status, :selected_pages, :source_executions, :exact_match, :error).merge(
+      { report_path: report[:report_path], input_backend: report[:input_backend], wringer_url: report[:wringer_url], sites: report[:sites].map do |site|
+        site.slice(:seedurl, :rollout_mode, :export_date, :status, :selected_pages, :source_executions, :exact_match, :error).merge(
           data_added: Array(site[:data_added]).count, data_removed: Array(site[:data_removed]).count,
           input_or_extraction_errors: Array(site[:pages]).flat_map { |page| page[:errors].map { |error| error.merge(url: page[:url]) } }
             .group_by { |error| error.values_at(:url, :error) }.map do |(url, error), rows|
@@ -158,13 +165,15 @@ module Distillator
       end }
     end
 
-    def initialize(sites: EXPORTS.keys, per_site: 20, output_dir: nil, wringer_url: nil,
+    def initialize(sites: EXPORTS.keys, per_site: 20, output_dir: nil, wringer_url: DEFAULT_WRINGER_URL,
       reader: nil, export_loader: nil, progress: $stdout)
       raise ArgumentError, "Choose between 1 and 20 pages per site" unless per_site.is_a?(Integer) && per_site.between?(1, 20)
       raise ArgumentError, "Choose known export sites" unless sites.any? && (sites - EXPORTS.keys).empty?
       @sites, @per_site, @progress = sites, per_site, progress
       @output_dir = Pathname.new(output_dir || Rails.root.join("tmp", "databus-replay-#{Time.now.utc.strftime('%Y%m%dT%H%M%S')}-#{SecureRandom.hex(3)}"))
-      @reader = reader || CacheReader.new(base_url: wringer_url || Distillator::WringerEndpoint.current.legacy_lookup_base_url)
+      # Pin input identity independently of rollout/compatibility configuration.
+      # In particular, Shadow must not invoke native fetching or a shadow pair.
+      @reader = reader || CacheReader.new(base_url: wringer_url)
       @export_loader = export_loader || lambda do |url|
         response = HTTParty.get(url, timeout: 60, follow_redirects: false)
         raise "Databus HTTP #{response.code}" unless response.code.to_i == 200
@@ -180,6 +189,7 @@ module Distillator
       FileUtils.mkdir_p(@output_dir)
       install_guards
       report = { kind: "production_export_vs_staging_reextraction", dsl_contract: Dsl::Core::AlgorithmRunner::CONTRACT_VERSION,
+        input_backend: "remote_wringer_cache", wringer_url: @reader.source_url,
         generated_at: Time.now.utc.iso8601, scope: "Selected source regeneration; preview statuses, no publication or statement saves",
         caveats: ["Historical HTML, source settings, manual corrections and reconciliation may have changed.",
           "Formatting and entity enrichment use current read-only lookup results, not a frozen production snapshot.",
@@ -214,7 +224,7 @@ module Distillator
 
     def replay_site(seedurl)
       website = Website.find_by!(seedurl: seedurl)
-      raise "#{seedurl} is not in Legacy mode" unless website.distillator_mode == "legacy"
+      raise "#{seedurl} must be Legacy or Shadow for this replay (current: #{website.distillator_mode})" unless website.distillator_mode.in?(%w[legacy shadow])
       date = EXPORTS.fetch(seedurl)
       url = "https://data.culturecreates.com/databus/culture-creates/footlight/#{seedurl}/#{date}/#{seedurl}.json"
       body = @export_loader.call(url)
@@ -238,7 +248,7 @@ module Distillator
       write_json("#{seedurl}-extraction.json", pages.map { |page| page.except(:statements) })
       diff = graph_difference(expected, actual)
       incomplete = pages.any? { |page| page[:errors].any? }
-      { seedurl: seedurl, export_date: date, export_url: url, export_sha256: Digest::SHA256.hexdigest(body),
+      { seedurl: seedurl, rollout_mode: website.distillator_mode, export_date: date, export_url: url, export_sha256: Digest::SHA256.hexdigest(body),
         available_pages: candidates.count, selected_pages: chosen.count, source_executions: pages.sum { |page| page[:sources].count },
         status: incomplete ? "incomplete" : (diff[:equivalent_event_data] ? "equivalent_event_data" : "differences_need_review"),
         pages: pages.map { |page| page.slice(:url, :errors, :sources) }, **diff }

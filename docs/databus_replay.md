@@ -32,9 +32,15 @@ Culture Mauricie/lepointdevente, Gatineau and Maison de la culture. Tourisme des
 Chenaux uses November 8. Sampling is deterministic and evenly spread through
 sorted event source URLs. A site with fewer than 20 URLs uses all available URLs.
 
-The script checks that each requested site is in Legacy mode. It does not change
+The script accepts Legacy and Shadow sites. It does not change
 rollout settings. It requires matching existing staging webpage records, resolves
 the usual event/nested-property source scope, and executes only selected sources.
+
+Inputs are pinned to `https://footlight-wringer.herokuapp.com`, independently of
+Condenser's rollout and compatibility endpoint settings. Shadow sites do not
+trigger a native Condenser fetch or a shadow pair. The report records
+`input_backend: remote_wringer_cache` and the credential-free Wringer URL.
+An explicit `wringer_url:` can select another Wringer deployment if needed.
 
 ## What is and is not regenerated
 
