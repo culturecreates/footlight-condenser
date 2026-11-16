@@ -93,6 +93,34 @@ class Dsl::HistoricalAccumulationDifferentialTest < ActiveSupport::TestCase
     end
   end
 
+  test "Gatineau End Date 4264 has the same unreachable fallback in both evaluators and an unconditional XPath repairs it" do
+    original = Rails.root.join("test/fixtures/dsl/gatineau_original_end_date.dsl").read.split(";").map(&:strip).join(";")
+    patched = original.sub(";if_xpath=", ";xpath=")
+    formatter = StatementsHelper.build_refresh_proxy(cookies: {})
+    property = Property.new(label: "End Date", value_datatype: "xsd:dateTime")
+    [
+      ["Du mercredi 7 avril 2027 au dimanche 25 avril 2027", "dimanche 25 avril 2027", "2027-04-25"],
+      ["Le jeudi 26 novembre 2026, de 16:00 à 18:00", "Le jeudi 26 novembre 2026, 18:00", "2026-11-26T18:00:00-05:00"]
+    ].each do |occurrence, fallback, expected|
+      html = gatineau_occurrence_html(occurrence)
+      assert_differential original, html: html, expected: [[fallback]]
+      assert_differential(patched, html: html, expected: [fallback]).each do |raw|
+        assert_equal expected, formatter.format_datatype(raw.deep_dup, property, webpages(:one))
+      end
+    end
+
+    # A successful AddEvent lookup retains its existing priority and conversion.
+    html = gatineau_occurrence_html("Du mercredi 7 avril 2027 au dimanche 25 avril 2027", end_value: "04-24-2027 23:00")
+    [original, patched].each { |algorithm| assert_differential algorithm, html: html, expected: ["2027-04-24"] }
+
+    # No end date remains blank; the repair must not invent one from a start time.
+    html = gatineau_occurrence_html("Le jeudi 26 novembre 2026 à 16:00")
+    assert_differential original, html: html, expected: [[""]]
+    assert_differential(patched, html: html, expected: [""]).each do |raw|
+      assert_equal "", formatter.format_datatype(raw.deep_dup, property, webpages(:one))
+    end
+  end
+
   test "SPARQL accumulation and flattening agree with the independent evaluator" do
     RDF::Graph.stubs(:load).returns(RDF::Graph.new)
     rows = %w[a b].map { |value| OpenStruct.new(answer: OpenStruct.new(value: value)) }
@@ -118,6 +146,12 @@ class Dsl::HistoricalAccumulationDifferentialTest < ActiveSupport::TestCase
   end
 
   private
+
+  def gatineau_occurrence_html(text, end_value: nil)
+    ending = end_value ? "<span class='addeventatc'><span class='end'>#{end_value}</span></span>" : ""
+    "<div class='desktop'><div class='occurrences'><ul><li><span class='occurrence'>" \
+      "<span class='date-heure'>#{text}</span></span></li></ul></div>#{ending}</div>"
+  end
 
   def legacy_result(algorithm, pages)
     agent = Object.new

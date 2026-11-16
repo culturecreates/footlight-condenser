@@ -77,3 +77,42 @@ Do not replace source #7023 merely to accommodate the interpreter regression.
 
 Reference:
 https://github.com/culturecreates/footlight-condenser/blob/fde44ced8d8b83216d45cbf03cbbf2f2252427b0/app/helpers/statements_helper.rb
+
+## Gatineau End Date source 4264
+
+The recorded algorithm saves occurrence-derived end dates with `ruby=[$array]`,
+then uses `if_xpath` to look for an optional AddEvent end value. With no match,
+`if_xpath` halts the whole algorithm. The final Ruby expression's fallback branch
+is never reached. For event 46121, both the frozen historical evaluator and the
+current runner return `[["dimanche 25 avril 2027"]]`; the formatter cannot parse
+that nested array. Its existing cached `2027-04-25` value was last refreshed in
+April 2026. This is an existing source-algorithm defect, not evidence of a new
+interpreter regression, and general DSL array semantics must remain unchanged.
+
+The targeted source repair replaces only this optional `if_xpath` with `xpath`.
+An ordinary XPath appends any AddEvent values and continues even when none exist,
+allowing the final Ruby expression to choose the existing occurrence fallback.
+The differential regression covers a date-only range, a timed occurrence, a
+successful AddEvent value taking priority and a genuinely absent end date. Both
+engines agree on the original behavior and the repaired results. The original
+source is retained verbatim as a fixture; no production source is changed by tests.
+
+Apply the separate database repair in the staging Rails console:
+
+```ruby
+source = Source.find(4264)
+raise "Unexpected website" unless source.website.seedurl == "gatineau-cloud"
+needle = "if_xpath=//div[@class='desktop']//span[@class='addeventatc']//span[contains(@class,'end')]"
+
+source.with_lock do
+  original = source.algorithm_value
+  raise "Expected exactly one optional AddEvent lookup" unless original.scan(Regexp.new(Regexp.escape(needle))).one?
+  source.update!(algorithm_value: original.sub(needle, needle.sub("if_xpath=", "xpath=")))
+end; nil
+```
+
+This changes the source algorithm only. It does not overwrite statement caches or
+change selection, review status or rollout mode. Rerun the read-only replay after
+the edit and record its new algorithm hash. Extra valid end-date triples following
+the repair are an intentional source correction, distinct from unchanged-source
+interpreter compatibility evidence.
