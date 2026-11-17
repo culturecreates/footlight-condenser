@@ -6,6 +6,7 @@
     "yarn": "1.22.22"
   },
   "scripts": {
+    "heroku-postbuild": "echo 'JavaScript compilation runs in Rails assets:precompile (Ruby buildpack)'",
     "build": "esbuild app/javascript/*.* --bundle --sourcemap --format=esm --outdir=app/assets/builds --public-path=/assets",
     "test:transition-ui": "node --test test/javascript/transition_checks_test.mjs",
     "test:website-ui": "node --test test/javascript/website_index_test.mjs",

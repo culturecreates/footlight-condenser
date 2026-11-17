@@ -5,7 +5,7 @@ ruby file: '.ruby-version'
 # Core
 gem 'rails', '~> 8.0.2'
 gem 'pg', '~> 1.5'
-gem 'puma', '~> 6.4'
+gem 'puma', '~> 7.0', '>= 7.0.3'
 gem 'sassc-rails' # replaces deprecated sass-rails
 gem 'jbuilder', '~> 2.11'
 
@@ -18,6 +18,8 @@ gem 'httparty'
 gem 'mechanize'
 gem 'linkeddata', '~> 3.2.0'
 gem 'sparql', '3.2.0'
+# RDF uses OpenStruct; declare it for deployed bundles as well as development.
+gem 'ostruct', '~> 0.6'
 gem 'will_paginate', '~> 3.3'
 gem 'chronic_duration'
 
@@ -42,6 +44,8 @@ group :development, :test do
   gem 'rubocop', require: false
   gem 'rubocop-rails', require: false
   gem 'rubocop-performance', require: false
+  gem 'rubocop-minitest', '~> 0.38.1', require: false
+  gem 'rubocop-capybara', '~> 2.22', require: false
 end
 
 group :development do
@@ -65,7 +69,3 @@ end
 gem 'tzinfo-data', platforms: [:mingw, :mswin, :x64_mingw, :jruby]
 
 gem "turbo-rails", "~> 2.0"
-
-gem "rubocop-minitest", "~> 0.38.1"
-
-gem "rubocop-capybara", "~> 2.22"
