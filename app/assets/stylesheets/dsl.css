@@ -1,4 +1,4 @@
-/* Instruction colors identify DSL steps, not health or validation status. */
+/* Separate from the trace panel's .dsl-step flex layout and health colors. */
 .dsl-highlight {
   color: #1f2937;
   white-space: pre-wrap;
@@ -6,7 +6,8 @@
   tab-size: 2;
 }
 
-.dsl-highlight .dsl-step {
+.dsl-highlight .dsl-instruction {
+  display: inline;
   color: #1f2937;
   padding: 0.06em 0.12em;
   border-radius: 2px;
@@ -14,12 +15,16 @@
   box-decoration-break: clone;
 }
 
-.dsl-highlight .dsl-step-prefix { font-weight: 650; }
-.dsl-highlight .dsl-step--extraction { background-color: #fce9ec; }
-.dsl-highlight .dsl-step--ruby-a { background-color: #e6f4e9; }
-.dsl-highlight .dsl-step--ruby-b { background-color: #e5f0fc; }
-.dsl-highlight .dsl-step--navigation { background-color: #fff2d9; }
-.dsl-highlight .dsl-step--library { background-color: #eee9fb; }
+.dsl-highlight .dsl-instruction-prefix {
+  display: inline;
+  white-space: nowrap;
+  font-weight: 650;
+}
+.dsl-highlight .dsl-instruction--extraction { background-color: #f8d5dd; }
+.dsl-highlight .dsl-instruction--ruby-a { background-color: #cfead7; }
+.dsl-highlight .dsl-instruction--ruby-b { background-color: #d4e5ff; }
+.dsl-highlight .dsl-instruction--navigation { background-color: #ffe5b0; }
+.dsl-highlight .dsl-instruction--library { background-color: #e2d8fa; }
 
 .dsl-library-preview {
   margin: 0;

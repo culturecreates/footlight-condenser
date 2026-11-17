@@ -166,6 +166,10 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     assert_select "td.source-algorithm-cell pre", text: /ruby=/
     assert_select "td.source-algorithm-cell pre", text: /json_url=/
     assert_select "td.source-algorithm-cell pre", text: /manual=/
+    # Trace steps use flex layout globally; source previews must not share that class.
+    assert_select "td.source-algorithm-cell .dsl-step", count: 0
+    assert_select "td.source-algorithm-cell .dsl-instruction--extraction", minimum: 1
+    assert_select "td.source-algorithm-cell .dsl-instruction--ruby-a", minimum: 1
     assert_includes @response.body, property.label
     assert_includes @response.body, xpath_source.label
     assert_includes @response.body, ruby_source.label
