@@ -6,6 +6,23 @@
 
 **Important release limitation:** main is a Git baseline, **not a verified production deployment SHA**. Before declaring a change to be “since production,” get the currently deployed Heroku release commit for production and staging and compare each to the candidate commit. This guide marks features as *implemented on the development branch* unless a deployment and configuration are independently verified.
 
+## Broad changes since the baseline — linked index
+
+This is the quick navigation list for **[main (the repository's default branch, rather than `master`)](https://github.com/culturecreates/footlight-condenser/tree/main) → [harden-dsl-reliability (current development branch)](https://github.com/culturecreates/footlight-condenser/tree/harden-dsl-reliability)** as of the snapshot above. Browse the [full code and commit comparison](https://github.com/culturecreates/footlight-condenser/compare/main...harden-dsl-reliability). These items are **implemented in the development branch**, not evidence of production deployment.
+
+1. **[Wringer replacement / Condenser fetch cache](distillator_wringer_parity.md)** — compatible caching and HTTP/fetch behaviors, redirects, URL normalization, failure handling, and cache inspection. Also: [compatibility contract](distillator/cache_compatibility_contract.md).
+2. **[Per-website rollout and rollback](distillator_migration.md)** — Legacy → Shadow → Active, readiness gates, evidence, transition reports, batch workflows, and recoverable activation. Also: [transition workflows](distillator_transition_workflows.md).
+3. **[DSL execution, compatibility and tracing](dsl_production_accumulation_contract.md)** — preservation of production accumulation rules, interpreter differential tests, better failure visibility and controlled abort semantics. Also: [URL handling](dsl_url_placeholders.md).
+4. **[Editable DSL instruction library](dsl_library.md)** — shared reusable tokens, seeded entries and revision history, without rewriting existing source algorithms. Also: [initial candidate analysis](dsl_library_analysis.md).
+5. **[Scheduled derived-statement preprocessing](preprocessing_refresh.md)** — opt-in hourly-dispatched, per-statement refresh policies with configurable intervals, durable runs and freshness alerts; relevant to Gatineau, Culture Mauricie and Co-motion Bundle. **Requires policy enrollment and scheduler setup.**
+6. **[Monitoring and notifications](monitoring.md)** — operator issue list for selected DSL failures and enrolled preprocessing policies, with an optional daily email digest, weekly pulse, and [Console monitoring view](https://github.com/culturecreates/footlight-console/tree/dashboard-monitoring).
+7. **[Safer RDF/Artsdata output and export replay](databus_replay.md)** — read-only regression comparisons, selected source replay, evidence provenance, EventSeries alignment failures and local entity enrichment. Also: [migration parity/diagnostics](distillator_comparison_parity_and_runtime.md).
+8. **[Website administration and transition UI](website_index.md)** — categorized and preferred website lists, clearer filtering and batch selection, improved inspection and comparison reports. Also: [report states](distillator_transition_report_states.md).
+9. **[API and downstream data contracts](events-json-contract.md)** — clearer event JSON contract, selected-source comparison scope and compatibility checks. Also: [comparison policy](distillator_comparison_parity_and_runtime.md).
+10. **[Runtime, build and deployment prerequisites](runtime_versions.md)** — Ruby/Node versions, Heroku buildpack expectations, required migrations, asset building and testing. Also: [test entry point](../README.md#tests).
+
+For context, the [detailed change map below](#major-changes-and-where-to-learn-them) adds operational risks, and the [deployment ledger](#releasedeployment-status-ledger-fill-in-before-a-release) separates **coded** from **deployed, configured, enabled and validated**. In particular, the actual production Heroku SHA has not been verified; `main` is only the **Git comparison baseline**.
+
 ## Read this in 10 minutes
 
 Condenser gathers webpages, executes **DSL sources** to derive statements, supports review/manual corrections, and exports event and related-entity RDF to Artsdata. The historical fetch/cache backend is **Wringer**. The project is moving compatible fetch/cache behavior into Condenser under the internal **Distillator** namespace, with per-website production rollout controls. This migration must **preserve functionality and RDF data first**; a performance optimization does not justify output differences without an explicit review.
