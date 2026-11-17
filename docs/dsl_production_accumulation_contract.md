@@ -80,39 +80,35 @@ https://github.com/culturecreates/footlight-condenser/blob/fde44ced8d8b83216d45c
 
 ## Gatineau End Date source 4264
 
-The recorded algorithm saves occurrence-derived end dates with `ruby=[$array]`,
-then uses `if_xpath` to look for an optional AddEvent end value. With no match,
-`if_xpath` halts the whole algorithm. The final Ruby expression's fallback branch
-is never reached. For event 46121, both the frozen historical evaluator and the
-current runner return `[["dimanche 25 avril 2027"]]`; the formatter cannot parse
-that nested array. Its existing cached `2027-04-25` value was last refreshed in
-April 2026. This is an existing source-algorithm defect, not evidence of a new
-interpreter regression, and general DSL array semantics must remain unchanged.
+The approved source rule is calendar-based: only a continuous multiday interval
+(`Du ... au ...`) yields an explicit End Date, with no time component. Same-day
+events and separate performances yield no explicit End Date, even when they have
+closing times or AddEvent end markup. Repeated intervals sharing one ending date
+are deduplicated. Reversed intervals, invalid dates and multiple distinct ending
+dates produce an abort rather than a guessed value.
 
-The targeted source repair replaces only this optional `if_xpath` with `xpath`.
-An ordinary XPath appends any AddEvent values and continues even when none exist,
-allowing the final Ruby expression to choose the existing occurrence fallback.
-The differential regression covers a date-only range, a timed occurrence, a
-successful AddEvent value taking priority and a genuinely absent end date. Both
-engines agree on the original behavior and the repaired results. The original
-source is retained verbatim as a fixture; no production source is changed by tests.
+The operator-supplied replacement is preserved verbatim in
+`test/fixtures/dsl/gatineau_multiday_end_date.dsl`. The independent differential
+suite exercises this exact script through the historical evaluator and both
+traced and ordinary current execution. It covers date-only intervals, times
+ignored within an interval, year boundaries, leap dates, duplicate ending dates,
+same-day intervals, separate performances and each validation failure. Its result
+for event 46121's interval is `["2027-04-25"]`.
 
-Apply the separate database repair in the staging Rails console:
+The original source remains a separate historical fixture. Both evaluators
+returned `[["dimanche 25 avril 2027"]]` when its optional AddEvent `if_xpath`
+halted before an unwrapping step. This establishes the original defect without
+changing general DSL control flow or nested-array semantics. The selected source
+has now been replaced by the operator's multiday-only policy. Time-of-day is
+never emitted by this source.
 
-```ruby
-source = Source.find(4264)
-raise "Unexpected website" unless source.website.seedurl == "gatineau-cloud"
-needle = "if_xpath=//div[@class='desktop']//span[@class='addeventatc']//span[contains(@class,'end')]"
+The source replacement does not clear existing statement caches. Normal refresh
+preserves an existing value when extraction is blank, so stale End Dates for
+same-day events or separate performances need a separately reviewed cleanup.
+The read-only replay regenerates values without substituting those caches and
+does not perform that cleanup. Record the new algorithm hash when replaying.
 
-source.with_lock do
-  original = source.algorithm_value
-  raise "Expected exactly one optional AddEvent lookup" unless original.scan(Regexp.new(Regexp.escape(needle))).one?
-  source.update!(algorithm_value: original.sub(needle, needle.sub("if_xpath=", "xpath=")))
-end; nil
-```
-
-This changes the source algorithm only. It does not overwrite statement caches or
-change selection, review status or rollout mode. Rerun the read-only replay after
-the edit and record its new algorithm hash. Extra valid end-date triples following
-the repair are an intentional source correction, distinct from unchanged-source
-interpreter compatibility evidence.
+This source rule is separate from the EventSeries serializer's generated overall
+range metadata, which can derive an end boundary from the last occurrence's start
+date even when there is no explicit End Date source value. These tests do not
+change that serializer behavior or the site's rollout mode.
