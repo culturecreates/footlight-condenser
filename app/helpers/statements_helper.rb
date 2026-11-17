@@ -307,6 +307,7 @@ module StatementsHelper
     if data.is_a?(Array) && data.first == "abort_update"
       info = data.second || {}
       abort_error_message = compact_refresh_error(info)
+      Monitoring::Recorder.failure(stat, info)
       stat.errors.add(:base, abort_error_message)
       error_messages << abort_error_message
       return build_result.call
@@ -331,6 +332,7 @@ module StatementsHelper
     if abort_update_structure?(formatted)
       info = formatted.second || {}
       abort_error_message = compact_refresh_error(info)
+      Monitoring::Recorder.failure(stat, info)
       stat.errors.add(:base, abort_error_message)
       error_messages << abort_error_message
       return build_result.call
@@ -345,7 +347,7 @@ module StatementsHelper
 
       stat.cache           = formatted
       stat.cache_refreshed = Time.zone.now
-      stat.save
+      Monitoring::Recorder.success(stat) if stat.save
     end
 
     # ActiveRecord save can clear in-memory errors; keep explicit abort context for callers/tests.

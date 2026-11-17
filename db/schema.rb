@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_14_000300) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_17_000100) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -207,6 +207,34 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_14_000300) do
     t.string "artifact"
     t.datetime "created_at", precision: nil, null: false
     t.datetime "updated_at", precision: nil, null: false
+  end
+
+  create_table "monitoring_issues", force: :cascade do |t|
+    t.string "fingerprint", null: false
+    t.string "seedurl", null: false
+    t.string "website_name"
+    t.text "url"
+    t.bigint "source_id", null: false
+    t.bigint "statement_id"
+    t.string "property_name"
+    t.text "message", null: false
+    t.integer "occurrences", default: 1, null: false
+    t.datetime "first_seen_at", null: false
+    t.datetime "last_seen_at", null: false
+    t.datetime "resolved_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["fingerprint"], name: "index_monitoring_issues_on_fingerprint", unique: true
+    t.index ["last_seen_at"], name: "index_monitoring_issues_on_last_seen_at"
+    t.index ["seedurl", "resolved_at"], name: "index_monitoring_issues_on_seedurl_and_resolved_at"
+  end
+
+  create_table "monitoring_settings", force: :cascade do |t|
+    t.string "mailbox"
+    t.date "last_digest_on"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.check_constraint "id = 1", name: "monitoring_settings_singleton"
   end
 
   create_table "properties", force: :cascade do |t|

@@ -394,4 +394,27 @@ end
 
     assert_equal "stale", label
   end
+  test "DSL flagged abort records monitoring without overwriting the existing cache" do
+    statement = statements(:one)
+    old_cache = statement.cache
+    statement.source.update!(algorithm_value: "ruby=['abort_update', { error: 'Audience mapping stale', notify: 'daily' }]")
+    result = refresh_statement_helper(statement)
+    assert result[:errors].present?
+    assert_equal old_cache, statement.reload.cache
+    assert_equal 1, MonitoringIssue.open_issues.where(statement_id: statement.id).count
+  end
+
+  test "successful statement refresh resolves monitoring and unflagged errors do not create issues" do
+    statement = statements(:one)
+    stubs(:run_dsl).returns(["abort_update", { error: "Ordinary error" }])
+    assert_no_difference("MonitoringIssue.count") { refresh_statement_helper(statement) }
+    Monitoring::Recorder.failure(statement, error: "Old monitored error", notify: "daily")
+    statement.errors.clear
+    stubs(:run_dsl).returns(["Recovered title"])
+    stubs(:format_datatype).returns("Recovered title")
+    result = refresh_statement_helper(statement)
+    assert_empty result[:errors]
+    assert MonitoringIssue.find_by!(statement_id: statement.id).resolved_at
+  end
+
 end

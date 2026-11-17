@@ -1,8 +1,18 @@
 # app/controllers/options_controller.rb
 class OptionsController < ApplicationController
   def index 
+    @monitoring_setting = MonitoringSetting.current
     @production_preflight = Distillator::ProductionPreflight.call
     @staging_rollout_repair_preview = Distillator::StagingRolloutRepair.call if Distillator::TransitionRuntime.staging?
+  end
+
+  def update_monitoring
+    setting = MonitoringSetting.current
+    if setting.update(mailbox: params.require(:monitoring_setting).permit(:mailbox)[:mailbox])
+      redirect_to options_path, notice: "Monitoring settings saved."
+    else
+      redirect_to options_path, alert: setting.errors.full_messages.to_sentence
+    end
   end
 
   def repair_staging_rollout

@@ -136,6 +136,9 @@ Rails.application.routes.draw do
     end
   end
 
+  get "monitoring", to: "monitoring#index", as: :monitoring
+  patch "options/monitoring", to: "options#update_monitoring", as: :monitoring_options
+
   # options
   get 'options', to: 'options#index', as: :options
   get 'options/wringer/:target', to: 'options#wringer', as: :set_wringer

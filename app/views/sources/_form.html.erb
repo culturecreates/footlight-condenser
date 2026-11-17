@@ -83,6 +83,9 @@
       </div>
 
       <p class="sources-secondary-text">Use pipeline steps such as <code>url=</code>, <code>xpath=</code>, <code>ruby=</code>. Test with trace before activating.</p>
+      <details class="sources-secondary-text"><summary>Monitor a specific DSL error</summary>
+        <p>Return <code>['abort_update', { error: 'Audience mapping is stale', notify: 'daily' }]</code> to show that error in Monitoring and the optional daily email. Other errors retain their existing behavior.</p>
+      </details>
     </section>
 
     <section class="cache-detail-card source-diagnostics-card">

@@ -28,6 +28,22 @@
   </style>
 
   <hr>
+  <h3>Monitoring</h3>
+  <p><%= link_to "Open monitoring", monitoring_path(seedurl: "all") %> — only DSL errors flagged for monitoring.</p>
+  <%= form_with model: @monitoring_setting, url: monitoring_options_path, method: :patch, local: true do |form| %>
+    <%= form.label :mailbox, "Monitoring mailbox" %>
+    <%= form.email_field :mailbox, placeholder: "monitoring@example.org" %>
+    <%= form.submit "Save monitoring settings" %>
+  <% end %>
+  <p>Optional: one daily email for all sites, listing unresolved flagged errors. Leave blank to disable email; Monitoring stays available.</p>
+  <p>Last digest: <%= @monitoring_setting.last_digest_on || "Not sent" %> (America/Toronto).</p>
+  <% if ENV["MONITORING_EMAIL_FROM"].blank? %><p>Email setup required: sender and email delivery must be configured before sending.</p><% end %>
+  <details><summary>Flag a DSL error for monitoring</summary>
+    <pre>['abort_update', { error: 'Audience mapping is stale', notify: 'daily' }]</pre>
+    <p>Use this only for errors that need attention. Other errors retain their existing behavior. Email runs through the separately scheduled monitoring digest task.</p>
+  </details>
+
+  <hr>
   <h3>Preflight</h3>
   <% if @production_preflight.present? %>
     <p>

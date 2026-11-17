@@ -128,4 +128,22 @@ class OptionsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to options_url
     assert_equal "2", cookies[:trace_view_mode]
   end
+  test "monitoring mailbox persists independently of browser cookies and can be disabled" do
+    patch monitoring_options_path, params: { monitoring_setting: { mailbox: " monitor@example.org " } }
+    assert_redirected_to options_path
+    assert_equal "monitor@example.org", MonitoringSetting.current.mailbox
+    get options_path
+    assert_select "input[name='monitoring_setting[mailbox]'][value='monitor@example.org']"
+    patch monitoring_options_path, params: { monitoring_setting: { mailbox: "" } }
+    assert_nil MonitoringSetting.current.mailbox
+  end
+
+  test "invalid monitoring mailbox preserves the previous value" do
+    MonitoringSetting.current.update!(mailbox: "monitor@example.org")
+    patch monitoring_options_path, params: { monitoring_setting: { mailbox: "one@example.org, two@example.org" } }
+    assert_redirected_to options_path
+    assert_equal "monitor@example.org", MonitoringSetting.current.mailbox
+    assert flash[:alert].present?
+  end
+
 end
