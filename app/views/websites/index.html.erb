@@ -68,7 +68,7 @@
       <label hidden data-transition-master-label><input type="checkbox" data-transition-master> Select all <%= @transition_eligible_ids.length %> matching event sites (includes Unscheduled)</label>
       <span data-transition-selection-count aria-live="polite">Select sites using the Transition column.</span>
       <%= submit_tag "Validate and activate selected", data: { transition_submit: true } %>
-      <details><summary>What this action does</summary><p>Processes selected event sites one at a time: Shadow check, activation when all required checks pass, then verification through the Active serving path. Failed verification returns the site to Shadow. Templates, test sites and place/person sites are excluded. Review-needed results stop for manual attention.</p></details>
+      <details><summary>What this action does</summary><p>Processes selected event sites one at a time: Shadow check, activation when all required checks pass, then verification through the Active serving path. Failed verification returns the site to Shadow. Templates, test sites, Resource List sites and place/person sites are excluded. Review-needed results stop for manual attention.</p></details>
     <% end %>
 
     <% if @website_index_view == "preferred" %>

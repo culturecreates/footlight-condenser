@@ -49,7 +49,7 @@ module Dsl
       def normalize_resolved_url(value)
         return nil if value.nil?
 
-        url = normalize_url(value.to_s)
+        url = normalize_url(Dsl::Support::UrlPlaceholders.expand(value.to_s))
         return nil if url.blank?
 
         url

@@ -1,6 +1,6 @@
 module Distillator
   class WebsiteIndexGroups
-    LABELS = { scheduled: "Scheduled sites", unscheduled: "Unscheduled", entities: "Places / Artists / People",
+    LABELS = { scheduled: "Scheduled sites", unscheduled: "Unscheduled", resource_lists: "Resource List sites", entities: "Places / Artists / People",
       templates: "Templates", tests: "Test sites" }.freeze
     TEMPLATE_SEEDS = %w[1-event 2-en-event 2-fr-event 3-person-place-org 4-en-person-place-org 4-fr-person-place-org footlight-manual-fr].freeze
     ENTITY_SEEDS = %w[signelaval-com signelaval-com-place spec-qc-ca-people nowplayingtoronto-com-places].freeze
@@ -16,6 +16,8 @@ module Distillator
       name = website.name.to_s
       return :templates if TEMPLATE_SEEDS.include?(seed) || name.match?(/\btemplate\b/i)
       return :tests if "#{name} #{seed.tr('_', '-')}".match?(/\btest(?:ing|website)?\b/i)
+      return :resource_lists if seed.match?(/[-_](?:rlist|resource[-_]?list)\z/i) ||
+        name.match?(/\bresource\s*lists?\b|\blistes? de ressources\b/i)
       return :entities if ENTITY_SEEDS.include?(seed) || seed.match?(/[-_](?:places?|artists?|people|persons?)\z/i) ||
         name.match?(/(?:\A|\s)(?:places|artists|people|artistes|personnes)\z/i)
 

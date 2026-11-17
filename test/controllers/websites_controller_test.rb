@@ -182,6 +182,16 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "Resource List websites are listed separately and excluded from event transition selection" do
+    site = Website.create!(name: "Gatineau preprocessing", seedurl: "gatineau-cloud-RList", graph_name: "https://example.org/lists", default_language: "fr", schedule_every_days: 1)
+    get websites_url
+    assert_response :success
+    assert_select "#website-list-resource_lists .website-index-row[data-website-id='#{site.id}']", count: 1
+    assert_select "#website-list-resource_lists[open]", count: 0
+    assert_select "#website-transition-#{site.id}", count: 0
+    assert_equal 1, site.reload.schedule_every_days
+  end
+
   test "clearing or zeroing a saved schedule moves the site to Unscheduled and restoring it moves it back" do
     website = Website.create!(name: "Schedule movement", seedurl: "schedule-movement", graph_name: "https://example.org/movement", default_language: "fr", distillator_mode: "shadow", schedule_every_days: 1)
     [0, "", 2].each do |days|

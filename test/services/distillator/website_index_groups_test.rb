@@ -39,6 +39,19 @@ class Distillator::WebsiteIndexGroupsTest < ActiveSupport::TestCase
     assert_equal 2, groups.values.flatten.length
   end
 
+  test "dedicated resource list sites have their own group without changing schedules" do
+    lists = [site("Gatineau", "gatineau-cloud-RList", 1), site("Mauricie", "culturemauricie_lepointdevente-com-RList", 0),
+      site("Resource Lists", "custom-feed", nil)]
+    groups = Distillator::WebsiteIndexGroups.call(lists)
+    assert_equal lists, groups[:resource_lists]
+    assert_empty groups[:scheduled]
+    assert_empty groups[:unscheduled]
+    assert_equal [1, 0, nil], lists.map(&:schedule_every_days)
+    assert_equal :tests, Distillator::WebsiteIndexGroups.category(site("Resource List Test", "test-RList", 1))
+    assert_equal :templates, Distillator::WebsiteIndexGroups.category(site("Resource List Template", "template-RList", 1))
+    assert_equal :scheduled, Distillator::WebsiteIndexGroups.category(site("Gatineau", "gatineau-cloud", 1))
+  end
+
   private
 
   def site(name, seedurl, days)
