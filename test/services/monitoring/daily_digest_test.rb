@@ -3,7 +3,7 @@ require "test_helper"
 class MonitoringDailyDigestTest < ActiveSupport::TestCase
   setup do
     @setting = MonitoringSetting.current
-    @setting.update!(mailbox: "monitoring@example.org", last_digest_on: nil)
+    @setting.update!(mailbox: "monitoring@example.org", last_digest_on: nil, weekly_pulse_enabled: false)
     @previous_sender = ENV["MONITORING_EMAIL_FROM"]
     ENV["MONITORING_EMAIL_FROM"] = "condenser@example.org"
     ActionMailer::Base.deliveries.clear

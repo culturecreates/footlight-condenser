@@ -8,7 +8,7 @@ class OptionsController < ApplicationController
 
   def update_monitoring
     setting = MonitoringSetting.current
-    if setting.update(mailbox: params.require(:monitoring_setting).permit(:mailbox)[:mailbox])
+    if setting.update(params.require(:monitoring_setting).permit(:mailbox, :weekly_pulse_enabled))
       redirect_to options_path, notice: "Monitoring settings saved."
     else
       redirect_to options_path, alert: setting.errors.full_messages.to_sentence

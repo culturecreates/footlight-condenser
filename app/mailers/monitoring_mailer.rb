@@ -13,4 +13,14 @@ class MonitoringMailer < ApplicationMailer
     mail(to: mailbox, from: ENV.fetch("MONITORING_EMAIL_FROM"),
       subject: "[Condenser #{environment}] #{headline} — #{date}")
   end
+  def weekly(mailbox, issues, date)
+    @issues = issues
+    @date = date
+    @monitoring_url = ENV["MONITORING_CONSOLE_URL"].presence
+    @site_counts = issues.group_by(&:seedurl).transform_values(&:size)
+    environment = Distillator::TransitionRuntime.staging? ? "staging" : Rails.env
+    mail(to: mailbox, from: ENV.fetch("MONITORING_EMAIL_FROM"),
+      subject: "[Condenser #{environment}] Weekly monitoring pulse — #{issues.size} open issues across #{@site_counts.size} sites — #{date}")
+  end
+
 end

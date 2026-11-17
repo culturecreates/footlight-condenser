@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_17_000100) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_17_000200) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -234,6 +234,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_17_000100) do
     t.date "last_digest_on"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "weekly_pulse_enabled", default: true, null: false
+    t.date "last_pulse_week_on"
     t.check_constraint "id = 1", name: "monitoring_settings_singleton"
   end
 

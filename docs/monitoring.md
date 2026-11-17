@@ -33,6 +33,10 @@ Console: Account → Monitoring (administrators only), on branch `dashboard-moni
 
 In Condenser Options, save one **Monitoring mailbox**. This is a persistent server-wide setting, not a browser cookie. Leave it blank for page-only monitoring. The mailbox is never included in the issue API.
 
+**Weekly monitoring pulse** is enabled by default and can be disabled independently in Options. It sends even when Monitoring has zero open issues. It uses exactly the same open issues as the Monitoring page/API, includes counts per site, and excludes resolved or unflagged errors. It does not infer overall site health or prove that scheduled refreshes ran. The pulse goes to the same monitoring mailbox.
+
+The existing daily task sends the pulse on its first execution in each Monday–Sunday week (America/Toronto). The pulse replaces the error digest on that day; the shared daily limit prevents a second monitoring email. On other days, an error digest is sent only if open flagged issues exist. No additional scheduler task is needed. A failed pulse delivery does not advance either the daily or weekly sent markers. If the task is not running, no pulse can be sent; this is not an independent external watchdog.
+
 The digest lists all currently open flagged issues across all sites. Repeated observations of one statement form one entry. Unresolved issues remain in later daily digests as reminders. Resolved issues are omitted; no email is sent when none remain. The limit is one successful digest per America/Toronto calendar day for the whole installation, not one email per site. Changing the mailbox does not reset that limit.
 
 Configure delivery on each deployment:

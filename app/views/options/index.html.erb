@@ -33,9 +33,13 @@
   <%= form_with model: @monitoring_setting, url: monitoring_options_path, method: :patch, local: true do |form| %>
     <%= form.label :mailbox, "Monitoring mailbox" %>
     <%= form.email_field :mailbox, placeholder: "monitoring@example.org" %>
+    <%= form.check_box :weekly_pulse_enabled %>
+    <%= form.label :weekly_pulse_enabled, "Send a weekly monitoring pulse, even with no open issues" %>
     <%= form.submit "Save monitoring settings" %>
   <% end %>
   <p>Optional: one daily email for all sites, listing unresolved flagged errors. Leave blank to disable email; Monitoring stays available.</p>
+  <p>The weekly pulse lists the same open issues as Monitoring. It replaces that day's error digest. Sent on the first scheduled run each week (Monday–Sunday, America/Toronto).</p>
+  <p>Last weekly pulse: <%= @monitoring_setting.last_pulse_week_on || "Not sent" %> (week starting Monday).</p>
   <p>Last digest: <%= @monitoring_setting.last_digest_on || "Not sent" %> (America/Toronto).</p>
   <% if ENV["MONITORING_EMAIL_FROM"].blank? %><p>Email setup required: sender and email delivery must be configured before sending.</p><% end %>
   <details><summary>Flag a DSL error for monitoring</summary>

@@ -146,4 +146,18 @@ class OptionsControllerTest < ActionDispatch::IntegrationTest
     assert flash[:alert].present?
   end
 
+  test "weekly pulse checkbox persists without changing the mailbox or daily limit" do
+    setting = MonitoringSetting.current
+    setting.update!(mailbox: "monitor@example.org", last_digest_on: Date.current)
+    patch monitoring_options_path, params: { monitoring_setting: { weekly_pulse_enabled: "0" } }
+    assert_redirected_to options_path
+    assert_not setting.reload.weekly_pulse_enabled?
+    assert_equal "monitor@example.org", setting.mailbox
+    assert_equal Date.current, setting.last_digest_on
+    patch monitoring_options_path, params: { monitoring_setting: { weekly_pulse_enabled: "1" } }
+    assert setting.reload.weekly_pulse_enabled?
+    get options_path
+    assert_select "input[type=checkbox][name='monitoring_setting[weekly_pulse_enabled]'][checked]"
+  end
+
 end
