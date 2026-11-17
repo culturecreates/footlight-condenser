@@ -21,9 +21,9 @@
   <% end %>
   <p><%= form.label :interval_hours, "Refresh interval (hours)" %> <%= form.number_field :interval_hours, min: 1, max: 168 %></p>
   <p><%= form.label :stale_after_hours, "Stale after (hours)" %> <%= form.number_field :stale_after_hours, min: 1, max: 720 %></p>
-  <p><%= label_tag "preprocessing_policy_input_ids_text", "Required upstream statement IDs (comma separated)" %>
+  <p><%= label_tag "preprocessing_policy_input_ids_text", "Upstream statement IDs (comma separated; leave blank for an external-input cache such as Bundle)" %>
     <%= text_area_tag "preprocessing_policy[input_ids_text]", @policy.input_statement_ids.join(", "), rows: 2 %></p>
-  <p><%= form.check_box :inputs_verified %> <%= form.label :inputs_verified, "I verified that this DSL reads these inputs in the intended environment" %></p>
+  <p><%= form.check_box :inputs_verified %> <%= form.label :inputs_verified, "I verified the stored or external inputs used by this DSL in the intended environment" %></p>
   <p>Staging DSL can explicitly reference production APIs. This check is operator verification, not automatic URL rewriting. Input declarations check freshness; they do not enforce execution order.</p>
   <p><%= form.check_box :monitoring_enabled %> <%= form.label :monitoring_enabled, "Show policy failures and stale data in Monitoring and email summaries" %></p>
   <%= form.submit "Save policy" %>
@@ -33,6 +33,7 @@
   <p>Last error: <%= @policy.last_error || "None" %>. Next due: <%= @policy.next_due_at || "On next sweep when enabled" %>.</p>
   <%= button_to "Queue refresh now", run_preprocessing_policy_path(@policy), method: :post, disabled: !@policy.enabled? %>
   <h2>Required input freshness</h2>
+  <% if @policy.input_statement_ids.empty? %><p>External-input cache: no upstream statement IDs declared. Only output freshness and execution failures are monitored; external input freshness is not established.</p><% end %>
   <% @policy.input_observations.each do |input| %><p>Statement #<%= input[:id] %> · <%= input[:valid_identity] ? input[:seedurl] : "Missing or wrong website" %> · <%= input[:refreshed_at] || "Never refreshed" %></p><% end %>
   <h2>Recent attempts</h2>
   <% @policy.runs.order(id: :desc).limit(20).each do |run| %>

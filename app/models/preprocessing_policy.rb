@@ -68,13 +68,8 @@ class PreprocessingPolicy < ApplicationRecord
     return unless enabled?
     errors.add(:inputs_verified, "must be confirmed after inspecting this environment's DSL inputs") unless inputs_verified?
     errors.add(:base, identity_error) if identity_error
-    unless Webpage.joins(:rdfs_class).where(website_id: website_id, rdfs_classes: { name: "ResourceList" }).exists?
-      errors.add(:base, "Target website must contain ResourceList webpages")
-    end
-    if !valid_ids || input_statement_ids.empty?
-      errors.add(:input_statement_ids, "must identify the required upstream statements before enabling")
-    elsif input_observations.any? { |item| !item[:valid_identity] }
-      errors.add(:input_statement_ids, "must exist in the same preprocessing website")
+    if valid_ids && input_observations.any? { |item| !item[:valid_identity] }
+      errors.add(:input_statement_ids, "must exist in the same website")
     end
   end
 end

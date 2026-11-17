@@ -20,11 +20,11 @@ class PreprocessingPolicyTest < ActiveSupport::TestCase
     assert policy.valid?
   end
 
-  test "draft defaults are safe and policies require ResourceList ownership to enable" do
+  test "draft defaults are safe and explicit external-input policies can run outside ResourceList sites" do
     @policy.update!(enabled: false)
     @list.destroy!
-    assert_not @policy.update(enabled: true)
-    assert_includes @policy.errors.full_messages.join, "ResourceList"
+    assert @policy.update(input_statement_ids: [], enabled: true)
+    assert @policy.enabled?
     assert_equal false, PreprocessingPolicy.new.enabled
   end
 

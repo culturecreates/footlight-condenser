@@ -3,8 +3,11 @@ require "webmock/minitest"
 
 class Dsl::Support::UrlPlaceholdersTest < ActiveSupport::TestCase
   include DslRunnerTestHelper
-  setup { @previous_origin = ENV["CONDENSER_PUBLIC_URL"] }
-  teardown { ENV["CONDENSER_PUBLIC_URL"] = @previous_origin }
+  setup do
+    @saved_environment = %w[CONDENSER_PUBLIC_URL HEROKU_APP_DEFAULT_DOMAIN_NAME HEROKU_APP_NAME APP_NAME HEROKU_PARENT_APP_NAME DISTILLATOR_RUNTIME].index_with { |key| ENV[key] }
+    @saved_environment.each_key { |key| ENV.delete(key) }
+  end
+  teardown { @saved_environment.each { |key, value| ENV[key] = value } }
 
   test "same DSL resolves the configured environment after Ruby evaluation" do
     %w[https://staging.example https://production.example/ http://localhost:3000].each do |origin|
@@ -41,4 +44,19 @@ class Dsl::Support::UrlPlaceholdersTest < ActiveSupport::TestCase
       {status: :ok, body: "<html><title>Local data</title></html>", wringer: {}})
     assert_equal ["Local data"], runner.run('url="$$SELF_URL$$/data";xpath=//title')
   end
+  test "default origin follows this Heroku app and has no trailing slash" do
+    ENV["HEROKU_APP_DEFAULT_DOMAIN_NAME"] = "review-app-123.herokuapp.com"
+    assert_equal "https://review-app-123.herokuapp.com", Dsl::Support::UrlPlaceholders.expand("$$SELF_URL$$")
+    ENV["CONDENSER_PUBLIC_URL"] = "https://custom.example/"
+    assert_equal "https://custom.example", Dsl::Support::UrlPlaceholders.expand("$$SELF_URL$$")
+  end
+
+  test "known staging and production apps have defaults without a new configuration variable" do
+    ENV["DISTILLATOR_RUNTIME"] = "staging"
+    assert_equal "https://footlight-condenser-test-c24c162bb7c8.herokuapp.com", Dsl::Support::UrlPlaceholders.expand("$$SELF_URL$$")
+    ENV.delete("DISTILLATOR_RUNTIME")
+    Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("production"))
+    assert_equal "https://footlight-condenser.herokuapp.com", Dsl::Support::UrlPlaceholders.expand("$$SELF_URL$$")
+  end
+
 end

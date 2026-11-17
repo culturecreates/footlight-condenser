@@ -25,9 +25,9 @@ IDs can differ between environments. The inventory prints actual ownership, webp
 
 Open **Options → Preprocessing refresh policies**. Pilot links prefill a statement ID and expected website seedurl. Creating a policy always creates a disabled draft. No source algorithm executes on save.
 
-1. Confirm the statement, source, webpage and website identity in this environment.
+1. Confirm the statement, source, webpage and website identity in this environment. Policies are not limited to ResourceList websites.
 2. Inspect its existing DSL, especially literal `api=` URLs and Ruby database queries. Gatineau Event Audience source #4608 previously referenced production explicitly. A staging refresh cannot change what a production-pointing consumer reads. This implementation does not rewrite URLs or prove that arbitrary Ruby reads declared inputs.
-3. Enter the actual required upstream statement IDs. They must exist in the same preprocessing website; the target cannot depend on itself.
+3. Enter the actual required upstream statement IDs. They must exist in the same website; the target cannot depend on itself. For an external-input cache such as Co-motion Bundle, explicitly leave the list empty and verify its external inputs instead. No upstream-statement freshness claim is made in that case.
 4. Confirm that the DSL reads those inputs in the intended environment. This is an operator confirmation, not an automatic analysis of arbitrary DSL code.
 5. Set the interval (default 12 hours), stale threshold (default 48 hours) and monitoring preference, then enable.
 6. Use **Queue refresh now** and inspect the recorded attempt, stored refresh timestamp and input observations.
@@ -77,3 +77,9 @@ Freshness checks run during the hourly sweep and independently before the email 
 ## Pilot acceptance
 
 Use staging first. Validate each intended target, run it once, inspect the saved result and provenance, then repeat to prove an unchanged result still advances refresh time. Verify abort/blank/manual protection, stale-input warning and recovery, duplicate delivery, expired-claim recovery, changed ownership and independent-policy progress. Confirm unrelated schedules and exports were not altered. Activation and publication are outside this workflow.
+
+## Co-motion Bundle cache
+
+The same opt-in policy mechanism supports ordinary Event websites. A Bundle statement can be explicitly enrolled even when its source is unselected for publication. A root Bundle policy has no stored input IDs; its verified DSL fetches ticket data and stores the compact JSON. Monitoring covers execution and output freshness, not the unobserved freshness of external APIs.
+
+Price and Price Description remain readers of the stored Bundle. Their existing Event refreshes may consume it normally. If a different cadence is needed, enroll those specific reader statements separately and declare the Bundle statement for the **same webpage** as their required input. There is no automatic enrollment of all Co-motion events and no change to source #5266, #1138, #5265, existing Event schedules, manual corrections or blank-preservation rules. Validate actual statement IDs per event. No global ordering or a new cache format is introduced.
