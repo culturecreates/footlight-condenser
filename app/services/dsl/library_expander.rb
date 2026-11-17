@@ -39,11 +39,16 @@ module Dsl
         end
         name = match[1]
         raise Error, "SELF_URL is a URL placeholder, not a library instruction" if name == "SELF_URL"
-        raise Error, "Circular DSL library reference: #{(path.map { |item| item[:name] } + [name]).join(' -> ')}" if path.any? { |item| item[:name] == name }
         raise Error, "DSL library nesting exceeds #{MAX_DEPTH}" if path.size >= MAX_DEPTH
-        @entries ||= DslLibraryEntry.pluck(:name, :body, :revision).to_h { |n,b,v| [n, {name: n, body: b, revision: v}] }.merge(@overrides)
+        @entries ||= DslLibraryEntry.pluck(:name, :body, :revision, :aliases).each_with_object({}) do |(n,b,v,aliases), entries|
+          snapshot = {name: n, body: b, revision: v}
+          ([n] + Array(aliases)).each { |key| entries[key] = snapshot }
+        end.merge(@overrides)
         entry = @entries[name]
         raise Error, "Unknown DSL library instruction $$#{name}$$" unless entry
+        if path.any? { |item| item[:name] == entry[:name] }
+          raise Error, "Circular DSL library reference: #{(path.map { |item| item[:name] } + [entry[:name]]).join(' -> ')}"
+        end
         @evidence[name] = entry.merge(sha256: Digest::SHA256.hexdigest(entry[:body]))
         expand(entry[:body].split(';').map(&:strip).reject(&:empty?), path + [entry])
       end

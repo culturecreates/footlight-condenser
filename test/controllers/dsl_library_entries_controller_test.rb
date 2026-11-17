@@ -30,4 +30,28 @@ class DslLibraryEntriesControllerTest < ActionDispatch::IntegrationTest
     assert_response :conflict
     assert_equal 'xpath=//h1', entry.reload.body
   end
+  test "token name is editable and saving a rename updates referencing sources" do
+    entry = DslLibraryEntry.find_by!(name: "META_TITLE")
+    source = sources(:one)
+    source.update!(algorithm_value: '$$META_TITLE$$')
+    get edit_dsl_library_entry_path(entry)
+    assert_select "input[name='dsl_library_entry[name]'][readonly]", count: 0
+    patch dsl_library_entry_path(entry), params: {dsl_library_entry: {name: "OPEN_GRAPH_TITLE", lock_version: entry.lock_version}}
+    assert_redirected_to edit_dsl_library_entry_path(entry)
+    assert_equal '$$OPEN_GRAPH_TITLE$$', source.reload.algorithm_value
+    assert_equal "OPEN_GRAPH_TITLE", entry.reload.name
+  end
+
+  test "failed source rewrite returns an operator error and leaves the old token intact" do
+    entry = DslLibraryEntry.find_by!(name: "META_TITLE")
+    source = sources(:one)
+    source.update!(algorithm_value: '$$META_TITLE$$')
+    Source.any_instance.stubs(:update!).raises(ActiveRecord::RecordInvalid.new(Source.new))
+    patch dsl_library_entry_path(entry), params: {dsl_library_entry: {name: "OPEN_GRAPH_TITLE", lock_version: entry.lock_version}}
+    assert_response :unprocessable_entity
+    assert_includes response.body, "No changes saved"
+    assert_equal "META_TITLE", entry.reload.name
+    assert_equal '$$META_TITLE$$', source.reload.algorithm_value
+  end
+
 end

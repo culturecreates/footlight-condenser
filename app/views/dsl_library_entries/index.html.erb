@@ -1,6 +1,6 @@
 <h1>DSL Library</h1>
 <p>Reusable complete instructions. Place a token on its own pipeline step, for example <code>$$META_TITLE$$;$$ARRAY_UNIQ$$</code>.</p>
-<p>Library edits apply on the next execution of referencing sources. Existing source algorithms and cached statements are not changed automatically.</p>
+<p>Library edits apply on the next execution of referencing sources. Body edits leave source algorithms and cached statements unchanged. Renames update complete token references together.</p>
 <p><%= link_to "New instruction", new_dsl_library_entry_path %></p>
 <table><thead><tr><th>Token</th><th>Description</th><th>Revision</th><th>Instruction</th></tr></thead><tbody>
 <% @entries.each do |entry| %><tr>

@@ -24,10 +24,14 @@ class DslLibraryEntriesController < ApplicationController
 
   def update
     if @entry.update(entry_params)
-      redirect_to edit_dsl_library_entry_path(@entry), notice: "Library instruction saved. Sources use this revision on their next execution."
+      redirect_to edit_dsl_library_entry_path(@entry), notice: "Library instruction saved. Renamed references were updated together; changes apply on the next execution."
     else
       render :edit, status: :unprocessable_entity
     end
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => error
+    @entry.reload
+    @entry.errors.add(:base, "No changes saved: the rename or reference update failed (#{error.class.name}). Review the name and referencing entries.")
+    render :edit, status: :unprocessable_entity
   rescue ActiveRecord::StaleObjectError
     @entry.reload
     @entry.errors.add(:base, "Another operator saved this entry. Review the current version before editing again.")

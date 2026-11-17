@@ -2,56 +2,67 @@
   "meta_title_one": {
     "dsl_library_entry": "meta_title",
     "revision": 1,
-    "body": "xpath=//meta[@property='og:title']/@content"
+    "body": "xpath=//meta[@property='og:title']/@content",
+    "name": "META_TITLE"
   },
   "meta_image_one": {
     "dsl_library_entry": "meta_image",
     "revision": 1,
-    "body": "xpath=//meta[@property='og:image']/@content"
+    "body": "xpath=//meta[@property='og:image']/@content",
+    "name": "META_IMAGE"
   },
   "meta_description_one": {
     "dsl_library_entry": "meta_description",
     "revision": 1,
-    "body": "xpath=//meta[@property='og:description']/@content"
+    "body": "xpath=//meta[@property='og:description']/@content",
+    "name": "META_DESCRIPTION"
   },
   "html_title_one": {
     "dsl_library_entry": "html_title",
     "revision": 1,
-    "body": "xpath=//title"
+    "body": "xpath=//title",
+    "name": "HTML_TITLE"
   },
   "json_ld_scripts_one": {
     "dsl_library_entry": "json_ld_scripts",
     "revision": 1,
-    "body": "xpath=//script[@type='application/ld+json']"
+    "body": "xpath=//script[@type='application/ld+json']",
+    "name": "JSON_LD_SCRIPTS"
   },
   "current_url_one": {
     "dsl_library_entry": "current_url",
     "revision": 1,
-    "body": "ruby=$url"
+    "body": "ruby=$url",
+    "name": "CURRENT_URL"
   },
   "array_uniq_one": {
     "dsl_library_entry": "array_uniq",
     "revision": 1,
-    "body": "ruby=$array.uniq"
+    "body": "ruby=$array.uniq",
+    "name": "ARRAY_UNIQ"
   },
   "array_squish_one": {
     "dsl_library_entry": "array_squish",
     "revision": 1,
-    "body": "ruby=$array.map{|e| e.squish}"
+    "body": "ruby=$array.map{|e| e.squish}",
+    "name": "ARRAY_SQUISH"
   },
   "array_save_one": {
     "dsl_library_entry": "array_save",
     "revision": 1,
-    "body": "ruby=[$array]"
+    "body": "ruby=[$array]",
+    "name": "ARRAY_SAVE"
   },
   "array_drop_first_one": {
     "dsl_library_entry": "array_drop_first",
     "revision": 1,
-    "body": "ruby=$array.drop(1)"
+    "body": "ruby=$array.drop(1)",
+    "name": "ARRAY_DROP_FIRST"
   },
   "array_first_one": {
     "dsl_library_entry": "array_first",
     "revision": 1,
-    "body": "ruby=$array.size > 1 ? $array.drop(1).map{|e| e.squish} : $array"
+    "body": "ruby=$array.size > 1 ? $array.drop(1).map{|e| e.squish} : $array",
+    "name": "ARRAY_FIRST"
   }
 }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_17_000400) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_17_000500) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -203,6 +203,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_17_000400) do
     t.integer "lock_version", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "aliases", default: [], null: false
     t.index ["name"], name: "index_dsl_library_entries_on_name", unique: true
   end
 
@@ -212,6 +213,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_17_000400) do
     t.text "body", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "name"
     t.index ["dsl_library_entry_id", "revision"], name: "idx_on_dsl_library_entry_id_revision_97b85997d0", unique: true
     t.index ["dsl_library_entry_id"], name: "index_dsl_library_versions_on_dsl_library_entry_id"
   end
