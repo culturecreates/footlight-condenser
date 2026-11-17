@@ -29,6 +29,7 @@
 
   <hr>
   <h3>Monitoring</h3>
+  <p><%= link_to "Preprocessing refresh policies", preprocessing_policies_path %> — explicit opt-in, separate from website schedules.</p>
   <p><%= link_to "Open monitoring", monitoring_path(seedurl: "all") %> — only DSL errors flagged for monitoring.</p>
   <%= form_with model: @monitoring_setting, url: monitoring_options_path, method: :patch, local: true do |form| %>
     <%= form.label :mailbox, "Monitoring mailbox" %>

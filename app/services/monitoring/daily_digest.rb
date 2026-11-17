@@ -3,6 +3,7 @@ module Monitoring
     TIME_ZONE = "America/Toronto".freeze
 
     def self.call
+      Preprocessing::Monitor.call
       setting = MonitoringSetting.current
       setting.with_lock do
         today = Time.current.in_time_zone(TIME_ZONE).to_date

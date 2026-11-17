@@ -136,6 +136,10 @@ Rails.application.routes.draw do
     end
   end
 
+  resources :preprocessing_policies, only: [:index, :new, :create, :edit, :update] do
+    post :run, on: :member
+  end
+
   get "monitoring", to: "monitoring#index", as: :monitoring
   patch "options/monitoring", to: "options#update_monitoring", as: :monitoring_options
 

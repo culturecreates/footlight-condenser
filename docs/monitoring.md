@@ -1,6 +1,6 @@
 # Opt-in DSL monitoring
 
-Monitoring is operational error reporting. It does not change DSL extraction semantics, source selection, refresh schedules, publication, or rollout modes.
+Monitoring is operational error reporting. Explicitly enrolled [preprocessing policies](preprocessing_refresh.md) also report refresh failures, stale results and stale inputs through this same issue store. These policy issues have independent resolution conditions; a normal DSL success cannot clear stale-input evidence. It does not change DSL extraction semantics, source selection, refresh schedules, publication, or rollout modes.
 
 ## Flag a particular error
 
@@ -19,7 +19,7 @@ end
 
 The example variables stand for the source's own calculations. Catch only the errors that need attention; an unflagged abort or exception retains its existing diagnostics and is not added to Monitoring. The flag is metadata in the existing abort payload, not a new DSL instruction. It never sends email directly.
 
-Only actual statement refreshes record issues. Running an extraction trace, cache comparison, transition comparison or Databus replay does not create or resolve operational monitoring issues. Existing good statement caches retain the normal abort protection.
+Ordinary DSL issues are recorded only by actual statement refreshes. Running an extraction trace, cache comparison, transition comparison or Databus replay does not create or resolve operational monitoring issues. Existing good statement caches retain the normal abort protection.
 
 An issue groups repeated flagged failures by webpage and source. The Monitoring page shows its message, site, property, source/statement links, occurrence count, first/last observation and resolution status. A successful saved refresh resolves it. A later flagged failure reopens the issue and starts a new occurrence count. Skipped manual statements, unflagged failures and blank-preserved refreshes do not claim recovery. Records retain identifying snapshots if a source or page is later deleted; deletion alone does not claim recovery.
 
@@ -33,11 +33,11 @@ Console: Account → Monitoring (administrators only), on branch `dashboard-moni
 
 In Condenser Options, save one **Monitoring mailbox**. This is a persistent server-wide setting, not a browser cookie. Leave it blank for page-only monitoring. The mailbox is never included in the issue API.
 
-**Weekly monitoring pulse** is enabled by default and can be disabled independently in Options. It sends even when Monitoring has zero open issues. It uses exactly the same open issues as the Monitoring page/API, includes counts per site, and excludes resolved or unflagged errors. It does not infer overall site health or prove that scheduled refreshes ran. The pulse goes to the same monitoring mailbox.
+**Weekly monitoring pulse** is enabled by default and can be disabled independently in Options. It sends even when Monitoring has zero open issues. It uses exactly the same open issues (including preprocessing freshness problems) as the Monitoring page/API, includes counts per site, and excludes resolved or unflagged errors. It does not infer overall site health or prove that scheduled refreshes ran. The pulse goes to the same monitoring mailbox.
 
 The existing daily task sends the pulse on its first execution in each Monday–Sunday week (America/Toronto). The pulse replaces the error digest on that day; the shared daily limit prevents a second monitoring email. On other days, an error digest is sent only if open flagged issues exist. No additional scheduler task is needed. A failed pulse delivery does not advance either the daily or weekly sent markers. If the task is not running, no pulse can be sent; this is not an independent external watchdog.
 
-The digest lists all currently open flagged issues across all sites. Repeated observations of one statement form one entry. Unresolved issues remain in later daily digests as reminders. Resolved issues are omitted; no email is sent when none remain. The limit is one successful digest per America/Toronto calendar day for the whole installation, not one email per site. Changing the mailbox does not reset that limit.
+The digest lists all currently open DSL and enrolled preprocessing-policy issues across all sites. Repeated observations of one statement form one entry. Unresolved issues remain in later daily digests as reminders. Resolved issues are omitted; no email is sent when none remain. The limit is one successful digest per America/Toronto calendar day for the whole installation, not one email per site. Changing the mailbox does not reset that limit.
 
 Configure delivery on each deployment:
 

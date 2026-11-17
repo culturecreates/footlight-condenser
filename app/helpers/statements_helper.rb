@@ -257,10 +257,12 @@ module StatementsHelper
     @dsl_trace = nil
     data = nil
     error_messages = []
+    saved = false
     build_result = -> do
       {
         data: data,
         trace: @dsl_trace,
+        saved: saved,
         errors: (error_messages + stat.errors.full_messages).compact.uniq
       }
     end
@@ -347,7 +349,8 @@ module StatementsHelper
 
       stat.cache           = formatted
       stat.cache_refreshed = Time.zone.now
-      Monitoring::Recorder.success(stat) if stat.save
+      saved = stat.save
+      Monitoring::Recorder.success(stat) if saved
     end
 
     # ActiveRecord save can clear in-memory errors; keep explicit abort context for callers/tests.

@@ -1,11 +1,11 @@
 Daily monitoring — <%= @date %>
-<%= @issues.size %> open issues explicitly flagged by DSL. Repeated failures are grouped by statement.
+<%= @issues.size %> open monitored issues. Includes flagged DSL errors and enrolled preprocessing policies.
 <% if @monitoring_url.present? %>
 Monitoring: <%= @monitoring_url %>
 <% end %>
 <% @issues.each do |issue| %>
 <%= issue.website_name.presence || issue.seedurl %> (<%= issue.seedurl %>)
-<%= issue.property_name %> · Source #<%= issue.source_id %><% if issue.statement_id %> · Statement #<%= issue.statement_id %><% end %>
+<%= issue.kind.humanize %> · <%= issue.property_name %> · Source #<%= issue.source_id %><% if issue.statement_id %> · Statement #<%= issue.statement_id %><% end %>
 <%= issue.message %>
 Page: <%= issue.url %>
 First seen: <%= issue.first_seen_at %> · Last seen: <%= issue.last_seen_at %> · Occurrences: <%= issue.occurrences %>

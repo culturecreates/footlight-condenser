@@ -1,0 +1,45 @@
+<h1><%= @policy.persisted? ? "Preprocessing policy ##{@policy.id}" : "New preprocessing policy" %></h1>
+<p><%= link_to "All policies", preprocessing_policies_path %></p>
+<% if @policy.errors.any? %><div role="alert"><%= @policy.errors.full_messages.to_sentence %></div><% end %>
+<%= form_with model: @policy, local: true do |form| %>
+  <% if @policy.new_record? %>
+    <p><%= form.label :statement_id, "Target statement ID" %> <%= form.number_field :statement_id, min: 1, required: true %></p>
+    <p><%= form.label :expected_seedurl, "Expected website seedurl" %> <%= form.text_field :expected_seedurl, required: true %></p>
+    <p>Creates a disabled draft after validating the target. No DSL runs on save.</p>
+  <% else %>
+    <% issues = @policy.monitoring_issues.order(:kind) %>
+    <% if issues.any? %>
+      <div role="alert"><strong>Needs attention</strong><ul><% issues.each do |issue| %><li><strong><%= issue.kind.humanize %>:</strong> <%= issue.message %></li><% end %></ul></div>
+    <% else %><p>No policy problems currently recorded.</p><% end %>
+    <p>Freshness last checked: <%= @policy.last_checked_at || "Not checked yet" %>. A successful refresh alone does not establish fresh inputs.</p>
+    <p><strong><%= @policy.seedurl %></strong> · Statement #<%= @policy.statement_id %> · Webpage #<%= @policy.webpage_id %> · Source #<%= @policy.source_id %></p>
+    <% target = @policy.target %>
+    <% if @policy.identity_error(target) %><p role="alert"><%= @policy.identity_error(target) %></p><% end %>
+    <p><%= link_to "Statement", statement_path(@policy.statement_id) %> · <%= link_to "Source", source_path(@policy.source_id) %> · <%= link_to "Webpage", webpage_path(@policy.webpage_id) %></p>
+    <details><summary>Target DSL — inspect input environment before enabling</summary><pre><%= target&.source&.algorithm_value %></pre></details>
+    <p><%= form.check_box :enabled %> <%= form.label :enabled %></p>
+  <% end %>
+  <p><%= form.label :interval_hours, "Refresh interval (hours)" %> <%= form.number_field :interval_hours, min: 1, max: 168 %></p>
+  <p><%= form.label :stale_after_hours, "Stale after (hours)" %> <%= form.number_field :stale_after_hours, min: 1, max: 720 %></p>
+  <p><%= label_tag "preprocessing_policy_input_ids_text", "Required upstream statement IDs (comma separated)" %>
+    <%= text_area_tag "preprocessing_policy[input_ids_text]", @policy.input_statement_ids.join(", "), rows: 2 %></p>
+  <p><%= form.check_box :inputs_verified %> <%= form.label :inputs_verified, "I verified that this DSL reads these inputs in the intended environment" %></p>
+  <p>Staging DSL can explicitly reference production APIs. This check is operator verification, not automatic URL rewriting. Input declarations check freshness; they do not enforce execution order.</p>
+  <p><%= form.check_box :monitoring_enabled %> <%= form.label :monitoring_enabled, "Show policy failures and stale data in Monitoring and email summaries" %></p>
+  <%= form.submit "Save policy" %>
+<% end %>
+<% if @policy.persisted? %>
+  <p>Current stored refresh: <%= @policy.target&.cache_refreshed || "Never" %>. Last policy success: <%= @policy.last_success_at || "Never" %>.</p>
+  <p>Last error: <%= @policy.last_error || "None" %>. Next due: <%= @policy.next_due_at || "On next sweep when enabled" %>.</p>
+  <%= button_to "Queue refresh now", run_preprocessing_policy_path(@policy), method: :post, disabled: !@policy.enabled? %>
+  <h2>Required input freshness</h2>
+  <% @policy.input_observations.each do |input| %><p>Statement #<%= input[:id] %> · <%= input[:valid_identity] ? input[:seedurl] : "Missing or wrong website" %> · <%= input[:refreshed_at] || "Never refreshed" %></p><% end %>
+  <h2>Recent attempts</h2>
+  <% @policy.runs.order(id: :desc).limit(20).each do |run| %>
+    <details><summary>Run #<%= run.id %> · <%= run.status %> · <%= run.started_at || run.created_at %></summary>
+      <p>Finished: <%= run.finished_at || "Not recorded" %> · Stored refresh: <%= run.output_refreshed_at || "No successful save" %></p>
+      <% if run.error.present? %><p><%= run.error %></p><% end %>
+      <pre><%= JSON.pretty_generate(run.input_observations) %></pre>
+    </details>
+  <% end %>
+<% end %>

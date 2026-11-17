@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_17_000200) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_17_000300) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -224,8 +224,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_17_000200) do
     t.datetime "resolved_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "kind", default: "dsl_error", null: false
+    t.bigint "preprocessing_policy_id"
     t.index ["fingerprint"], name: "index_monitoring_issues_on_fingerprint", unique: true
     t.index ["last_seen_at"], name: "index_monitoring_issues_on_last_seen_at"
+    t.index ["preprocessing_policy_id", "kind"], name: "index_monitoring_issues_on_preprocessing_policy_id_and_kind"
     t.index ["seedurl", "resolved_at"], name: "index_monitoring_issues_on_seedurl_and_resolved_at"
   end
 
@@ -237,6 +240,47 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_17_000200) do
     t.boolean "weekly_pulse_enabled", default: true, null: false
     t.date "last_pulse_week_on"
     t.check_constraint "id = 1", name: "monitoring_settings_singleton"
+  end
+
+  create_table "preprocessing_policies", force: :cascade do |t|
+    t.bigint "statement_id", null: false
+    t.bigint "website_id", null: false
+    t.bigint "webpage_id", null: false
+    t.bigint "source_id", null: false
+    t.string "seedurl", null: false
+    t.boolean "enabled", default: false, null: false
+    t.boolean "inputs_verified", default: false, null: false
+    t.boolean "monitoring_enabled", default: true, null: false
+    t.integer "interval_hours", default: 12, null: false
+    t.integer "stale_after_hours", default: 48, null: false
+    t.jsonb "input_statement_ids", default: [], null: false
+    t.datetime "next_due_at"
+    t.bigint "active_run_id"
+    t.datetime "lease_expires_at"
+    t.datetime "last_enqueued_at"
+    t.datetime "last_attempt_at"
+    t.datetime "last_success_at"
+    t.datetime "last_checked_at"
+    t.string "last_result"
+    t.text "last_error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["enabled", "next_due_at"], name: "index_preprocessing_policies_on_enabled_and_next_due_at"
+    t.index ["statement_id"], name: "index_preprocessing_policies_on_statement_id", unique: true
+  end
+
+  create_table "preprocessing_runs", force: :cascade do |t|
+    t.bigint "preprocessing_policy_id", null: false
+    t.string "status", null: false
+    t.string "configuration_digest", null: false
+    t.datetime "started_at"
+    t.datetime "finished_at"
+    t.datetime "output_refreshed_at"
+    t.jsonb "input_observations", default: [], null: false
+    t.text "error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["preprocessing_policy_id"], name: "index_preprocessing_runs_on_preprocessing_policy_id"
   end
 
   create_table "properties", force: :cascade do |t|
@@ -345,6 +389,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_17_000200) do
   add_foreign_key "distillator_transition_exclusions", "distillator_transition_runs", column: "source_run_id"
   add_foreign_key "distillator_transition_exclusions", "websites"
   add_foreign_key "distillator_transition_runs", "websites"
+  add_foreign_key "preprocessing_runs", "preprocessing_policies"
   add_foreign_key "properties", "rdfs_classes"
   add_foreign_key "search_exceptions", "rdfs_classes"
   add_foreign_key "sources", "properties"
