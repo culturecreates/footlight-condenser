@@ -1,0 +1,57 @@
+{
+  "meta_title_one": {
+    "dsl_library_entry": "meta_title",
+    "revision": 1,
+    "body": "xpath=//meta[@property='og:title']/@content"
+  },
+  "meta_image_one": {
+    "dsl_library_entry": "meta_image",
+    "revision": 1,
+    "body": "xpath=//meta[@property='og:image']/@content"
+  },
+  "meta_description_one": {
+    "dsl_library_entry": "meta_description",
+    "revision": 1,
+    "body": "xpath=//meta[@property='og:description']/@content"
+  },
+  "html_title_one": {
+    "dsl_library_entry": "html_title",
+    "revision": 1,
+    "body": "xpath=//title"
+  },
+  "json_ld_scripts_one": {
+    "dsl_library_entry": "json_ld_scripts",
+    "revision": 1,
+    "body": "xpath=//script[@type='application/ld+json']"
+  },
+  "current_url_one": {
+    "dsl_library_entry": "current_url",
+    "revision": 1,
+    "body": "ruby=$url"
+  },
+  "array_uniq_one": {
+    "dsl_library_entry": "array_uniq",
+    "revision": 1,
+    "body": "ruby=$array.uniq"
+  },
+  "array_squish_one": {
+    "dsl_library_entry": "array_squish",
+    "revision": 1,
+    "body": "ruby=$array.map{|e| e.squish}"
+  },
+  "array_save_one": {
+    "dsl_library_entry": "array_save",
+    "revision": 1,
+    "body": "ruby=[$array]"
+  },
+  "array_drop_first_one": {
+    "dsl_library_entry": "array_drop_first",
+    "revision": 1,
+    "body": "ruby=$array.drop(1)"
+  },
+  "array_first_one": {
+    "dsl_library_entry": "array_first",
+    "revision": 1,
+    "body": "ruby=$array.size > 1 ? $array.drop(1).map{|e| e.squish} : $array"
+  }
+}

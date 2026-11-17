@@ -349,7 +349,10 @@ module Distillator
         begin
           before_missing = @reader.missing.length
           raw = with_cache_only do
-            CacheRunner.new({ url: url, render_js: source.render_js, scrape_options: {}, tracer: Dsl::Tracing::NullTracer.new }, reader: @reader).run(source.algorithm_value)
+            runner = CacheRunner.new({ url: url, render_js: source.render_js, scrape_options: {}, tracer: Dsl::Tracing::NullTracer.new }, reader: @reader)
+            value = runner.run(source.algorithm_value)
+            entry[:library_evidence] = runner.library_evidence if runner.library_evidence.present?
+            value
           end
           raise MissingInput, @reader.missing[before_missing..].join("; ") if @reader.missing.length > before_missing
           entry[:raw] = raw

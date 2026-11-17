@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_17_000300) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_17_000400) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -193,6 +193,27 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_17_000300) do
     t.jsonb "progress", default: {}, null: false
     t.index ["website_id"], name: "index_distillator_transition_runs_on_website_id"
     t.index ["website_id"], name: "one_active_transition_run_per_website", unique: true, where: "((status)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying])::text[]))"
+  end
+
+  create_table "dsl_library_entries", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "body", null: false
+    t.text "description"
+    t.integer "revision", default: 1, null: false
+    t.integer "lock_version", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_dsl_library_entries_on_name", unique: true
+  end
+
+  create_table "dsl_library_versions", force: :cascade do |t|
+    t.bigint "dsl_library_entry_id", null: false
+    t.integer "revision", null: false
+    t.text "body", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["dsl_library_entry_id", "revision"], name: "idx_on_dsl_library_entry_id_revision_97b85997d0", unique: true
+    t.index ["dsl_library_entry_id"], name: "index_dsl_library_versions_on_dsl_library_entry_id"
   end
 
   create_table "jsonld_outputs", force: :cascade do |t|
@@ -389,6 +410,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_17_000300) do
   add_foreign_key "distillator_transition_exclusions", "distillator_transition_runs", column: "source_run_id"
   add_foreign_key "distillator_transition_exclusions", "websites"
   add_foreign_key "distillator_transition_runs", "websites"
+  add_foreign_key "dsl_library_versions", "dsl_library_entries"
   add_foreign_key "preprocessing_runs", "preprocessing_policies"
   add_foreign_key "properties", "rdfs_classes"
   add_foreign_key "search_exceptions", "rdfs_classes"

@@ -21,7 +21,8 @@ module Dsl
       wringer: nil,
       url_before: nil,
       url_after: nil,
-      duration_ms: nil
+      duration_ms: nil,
+      library: nil
     )
       compact_error_message =
         case error
@@ -46,7 +47,7 @@ module Dsl
         url_before: url_before,
         url_after: url_after,
         duration_ms: duration_ms
-      }.deep_dup
+      }.tap { |event| event[:library] = library if library.present? }.deep_dup
     end
 
     def to_h

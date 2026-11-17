@@ -1,0 +1,20 @@
+<h1><%= @entry.persisted? ? "Edit $$#{@entry.name}$$" : "New library instruction" %></h1>
+<p><%= link_to "DSL Library", dsl_library_entries_path %></p>
+<% if @entry.errors.any? %><p role="alert"><%= @entry.errors.full_messages.to_sentence %></p><% end %>
+<%= form_with model: @entry, local: true do |form| %>
+  <p><%= form.label :name, "Token name (without $$)" %> <%= form.text_field :name, readonly: @entry.persisted?, required: true %></p>
+  <p><%= form.label :description %> <%= form.text_area :description, rows: 2 %></p>
+  <p><%= form.label :body, "DSL instruction or pipeline" %> <%= form.text_area :body, rows: 8, cols: 100, required: true %></p>
+  <%= form.hidden_field :lock_version if @entry.persisted? %>
+  <p>Changes affect every reference on its next run. Nested library tokens are allowed as complete steps. SELF_URL remains a URL-only placeholder.</p>
+  <%= form.submit "Save instruction" %>
+<% end %>
+<% if @entry.persisted? %>
+  <h2>Sources containing this token (<%= @entry.references.count %>)</h2>
+  <% @entry.references.limit(100).each do |source| %><p><%= link_to "Source ##{source.id}", source_path(source) %> · <%= source.website.seedurl %> · <%= source.selected? ? "Selected" : "Unselected" %></p><% end %>
+  <p>Literal references are shown; library entries can also reference one another. Inspect nested usage before editing shared behavior.</p>
+  <h2>Library entries containing this token</h2>
+  <% @entry.library_references.each do |entry| %><p><%= link_to "$$#{entry.name}$$", edit_dsl_library_entry_path(entry) %></p><% end %>
+  <h2>Revision history</h2>
+  <% @entry.versions.order(revision: :desc).limit(20).each do |version| %><details><summary>Revision <%= version.revision %> · <%= version.created_at %></summary><pre><%= version.body %></pre></details><% end %>
+<% end %>

@@ -38,7 +38,9 @@ class ActiveSupport::TestCase
   end
 
   # Load all fixtures in the correct order.
-  fixtures :rdfs_classes,
+  fixtures :dsl_library_entries,
+           :dsl_library_versions,
+           :rdfs_classes,
            :properties,
            :search_exceptions,
            :websites,

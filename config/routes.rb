@@ -136,6 +136,8 @@ Rails.application.routes.draw do
     end
   end
 
+  resources :dsl_library_entries, only: [:index, :new, :create, :edit, :update]
+
   resources :preprocessing_policies, only: [:index, :new, :create, :edit, :update] do
     post :run, on: :member
   end

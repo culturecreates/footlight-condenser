@@ -2,6 +2,8 @@ require "stringio"
 module Dsl
   module Core
     class AlgorithmRunner
+    attr_reader :library_evidence
+
     HALT = Object.new
     CONTRACT_VERSION = "production_append_v1".freeze
 
@@ -50,7 +52,18 @@ module Dsl
 
       @dsl_binding = binding
 
-      steps = algorithm.split(';').map(&:strip).reject(&:empty?)
+      @library_evidence = []
+      begin
+        expansion = Dsl::LibraryExpander.call(algorithm)
+        steps = expansion[:steps]
+        @library_origins = expansion[:origins]
+        @library_evidence = expansion[:evidence]
+      rescue Dsl::LibraryExpander::Error => error
+        result = abort_update(error: error.message, error_type: "LibraryExpansionError", step: "library")
+        @tracer.step(step: 0, type: "library", code: algorithm.to_s.first(160), input: [], output: [], error: result.last,
+          url_before: @url, url_after: @url, duration_ms: 0)
+        return result
+      end
       if export_debug?
         Rails.logger.warn(
           "[EXPORT_DEBUG] DSL.run entry url=#{@url} render_js=#{@render_js.inspect} steps=#{steps.size} " \
@@ -84,6 +97,7 @@ module Dsl
           duration_ms = ((end_time - start_time) * 1000).round(1)
 
           @tracer.step(
+            library: @library_origins[idx],
             step: step_index,
             type: prefix,
             code: code,
@@ -114,6 +128,7 @@ module Dsl
           results     = out.last
 
           @tracer.step(
+            library: @library_origins[idx],
             step: step_index,
             type: prefix,
             code: code,
@@ -146,6 +161,7 @@ module Dsl
         probe       = build_xpath_probe(previous_prefix, prefix, probe_output, previous_step_index)
         if abort_structure?(probe)
           @tracer.step(
+            library: @library_origins[idx],
             step: step_index,
             type: prefix,
             code: code,
@@ -165,6 +181,7 @@ module Dsl
         end
 
         @tracer.step(
+          library: @library_origins[idx],
           step: step_index,
           type: prefix,
           code: code,
@@ -188,6 +205,7 @@ module Dsl
         duration_ms = ((end_time - start_time) * 1000).round(1)
 
         @tracer.step(
+          library: @library_origins[idx],
           step: step_index,
           type: prefix,
           code: code,
