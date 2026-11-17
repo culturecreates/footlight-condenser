@@ -1,0 +1,30 @@
+/* Instruction colors identify DSL steps, not health or validation status. */
+.dsl-highlight {
+  color: #1f2937;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 2;
+}
+
+.dsl-highlight .dsl-step {
+  color: #1f2937;
+  padding: 0.06em 0.12em;
+  border-radius: 2px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.dsl-highlight .dsl-step-prefix { font-weight: 650; }
+.dsl-highlight .dsl-step--extraction { background-color: #fce9ec; }
+.dsl-highlight .dsl-step--ruby-a { background-color: #e6f4e9; }
+.dsl-highlight .dsl-step--ruby-b { background-color: #e5f0fc; }
+.dsl-highlight .dsl-step--navigation { background-color: #fff2d9; }
+.dsl-highlight .dsl-step--library { background-color: #eee9fb; }
+
+.dsl-library-preview {
+  margin: 0;
+  padding: 0.5rem;
+  max-width: 65rem;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}

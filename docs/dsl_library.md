@@ -2,6 +2,10 @@
 
 Open **DSL Library** beside Options. The migration seeds eleven reusable entries, with a revision-1 history record. See [export analysis](dsl_library_analysis.md) for exact frequencies and exclusions.
 
+Read-only source DSL and library previews use pale instruction backgrounds: rose for extraction, alternating green/blue for Ruby, amber for URL/API navigation, and lavender for complete library tokens. Colors identify instructions, not success or failure. Ruby alternation restarts for each algorithm. Text stays dark, with slightly bolder instruction prefixes and no per-step borders.
+
+Highlighting preserves the original characters, whitespace and semicolons and does not expand tokens or execute instructions. Editing fields remain plain text.
+
 ```text
 $$META_TITLE$$
 ;$$ARRAY_SQUISH$$

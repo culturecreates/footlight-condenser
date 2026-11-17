@@ -18,5 +18,5 @@
   <h2>Library entries containing this token</h2>
   <% @entry.library_references.each do |entry| %><p><%= link_to "$$#{entry.name}$$", edit_dsl_library_entry_path(entry) %></p><% end %>
   <h2>Revision history</h2>
-  <% @entry.versions.order(revision: :desc).limit(20).each do |version| %><details><summary>Revision <%= version.revision %> · <%= version.name || @entry.name %> · <%= version.created_at %></summary><pre><%= version.body %></pre></details><% end %>
+  <% @entry.versions.order(revision: :desc).limit(20).each do |version| %><details><summary>Revision <%= version.revision %> · <%= version.name || @entry.name %> · <%= version.created_at %></summary><pre class="sources-show-pre dsl-highlight"><%= highlighted_dsl(version.body) %></pre></details><% end %>
 <% end %>

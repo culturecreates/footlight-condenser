@@ -147,7 +147,7 @@
               <span class="sources-pill"><%= step_label %></span>
             <% end %>
           </div>
-          <div class="sources-secondary-text"><%= truncate(source.algorithm_value.to_s, length: 90) %></div>
+          <div class="sources-secondary-text dsl-highlight"><%= highlighted_dsl(truncate(source.algorithm_value.to_s, length: 90)) %></div>
         </td>
 
         <td>

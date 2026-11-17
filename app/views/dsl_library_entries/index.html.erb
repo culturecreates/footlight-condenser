@@ -4,6 +4,6 @@
 <p><%= link_to "New instruction", new_dsl_library_entry_path %></p>
 <table><thead><tr><th>Token</th><th>Description</th><th>Revision</th><th>Instruction</th></tr></thead><tbody>
 <% @entries.each do |entry| %><tr>
-  <td><%= link_to "$$#{entry.name}$$", edit_dsl_library_entry_path(entry) %></td><td><%= entry.description %></td><td><%= entry.revision %></td><td><code><%= entry.body %></code></td>
+  <td><%= link_to "$$#{entry.name}$$", edit_dsl_library_entry_path(entry) %></td><td><%= entry.description %></td><td><%= entry.revision %></td><td><pre class="dsl-library-preview dsl-highlight"><%= highlighted_dsl(entry.body) %></pre></td>
 </tr><% end %></tbody></table>
 <%= will_paginate @entries %>
