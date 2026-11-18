@@ -7,7 +7,7 @@ api="$$SELF_URL$$/statements.json?source=8039&seedurl=culturemauricie_lepointdev
 ;ruby=JSON.parse($array.first['cache'])
 ```
 
-`$$SELF_URL$$` defaults to this app's origin, with no trailing slash. Resolution priority:
+`$$SELF_URL$$` defaults to this app's origin, with no trailing slash. URL instructions also accept `$$SELF-URL$$` as an alias for existing sources. Resolution priority:
 
 1. Optional `CONDENSER_PUBLIC_URL` override.
 2. Heroku's `HEROKU_APP_DEFAULT_DOMAIN_NAME` runtime metadata, when available.

@@ -27,6 +27,23 @@ class Dsl::Support::UrlPlaceholdersTest < ActiveSupport::TestCase
     assert_equal "https://other.example/path", Dsl::Support::UrlResolver.extract("https://other.example/path")
   end
 
+  test "the saved Gatineau audience DSL accepts the hyphenated URL placeholder" do
+    ENV["DISTILLATOR_RUNTIME"] = "staging"
+    request_url = "https://footlight-condenser-test-c24c162bb7c8.herokuapp.com/statements.json?prop=122&seedurl=gatineau-cloud-RList"
+    response = [{ "cache" => { "46544" => %w[3 5 2 7 4 6 1] }.to_json }].to_json
+    stub_request(:get, request_url).to_return(status: 200, body: response)
+    runner, = build_runner(url: "https://calendrier.gatineau.cloud/calendrier/evenement.aspx?langue=fr-ca&id_evenement=46544")
+    algorithm = <<~'DSL'
+      api="$$SELF-URL$$/statements.json?prop=122&seedurl=gatineau-cloud-RList";
+      ruby=Hash[JSON.parse($array[0]['cache'])];
+      ruby=$array[URI.decode_www_form(URI.parse($url).query).to_h['id_evenement']];
+      ruby=$array ? $array.map{|code| {"3" => "Ados", "5" => "Aînés", "2" => "Enfants", "7" => "Étudiants", "4" => "Familles", "6" => "Tous", "1" => "Tout-petits"}[code]}.compact : ""
+    DSL
+
+    assert_equal %w[Ados Aînés Enfants Étudiants Familles Tous Tout-petits], runner.run(algorithm)
+    assert_requested :get, request_url, times: 1
+  end
+
   test "missing or invalid configuration aborts rather than guessing production or the scraped website" do
     [nil, "https://example.org/path", "https://u:p@example.org", "https://example.org?x=1", "https://example.org#frag", "file:///tmp/x"].each do |origin|
       ENV["CONDENSER_PUBLIC_URL"] = origin
