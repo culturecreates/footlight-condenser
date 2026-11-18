@@ -220,9 +220,26 @@ class Dsl::Tracing::TraceFormatterTest < ActiveSupport::TestCase
 
     compact = Dsl::Tracing::TraceFormatter.for_session_v2(trace).with_indifferent_access
 
-    assert_match(/\A\[1 items: in-0\]\z/, compact[:initial].with_indifferent_access[:state])
-    assert_match(/\A\[1 items: out-1\]\z/, compact[:steps].first.with_indifferent_access[:o])
-    assert_match(/\A\[1 items: out-2\]\z/, compact[:steps].second.with_indifferent_access[:o])
+    assert_equal "[1 item: in-0]", compact.dig(:initial, :state)
+    assert_equal "[1 item: out-1]", compact[:steps].first[:o]
+    assert_equal "[1 item: out-2]", compact[:steps].second[:o]
+  end
+
+  test "compact trace uses actual values even if previews wrapped or flattened them" do
+    collector = Dsl::Tracing::TraceCollector.new
+    values = [[{ "id" => 663745 }], { "44141" => ["6"], "43431" => ["6"] }, nil, "", [], {}, [[1, 2]], [nil]]
+    values.each_with_index do |value, index|
+      collector.step(step: index + 1, type: "ruby", code: "example", input: [],
+        output: value.is_a?(Array) ? value.flatten(1) : [value], output_full: value)
+    end
+    trace = Dsl::Tracing::TraceFormatter.normalize(collector.to_h)
+    compact = Dsl::Tracing::TraceFormatter.for_session_v2(trace)
+    outputs = compact.fetch(:steps).map { |step| step.fetch(:o) }
+
+    assert_match(/\A\[1 item:/, outputs[0])
+    assert_match(/\A\{2 entries:/, outputs[1])
+    assert_equal [nil, "", [], {}], outputs[2, 4]
+    assert_equal ["[1 item: [1, 2]]", "[1 item: nil]"], outputs[6, 2]
   end
 
   test "for_session_v2 deduplicates urls and stores only url transitions" do
@@ -322,7 +339,7 @@ class Dsl::Tracing::TraceFormatterTest < ActiveSupport::TestCase
     assert_nil ok_step[:cf]
     assert_nil ok_step[:of]
     assert warning_step[:cf].present?
-    assert_equal "[]", warning_step[:of]
+    assert_equal [], warning_step[:of]
     assert error_step[:cf].present?
     assert error_step[:of].present?
   end

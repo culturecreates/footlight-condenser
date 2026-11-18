@@ -128,16 +128,15 @@ module StatementsHelper
       .reject(&:blank?)
   end
 
-  def trace_display_output(step)
+  def trace_display_output(step, navigation_url: true)
     current = normalize_step_hash(step)
-    output = current.key?(:output_full) ? current[:output_full] : current[:output]
-    output = current[:input] if output.nil?
+    output = current.fetch(:output_full) { current.fetch(:output) { current[:input] } }
 
-    if trace_presenter.semantic_label(current) == "Navigation"
-      current[:url_after].presence || (output.is_a?(Array) ? output.last : output)
-    else
-      output
+    if navigation_url && trace_presenter.semantic_label(current) == "Navigation"
+      output = current[:url_after].presence || (output.is_a?(Array) ? output.last : output)
     end
+
+    output.nil? || (output.is_a?(String) && output.blank?) ? output.inspect : output
   end
 
   def cache_freshness_label(statement)

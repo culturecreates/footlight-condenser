@@ -260,10 +260,9 @@ class StatementsController < ApplicationController
       source = step.respond_to?(:to_h) ? step.to_h : step
       s = source.is_a?(Hash) ? source.with_indifferent_access : {}
 
-      output = s[:of] || s[:o]
       next_url = s.key?(:ua) ? resolve_trace_url(urls, s[:ua]) : current_url
       input = current_state
-      output = input if output.nil?
+      output = s.fetch(:of) { s.fetch(:o, input) }
       expanded = {
         step: s[:s],
         type: s[:t],

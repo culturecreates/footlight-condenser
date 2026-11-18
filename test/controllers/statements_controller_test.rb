@@ -1363,6 +1363,28 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/z{70}/, response.body)
   end
 
+  test "debug trace renders an absent audience lookup and blank result without a healthy diagnosis" do
+    @statement.source.update!(algorithm_value: 'api="https://example.test/statements.json";ruby=Hash[JSON.parse($array[0]["cache"])];ruby=$array["46721"];ruby=$array || ""')
+    trace = [
+      { step: 1, type: "api", output_full: [{ "id" => 663745 }] },
+      { step: 2, type: "ruby", output_full: { "44141" => ["6"], "43431" => ["6"] } },
+      { step: 3, type: "ruby", output_full: nil, output_preview: [nil] },
+      { step: 4, type: "ruby", output_full: "", output_preview: [""] }
+    ]
+    stub_helper_with_trace(trace, errors: ["DSL returned blank result (possible parsing failure)"])
+
+    patch refresh_statement_path(@statement), headers: { "Cookie" => "dsl_trace=true; trace_visibility=always" }
+    follow_redirect_with_trace_visibility("always", 5)
+
+    assert_response :success
+    assert_select '.dsl-step-details[data-step="1"] .trace-output-toggle', text: /\[1 item:/
+    assert_select '.dsl-step-details[data-step="2"] .trace-output-toggle', text: /\{2 entries:/
+    assert_select '.dsl-step-details[data-step="3"] .trace-output-toggle', text: "nil"
+    assert_select '.dsl-step-details[data-step="4"] .trace-output-toggle', text: '""'
+    assert_select '.dsl-step.dsl-warning[data-step="3"]'
+    assert_select '.trace-diagnosis', text: /Pipeline output lost data between steps/
+  end
+
   test "code is truncated in trace viewer" do
     trace = [
       {

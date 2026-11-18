@@ -70,8 +70,8 @@ module Dsl
     private
 
     def blank?(value)
-      return true if value.nil? || value == [] || value == ""
-      return true if value.is_a?(String) && value.strip == "[]"
+      return true if value.nil? || value == [] || value == {}
+      return true if value.is_a?(String) && (value.blank? || value.strip == "[]")
 
       false
     end
@@ -116,7 +116,7 @@ module Dsl
       return [] if value == "[]"
       return nil unless value.is_a?(String)
 
-      match = value.match(/\A\[\d+ items:\s*(.*)\]\z/)
+      match = value.match(/\A\[\d+ items?:\s*(.*)\]\z/)
       return nil unless match
 
       body = match[1].to_s.strip

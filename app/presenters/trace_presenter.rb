@@ -52,9 +52,7 @@ class TracePresenter
 
   def compute_warning_type(step)
     step = normalize_step(step)
-    output = step_output(step)
-
-    return :empty if output.is_a?(Array) && output.empty?
+    return :empty if empty_step_output?(step)
 
     probe = step[:probe].is_a?(Hash) ? step[:probe].with_indifferent_access : {}
     return :probe if probe.present? && !probe[:skipped]
@@ -106,12 +104,11 @@ class TracePresenter
 
   def explain_step(step, previous_step = nil)
     step = normalize_step(step)
-    output = step_output(step)
     label = semantic_label(step)
 
     return "Execution failed" if step[:error].present?
-    return "No elements matched selector" if label == "Extraction" && output.blank?
-    return "All items were filtered out" if label == "Filter" && output.blank?
+    return "No elements matched selector" if label == "Extraction" && empty_step_output?(step)
+    return "Ruby returned no result" if label == "Filter" && empty_step_output?(step)
     return "Navigated to new page" if label == "Navigation"
 
     nil
@@ -225,8 +222,7 @@ class TracePresenter
 
     steps.each do |step|
       step = normalize_step(step)
-      output = step_output(step)
-      return step if output.is_a?(Array) && output.empty?
+      return step if empty_step_output?(step)
     end
 
     nil
@@ -286,5 +282,13 @@ class TracePresenter
   def step_output(step)
     step = normalize_step(step)
     step.key?(:output_full) ? step[:output_full] : step[:output]
+  end
+
+  def empty_step_output?(step)
+    return false unless step.key?(:output_full) || step.key?(:output)
+
+    output = step_output(step)
+    output.nil? || (output.respond_to?(:empty?) && output.empty?) ||
+      (output.is_a?(String) && (output.blank? || output == "[]"))
   end
 end

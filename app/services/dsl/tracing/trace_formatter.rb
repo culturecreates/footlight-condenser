@@ -13,27 +13,23 @@ module Dsl
         return [] unless raw_events.is_a?(Array)
 
         raw_events.map do |evt|
-          output_full = evt[:output_full] || evt["output_full"]
-          input_full  = evt[:input_full]  || evt["input_full"]
-
-          output_full ||= evt[:output_preview] || evt["output_preview"]
-          input_full  ||= evt[:input_preview]  || evt["input_preview"]
+          evt = evt.symbolize_keys
 
           {
-            step: evt[:step] || evt["step"],
-            type: evt[:type] || evt["type"],
-            code: evt[:code] || evt["code"],
-            input_preview: evt[:input_preview] || evt["input_preview"] || [],
-            output_preview: evt[:output_preview] || evt["output_preview"] || [],
-            input_full: input_full,
-            output_full: output_full,
-            probe: evt[:probe] || evt["probe"],
-            url_before: (evt[:url_before] || evt["url_before"] || "").to_s,
-            url_after: (evt[:url_after] || evt["url_after"] || "").to_s,
-            duration_ms: evt[:duration_ms] || evt["duration_ms"] || 0,
-            error_class: evt[:error_class] || evt["error_class"],
-            error_message: evt[:error_message] || evt["error_message"],
-            wringer: evt[:wringer] || evt["wringer"]
+            step: evt[:step],
+            type: evt[:type],
+            code: evt[:code],
+            input_preview: evt[:input_preview] || [],
+            output_preview: evt[:output_preview] || [],
+            input_full: evt.fetch(:input_full) { evt[:input_preview] },
+            output_full: evt.fetch(:output_full) { evt[:output_preview] },
+            probe: evt[:probe],
+            url_before: evt[:url_before].to_s,
+            url_after: evt[:url_after].to_s,
+            duration_ms: evt[:duration_ms] || 0,
+            error_class: evt[:error_class],
+            error_message: evt[:error_message],
+            wringer: evt[:wringer]
           }
         end
       end
@@ -192,12 +188,11 @@ module Dsl
         raw = event.respond_to?(:to_h) ? event.to_h : event
         payload = raw.is_a?(Hash) ? raw.with_indifferent_access : {}
 
-        {
+        normalized = {
           step: payload[:step].nil? ? fallback_step_index + 1 : payload[:step],
           type: payload[:type].nil? ? nil : payload[:type].to_s,
           code: payload[:code].nil? ? nil : payload[:code].to_s,
-          input: summarize_for_session(first_present(payload, :input, :input_preview), max: 120),
-          output: summarize_for_session(first_present(payload, :output, :output_preview), max: 120),
+          input: summarize_for_session(payload.fetch(:input_full) { first_present(payload, :input, :input_preview) }, max: 120),
           probe: normalize_probe_for_session(payload[:probe]),
           wringer: normalize_wringer_for_session(payload[:wringer]),
           url_before: normalize_session_url(payload[:url_before]),
@@ -205,6 +200,9 @@ module Dsl
           duration_ms: payload[:duration_ms],
           error: session_error_text(payload)
         }
+        output_key = %i[output_full output output_preview].find { |key| payload.key?(key) }
+        normalized[:output] = summarize_for_session(payload[output_key], max: 120) if output_key
+        normalized
       rescue StandardError => e
         Rails.logger.warn("[DSL TRACE] Failed to normalize trace event for session: #{e.class}: #{e.message}")
         {
@@ -222,7 +220,7 @@ module Dsl
 
       def build_session_v2(normalized, code_limit:, error_code_limit:, output_limit:, initial_limit:, include_duration:)
         first = normalized.first || {}
-        initial_state = first[:input].nil? ? nil : truncate_str(first[:input], initial_limit)
+        initial_state = truncate_summary(first[:input], initial_limit)
         initial_url = first[:url_before]
 
         urls = []
@@ -243,17 +241,14 @@ module Dsl
             end
           end
 
-          if event[:output].present?
-            step_payload[:o] = truncate_str(event[:output], output_limit)
+          if event.key?(:output)
+            step_payload[:o] = truncate_summary(event[:output], output_limit)
 
             if severity == :error
-              step_payload[:of] = truncate_str(event[:output], output_limit * 2)
+              step_payload[:of] = truncate_summary(event[:output], output_limit * 2)
             elsif severity == :warning
-              step_payload[:of] = truncate_str(event[:output], output_limit)
+              step_payload[:of] = step_payload[:o]
             end
-          elsif event[:output] == "[]"
-            step_payload[:o] = "[]"
-            step_payload[:of] = "[]" if severity != :ok
           end
 
           if event[:probe].is_a?(Hash)
@@ -344,7 +339,7 @@ module Dsl
       def event_severity(event)
         return :error if event[:error].present?
 
-        output_empty = event[:output].to_s == "[]"
+        output_empty = event.key?(:output) && event[:output].blank?
 
         probe_used =
           event[:probe].is_a?(Hash) && !event[:probe][:skipped]
@@ -411,16 +406,26 @@ module Dsl
       end
 
       def summarize_for_session(value, max: 80)
-        return nil if value.nil?
+        case value
+        when nil
+          nil
+        when Array
+          return [] if value.empty?
 
-        if value.is_a?(Array)
-          return "[]" if value.empty?
+          sample = value.first(2).map { |entry| truncate_str(entry.blank? ? entry.inspect : entry.to_s, 60) }
+          "[#{value.size} #{value.size == 1 ? 'item' : 'items'}: #{sample.join(', ')}]"
+        when Hash
+          return {} if value.empty?
 
-          sample = value.first(2).map { |entry| truncate_str(entry.to_s, 60) }
-          "[#{value.size} items: #{sample.join(', ')}]"
+          key, entry = value.first
+          "{#{value.size} #{value.size == 1 ? 'entry' : 'entries'}: #{truncate_str(key.inspect, 30)} => #{truncate_str(entry.inspect, 60)}}"
         else
           truncate_str(value.to_s, max)
         end
+      end
+
+      def truncate_summary(value, max)
+        value.is_a?(String) ? truncate_str(value, max) : value
       end
 
       def normalize_probe_for_session(value)

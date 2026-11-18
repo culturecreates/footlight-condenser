@@ -10,17 +10,8 @@
   explanation = trace_presenter.explain_step(step, previous_step)
   suggestion = trace_presenter.suggest_fix(step, previous_step)
 
-  displayed_output =
-    if step[:output].nil?
-      step[:input]
-    elsif step[:output] == []
-      "[]"
-    else
-      step[:output]
-    end
-
-  full_output = step[:output_full] || step["output_full"] || displayed_output
-  truncated_output = truncate(displayed_output.to_s, length: @trace_output_length)
+  full_output = trace_display_output(step, navigation_url: false)
+  truncated_output = truncate(full_output.to_s, length: @trace_output_length)
   pretty_output =
     if full_output.is_a?(Array) && full_output.size <= 3
       "[" + full_output.map { |e| e.inspect }.join(", ") + "]"
