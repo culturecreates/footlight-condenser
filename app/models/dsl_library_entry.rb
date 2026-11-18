@@ -62,6 +62,22 @@ class DslLibraryEntry < ApplicationRecord
 
   public
 
+  def self.shorten_array_names!
+    transaction do
+      order(:id).lock.to_a.select { |entry| entry.name.start_with?("ARRAY_") }.map do |entry|
+        old_name = entry.name
+        new_name = case old_name
+        when "ARRAY_FIRST" then "A_DROP_FIRST"
+        when "ARRAY_DROP_FIRST" then "A_DROP_FIRST_ALWAYS"
+        else old_name.sub(/\AARRAY_/, "A_")
+        end
+        # Earlier renames may have rewritten this entry's body and lock version.
+        entry.reload.update!(name: new_name)
+        { id: entry.id, from: old_name, to: new_name }
+      end
+    end
+  end
+
   def self.rename_steps(algorithm, old_name, new_name)
     pattern = /\A(\s*)#{Regexp.escape("$$#{old_name}$$")}(\s*)\z/
     algorithm.to_s.split(';', -1).map { |step| step.sub(pattern) { "#{Regexp.last_match(1)}$$#{new_name}$$#{Regexp.last_match(2)}" } }.join(';')

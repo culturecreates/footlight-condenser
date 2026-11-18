@@ -1,9 +1,29 @@
 <h1>DSL Library</h1>
-<p>Reusable complete instructions. Place a token on its own pipeline step, for example <code>$$META_TITLE$$;$$ARRAY_UNIQ$$</code>.</p>
+
+<section id="dsl-url-placeholders">
+  <h2>Built-in URL placeholders</h2>
+  <p>Read only. Values follow the Condenser environment; use them inside URL instructions.</p>
+  <table><thead><tr><th>Token</th><th>Value in this app</th><th>Example</th></tr></thead><tbody>
+    <tr>
+      <td><code>$$SELF_URL$$</code></td>
+      <td><% if @self_url %><code><%= @self_url %></code><% else %><span role="alert"><%= @self_url_error %></span><% end %></td>
+      <td><pre class="dsl-library-preview dsl-highlight"><%= highlighted_dsl('api="$$SELF_URL$$/statements.json?source=8039&seedurl=culturemauricie_lepointdevente-com-RList"') %></pre></td>
+    </tr>
+  </tbody></table>
+  <p>The app origin has no trailing slash. <code>$$SELF_URL$$</code> is a URL placeholder, not a complete pipeline step.</p>
+</section>
+
+<h2>Reusable instructions</h2>
+<p>Place a token on its own pipeline step, for example <code>$$META_TITLE$$;$$A_UNIQ$$</code>.</p>
 <p>Library edits apply on the next execution of referencing sources. Body edits leave source algorithms and cached statements unchanged. Renames update complete token references together.</p>
 <p><%= link_to "New instruction", new_dsl_library_entry_path %></p>
-<table><thead><tr><th>Token</th><th>Description</th><th>Revision</th><th>Instruction</th></tr></thead><tbody>
-<% @entries.each do |entry| %><tr>
-  <td><%= link_to "$$#{entry.name}$$", edit_dsl_library_entry_path(entry) %></td><td><%= entry.description %></td><td><%= entry.revision %></td><td><pre class="dsl-library-preview dsl-highlight"><%= highlighted_dsl(entry.body) %></pre></td>
-</tr><% end %></tbody></table>
+<% shorthand, instructions = @entries.partition { |entry| entry.name == "CURRENT_URL" && entry.body.strip == 'ruby=$url' } %>
+<%= render "entries", entries: instructions %>
+<% if shorthand.any? %>
+  <details>
+    <summary>Simple shorthand (<%= shorthand.size %>)</summary>
+    <p><code>ruby=$url</code> returns the current source page URL. This is different from the Condenser app origin provided by <code>$$SELF_URL$$</code>.</p>
+    <%= render "entries", entries: shorthand %>
+  </details>
+<% end %>
 <%= will_paginate @entries %>

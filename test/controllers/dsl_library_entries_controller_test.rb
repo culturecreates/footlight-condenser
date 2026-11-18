@@ -1,6 +1,30 @@
 require "test_helper"
 
 class DslLibraryEntriesControllerTest < ActionDispatch::IntegrationTest
+  test "SELF_URL shows the actual normalized app origin separately from editable instructions" do
+    original = ENV["CONDENSER_PUBLIC_URL"]
+    ENV["CONDENSER_PUBLIC_URL"] = "https://footlight-condenser-test-c24c162bb7c8.herokuapp.com/"
+    Distillator::FetchService.expects(:fetch).never
+    assert_no_difference "DslLibraryEntry.count" do
+      get dsl_library_entries_path
+    end
+    assert_response :success
+    assert_select "#dsl-url-placeholders code", text: '$$SELF_URL$$'
+    assert_select "#dsl-url-placeholders code", text: "https://footlight-condenser-test-c24c162bb7c8.herokuapp.com"
+    assert_select "#dsl-url-placeholders pre", text: 'api="$$SELF_URL$$/statements.json?source=8039&seedurl=culturemauricie_lepointdevente-com-RList"'
+    shorthand = DslLibraryEntry.find_by!(name: "CURRENT_URL")
+    assert_select "details:not([open]) a[href='#{edit_dsl_library_entry_path(shorthand)}']", count: 1
+  ensure
+    ENV["CONDENSER_PUBLIC_URL"] = original
+  end
+
+  test "invalid origin displays an actionable warning without breaking the library" do
+    Dsl::Support::UrlPlaceholders.expects(:expand).with('$$SELF_URL$$').raises(ArgumentError, "CONDENSER_PUBLIC_URL is invalid")
+    get dsl_library_entries_path
+    assert_response :success
+    assert_select "#dsl-url-placeholders [role=alert]", text: "CONDENSER_PUBLIC_URL is invalid"
+  end
+
   test "navigation library and editable seeded entries are visible" do
     get dsl_library_entries_path
     assert_response :success

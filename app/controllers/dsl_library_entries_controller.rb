@@ -3,6 +3,11 @@ class DslLibraryEntriesController < ApplicationController
 
   def index
     @entries = DslLibraryEntry.order(:name).paginate(page: params[:page].to_i.clamp(1, 100_000), per_page: 100)
+    begin
+      @self_url = Dsl::Support::UrlPlaceholders.expand(Dsl::Support::UrlPlaceholders::TOKEN)
+    rescue ArgumentError => error
+      @self_url_error = error.message
+    end
   end
 
   def new
