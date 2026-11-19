@@ -34,6 +34,8 @@ Open **Options → Preprocessing refresh policies**. Pilot links prefill a state
 
 For Gatineau consolidation, inspect the eight upstream property-69 statements (reported as 646572–646579). The audience mapping's declared input is the validated consolidation statement. For Culture Mauricie, inspect the mapping and its eight actual list statements before enrollment. No pilot policy is seeded or enabled automatically.
 
+For a ResourceList used only as a preprocessing input, add a selected **RDF Class** source for **ResourceList** with `manual=None`. Refresh the lists and confirm each has a selected RDF Class statement with cached value `None`. The normal list refresh saves its inputs, then discovery skips that list without requiring a URI List. A class such as `manual=Event` enables discovery. A blank or missing RDF Class still raises a configuration error. For an older queued discovery job whose URL is shared, queue a new run from the intended website to identify its list record.
+
 Only enroll read/derive DSL: database transactions cannot undo external side effects from arbitrary Ruby, and retries can repeat such side effects.
 
 Manual reviewed statements are protected. A skipped manual statement is not reported as a successful recomputation.

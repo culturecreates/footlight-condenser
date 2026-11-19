@@ -16,6 +16,8 @@ class PreprocessingPilotChainTest < ActiveJob::TestCase
 
   test "eight lists two derived stages and an ordinary event refresh converge without ordering guarantees" do
     inputs = eight_inputs
+    inputs[1].update!(cache: [{ "id" => "46721", "codes" => %w[3 4 6] }].to_json)
+    inputs[2].update!(cache: [{ "id" => "46545", "codes" => [] }].to_json)
     @source.update!(algorithm_value: "ruby=[Statement.where(id: #{inputs.map(&:id).inspect}).order(:id).flat_map { |s| JSON.parse(s.cache) }.to_json]")
     @target.update!(cache: "[]")
     @policy.update!(input_statement_ids: inputs.map(&:id))
@@ -32,8 +34,11 @@ class PreprocessingPilotChainTest < ActiveJob::TestCase
     Preprocessing::Runner.call(@policy.id, run.id)
     run = Preprocessing::Dispatcher.dispatch(policy, force: true)
     Preprocessing::Runner.call(policy.id, run.id)
-    assert_equal 8, JSON.parse(mapping.reload.cache).size
-    assert_equal ["family"], JSON.parse(mapping.cache).fetch("event-0")
+    audiences = JSON.parse(mapping.reload.cache)
+    assert_equal 8, audiences.size
+    assert_equal ["family"], audiences.fetch("event-0")
+    assert_equal %w[3 4 6], audiences.fetch("46721")
+    assert_equal [], audiences.fetch("46545")
 
     site = Website.create!(seedurl: "event-consumer", name: "Event consumer", graph_name: "https://events.example/graph", default_language: "en")
     page = Webpage.create!(website: site, rdfs_class: rdfs_classes(:one), language: "en", url: "https://events.example/event-0", rdf_uri: "fixture:event-0")

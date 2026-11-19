@@ -9,8 +9,9 @@ class RefreshWebpageJob < ApplicationJob
     end
   end
 
-  def perform(url, options = nil)
-    webpages = Webpage.includes(:website).where(url: url)
+  def perform(webpage_id_or_url, options = nil)
+    scope = Webpage.includes(:website)
+    webpages = webpage_id_or_url.is_a?(Integer) ? scope.where(id: webpage_id_or_url) : scope.where(url: webpage_id_or_url)
     webpages.each do |webpage|
       Distillator::RefreshRunner.call(
         webpage: webpage,

@@ -17,7 +17,7 @@ class BatchJobsController < ApplicationController
     params[:rdf_uri]
     webpages = Webpage.where(rdf_uri: params[:rdf_uri])
     webpages.each do |webpage|
-      AddWebpagesJob.perform_later(webpage.url) # This job calls RefreshWebpageJob on new webpages added.
+      AddWebpagesJob.perform_later(webpage.id) # This job calls RefreshWebpageJob on new webpages added.
     end
     respond_to do |format|
       format.html { redirect_to lists_path(seedurl: @seedurl), notice: "Created batch jobs to add webpages from #{ params[:rdf_uri]}" }
@@ -53,7 +53,7 @@ class BatchJobsController < ApplicationController
     resource_list_webpages = Webpage.includes(:website).where(websites: { seedurl: seedurl}, rdfs_class: rdfs_class)
     # Refresh the statements for each resource_list Webpages
     resource_list_webpages.each do |wp|
-      RefreshWebpageJob.perform_later(wp.url, "resource_list") # passing 'resource_list' will call AddWebpagesJob after
+      RefreshWebpageJob.perform_later(wp.id, "resource_list") # passing 'resource_list' will call AddWebpagesJob after
     end
   end
 

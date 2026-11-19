@@ -3,30 +3,52 @@ class AddWebpagesJob < ApplicationJob
   queue_as :default
 
   RDF_CLASS_LABEL = 'RDF Class'
+  DATA_ONLY_CLASS = 'None'
   URI_LIST_LABEL = 'URI List'
   WEBPAGE_URL_LIST_LABEL = 'Webpage URL List'
   InvalidResourceListError = Class.new(StandardError)
 
-  def perform(url)
-    webpage = Webpage.includes(:website).where(url: url).first
-    statements = Statement.where(webpage: webpage).includes(source: [:property])
-    statements_by_label = statements.index_by { |statement| statement.source.property.label }
+  def perform(webpage_id_or_url)
+    webpages = Webpage.includes(:website)
+    webpage = if webpage_id_or_url.is_a?(Integer)
+      webpages.find_by(id: webpage_id_or_url)
+    else
+      # Older jobs carry only a URL. Never choose between websites for them.
+      matches = webpages.where(url: webpage_id_or_url).limit(2).to_a
+      if matches.size > 1
+        raise InvalidResourceListError, "ResourceList URL matches multiple webpages. Queue discovery from the intended website."
+      end
+      matches.first
+    end
+    return unless webpage
 
-    rdfs_class_name = statements_by_label[RDF_CLASS_LABEL]&.cache.to_s.strip
+    statements = webpage.statements.includes(source: :property)
+    statements_by_label = statements.group_by { |statement| statement.source.property.label }
+    class_statements = statements_by_label.fetch(RDF_CLASS_LABEL, [])
+    data_only, discovery = class_statements.partition { |statement| statement.cache.to_s.strip == DATA_ONLY_CLASS }
+    if data_only.any?(&:selected_individual?)
+      logger.info(event: "resource_list.discovery_skipped", reason: "data_only", webpage_id: webpage.id, website_id: webpage.website_id)
+      return
+    end
+
+    rdfs_class_name = discovery.last&.cache.to_s.strip
+    if rdfs_class_name.blank?
+      raise_invalid_resource_list!(webpage: webpage, error: "#{RDF_CLASS_LABEL} is blank", field: RDF_CLASS_LABEL)
+    end
+
     rdf_uris = parse_json_array!(
-      statements_by_label[URI_LIST_LABEL]&.cache,
+      statements_by_label[URI_LIST_LABEL]&.last&.cache,
       label: URI_LIST_LABEL,
       webpage: webpage
     )
     urls = parse_json_array!(
-      statements_by_label[WEBPAGE_URL_LIST_LABEL]&.cache,
+      statements_by_label[WEBPAGE_URL_LIST_LABEL]&.last&.cache,
       label: WEBPAGE_URL_LIST_LABEL,
       webpage: webpage
     )
 
     validate_resource_list!(
       webpage: webpage,
-      rdfs_class_name: rdfs_class_name,
       rdf_uris: rdf_uris,
       urls: urls
     )
@@ -73,17 +95,7 @@ class AddWebpagesJob < ApplicationJob
     )
   end
 
-  def validate_resource_list!(webpage:, rdfs_class_name:, rdf_uris:, urls:)
-    if rdfs_class_name.blank?
-      raise_invalid_resource_list!(
-        webpage: webpage,
-        rdf_uris_count: rdf_uris.count,
-        urls_count: urls.count,
-        error: "#{RDF_CLASS_LABEL} is blank",
-        field: RDF_CLASS_LABEL
-      )
-    end
-
+  def validate_resource_list!(webpage:, rdf_uris:, urls:)
     if rdf_uris.count != urls.count
       raise_invalid_resource_list!(
         webpage: webpage,
