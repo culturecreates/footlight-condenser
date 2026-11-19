@@ -117,6 +117,71 @@ class DistillatorRolloutStatementRefreshTest < ActionDispatch::IntegrationTest
     assert_logged_context!("fetch.legacy", statement)
   end
 
+  test "one warm statement uses the selected backend through diagnostics, promotion and rollback" do
+    statement = build_statement_for_rollout(mode: "legacy", slug: "warm-switch")
+    page = statement.webpage
+    website = page.website
+    uri = page.url
+    native = fetch_result("<title>Condenser title</title>", url: uri)
+    legacy = fetch_result("<title>Wringer title</title>", url: uri, fetch_path: "legacy")
+    unavailable = {
+      status: :abort, body: ["abort_update", { error: "Wringer unavailable" }],
+      http_code: 503, headers: {}, wringer: { signals: { transport_success: false, content_success: false } }
+    }
+    Distillator::FetchService.expects(:internal_fetch).times(4).returns(native)
+    Distillator::FetchService.expects(:legacy_fetch).times(5).returns(legacy, legacy, unavailable, legacy, legacy)
+
+    # A diagnostic candidate may write the same cache row that serving later reads.
+    Distillator::FetchCacheStore.fetch(uri: uri, website: website, mode: :internal, force_scrape: true)
+    fetch_cache = Distillator::FetchCache.find_by!(normalized_url: uri)
+    assert_equal "native", fetch_cache.signals.dig("body_profile", "backend")
+    patch refresh_statement_path(statement)
+    assert_equal "Wringer title", statement.reload.cache
+    assert_equal "legacy", fetch_cache.reload.signals.dig("body_profile", "backend")
+
+    patch website_path(website), params: { website: { distillator_mode: "shadow" } }
+    assert_equal "shadow", website.reload.distillator_mode
+    Distillator::FetchCacheStore.fetch(uri: uri, website: website, mode: :internal, force_scrape: true)
+    patch refresh_statement_path(statement)
+    assert_equal "Wringer title", statement.reload.cache
+    assert_equal "legacy", fetch_cache.reload.signals.dig("body_profile", "backend")
+    assert_logged_context!("fetch.shadow_compare", statement)
+
+    publish_transition_fixture(website, defaults: {
+      "fetch_parity" => { status: "checked" },
+      "statement_delta" => { status: "checked", statement_count_delta_acceptable: true },
+      "export_diff" => { status: "checked", export_diff_checked: true }
+    })
+    patch website_path(website), params: { website: { distillator_mode: "active" } }
+    assert_equal "active", website.reload.distillator_mode
+    patch refresh_statement_path(statement)
+    assert_equal "Condenser title", statement.reload.cache
+    assert_equal "native", fetch_cache.reload.signals.dig("body_profile", "backend")
+    last_good_statement_refresh = statement.cache_refreshed
+
+    patch website_path(website), params: { website: { distillator_mode: "legacy" } }
+    assert_equal "legacy", website.reload.distillator_mode
+    patch refresh_statement_path(statement, format: :json)
+    assert_response :unprocessable_entity
+    assert_equal "http_5xx", JSON.parse(response.body).fetch("error_type")
+    assert_nil fetch_cache.reload.html
+    assert_nil fetch_cache.successful_refresh
+    assert_equal last_good_statement_refresh, statement.reload.cache_refreshed
+    assert_equal "Condenser title", statement.cache
+
+    patch refresh_statement_path(statement)
+    assert_equal "Wringer title", statement.reload.cache
+    assert_equal "legacy", fetch_cache.reload.signals.dig("body_profile", "backend")
+    assert_equal %w[shadow active legacy], website.rollout_events.order(:id).pluck(:to_mode)
+
+    unverified_body = "<title>Unverified cached title</title>"
+    fetch_cache.update_columns(html: unverified_body, body: unverified_body, signals: fetch_cache.signals.except("body_profile"))
+    patch refresh_statement_path(statement)
+    assert_equal "Wringer title", statement.reload.cache
+    assert_equal legacy[:body], fetch_cache.reload.html
+    assert_equal "legacy", fetch_cache.signals.dig("body_profile", "backend")
+  end
+
   private
 
   def build_statement_for_rollout(mode:, slug:)

@@ -66,7 +66,7 @@ class StatementsHelperScrapeIntegrationTest < ActionView::TestCase
   end
 
   test "process_algorithm if_xpath continue" do
-    expected = ["Arts metadata compatible with an AI-powered world"]
+    expected = ["Culture Creates | Digital knowledge management for the arts", "Arts metadata compatible with an AI-powered world"]
 
     VCR.use_cassette("StatementsHelper:culturecreates.com") do
       assert_equal expected, process_algorithm(algorithm: "if_xpath=//title;xpath=(//h1)[1]", url: "http://culturecreates.com")
@@ -104,7 +104,7 @@ class StatementsHelperScrapeIntegrationTest < ActionView::TestCase
 
   test "process_algorithm double xpath" do
     VCR.use_cassette("StatementsHelper:culturecreates.com") do
-      assert_equal ["IE=edge"], process_algorithm(
+      assert_equal ["Culture Creates | Digital knowledge management for the arts", "IE=edge"], process_algorithm(
         algorithm: "xpath=//title;xpath=(//meta/@content)[1]",
         url: "http://culturecreates.com"
       )
@@ -115,7 +115,7 @@ class StatementsHelperScrapeIntegrationTest < ActionView::TestCase
     algorithm = "url=$url + '.json';json=$json.dig('date','end');ruby=$array[0] ? [$json.dig('date','start')] : $array;time_zone='Eastern Time (US & Canada)'"
 
     VCR.use_cassette("StatementsHelper: process_algorithm url and json and ruby") do
-      assert_equal ["time_zone: 'Eastern Time (US & Canada)'"], process_algorithm(
+      assert_equal ["2021-04-10 10:00:00", "time_zone: 'Eastern Time (US & Canada)'"], process_algorithm(
         algorithm: algorithm,
         url: "https://signelaval.com/fr/evenements/14650/du-fond-de-mon-garde-robe"
       )
@@ -135,7 +135,7 @@ class StatementsHelperScrapeIntegrationTest < ActionView::TestCase
     source = OpenStruct.new(algorithm_value: 'xpath=//title;xpath=//meta[@property="og:title"]/@content')
 
     VCR.use_cassette("StatementsHelper: should scrape 2 items from html") do
-      assert_equal ["Culture Creates Inc"], scrape(source, "http://culturecreates.com")
+      assert_equal ["Culture Creates | Digital knowledge management for the arts", "Culture Creates Inc"], scrape(source, "http://culturecreates.com")
     end
   end
 

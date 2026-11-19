@@ -115,4 +115,41 @@ class PreprocessingRunnerTest < ActiveJob::TestCase
     assert_equal 1, @policy.runs.count
   end
 
+  test "successive scheduler ticks record stale input and recover from a failed refresh when retry is due" do
+    start = Time.current.change(usec: 0)
+    @policy.update!(interval_hours: 12, stale_after_hours: 12)
+    @input.update_columns(cache_refreshed: start)
+    @source.update!(algorithm_value: "ruby=Statement.find(#{@input.id}).cache.then { |value| value == 'unavailable' ? ['abort_update', {error: 'Mapping unavailable'}] : [value] }")
+    tick = -> { perform_enqueued_jobs(only: RefreshPreprocessingStatementJob) { Preprocessing::Dispatcher.call } }
+
+    travel_to(start) { tick.call }
+    assert_equal "input", @target.reload.cache
+    assert_equal start, @target.cache_refreshed
+    original_change = @target.cache_changed
+
+    travel_to(start + 1.hour) { tick.call }
+    assert_equal 1, @policy.runs.count
+
+    failed_at = start + 13.hours
+    travel_to(failed_at) do
+      @input.update!(cache: "unavailable")
+      tick.call
+      assert_equal "failed", @policy.runs.order(:id).last.status
+      assert_equal "input", @target.reload.cache
+      assert_equal start, @target.cache_refreshed
+      assert_equal failed_at + 1.hour, @policy.reload.next_due_at
+      assert_includes @policy.monitoring_issues.pluck(:kind), "stale_inputs"
+      assert_includes @policy.monitoring_issues.pluck(:kind), "preprocessing_failure"
+    end
+
+    travel_to(failed_at + 1.hour) do
+      @input.update!(cache: "input", cache_refreshed: Time.current)
+      tick.call
+      assert_equal %w[succeeded failed succeeded], @policy.runs.order(:id).pluck(:status)
+      assert_equal Time.current, @target.reload.cache_refreshed
+      assert_equal original_change, @target.cache_changed
+      assert_empty @policy.monitoring_issues
+    end
+  end
+
 end
