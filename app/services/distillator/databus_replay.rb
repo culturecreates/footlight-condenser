@@ -10,7 +10,8 @@ module Distillator
   # Read-only, console-driven comparison of regenerated selected-source values
   # against a dated production export. This is not a rollout/activation check.
   class DatabusReplay
-    EXPORTS = {
+    # Kept for explicit reruns of the original pilot.
+    HISTORICAL_EXPORTS = {
       "co-motion-ca" => "2026-11-07", "culture3r-com" => "2026-11-07", "placedesarts-com" => "2026-11-07",
       "culturemauricie_lepointdevente-com" => "2026-11-07", "gatineau-cloud" => "2026-11-07",
       "maisondelaculture-ca" => "2026-11-07", "tourismedeschenaux-ca" => "2026-11-08"
@@ -185,9 +186,10 @@ module Distillator
     def self.call(**options) = new(**options).call
 
     def self.summary(report)
-      { report_path: report[:report_path], input_backend: report[:input_backend], wringer_url: report[:wringer_url],
+      { report_path: report[:report_path], baseline: report[:baseline], input_backend: report[:input_backend], wringer_url: report[:wringer_url],
         api_inputs: report.fetch(:api_inputs, []), sites: report[:sites].map do |site|
-        site.slice(:seedurl, :rollout_mode, :export_date, :status, :selected_pages, :source_executions, :exact_match, :error).merge(
+        site.slice(:seedurl, :rollout_mode, :export_date, :export_sha256, :production_source_evidence,
+          :status, :selected_pages, :source_executions, :exact_match, :error).merge(
           data_added: Array(site[:data_added]).count, data_removed: Array(site[:data_removed]).count,
           input_or_extraction_errors: Array(site[:pages]).flat_map { |page| page[:errors].map { |error| error.merge(url: page[:url]) } }
             .group_by { |error| error.values_at(:url, :error) }.map do |(url, error), rows|
@@ -198,16 +200,28 @@ module Distillator
       end }
     end
 
-    def initialize(sites: EXPORTS.keys, per_site: 20, output_dir: nil, wringer_url: DEFAULT_WRINGER_URL,
+    def initialize(manifest: nil, historical: false, sites: nil, per_site: 20, output_dir: nil, wringer_url: nil,
       reader: nil, export_loader: nil, progress: $stdout, api_inputs: {})
       raise ArgumentError, "Choose between 1 and 20 pages per site" unless per_site.is_a?(Integer) && per_site.between?(1, 20)
-      raise ArgumentError, "Choose known export sites" unless sites.any? && (sites - EXPORTS.keys).empty?
+      if (manifest.nil? && !historical) || (manifest && historical)
+        raise ArgumentError, "Pass a baseline manifest, or explicitly request historical: true for the original pilot"
+      end
+      if manifest && (wringer_url || reader || export_loader || api_inputs.present?)
+        raise ArgumentError, "Manifest replay takes exports, Wringer and API inputs from the manifest"
+      end
+      @baseline = BaselineManifest.new(manifest) if manifest
+      available_sites = @baseline ? @baseline.sites : HISTORICAL_EXPORTS.keys
+      sites ||= available_sites
+      unless sites.any? && sites.uniq == sites && (sites - available_sites).empty?
+        raise ArgumentError, "Choose distinct sites from the baseline"
+      end
       @sites, @per_site, @progress = sites, per_site, progress
       @output_dir = Pathname.new(output_dir || Rails.root.join("tmp", "databus-replay-#{Time.now.utc.strftime('%Y%m%dT%H%M%S')}-#{SecureRandom.hex(3)}"))
       # Pin input identity independently of rollout/compatibility configuration.
       # In particular, Shadow must not invoke native fetching or a shadow pair.
       raise ArgumentError, "Pass API snapshots to the custom reader itself" if reader && api_inputs.present?
-      @reader = reader || CacheReader.new(base_url: wringer_url, api_inputs: api_inputs)
+      @reader = reader || CacheReader.new(base_url: @baseline&.wringer_url || wringer_url || DEFAULT_WRINGER_URL,
+        api_inputs: @baseline ? @baseline.api_inputs : api_inputs)
       @export_loader = export_loader || lambda do |url|
         response = HTTParty.get(url, timeout: 60, follow_redirects: false)
         raise "Databus HTTP #{response.code}" unless response.code.to_i == 200
@@ -222,7 +236,9 @@ module Distillator
       raise "Start from a console with no open transaction" unless connection.open_transactions.zero?
       FileUtils.mkdir_p(@output_dir)
       install_guards
+      write_file("baseline-manifest.json", @baseline.body) if @baseline
       report = { kind: "production_export_vs_staging_reextraction", dsl_contract: Dsl::Core::AlgorithmRunner::CONTRACT_VERSION,
+        baseline: @baseline ? { kind: "pinned_manifest", captured_at: @baseline.captured_at, sha256: @baseline.sha256 } : { kind: "historical_pilot" },
         input_backend: "remote_wringer_cache", wringer_url: @reader.source_url,
         generated_at: Time.now.utc.iso8601, scope: "Selected source regeneration; preview statuses, no publication or statement saves",
         caveats: ["Historical HTML, source settings, manual corrections and reconciliation may have changed.",
@@ -261,10 +277,18 @@ module Distillator
     def replay_site(seedurl)
       website = Website.find_by!(seedurl: seedurl)
       raise "#{seedurl} must be Legacy or Shadow for this replay (current: #{website.distillator_mode})" unless website.distillator_mode.in?(%w[legacy shadow])
-      date = EXPORTS.fetch(seedurl)
-      url = "https://data.culturecreates.com/databus/culture-creates/footlight/#{seedurl}/#{date}/#{seedurl}.json"
-      body = @export_loader.call(url)
+      if @baseline
+        date, url, body = @baseline.export(seedurl).values_at(:date, :url, :body)
+        production_sources = @baseline.production_sources(seedurl)
+      else
+        date = HISTORICAL_EXPORTS.fetch(seedurl)
+        url = "https://data.culturecreates.com/databus/culture-creates/footlight/#{seedurl}/#{date}/#{seedurl}.json"
+        body = @export_loader.call(url)
+      end
       write_file("#{seedurl}-production.json", body)
+      if production_sources
+        write_file("#{seedurl}-production-sources.json", production_sources.fetch(:body))
+      end
       baseline = RDF::Graph.new.insert(*JSON::LD::API.toRdf(JSON.parse(body)).to_a)
       candidates = event_source_urls(baseline)
       chosen = evenly_sample(candidates, @per_site)
@@ -287,6 +311,7 @@ module Distillator
       diff = graph_difference(expected, actual)
       incomplete = pages.any? { |page| page[:errors].any? }
       { seedurl: seedurl, rollout_mode: website.distillator_mode, export_date: date, export_url: url, export_sha256: Digest::SHA256.hexdigest(body),
+        production_source_evidence: production_sources ? production_sources.except(:body) : "missing",
         available_pages: candidates.count, selected_pages: chosen.count, source_executions: pages.sum { |page| page[:sources].count },
         status: incomplete ? "incomplete" : (diff[:equivalent_event_data] ? "equivalent_event_data" : "differences_need_review"),
         pages: pages.map { |page| page.slice(:url, :errors, :sources) }, **diff }

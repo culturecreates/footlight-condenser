@@ -16,31 +16,63 @@ heroku run rails console --app footlight-condenser-test
 
 ```ruby
 load Rails.root.join("script/databus_replay.rb")
-report = Distillator::DatabusReplay.call(sites: ["co-motion-ca"], per_site: 1)
+report = Distillator::DatabusReplay.call(manifest: "/path/to/manifest.json", sites: ["co-motion-ca"], per_site: 1)
 puts JSON.pretty_generate(Distillator::DatabusReplay.summary(report))
 ```
 
-Once the pilot is understood, run up to 20 pages for each of the seven sites:
+Once the pilot is understood, run up to 20 pages for each site in the manifest:
 
 ```ruby
-report = Distillator::DatabusReplay.call(per_site: 20)
+report = Distillator::DatabusReplay.call(manifest: "/path/to/manifest.json", per_site: 20)
 puts JSON.pretty_generate(Distillator::DatabusReplay.summary(report))
 ```
 
-The defaults use November 7, 2026 for co-motion, Culture3R, Place des Arts,
-Culture Mauricie/lepointdevente, Gatineau and Maison de la culture. Tourisme des
-Chenaux uses November 8. Sampling is deterministic and evenly spread through
-sorted event source URLs. A site with fewer than 20 URLs uses all available URLs.
+Sampling is deterministic and evenly spread through sorted event source URLs.
+A site with fewer than 20 URLs uses all available URLs. Use `historical: true`
+instead of `manifest:` to rerun the original November 7–8 pilot explicitly.
 
-The script accepts Legacy and Shadow sites. It does not change
-rollout settings. It requires matching existing staging webpage records, resolves
-the usual event/nested-property source scope, and executes only selected sources.
+The script accepts Legacy and Shadow sites. It requires matching staging webpage
+records, resolves ordinary event and nested-property sources, and executes only
+selected sources. The manifest pins the Wringer URL independently of the rollout
+and compatibility endpoint settings. A Shadow replay uses that Wringer cache.
+The report records the manifest and export SHA-256 and the Wringer URL.
 
-Inputs are pinned to `https://footlight-wringer.herokuapp.com`, independently of
-Condenser's rollout and compatibility endpoint settings. Shadow sites do not
-trigger a native Condenser fetch or a shadow pair. The report records
-`input_backend: remote_wringer_cache` and the credential-free Wringer URL.
-An explicit `wringer_url:` can select another Wringer deployment if needed.
+## Capture the baseline
+
+Download each dated, published Databus JSON-LD export once. Keep its exact bytes
+alongside the manifest and compute SHA-256. The optional `production_sources`
+file contains a JSON array of selected source versions with IDs, algorithm hashes
+and relevant settings, captured with authorized production access. Omitted
+production source evidence is reported as missing for that site.
+
+Example manifest with placeholder checksums:
+
+```json
+{
+  "captured_at": "2026-11-20T12:00:00Z",
+  "wringer_url": "https://footlight-wringer-staging-a876afe2e40f.herokuapp.com",
+  "exports": {
+    "co-motion-ca": {
+      "date": "2026-11-19",
+      "url": "https://data.culturecreates.com/databus/culture-creates/footlight/co-motion-ca/2026-11-19/co-motion-ca.json",
+      "file": "co-motion-ca.json",
+      "sha256": "<export checksum>",
+      "production_sources": {
+        "file": "co-motion-ca-source-versions.json",
+        "sha256": "<source snapshot checksum>",
+        "captured_at": "2026-11-20T11:55:00Z"
+      }
+    }
+  },
+  "api_inputs": {}
+}
+```
+
+Capture times describe when evidence was collected. Treat an export, source
+snapshot, API snapshot and restored cache as contemporaneous only when their
+provenance establishes that. The replay copies the manifest and verified export
+bytes into the report and records the cache times and hashes observed during
+execution.
 
 ## What is and is not regenerated
 
@@ -110,23 +142,21 @@ Mauricie source 7885 reads category mappings from its `-RList` site. Those
 responses need not exist in Wringer. An uncaptured dependency remains incomplete;
 the replay never silently fetches it live or substitutes staging statement data.
 
-Capture the production API response explicitly before starting the replay:
+Capture the production API response explicitly and save its raw JSON beside
+the manifest. Use the exact URL the staging DSL will request as the
+`api_inputs` key. To supply a production observation to a staging
+`$$SELF_URL$$` request, give the exact staging URL and describe the substitution
+in `provenance`.
 
-```ruby
-api_url = "https://footlight-condenser.herokuapp.com/statements.json?prop=121&seedurl=culturemauricie_lepointdevente-com-RList"
-response = HTTParty.get(api_url, timeout: 30, follow_redirects: false)
-raise "API HTTP #{response.code}" unless response.code.to_i == 200
-api_inputs = {
-  api_url => {
-    body: response.body,
-    captured_at: Time.now.utc.iso8601,
-    provenance: "Production Condenser resource-list API; captured for this replay"
+```json
+{
+  "https://footlight-condenser.herokuapp.com/statements.json?prop=121&seedurl=culturemauricie_lepointdevente-com-RList": {
+    "file": "mauricie-category.json",
+    "sha256": "<API body checksum>",
+    "captured_at": "2026-11-20T11:55:00Z",
+    "provenance": "Production Condenser category mapping, captured after the export"
   }
 }
-report = Distillator::DatabusReplay.call(
-  sites: ["culturemauricie_lepointdevente-com"], per_site: 20, api_inputs: api_inputs
-); nil
-puts JSON.pretty_generate(Distillator::DatabusReplay.summary(report))
 ```
 
 The explicitly supplied JSON is copied and reused for GETs to that exact request

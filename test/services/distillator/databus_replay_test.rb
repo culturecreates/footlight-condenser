@@ -353,7 +353,7 @@ class Distillator::DatabusReplayTest < ActiveSupport::TestCase
 
   test "default Wringer identity is independent of Condenser compatibility configuration" do
     Distillator::WringerEndpoint.expects(:current).never
-    service = Distillator::DatabusReplay.new(output_dir: @directory, progress: nil)
+    service = Distillator::DatabusReplay.new(historical: true, output_dir: @directory, progress: nil)
     assert_equal "https://footlight-wringer.herokuapp.com", service.instance_variable_get(:@reader).source_url
     reader = Distillator::DatabusReplay::CacheReader.new(base_url: "https://user:password@wringer.replay.test")
     assert_equal "https://wringer.replay.test", reader.source_url
@@ -372,7 +372,7 @@ class Distillator::DatabusReplayTest < ActiveSupport::TestCase
 
   test "a failed site savepoint leaves the next site usable and mode is never changed" do
     create_replay_records
-    service = Distillator::DatabusReplay.new(sites: %w[co-motion-ca culture3r-com], per_site: 1,
+    service = Distillator::DatabusReplay.new(historical: true, sites: %w[co-motion-ca culture3r-com], per_site: 1,
       output_dir: @directory, wringer_url: @base, progress: nil)
     website_id = @created_website.id
     service.define_singleton_method(:replay_site) do |seedurl|
@@ -383,6 +383,57 @@ class Distillator::DatabusReplayTest < ActiveSupport::TestCase
     assert_equal "incomplete", report[:sites][0][:status]
     assert_equal "next_site_read_succeeded", report[:sites][1][:status]
     assert_equal "legacy", @created_website.reload.distillator_mode
+  end
+
+  test "manifest replay verifies exact local input bytes and identifies production source evidence" do
+    _website, webpage = create_replay_records(mode: "shadow")
+    api = "https://production.example/statement.json"
+    @created_website.sources.find_by!(selected: true, property_id: @created_properties.first)
+      .update!(algorithm_value: "api=\"#{api}\";ruby=$array.fetch('title')")
+    export = [{ "@id" => webpage.rdf_uri, "@type" => "http://schema.org/Event",
+      "http://schema.org/name" => [{ "@value" => "Manifest title" }], "http://schema.org/url" => [{ "@value" => @url }] }].to_json
+    timestamp = "2026-11-20T13:00:00Z"
+    production_sources = manifest_file("source-versions.json", '[{"id":42,"algorithm_sha256":"example"}]')
+      .merge(captured_at: timestamp)
+    input = manifest_file("api.json", '{"title":"Manifest title"}').merge(captured_at: timestamp, provenance: "Production snapshot")
+    path = write_manifest(export, production_sources: production_sources, api_inputs: { api => input })
+
+    report = Distillator::DatabusReplay.call(manifest: path, output_dir: @directory, progress: nil)
+
+    assert_equal "pinned_manifest", report[:baseline][:kind]
+    assert_equal Digest::SHA256.file(path).hexdigest, report[:baseline][:sha256]
+    assert_equal @base, report[:wringer_url]
+    site = report[:sites].sole
+    assert_equal "equivalent_event_data", site[:status], site.inspect
+    assert_equal "2026-11-20", site[:export_date]
+    assert_equal production_sources[:sha256], site.dig(:production_source_evidence, :sha256)
+    assert_equal api, report[:api_inputs].sole[:url]
+    assert_not_requested :get, api
+    assert_not_requested :get, site[:export_url]
+    assert_equal File.binread(path), File.binread(File.join(@directory, "baseline-manifest.json"))
+  end
+
+  test "a changed export is incomplete before extraction" do
+    create_replay_records
+    path = write_manifest("[]")
+    File.binwrite(File.join(@directory, "export.json"), "[{}]")
+
+    report = Distillator::DatabusReplay.call(manifest: path, output_dir: @directory, progress: nil)
+
+    assert_equal "incomplete", report[:sites].sole[:status]
+    assert_includes report[:sites].sole[:error], "SHA-256 mismatch for manifest file export.json"
+    assert_empty report[:cache_inputs]
+  end
+
+  test "manifest replay requires an explicit baseline and rejects changed API fixtures before execution" do
+    assert_raises(ArgumentError) { Distillator::DatabusReplay.new }
+    api = manifest_file("api.json", "{}").merge(captured_at: "2026-11-20T13:00:00Z", provenance: "Captured")
+    path = write_manifest("[]", api_inputs: { "https://production.example/api" => api })
+    File.binwrite(File.join(@directory, "api.json"), "[]")
+
+    error = assert_raises(ArgumentError) { Distillator::DatabusReplay.new(manifest: path) }
+    assert_includes error.message, "SHA-256 mismatch for manifest file api.json"
+    assert_raises(ArgumentError) { Distillator::DatabusReplay.new(manifest: path, wringer_url: @base) }
   end
 
   test "console summary groups repeated missing input errors by URL" do
@@ -449,8 +500,22 @@ class Distillator::DatabusReplayTest < ActiveSupport::TestCase
   end
 
   def build_service(**options)
-    Distillator::DatabusReplay.new(sites: ["co-motion-ca"], per_site: 1, output_dir: @directory,
+    Distillator::DatabusReplay.new(historical: true, sites: ["co-motion-ca"], per_site: 1, output_dir: @directory,
       wringer_url: @base, progress: nil, **options)
+  end
+
+  def manifest_file(file, body)
+    File.binwrite(File.join(@directory, file), body)
+    { file: file, sha256: Digest::SHA256.hexdigest(body) }
+  end
+
+  def write_manifest(export, production_sources: nil, api_inputs: {})
+    entry = manifest_file("export.json", export).merge(date: "2026-11-20",
+      url: "https://data.example/co-motion-ca.json", production_sources: production_sources)
+    path = File.join(@directory, "manifest.json")
+    File.binwrite(path, { captured_at: "2026-11-20T13:00:00Z", wringer_url: @base,
+      exports: { "co-motion-ca" => entry }, api_inputs: api_inputs }.to_json)
+    path
   end
 
   def create_replay_records(mode: "legacy")
