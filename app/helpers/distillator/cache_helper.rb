@@ -409,8 +409,32 @@ module Distillator::CacheHelper
   def cache_compare_match_label(comparison, field)
     diff = comparison.dig(:diffs, field)
     return "Unavailable" if diff.nil? || comparison.dig(:missing, :legacy) || comparison.dig(:missing, :condenser)
+    return "Unavailable" if %i[html_sha256 title].include?(field) &&
+      [comparison[:legacy_cache], comparison[:condenser_cache]].any? { |cache| cache.to_h[:html].blank? }
 
     diff[:same] ? "Match" : "Different"
+  end
+
+  def cache_compare_body_label(cache)
+    return "Cache entry unavailable" unless cache
+    html = cache[:html].to_s
+    return "No stored HTML" if html.blank?
+
+    bytes = number_with_delimiter(html.bytesize)
+    return "#{bytes} bytes of stored HTML" unless cache[:http_code].to_i >= 400 || cache[:operational_failed]
+
+    ["#{bytes} bytes of retained HTML", cache[:successful_refresh].presence && "last successful refresh #{cache[:successful_refresh]}"].compact.join(" · ")
+  end
+
+  def cloudflare_request_evidence(url:, attempted_at:, http_code:, cloudflare:, request_method:)
+    uri = URI.parse(url.to_s) if external_http_url?(url)
+    path = "#{uri.origin}#{uri.path.presence || '/'}" if uri
+    timestamp = attempted_at&.to_time&.getutc&.iso8601
+    ["Backend: Condenser", "Request: #{[request_method, path].compact.join(' ')}",
+      "Recorded fetch time (UTC): #{timestamp || 'Not recorded'}",
+      "HTTP status: #{http_code.presence || 'Not recorded'}",
+      "CF-Ray: #{cloudflare[:cf_ray].presence || 'Not recorded'}",
+      ("CF-Mitigated: #{cloudflare[:cf_mitigated]}" if cloudflare[:cf_mitigated].present?)].compact.join("\n")
   end
 
   private

@@ -1512,6 +1512,45 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Distillator", visible_text(@response.body)
   end
 
+  test "shared 403 shows retained Wringer HTML and only the Cloudflare fields needed by IT" do
+    assert_read_only_page_does_not_fetch
+    url = "https://example.org/event?private_token=omit-from-it-details"
+    now = Time.iso8601("2026-11-19T14:31:06-05:00")
+    cache = create_cache(uri: url, html: nil, http_response_code: 403, scrape_date: now, successful_refresh: nil,
+      signals: { fetch_backend: "native", request_method: "GET", transport_success: false, content_success: false })
+    cache.update!(headers: { "cF-RaY" => ["1234abcdef567890-YYZ"], "CF-Mitigated" => "challenge", "Set-Cookie" => "omit-cookie" })
+    Distillator::CacheCompare.any_instance.stubs(:default_legacy_lookup).returns(
+      source: "remote_wringer", status: "ok", payload: { html: "<title>Prior event</title>", http_code: 403,
+        successful_refresh: "2026-09-28T17:13:16-04:00" })
+
+    get "/distillator/cache/compare", params: { uri: url }
+
+    assert_response :success
+    assert_select "p", text: /Wringer:.*HTTP 403.*retained HTML.*last successful refresh 2026-09-28/
+    assert_select "p", text: /Condenser:.*HTTP 403.*No stored HTML/
+    assert_select "p", text: /SHA-256: Unavailable.*Title: Unavailable/
+    assert_select "#cache-comparison-differences h3 + table td", text: "title"
+    assert_select "#cache-comparison-differences h3", text: "Unavailable comparison fields"
+    assert_select "p", text: /Share the Cloudflare request details with site IT/
+    assert_select "details", text: /Cloudflare request details for IT/ do |details|
+      evidence = details.find { |node| node.at_css("summary")&.text == "Cloudflare request details for IT" }.at_css("pre").text
+      assert_includes evidence, "Request: GET https://example.org/event\n"
+      assert_includes evidence, "2026-11-19T19:31:06Z"
+      assert_includes evidence, "CF-Ray: 1234abcdef567890-YYZ"
+      assert_includes evidence, "CF-Mitigated: challenge"
+      refute_includes evidence, "omit-from-it-details"
+    end
+    assert_no_match "omit-cookie", response.body
+
+    get distillator_cache_path(cache)
+    assert_response :success
+    assert_select "details > pre", text: /CF-Ray: 1234abcdef567890-YYZ/
+
+    cache.update!(signals: cache.signals.merge("fetch_backend" => "legacy"))
+    get distillator_cache_path(cache)
+    assert_select "summary", text: "Cloudflare request details for IT", count: 0
+  end
+
   test "snapshot report separates actual differences from matches and activation readiness" do
     assert_read_only_page_does_not_fetch
     Distillator::CacheCompare.expects(:call).returns(

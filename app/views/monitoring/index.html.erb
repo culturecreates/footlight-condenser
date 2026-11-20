@@ -1,5 +1,5 @@
 <h1>Monitoring</h1>
-<p>Shows explicitly flagged DSL errors and problems from enrolled preprocessing policies. Each issue resolves only when its own condition recovers.</p>
+<p>Shows blocked fetches on monitored sites, flagged DSL errors, and enrolled preprocessing problems.</p>
 <%= form_with url: monitoring_path, method: :get, local: true do %>
   <%= label_tag :seedurl, "Site" %>
   <%= select_tag :seedurl, options_for_select([["All sites", "all"]] + @sites.map { |site| [site, site] }, @seedurl || "all") %>

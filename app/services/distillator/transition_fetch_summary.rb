@@ -40,11 +40,12 @@ module Distillator
         else
           row[:fetch_reason].to_s.humanize.presence || "Fetch failed; no further error was recorded."
         end
-        challenge = [row[:fetch_reason], reason].join(" ").match?(/captcha|cloudflare/i)
+        confirmed_challenge = row.dig(:condenser_fetch, :cloudflare, :cf_mitigated) == "challenge"
+        challenge = confirmed_challenge || [row[:fetch_reason], reason].join(" ").match?(/captcha|cloudflare/i)
         issues << { url: row[:url], backend: "Condenser", reason: reason, http_code: code,
           kind: challenge ? "challenge" : "fetch_failure",
           summary: challenge ? "Content was rejected as a Cloudflare/CAPTCHA challenge." : reason,
-          action: action_for(code, [row[:fetch_reason], reason].join(" ")) }
+          action: confirmed_challenge ? "Share the recorded Cloudflare request details with site IT before rerunning the check." : action_for(code, [row[:fetch_reason], reason].join(" ")) }
       end
       if row[:legacy_lookup_status].present? && row[:legacy_lookup_status] != "ok"
         metadata = row[:legacy_fetch].to_h.with_indifferent_access

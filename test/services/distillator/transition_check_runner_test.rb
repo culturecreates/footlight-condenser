@@ -565,7 +565,9 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     website = build_website
     cache = Distillator::FetchCache.find_by!(normalized_url: website.webpages.first.url)
     failure = Distillator::FetchCacheStore::Result.new(cache: cache, cache_hit: false, body: nil, http_response_code: 200,
+      headers: { "CF-Ray" => "1234abcdef567890-YYZ", "Set-Cookie" => "not recorded" },
       fetch_path: "native", scrape_date: Time.current, hints: %w[system_cloudflare cloudflare], signals: {
+        request_method: "GET",
         transport_success: true, content_success: false, blocking_issue_key: "cloudflare", primary_issue_key: "cloudflare",
         primary_issue_match: { source: "page_identity", pattern: "Just a moment", snippet: "Just a moment " + "x" * 500, irrelevant: "omit" }
       })
@@ -581,6 +583,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal "page_identity", evidence.dig("match", "source")
     assert_equal 300, evidence.dig("match", "snippet").length
     assert_nil evidence.dig("match", "irrelevant")
+    assert_equal({ "cf_ray" => "1234abcdef567890-YYZ", "request_method" => "GET" }, evidence["cloudflare"])
   end
 
   test "missing phantomjs api key is recorded explicitly for rendered fetch failure" do

@@ -182,6 +182,60 @@ class DistillatorRolloutStatementRefreshTest < ActionDispatch::IntegrationTest
     assert_equal "legacy", fetch_cache.signals.dig("body_profile", "backend")
   end
 
+  test "ordinary Wringer refresh raises one monitoring issue for a repeated upstream 403 with retained HTML" do
+    statement = build_statement_for_rollout(mode: "legacy", slug: "blocked-wringer")
+    website = statement.webpage.website
+    website.update!(monitorable: true)
+    uri = statement.webpage.url
+    previous_success = Time.iso8601("2026-09-28T21:13:16Z")
+    attempt = Time.iso8601("2026-11-19T19:31:06Z")
+    recovered_at = attempt + 1.hour
+    retained = fetch_result("<title>Last good event</title>", url: uri, fetch_path: "legacy")
+    blocked = retained.merge(headers: retained[:headers].merge("X-Wringer-Upstream-Status" => ["403"],
+      "X-Wringer-Last-Attempt-At" => [attempt.iso8601], "X-Wringer-Last-Success-At" => [previous_success.iso8601]))
+    recovered = retained.merge(headers: retained[:headers].merge("X-Wringer-Upstream-Status" => "200",
+      "X-Wringer-Last-Attempt-At" => recovered_at.iso8601, "X-Wringer-Last-Success-At" => recovered_at.iso8601))
+    Distillator::FetchService.expects(:legacy_fetch).times(4).returns(blocked, blocked, retained, recovered)
+
+    patch refresh_statement_path(statement)
+    assert_equal "Last good event", statement.reload.cache
+    issues = MonitoringIssue.where(kind: "blocked_fetch", seedurl: website.seedurl)
+    issue = issues.open_issues.sole
+    assert_equal attempt, issue.last_seen_at
+    assert_includes issue.message, "Wringer reported HTTP 403"
+    assert_includes issue.message, "2026-09-28T21:13:16Z"
+    assert_includes issue.message, "Cached HTML remains available"
+
+    2.times { ApplicationController.helpers.refresh_statement_helper(statement, force_scrape: true) }
+    assert_equal 1, issue.reload.occurrences
+    assert_nil issue.resolved_at
+    get monitoring_path(format: :json), params: { seedurl: website.seedurl }
+    assert_equal issue.message, JSON.parse(response.body).fetch("issues").sole.fetch("message")
+
+    ApplicationController.helpers.refresh_statement_helper(statement, force_scrape: true)
+    assert_equal recovered_at, issue.reload.resolved_at
+  end
+
+  test "a Condenser challenge enters monitoring only through an ordinary monitored refresh" do
+    statement = build_statement_for_rollout(mode: "active", slug: "blocked-condenser")
+    website = statement.webpage.website
+    website.update!(monitorable: true)
+    uri = statement.webpage.url
+    blocked = fetch_result("<title>Challenge</title>", url: uri).merge(http_code: 403,
+      headers: { "CF-Ray" => "1234abcdef567890-YYZ", "CF-Mitigated" => "challenge" })
+    Distillator::FetchService.expects(:internal_fetch).twice.returns(blocked)
+    issues = MonitoringIssue.where(kind: "blocked_fetch", seedurl: website.seedurl)
+
+    Distillator::FetchCacheStore.fetch(uri: uri, website: website, mode: :internal, force_scrape: true)
+    assert_empty issues
+    ApplicationController.helpers.refresh_statement_helper(statement, force_scrape: true)
+
+    issue = issues.open_issues.sole
+    assert_includes issue.message, "Condenser reported Cloudflare challenge (HTTP 403)"
+    assert_includes issue.message, "CF-Ray 1234abcdef567890-YYZ"
+    assert_includes issue.message, "Last successful source refresh not recorded"
+  end
+
   private
 
   def build_statement_for_rollout(mode:, slug:)

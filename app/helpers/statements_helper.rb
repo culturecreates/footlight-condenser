@@ -409,7 +409,9 @@ module StatementsHelper
       scrape_options: scrape_options,
       statement_id: stat.id,
       source_id: stat.source_id
-    )
+    ).tap do |options|
+      options[:log_context][:monitor_fetch] = true if stat.webpage.website&.monitorable?
+    end
   end
 
   def statement_scrape_options(source:, webpage:, scrape_options: {}, statement_id: nil, source_id: nil)

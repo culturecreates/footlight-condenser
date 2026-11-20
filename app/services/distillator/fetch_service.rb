@@ -935,6 +935,19 @@ module Distillator
       end
     end
 
+    def self.cloudflare_response_headers(headers, signals:, fetch_path: nil)
+      signals = signals.to_h.with_indifferent_access
+      return {} unless (signals[:fetch_backend].presence || fetch_path || signals[:fetch_path]) == "native"
+
+      headers = normalize_headers(headers)
+      ray = Array(headers[:cf_ray]).first.to_s.strip
+      mitigation = Array(headers[:cf_mitigated]).first.presence || signals[:cf_mitigated]
+      {
+        cf_ray: (ray if ray.match?(/\A[0-9a-f]{8,32}(?:-[a-z0-9]{2,12})?\z/i)),
+        cf_mitigated: ("challenge" if mitigation.to_s.strip.casecmp?("challenge"))
+      }.compact
+    end
+
     def self.normalize_header_key(key)
       key.to_s
          .strip

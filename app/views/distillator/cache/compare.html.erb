@@ -1,5 +1,7 @@
 <h1>Cache Comparison</h1>
 
+<% condenser = @comparison[:condenser_cache].to_h %>
+<% cloudflare = condenser[:cloudflare].to_h %>
 <p class="cache-page-notice">Stored snapshot inspection only. No refresh was performed; this page does not establish current transition readiness.</p>
 
 <p><strong>URI:</strong> <span class="cache-normalized-url"><%= external_website_link(@comparison[:uri]) %></span></p>
@@ -20,14 +22,24 @@
   <% unless @comparison.dig(:summary, :outcome).to_s.in?(%w[pass ready_with_metadata_notes]) %>
     <p><strong>Main reason:</strong> <%= @comparison.dig(:summary, :primary_reason) %></p>
   <% end %>
-  <p><strong>HTTP codes:</strong> legacy <%= @comparison.dig(:legacy_cache, :http_code).presence || "unknown" %> / condenser <%= @comparison.dig(:condenser_cache, :http_code).presence || "unknown" %></p>
-  <p><strong>HTML bytes:</strong> legacy <%= @comparison.dig(:diffs, :html_bytes, :legacy) || "unknown" %> / condenser <%= @comparison.dig(:diffs, :html_bytes, :condenser) || "unknown" %></p>
+  <p><strong>Wringer:</strong> Recorded HTTP <%= @comparison.dig(:legacy_cache, :http_code).presence || "unknown" %> · <%= cache_compare_body_label(@comparison[:legacy_cache]) %></p>
+  <p><strong>Condenser:</strong> Recorded HTTP <%= condenser[:http_code].presence || "unknown" %> · <%= cache_compare_body_label(@comparison[:condenser_cache]) %></p>
   <p><strong>SHA-256:</strong> <%= cache_compare_match_label(@comparison, :html_sha256) %> · <strong>Title:</strong> <%= cache_compare_match_label(@comparison, :title) %></p>
-  <p><strong>Next action:</strong> Run a fresh transition batch check from the website page. Activation readiness requires fresh retrievals from both backends, selected DSL field parity, and export compatibility.</p>
+  <% if cloudflare[:cf_mitigated] == "challenge" %>
+    <p><strong>Next action:</strong> Share the Cloudflare request details with site IT. Run a fresh transition check once both backends can retrieve the page.</p>
+  <% else %>
+    <p><strong>Next action:</strong> Run a fresh transition batch check from the website page. Activation readiness requires fresh retrievals from both backends, selected DSL field parity, and export compatibility.</p>
+  <% end %>
   <p><strong>Links:</strong>
     <%= safe_join(cache_inspection_links(@comparison[:uri]).map { |link| link_to(link[:label], link[:url]) }, " | ") %>
   </p>
 </section>
+
+<% if cloudflare.present? %>
+  <%= render "distillator/shared/cloudflare_request_evidence", url: condenser[:final_url].presence || @comparison[:uri],
+        attempted_at: condenser[:scrape_date], http_code: condenser[:http_code], cloudflare: cloudflare,
+        request_method: cache_signal(condenser, :request_method) %>
+<% end %>
 
 <details class="cache-detail-details">
   <summary>Snapshot provenance</summary>

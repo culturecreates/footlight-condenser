@@ -1,5 +1,5 @@
 Daily monitoring — <%= @date %>
-<%= @issues.size %> open monitored issues. Includes flagged DSL errors and enrolled preprocessing policies.
+<%= @issues.size %> open monitored issues. Includes blocked fetches on monitored sites, flagged DSL errors, and enrolled preprocessing problems.
 <% if @monitoring_url.present? %>
 Monitoring: <%= @monitoring_url %>
 <% end %>

@@ -525,9 +525,13 @@ module Distillator
     def recorded_fetch_diagnostics(result)
       signals = result.signals.to_h.with_indifferent_access
       matched = signals[:primary_issue_match].to_h.with_indifferent_access
+      headers = result.respond_to?(:headers) ? result.headers : result.cache&.headers
+      fetch_path = result.fetch_path if result.respond_to?(:fetch_path)
+      cloudflare = Distillator::FetchService.cloudflare_response_headers(headers, signals: signals, fetch_path: fetch_path)
       {
         attempted_at: result.scrape_date || result.cache&.scrape_date, cache_hit: result.cache_hit,
-        fetch_path: result.respond_to?(:fetch_path) ? result.fetch_path : nil, active_path_verification: @verify_active_path,
+        cloudflare: (cloudflare.merge(request_method: signals[:request_method]).compact if cloudflare.present?),
+        fetch_path: fetch_path, active_path_verification: @verify_active_path,
         transport_success: result.transport_success?, content_success: result.content_success?,
         blocking_issue_key: result.blocking_issue_key,
         matched_rule: signals[:primary_issue_key],

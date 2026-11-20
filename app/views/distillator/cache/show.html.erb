@@ -85,6 +85,13 @@
              }
            ] %>
 
+<% cloudflare = Distillator::FetchService.cloudflare_response_headers(@cache.headers, signals: @cache_payload[:signals]) %>
+<% if cloudflare.present? %>
+  <%= render "distillator/shared/cloudflare_request_evidence", url: @cache_payload[:final_url].presence || @cache_payload[:normalized_url],
+        attempted_at: @cache_payload[:scrape_date], http_code: @cache_payload[:http_response_code], cloudflare: cloudflare,
+        request_method: cache_signal(@cache_payload, :request_method) %>
+<% end %>
+
 <details class="cache-detail-details">
   <summary>Diagnostics card</summary>
   <div class="cache-detail-card">

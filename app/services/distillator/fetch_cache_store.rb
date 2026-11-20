@@ -210,6 +210,7 @@ module Distillator
         fetch_path: fetch_result[:fetch_path]
       ).tap do |result|
         log_cache_event(had_cache ? "cache.refresh" : "cache.miss", key: key, result: result)
+        Monitoring::BlockedFetchRecorder.call(result, website: website, context: log_context) if log_context[:monitor_fetch]
       end
     end
 

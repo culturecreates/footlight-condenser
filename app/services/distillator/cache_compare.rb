@@ -208,6 +208,7 @@ module Distillator
         hints: Array(cache.hints),
         final_url: cache.final_url,
         redirect_chain: Array(cache.redirect_chain),
+        cloudflare: Distillator::FetchService.cloudflare_response_headers(cache.headers, signals: cache.signals),
         operational_failed: Distillator::TransitionStatus.cache_fetch_failed?(cache)
       }
     end
@@ -334,6 +335,7 @@ module Distillator
       return :blocking_regression if distillator_cache.nil?
       return :unknown if legacy_cache.nil?
       return :unknown if legacy_body_unavailable?(legacy_cache) && BODY_DEPENDENT_FIELDS.include?(field)
+      return :unknown if %i[title html_sha256].include?(field) && distillator_cache[:html].blank?
       # A missing legacy observation is not evidence that Condenser changed
       # behavior. Assess actual current failures independently of field diffs.
       if OBSERVATION_FIELDS.include?(field) && legacy_unknown?(legacy_value)
