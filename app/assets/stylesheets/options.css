@@ -47,7 +47,8 @@
 }
 
 .options-form input[type="url"] {
-  width: min(100%, 45rem);
+  width: 100%;
+  max-width: 45rem;
   box-sizing: border-box;
 }
 
