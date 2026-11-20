@@ -1,7 +1,10 @@
 require "test_helper"
 
 class OptionsControllerTest < ActionDispatch::IntegrationTest
+  include WebMock::API
+
   setup do
+    WebMock.reset!
     Website.update_all(distillator_mode: "shadow")
   end
 
@@ -13,6 +16,89 @@ class OptionsControllerTest < ActionDispatch::IntegrationTest
     assert_match '>cache<', @response.body
     assert_match '>Transition report<', @response.body
     assert_match '>options<', @response.body
+  end
+
+  test "navigation links to the configured Wringer without probing on page render" do
+    configure_wringer("https://operator:secret@wringer-staging.example")
+    probe = stub_request(:get, "https://wringer-staging.example/websites.json?per_page=1")
+
+    get options_path
+
+    assert_response :success
+    assert_select 'a[href=?]', "https://wringer-staging.example", text: "https://wringer-staging.example"
+    assert_select 'span[data-wringer-reachability-url=?][role=status]', wringer_reachability_options_path, text: "Checking…"
+    assert_not_includes response.body, "operator:secret"
+    assert_not_requested probe
+  end
+
+  test "Wringer reachability ignores the cached page's upstream HTTP status and body" do
+    configure_wringer("https://operator:secret@wringer-staging.example")
+    probe = stub_request(:get, "https://wringer-staging.example/websites.json?per_page=1")
+      .with(basic_auth: ["operator", "secret"])
+      .to_return(status: 200, body: '[{"http_response_code":403,"html":null}]')
+
+    get wringer_reachability_options_path
+
+    assert_response :success
+    assert_equal({ "label" => "Reachable" }, response.parsed_body)
+    assert_requested probe, times: 1
+  end
+
+  test "Wringer reachability reports Wringer's own HTTP error separately from a timeout" do
+    configure_wringer("https://wringer-staging.example")
+    stub_request(:get, "https://wringer-staging.example/websites.json?per_page=1")
+      .to_return(status: 403).then.to_timeout
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::NullStore.new)
+
+    get wringer_reachability_options_path
+    assert_equal({ "label" => "Responded (HTTP 403)" }, response.parsed_body)
+
+    get wringer_reachability_options_path
+    assert_equal({ "label" => "Unreachable" }, response.parsed_body)
+  end
+
+  test "Wringer reachability caches a probe briefly for each configured Wringer" do
+    Rails.stubs(:cache).returns(ActiveSupport::Cache::MemoryStore.new)
+    configure_wringer("https://wringer-staging.example")
+    staging_probe = stub_request(:get, "https://wringer-staging.example/websites.json?per_page=1")
+      .to_return(status: 200, body: "[]").then.to_timeout
+    production_probe = stub_request(:get, "https://wringer-production.example/websites.json?per_page=1")
+      .to_return(status: 503)
+
+    2.times { get wringer_reachability_options_path }
+    assert_equal({ "label" => "Reachable" }, response.parsed_body)
+    assert_requested staging_probe, times: 1
+
+    travel 31.seconds do
+      get wringer_reachability_options_path
+      assert_equal({ "label" => "Unreachable" }, response.parsed_body)
+      assert_requested staging_probe, times: 2
+    end
+
+    configure_wringer("https://wringer-production.example")
+    get wringer_reachability_options_path
+    assert_equal({ "label" => "Responded (HTTP 503)" }, response.parsed_body)
+    assert_requested production_probe, times: 1
+  end
+
+  test "Wringer reachability skips an invalid URL" do
+    configure_wringer("javascript:alert(1)")
+
+    get options_path
+    assert_includes response.body, "Missing or invalid Wringer URL"
+    assert_select "span[data-wringer-reachability-url]", count: 0
+
+    get wringer_reachability_options_path
+    assert_equal({ "label" => "Missing or invalid Wringer URL" }, response.parsed_body)
+  end
+
+  test "Wringer reachability skips an unconfigured endpoint" do
+    endpoint = Distillator::WringerEndpoint.new(config: nil, env: "staging", env_vars: {}).call
+    Distillator::WringerEndpoint.stubs(:current).returns(endpoint)
+
+    get wringer_reachability_options_path
+
+    assert_equal({ "label" => "Missing or invalid Wringer URL" }, response.parsed_body)
   end
 
   test "options page does not render transition check queue button" do
@@ -170,6 +256,16 @@ class OptionsControllerTest < ActionDispatch::IntegrationTest
     assert setting.reload.weekly_pulse_enabled?
     get options_path
     assert_select "input[type=checkbox][name='monitoring_setting[weekly_pulse_enabled]'][checked]"
+  end
+
+  private
+
+  def configure_wringer(base_url)
+    config = ActiveSupport::OrderedOptions.new
+    config.compatibility_base_url = "https://compat.example"
+    config.legacy_wringer_base_url = base_url
+    endpoint = Distillator::WringerEndpoint.new(config: config, env: "staging", env_vars: {}).call
+    Distillator::WringerEndpoint.stubs(:current).returns(endpoint)
   end
 
 end

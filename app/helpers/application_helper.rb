@@ -156,6 +156,10 @@ module ApplicationHelper
     [current_wringer_status.status_label, current_wringer_status.status_detail].compact.join(" - ")
   end
 
+  def wringer_navigation_url
+    Distillator::WringerReachability.new(base_url: current_wringer_status.legacy_lookup_base_url).display_url
+  end
+
   private
 
   def current_transition_website

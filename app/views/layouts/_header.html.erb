@@ -20,7 +20,12 @@
 <%= link_to "DSL Library", dsl_library_entries_path %> |
 <%= link_to "options",        options_path %> | 
 Current Wringer:
-<%= current_wringer_status_text.sub("Current Wringer: ", "") %> |
+<% if (wringer_url = wringer_navigation_url) %>
+  <%= link_to wringer_url, wringer_url %>
+  · <span data-wringer-reachability-url="<%= wringer_reachability_options_path %>" role="status">Checking…</span>
+<% else %>
+  Missing or invalid Wringer URL
+<% end %> |
 Trace:
 <%= cookies[:dsl_trace] == "true" ? "ON" : "OFF" %> 
 
