@@ -21,20 +21,19 @@ class ApplicationHelperTest < ActionView::TestCase
     @distillator_config.allow_localhost_compatibility = false
     ENV.delete("DISTILLATOR_COMPAT_BASE_URL")
     ENV.delete("DISTILLATOR_COMPATIBILITY_BASE_URL")
-    Distillator::TransitionEvidence.stubs(:latest_legacy_lookup_error).returns(nil)
-
     endpoint = Distillator::WringerEndpoint.current
 
     assert_equal :missing_config, endpoint.state
     assert_equal "Current Wringer: Missing staging config - comparisons disabled", current_wringer_status_text
   end
 
-  test "current wringer status text shows unreachable endpoint after latest lookup failure" do
-    record = stub(
+  test "current wringer status reports configuration independently of a recorded upstream rejection" do
+    Distillator::TransitionEvidence.create!(website: websites(:one), url: "https://example.org/event", check_kind: "fetch_parity",
+      checked_at: Time.current, status: "failed",
       details: {
-        "legacy_lookup_error" => "Connection refused",
+        "legacy_lookup_error" => "Fresh Wringer scrape did not confirm HTTP 2xx (403); cached HTML rejected",
         "legacy_lookup_status" => "unreachable",
-        "reason" => "legacy_lookup_unreachable"
+        "representative_url_results" => [{ "legacy_fetch" => { "response_http_code" => 200, "upstream_http_code" => 403 } }]
       }
     )
     Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("staging"))
@@ -42,9 +41,7 @@ class ApplicationHelperTest < ActionView::TestCase
     @distillator_config.legacy_wringer_base_url = "https://legacy.example"
     @distillator_config.allow_localhost_compatibility = false
 
-    Distillator::TransitionEvidence.stubs(:latest_legacy_lookup_error).returns(record)
-
-    assert_equal "Current Wringer: Unreachable - last lookup failed", current_wringer_status_text
+    assert_equal "Current Wringer: Remote configured - https://compat.example via config.x.distillator.compatibility_base_url", current_wringer_status_text
   end
 
   test "current wringer status text sanitizes configured remote endpoint" do
@@ -52,7 +49,6 @@ class ApplicationHelperTest < ActionView::TestCase
     @distillator_config.compatibility_base_url = "https://user:secret@compat.example/token"
     @distillator_config.legacy_wringer_base_url = "https://legacy.example"
     @distillator_config.allow_localhost_compatibility = false
-    Distillator::TransitionEvidence.stubs(:latest_legacy_lookup_error).returns(nil)
 
     assert_equal "Current Wringer: Remote configured - https://compat.example via config.x.distillator.compatibility_base_url", current_wringer_status_text
   end
@@ -64,7 +60,6 @@ class ApplicationHelperTest < ActionView::TestCase
     @distillator_config.allow_localhost_compatibility = false
     old_compatibility_alias = ENV["DISTILLATOR_COMPATIBILITY_BASE_URL"]
     ENV["DISTILLATOR_COMPATIBILITY_BASE_URL"] = "https://footlight-wringer.herokuapp.com"
-    Distillator::TransitionEvidence.stubs(:latest_legacy_lookup_error).returns(nil)
 
     assert_equal "Current Wringer: Remote configured - https://footlight-wringer.herokuapp.com via DISTILLATOR_COMPATIBILITY_BASE_URL", current_wringer_status_text
   ensure
@@ -80,7 +75,6 @@ class ApplicationHelperTest < ActionView::TestCase
     old_alias = ENV["DISTILLATOR_COMPATIBILITY_BASE_URL"]
     ENV["DISTILLATOR_COMPAT_BASE_URL"] = "https://canonical.example"
     ENV["DISTILLATOR_COMPATIBILITY_BASE_URL"] = "https://alias.example"
-    Distillator::TransitionEvidence.stubs(:latest_legacy_lookup_error).returns(nil)
 
     assert_equal "Current Wringer: Remote configured - https://canonical.example via DISTILLATOR_COMPAT_BASE_URL", current_wringer_status_text
   ensure
@@ -88,20 +82,4 @@ class ApplicationHelperTest < ActionView::TestCase
     ENV["DISTILLATOR_COMPATIBILITY_BASE_URL"] = old_alias
   end
 
-  test "missing config transition evidence does not mark a configured endpoint as unreachable" do
-    record = stub(
-      details: {
-        "legacy_lookup_error" => "missing_config",
-        "legacy_lookup_status" => "missing_config",
-        "reason" => "legacy_lookup_missing_config"
-      }
-    )
-    Rails.stubs(:env).returns(ActiveSupport::StringInquirer.new("staging"))
-    @distillator_config.compatibility_base_url = "https://user:secret@compat.example/token"
-    @distillator_config.legacy_wringer_base_url = "https://legacy.example"
-    @distillator_config.allow_localhost_compatibility = false
-    Distillator::TransitionEvidence.stubs(:latest_legacy_lookup_error).returns(record)
-
-    assert_equal "Current Wringer: Remote configured - https://compat.example via config.x.distillator.compatibility_base_url", current_wringer_status_text
-  end
 end

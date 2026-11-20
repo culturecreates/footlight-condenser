@@ -22,6 +22,18 @@ class OptionsControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes @response.body, "Queue transition check"
   end
 
+  test "options shows the current website monitoring setting and where to change it" do
+    website = websites(:two)
+    website.update!(monitorable: true)
+
+    get options_path, params: { seedurl: website.seedurl }
+
+    assert_response :success
+    assert_select "p", text: /blocked source fetches, flagged DSL errors, and enrolled preprocessing problems/
+    assert_select "p", text: /Website monitoring is on for #{Regexp.escape(website.name)}/
+    assert_select 'a[href=?]', edit_website_path(website, anchor: "website-monitoring"), text: "Edit website monitoring"
+  end
+
   test "options page shows preflight pass fail summary and staging rollout policy failure" do
     ENV["DISTILLATOR_RUNTIME"] = "staging"
     Website.create!(

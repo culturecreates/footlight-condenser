@@ -47,6 +47,16 @@
     <%= form.text_field :graph_name, id: :website_graph_name %>
   </div>
 
+  <div class="field" id="website-monitoring">
+    <% if website.monitoring_excluded? %>
+      <p>Website monitoring is disabled for this seed URL.</p>
+    <% else %>
+      <%= form.check_box :monitorable, aria: { describedby: "website-monitoring-help" } %>
+      <%= form.label :monitorable, "Include in website monitoring" %>
+      <p id="website-monitoring-help">Include this site in Console dashboard metrics and report blocked source fetches during ordinary refreshes.</p>
+    <% end %>
+  </div>
+
   <div class="field">
     <%= form.label :distillator_mode, "Rollout mode (advanced)" %>
     <%= form.select :distillator_mode, Distillator::RolloutCopy.website_form_options %>

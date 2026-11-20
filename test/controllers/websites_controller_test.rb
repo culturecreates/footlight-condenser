@@ -64,6 +64,32 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_not @website.reload.preferred?
   end
 
+  test "website monitoring can be enabled and disabled without changing its rollout mode" do
+    @website.update!(distillator_mode: "shadow")
+    get edit_website_path(@website)
+    assert_select "#website-monitoring input[type=checkbox][name='website[monitorable]']"
+
+    assert_no_difference -> { @website.rollout_events.count } do
+      patch website_path(@website), params: { website: { monitorable: "1" } }
+      assert_redirected_to @website
+      assert @website.reload.monitorable?
+      patch website_path(@website), params: { website: { monitorable: "0" } }
+      assert_redirected_to @website
+      assert_not @website.reload.monitorable?
+    end
+    assert_equal "shadow", @website.distillator_mode
+  end
+
+  test "seed URLs excluded from website monitoring stay disabled" do
+    @website.update!(seedurl: "test-excluded")
+    get edit_website_path(@website)
+    assert_select "#website-monitoring input[type=checkbox]", count: 0
+
+    patch website_path(@website), params: { website: { monitorable: "1" } }
+    assert_redirected_to @website
+    assert_not @website.reload.monitorable?
+  end
+
   test "Preferred view cuts across categories and keeps normal filter and sort behavior" do
     @website.update_columns(preferred: true, name: "Alpha preferred", schedule_every_days: 0)
     other = Website.create!(name: "Beta preferred Test", seedurl: "preferred-test", graph_name: "https://example.org/preferred", default_language: "fr", preferred: true)

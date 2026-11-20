@@ -89,13 +89,13 @@ class Website < ApplicationRecord
     Distillator::TransitionRun.request!(website: self).run
   end
 
+  def monitoring_excluded?
+    seedurl.to_s.match?(/(^[0-9]|test|rlist|footlight)/i)
+  end
+
   private
 
   def auto_set_monitorable
-    return if seedurl.blank?
-
-    return unless seedurl.match?(/(^[0-9]|test|rlist|footlight)/i)
-
-    self.monitorable = false
+    self.monitorable = false if monitoring_excluded?
   end
 end
