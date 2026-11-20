@@ -16,6 +16,8 @@
 
   <div role="status" aria-live="polite" aria-atomic="true">
     <h2 data-run-label><%= @run_status[:label] %></h2>
+    <p data-run-phase <%= "hidden" if @run_status[:phase_message].blank? %>><%= @run_status[:phase_message] %></p>
+    <p data-run-waiting <%= "hidden" if @run_status[:waiting_message].blank? %>><%= @run_status[:waiting_message] %></p>
     <p data-run-message><%= @run_status[:message] %></p>
     <p data-run-phases><%= "Recorded phases: #{@run_status[:phases_recorded].join(', ')}." if @run_status[:phases_recorded].any? %></p>
     <p data-run-connection hidden></p>
@@ -29,6 +31,7 @@
       params: { website_id: @website.id, check_options: @run.options.to_h }, class: "website-transition-button" %>
     <%= link_to "Change check options", website_path(@website, anchor: "website-batch-jobs-transition") %>
   </div>
-  <p><%= link_to "Refresh status", distillator_transition_check_path(@run), data: { run_refresh: true } %></p>
+  <p><%= link_to "Refresh status", distillator_transition_check_path(@run), data: { run_refresh: true } %>
+    <% if @run_status[:workflow_id] %> · <%= link_to "Site workflow", distillator_site_transition_path(@run_status[:workflow_id]) %><% end %></p>
   <noscript><p>Automatic updates need JavaScript. Use Refresh status, then open the completed report.</p></noscript>
 </section>

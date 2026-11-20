@@ -449,14 +449,6 @@ module Distillator::ShadowReportsHelper
     link_to(display_label, url, target: "_blank", rel: "noopener")
   end
 
-  def cache_inspection_links(url, website: nil)
-    Distillator::InspectionLinks.call(
-      url: url,
-      website: website,
-      payload: Distillator::CacheLinkResolver.call(url: url, website: website)
-    )
-  end
-
   def shadow_report_sampled_webpages(detail)
     detail.url_matrix.map do |row|
       links = cache_inspection_links(row[:url], website: detail.summary.website)

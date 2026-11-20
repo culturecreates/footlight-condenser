@@ -379,14 +379,6 @@ module Distillator::CacheHelper
     link_to(label.presence || truncated_url_label(url, max: max), url, target: "_blank", rel: "noopener")
   end
 
-  def cache_inspection_links(url, website: nil)
-    Distillator::InspectionLinks.call(
-      url: url,
-      website: website,
-      payload: active_cache_links_for(url, website: website)
-    )
-  end
-
   def cache_compare_policy_label(policy)
     policy.to_s == "strict" ? "Block known destination changes" : "Review known destination changes"
   end

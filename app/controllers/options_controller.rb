@@ -1,9 +1,18 @@
 # app/controllers/options_controller.rb
 class OptionsController < ApplicationController
-  def index 
-    @monitoring_setting = MonitoringSetting.current
-    @production_preflight = Distillator::ProductionPreflight.call
-    @staging_rollout_repair_preview = Distillator::StagingRolloutRepair.call if Distillator::TransitionRuntime.staging?
+  TABS = { "monitoring" => "Monitoring", "transition" => "Transition", "trace" => "DSL trace",
+    "connections" => "Connections" }.freeze
+  INSPECTION_URLS = { console_inspection_url: "Console", wringer_inspection_url: "Wringer" }.freeze
+
+  def index
+    @tab = TABS.key?(params[:tab]) ? params[:tab] : "monitoring"
+    case @tab
+    when "monitoring"
+      @monitoring_setting = MonitoringSetting.current
+    when "transition"
+      @production_preflight = Distillator::ProductionPreflight.call
+      @staging_rollout_repair_preview = Distillator::StagingRolloutRepair.call if Distillator::TransitionRuntime.staging?
+    end
   end
 
   def update_monitoring
@@ -17,7 +26,7 @@ class OptionsController < ApplicationController
 
   def repair_staging_rollout
     unless Distillator::TransitionRuntime.staging?
-      redirect_to options_path, alert: "Staging rollout repair can only run on staging."
+      redirect_to options_path(tab: "transition"), alert: "Staging rollout repair can only run on staging."
       return
     end
 
@@ -30,9 +39,9 @@ class OptionsController < ApplicationController
         else
           "Staging rollout repair moved #{result.repaired_count} websites to Shadow. #{result.unchanged_websites.count} unrepaired."
         end
-      redirect_to options_path, notice: notice
+      redirect_to options_path(tab: "transition"), notice: notice
     else
-      redirect_to options_path, alert: "Staging rollout repair moved #{result.repaired_count} websites to Shadow. #{result.unchanged_websites.count} unrepaired. #{result.errors.join(', ')}"
+      redirect_to options_path(tab: "transition"), alert: "Staging rollout repair moved #{result.repaired_count} websites to Shadow. #{result.unchanged_websites.count} unrepaired. #{result.errors.join(', ')}"
     end
   end
   
@@ -41,16 +50,34 @@ class OptionsController < ApplicationController
     render json: Distillator::WringerReachability.new.call
   end
 
-  def wringer
-    wringer_url = params[:target] == 'live' ? 'http://footlight-wringer.herokuapp.com' : 'http://localhost:3009'
-    cookies[:wringer_url] = { value: wringer_url, expires: 1.day.from_now }
-    redirect_to options_path, notice: "Wringer set to #{wringer_url}"
+  def update_connections
+    values = params.permit(*INSPECTION_URLS.keys)
+    urls = {}
+    INSPECTION_URLS.each do |key, label|
+      next unless values.key?(key)
+
+      raw = values[key].to_s.strip
+      url = OperatorInspectionUrl.normalize(raw)
+      if raw.present? && (url.nil? || raw.bytesize > 1.kilobyte)
+        redirect_to options_path(tab: "connections"), alert: "#{label} needs an HTTP or HTTPS base URL without credentials, a query, or a fragment."
+        return
+      end
+      urls[key] = url
+    end
+    urls.each do |key, url|
+      if url
+        cookies.signed[key] = { value: url, expires: 30.days.from_now, httponly: true, secure: request.ssl?, same_site: :lax }
+      else
+        cookies.delete(key)
+      end
+    end
+    redirect_to options_path(tab: "connections"), notice: "Inspection URLs saved for this browser."
   end
 
   def set_dsl_trace
     state = params[:state] == "true" ? "true" : "false"
     cookies[:dsl_trace] = { value: state, expires: 1.day.from_now }
-    redirect_to options_path, notice: "DSL Trace #{state == 'true' ? 'enabled' : 'disabled'}"
+    redirect_to options_path(tab: "trace"), notice: "DSL Trace #{state == 'true' ? 'enabled' : 'disabled'}"
   end
 
   def set_trace_visibility
@@ -59,7 +86,7 @@ class OptionsController < ApplicationController
       expires: 1.day.from_now
     }
 
-    redirect_back fallback_location: root_path
+    redirect_back fallback_location: options_path(tab: "trace")
   end
 
   def set_trace_code_length
@@ -67,7 +94,7 @@ class OptionsController < ApplicationController
       value: params[:length],
       expires: 1.day.from_now
     }
-    redirect_back fallback_location: root_path
+    redirect_back fallback_location: options_path(tab: "trace")
   end
 
   def set_trace_output_length
@@ -75,7 +102,7 @@ class OptionsController < ApplicationController
       value: params[:length],
       expires: 1.day.from_now
     }
-    redirect_back fallback_location: root_path
+    redirect_back fallback_location: options_path(tab: "trace")
   end
 
   def set_trace_view_mode
@@ -84,7 +111,7 @@ class OptionsController < ApplicationController
       expires: 1.day.from_now
     }
 
-    redirect_back fallback_location: root_path
+    redirect_back fallback_location: options_path(tab: "trace")
   end
 
   def set_trace_preset
@@ -99,7 +126,7 @@ class OptionsController < ApplicationController
       cookies[:trace_visibility] = { value: "always", expires: 1.day.from_now }
     end
 
-    redirect_back fallback_location: root_path
+    redirect_back fallback_location: options_path(tab: "trace")
   end
 
   def update_trace_options
@@ -118,7 +145,7 @@ class OptionsController < ApplicationController
     cookies[:trace_output_tooltip_length] = params[:trace_output_tooltip_length] if params[:trace_output_tooltip_length].present?
 
     flash[:notice] = "Trace options saved"
-    redirect_to options_path
+    redirect_to options_path(tab: "trace")
   end
 
 end

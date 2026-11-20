@@ -1,0 +1,24 @@
+<h3>Inspection URLs</h3>
+<p>Overrides apply to links in this browser. Fetches, transition checks and background jobs use the configured Wringer.</p>
+
+<dl class="options-connections-defaults">
+  <dt>Configured Console</dt>
+  <dd><%= link_to configured_console_url, configured_console_url %></dd>
+  <dt>Configured Wringer</dt>
+  <dd><%= wringer_navigation_url ? link_to(wringer_navigation_url, wringer_navigation_url) : "Missing or invalid URL" %></dd>
+</dl>
+
+<%= form_with url: connections_options_path, method: :patch, local: true do %>
+  <div class="option-row">
+    <%= label_tag :console_inspection_url, "Console URL override" %>
+    <%= url_field_tag :console_inspection_url, cookies.signed[:console_inspection_url], placeholder: configured_console_url, maxlength: 1024 %>
+    <p class="options-help">Console links use this URL and keep their website or resource selection.</p>
+  </div>
+  <div class="option-row">
+    <%= label_tag :wringer_inspection_url, "Alternate Wringer URL" %>
+    <%= url_field_tag :wringer_inspection_url, cookies.signed[:wringer_inspection_url], placeholder: wringer_navigation_url, maxlength: 1024 %>
+    <p class="options-help">Cache pages offer a link to the same URL in this Wringer.</p>
+  </div>
+  <p class="options-help">Clear a field and save to remove its override.</p>
+  <%= submit_tag "Save inspection URLs" %>
+<% end %>

@@ -51,11 +51,15 @@ function harness(responses, initialState = "queued") {
 }
 
 test("queued -> running -> completed opens only this run's report and stops polling", async () => {
-  const h = harness([response(payload("queued")), response(payload("running", { phases_recorded: ["Fetch"] })), response(payload("completed"))]);
+  const h = harness([response(payload("queued", { waiting_message: "Waiting for a worker" })),
+    response(payload("running", { phase_message: "Current phase: Statements", phases_recorded: ["Fetch"] })), response(payload("completed"))]);
   await setImmediate();
   assert.equal(h.element("label").textContent, "queued");
+  assert.equal(h.element("waiting").textContent, "Waiting for a worker");
   await h.nextPoll();
   assert.equal(h.element("phases").textContent, "Recorded phases: Fetch.");
+  assert.equal(h.element("phase").textContent, "Current phase: Statements");
+  assert.equal(h.element("waiting").hidden, true);
   assert.equal(h.panel.attributes["aria-busy"], "true");
   assert.deepEqual(h.navigation, []);
   await h.nextPoll();

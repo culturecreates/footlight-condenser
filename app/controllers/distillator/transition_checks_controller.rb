@@ -1,7 +1,5 @@
 module Distillator
   class TransitionChecksController < ApplicationController
-    PHASE_LABELS = { "fetch_parity" => "Fetch", "statement_delta" => "Statements", "export_diff" => "Export" }.freeze
-
     def show
       @run = Distillator::TransitionRun.find(params[:id])
       @website = @run.website
@@ -43,20 +41,8 @@ module Distillator
     private
 
     def run_status
-      status = @run.status
-      expired = status.in?(%w[queued running]) && @run.requested_at <= Time.current - Distillator::TransitionRun::LEASE
-      status = "expired" if expired
-      error = expired ? "This check expired. Retry to start a new run with the same options." : @run.error_message
-      message = case status
-                when "queued" then "Waiting for a worker. This page follows this run automatically."
-                when "running" then "Checking extracted values. The completed report will open automatically."
-                when "completed" then "Check completed. Opening its comparison report; completion does not mean parity passed."
-                else error.presence || "The check did not finish. Retry with the same options or change the scope."
-                end
-      recorded = @run.transition_evidences.distinct.pluck(:check_kind)
-      { run_id: @run.id, status: status, label: status.humanize, message: message,
-        phases_recorded: PHASE_LABELS.filter_map { |kind, label| label if recorded.include?(kind) },
-        check_options: @run.options.to_h, report_url: @report_path }
+      Distillator::TransitionRunProgress.new(@run).call.merge(run_id: @run.id,
+        check_options: @run.options.to_h, report_url: @report_path)
     end
 
     def requested_options

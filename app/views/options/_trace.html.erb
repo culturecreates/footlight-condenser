@@ -1,0 +1,84 @@
+<% trace_enabled = cookies[:dsl_trace] == "true" %>
+<% trace_visibility = cookies[:trace_visibility] || "auto" %>
+<% trace_view_mode = cookies[:trace_view_mode].presence || "3" %>
+<% code_len = cookies[:trace_code_display_length] || StatementsController::TRACE_CODE_DEFAULT.to_s %>
+<% output_len = cookies[:trace_output_display_length] || StatementsController::TRACE_OUTPUT_DEFAULT.to_s %>
+
+<h3>Trace presets</h3>
+<div class="option-row">
+  <%= link_to "Clean", set_trace_preset_path("clean"), method: :post %>
+  <%= link_to "Debug", set_trace_preset_path("debug"), method: :post %>
+</div>
+
+<h3>Trace</h3>
+<div class="option-row">
+  Trace:
+  <%= link_to "Enable", set_dsl_trace_options_path(state: "true"), class: (trace_enabled ? "active" : "") %> /
+  <%= link_to "Disable", set_dsl_trace_options_path(state: "false"), class: (!trace_enabled ? "active" : "") %>
+</div>
+
+<% if trace_enabled %>
+  <div class="option-row">
+    Visibility:
+    <%= link_to "Auto", set_trace_visibility_options_path(state: "auto"), class: (trace_visibility == "auto" ? "active" : "") %> |
+    <%= link_to "Always", set_trace_visibility_options_path(state: "always"), class: (trace_visibility == "always" ? "active" : "") %> |
+    <%= link_to "Hidden", set_trace_visibility_options_path(state: "hidden"), class: (trace_visibility == "hidden" ? "active" : "") %>
+  </div>
+
+  <div class="option-row">
+    View:
+    <%= link_to "Clean", set_trace_view_mode_path(1), method: :post, class: (trace_view_mode == "1" ? "active" : "") %> |
+    <%= link_to "Trace", set_trace_view_mode_path(3), method: :post, class: (trace_view_mode == "3" ? "active" : "") %> |
+    <%= link_to "Interactive", set_trace_view_mode_path(4), method: :post, class: (trace_view_mode == "4" ? "active" : "") %> |
+    <%= link_to "Debug", set_trace_view_mode_path(5), method: :post, class: (trace_view_mode == "5" ? "active" : "") %>
+  </div>
+<% else %>
+  <fieldset disabled>
+    <div class="option-row">Visibility: Auto | Always | Hidden</div>
+    <div class="option-row">View: Clean | Trace | Interactive | Debug</div>
+  </fieldset>
+<% end %>
+
+<h3>Display</h3>
+<% if trace_enabled %>
+  <div class="option-row">
+    Code length:
+    <%= link_to "140", set_trace_code_length_options_path(length: 140), class: (code_len == "140" ? "active" : "") %> |
+    <%= link_to "180", set_trace_code_length_options_path(length: 180), class: (code_len == "180" ? "active" : "") %> |
+    <%= link_to "200", set_trace_code_length_options_path(length: 200), class: (code_len == "200" ? "active" : "") %>
+  </div>
+
+  <div class="option-row">
+    Output length:
+    <%= link_to "140", set_trace_output_length_options_path(length: 140), class: (output_len == "140" ? "active" : "") %> |
+    <%= link_to "180", set_trace_output_length_options_path(length: 180), class: (output_len == "180" ? "active" : "") %> |
+    <%= link_to "200", set_trace_output_length_options_path(length: 200), class: (output_len == "200" ? "active" : "") %>
+  </div>
+<% else %>
+  <fieldset disabled>
+    <div class="option-row">Code length: 140 | 180 | 200</div>
+    <div class="option-row">Output length: 140 | 180 | 200</div>
+  </fieldset>
+<% end %>
+
+<details class="options-advanced"><summary>Advanced display settings</summary>
+  <fieldset <%= "disabled" unless trace_enabled %>>
+    <%= form_with url: options_path, method: :post, local: true do %>
+      <div class="option-row">
+        <label>
+          Trace Code Tooltip Length
+          <%= number_field_tag :trace_code_tooltip_length, cookies[:trace_code_tooltip_length], min: 1 %>
+        </label>
+      </div>
+
+      <div class="option-row">
+        <label>
+          Trace Output Tooltip Length
+          <%= number_field_tag :trace_output_tooltip_length, cookies[:trace_output_tooltip_length], min: 1 %>
+        </label>
+      </div>
+
+      <%= submit_tag "Save trace settings" %>
+    <% end %>
+  </fieldset>
+</details>

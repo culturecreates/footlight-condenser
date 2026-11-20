@@ -36,11 +36,16 @@
         <strong>Run #<%= @detail.transition_run_id %>: <%= @detail.transition_run_status.humanize %></strong>
         · requested <%= time_ago_in_words(@detail.transition_check_requested_at) %> ago.</p>
       <% requested_options = operation.latest_run.options %>
+      <% run_progress = Distillator::TransitionRunProgress.new(operation.latest_run).call %>
+      <% if run_progress[:phase_message] %><p><%= run_progress[:phase_message] %></p><% end %>
+      <% if run_progress[:waiting_message] %><p><%= run_progress[:waiting_message] %></p><% end %>
       <p class="transition-secondary">Requested scope: <%= requested_options.selection_rule %> <%= requested_options.field_policy_label %>.</p>
       <p><%= @detail.completed_transition_run_id ? "Results below remain from completed run ##{@detail.completed_transition_run_id}." : "Results will appear when all phases finish." %></p>
     <% elsif @detail.transition_run_status == "failed" %>
       <p><span class="transition-result transition-result--failed">Failed attempt</span>
         <strong>Run #<%= @detail.transition_run_id %> failed:</strong> <%= @detail.transition_run_error %></p>
+      <% last_phase = Distillator::TransitionRunProgress.new(operation.latest_run).call[:phase_message] %>
+      <% if last_phase %><p><%= last_phase %></p><% end %>
       <% if @detail.completed_transition_run_id %><p>Results below remain from completed run #<%= @detail.completed_transition_run_id %>.</p><% end %>
     <% end %>
   </div>

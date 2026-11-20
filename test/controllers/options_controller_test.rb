@@ -131,7 +131,7 @@ class OptionsControllerTest < ActionDispatch::IntegrationTest
     )
     ApplicationController.helpers.stubs(:get_wringer_url_per_environment).returns("http://wringer.example")
 
-    get options_path
+    get options_path(tab: "transition")
 
     assert_response :success
     assert_includes @response.body, "Status:</strong>"
@@ -152,7 +152,7 @@ class OptionsControllerTest < ActionDispatch::IntegrationTest
     )
     ApplicationController.helpers.stubs(:get_wringer_url_per_environment).returns("http://wringer.example")
 
-    get options_path
+    get options_path(tab: "transition")
 
     assert_response :success
     assert_includes @response.body, "Invalid staging websites:"
@@ -179,7 +179,7 @@ class OptionsControllerTest < ActionDispatch::IntegrationTest
 
     post repair_staging_rollout_options_path
 
-    assert_redirected_to options_path
+    assert_redirected_to options_path(tab: "transition")
     assert_equal "shadow", website.reload.distillator_mode
     follow_redirect!
     assert_includes @response.body, "Staging rollout repair moved 1 websites to Shadow. 0 unrepaired."
@@ -200,7 +200,7 @@ class OptionsControllerTest < ActionDispatch::IntegrationTest
 
     post repair_staging_rollout_options_path
 
-    assert_redirected_to options_path
+    assert_redirected_to options_path(tab: "transition")
     assert_equal "legacy", website.reload.distillator_mode
     assert_equal "Staging rollout repair can only run on staging.", flash[:alert]
   ensure
@@ -211,13 +211,66 @@ class OptionsControllerTest < ActionDispatch::IntegrationTest
     ENV["DISTILLATOR_RUNTIME"] = "staging"
     ApplicationController.helpers.stubs(:get_wringer_url_per_environment).returns("http://wringer.example")
 
-    get options_path
+    get options_path(tab: "transition")
 
     assert_response :success
     assert_includes @response.body, "Invalid staging websites:"
     assert_not_includes @response.body, "Move invalid staging websites to Shadow"
   ensure
     ENV["DISTILLATOR_RUNTIME"] = nil
+  end
+
+  test "options subjects are addressable and only the selected subject is rendered" do
+    Distillator::ProductionPreflight.expects(:call).never
+    get options_path(tab: "trace")
+
+    assert_select "nav[aria-label='Options subjects'] a", count: 4
+    assert_select "nav a[aria-current=page]", text: "DSL trace"
+    assert_select "#options-trace details summary", text: "Advanced display settings"
+    assert_select "#options-monitoring, #options-transition, #options-connections", count: 0
+    post options_path, params: { trace_code_tooltip_length: 180 }
+    assert_redirected_to options_path(tab: "trace")
+    assert_equal "180", cookies[:trace_code_tooltip_length]
+  end
+
+  test "inspection URLs retain site context and add an alternate cache link while keeping the configured Wringer" do
+    configure_wringer("https://wringer-staging.example")
+    website = websites(:two)
+    page_url = "https://upstream.example/event"
+    key = Distillator::WringerUrlKey.legacy(page_url).uri_key
+    configured_lookup = stub_request(:get, "https://wringer-staging.example/websites.json").with(query: { term: key })
+      .to_return(status: 200, body: "[]", headers: { "Content-Type" => "application/json" })
+    alternate_lookup = stub_request(:any, %r{https://wringer-comparison\.example/})
+
+    patch connections_options_path, params: {
+      console_inspection_url: " https://console-comparison.example/ ", wringer_inspection_url: "https://wringer-comparison.example/"
+    }
+    assert_redirected_to options_path(tab: "connections")
+    get options_path(tab: "connections", seedurl: website.seedurl)
+    assert_select "a[href=?]", "https://console-comparison.example/events?seedurl=#{website.seedurl}", text: "console"
+    assert_select "a[href=?]", "https://wringer-staging.example"
+    assert_select "input#wringer_inspection_url[value=?]", "https://wringer-comparison.example"
+
+    get condenser_cache_compare_path(uri: page_url)
+    assert_response :success
+    assert_select "a[href=?]", "https://wringer-comparison.example/websites?#{ { term: key }.to_query }", text: "Inspect alternate Wringer cache"
+    assert_requested configured_lookup, times: 1
+    assert_not_requested alternate_lookup
+
+    patch connections_options_path, params: { console_inspection_url: "", wringer_inspection_url: "" }
+    get options_path(tab: "connections", seedurl: website.seedurl)
+    assert_select "a[href*='console-comparison.example']", count: 0
+    assert_select "input#wringer_inspection_url[value]", count: 0
+  end
+
+  test "invalid connection URLs leave the saved browser overrides intact" do
+    patch connections_options_path, params: { console_inspection_url: "https://comparison.example" }
+    patch connections_options_path, params: { console_inspection_url: "javascript:alert(1)", wringer_inspection_url: "https://unexpected.example" }
+    assert_redirected_to options_path(tab: "connections")
+    assert_includes flash[:alert], "Console needs an HTTP or HTTPS base URL"
+    follow_redirect!
+    assert_select "input#console_inspection_url[value=?]", "https://comparison.example"
+    assert_select "input#wringer_inspection_url[value]", count: 0
   end
 
   test "set_trace_view_mode stores cookie and redirects back" do

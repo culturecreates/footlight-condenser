@@ -160,6 +160,7 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
     end
     get distillator_transition_check_path(run, format: :json)
     assert_equal "queued", response.parsed_body["status"]
+    assert_equal "Waiting for a worker to start this check.", response.parsed_body["waiting_message"]
     assert_equal expected_report, response.parsed_body["report_url"]
     assert_equal "no-store", response.headers["Cache-Control"]
 
@@ -179,6 +180,38 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
     assert_equal expected_report, response.parsed_body["report_url"]
     assert_equal "legacy", target.reload.distillator_mode
     assert_empty ActiveJob::Base.queue_adapter.enqueued_jobs
+  end
+
+  test "an export whose worker disappeared shows the recovery deadline without expiring the workflow" do
+    target = websites(:two)
+    run = Distillator::TransitionRun.request!(website: target).run
+    run.update!(status: "running", requested_at: 61.minutes.ago, started_at: 61.minutes.ago)
+    run.record_progress!("export")
+    batch = Distillator::TransitionBatch.create!(request_key: "lost-export-worker")
+    deadline = 1.minute.from_now
+    workflow = batch.site_transitions.create!(website: target, website_name: target.name, seedurl: target.seedurl,
+      position: 0, status: "running", phase: "precheck", expected_mode: "shadow", initial_mode: "legacy",
+      phase_started_at: run.started_at, pre_run: run, deadline_at: deadline)
+    ActiveJob::Base.stubs(:queue_adapter_name).returns("sidekiq")
+    Sidekiq::WorkSet.stubs(:new).returns([])
+
+    get distillator_transition_check_path(run)
+    assert_select "[data-run-phase]", text: /Current phase: Export/
+    assert_select "[data-run-waiting]", text: /Waiting for automatic recovery/
+    assert_select "a[href=?]", distillator_site_transition_path(workflow), text: "Site workflow"
+    assert_select "[data-run-failed][hidden]"
+
+    get distillator_transition_check_path(run, format: :json)
+    assert_equal "running", response.parsed_body["status"]
+    assert_includes response.parsed_body["waiting_message"], deadline.strftime("%b %-d, %H:%M:%S %Z")
+    assert_equal "running", run.reload.status
+
+    job = Struct.new(:item).new({ "wrapped" => "Distillator::SiteTransitionJob",
+      "args" => [{ "arguments" => [workflow.id, { "phase" => "queued" }] }] })
+    work = Struct.new(:job).new(job)
+    Sidekiq::WorkSet.stubs(:new).returns([["worker", "thread", work]])
+    get distillator_transition_check_path(run, format: :json)
+    assert_nil response.parsed_body["waiting_message"]
   end
 
   test "failure stays visible and retry preserves scope with a new run" do

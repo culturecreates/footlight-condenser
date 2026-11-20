@@ -6,13 +6,23 @@ module ApplicationHelper
   end
 
   def active_cache_links_for(url, include_fragment: false, mode: nil, website: nil, website_id: nil)
-    Distillator::CacheLinkResolver.call(
+    links = Distillator::CacheLinkResolver.call(
       url: url,
       include_fragment: include_fragment,
       mode: mode,
       website: website,
       website_id: website_id
     )
+    alternate_url = cookies.signed[:wringer_inspection_url]
+    if alternate_url.present? && alternate_url != wringer_navigation_url && url.to_s.match?(%r{\Ahttps?://})
+      alternate_link = alternate_wringer_cache_link(alternate_url, url, include_fragment: include_fragment)
+      links[:secondary_links] << alternate_link if alternate_link
+    end
+    links
+  end
+
+  def cache_inspection_links(url, website: nil)
+    Distillator::InspectionLinks.call(url: url, website: website, payload: active_cache_links_for(url, website: website))
   end
 
   def distillator_refresh_preview_url_for(url, include_fragment: false)
@@ -161,6 +171,14 @@ module ApplicationHelper
   end
 
   private
+
+  def alternate_wringer_cache_link(base_url, url, include_fragment:)
+    key = Distillator::WringerUrlKey.legacy(url, include_fragment: include_fragment)
+    query = { term: key.uri_key }.to_query
+    { label: "Inspect alternate Wringer cache", url: "#{base_url}/websites?#{query}" }
+  rescue URI::InvalidURIError, Addressable::URI::InvalidURIError
+    nil
+  end
 
   def current_transition_website
     return @website if instance_variable_defined?(:@website) && @website&.persisted?
