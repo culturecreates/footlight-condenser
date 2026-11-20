@@ -1,7 +1,11 @@
+require "tempfile"
+
 module Distillator
   class TransitionCheckRunner
     REQUEST_BUDGET_SECONDS = 20
     TIMEOUT_GUARD_SECONDS = 3
+    MEMORY_SAMPLE_INTERVAL = 25
+    CacheMetadata = Struct.new(:normalized_url, :primary_issue_key, :http_response_code)
 
     Result = Struct.new(:website, :records, keyword_init: true) do
       def flash_message
@@ -103,6 +107,22 @@ module Distillator
     end
 
     def perform_checks
+      # Active Record's query cache can otherwise retain each fetched body, even
+      # after the comparison releases the corresponding model.
+      ActiveRecord::Base.uncached do
+        Tempfile.create("distillator-html", anonymous: true, binmode: true) do |file|
+          @snapshot_file = file
+          perform_checks_with_snapshots
+        end
+      end
+    ensure
+      @snapshot_file = nil
+      @representative_result_cache.clear
+    end
+
+    private
+
+    def perform_checks_with_snapshots
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       @phase_timings = {}
       transition_run&.record_progress!("selection")
@@ -110,10 +130,11 @@ module Distillator
       check_args[:check_options] = @check_options unless @check_options.default?
       transition_check = timed_phase("selection") { transition_check_service.call(**check_args) }
       representative_webpages = Array(transition_check.representative_webpages)
-      transition_run&.record_progress!("fetch", completed: 0, total: representative_webpages.length)
+      record_page_progress("fetch", 0, representative_webpages.length)
       representative_url_results = @representative_url_results = timed_phase("fetch") do
         collect_representative_url_results(representative_webpages, transition_check.comparison_policy)
       end
+      @snapshot_file.flush
 
       records = {
         fetch_parity: record_fetch_check(transition_check, representative_url_results),
@@ -127,7 +148,22 @@ module Distillator
       Result.new(website: website, records: records)
     end
 
-    private
+    def record_page_progress(phase, completed, total)
+      return unless transition_run
+
+      transition_run.record_progress!(phase, completed: completed, total: total)
+      return unless (completed % MEMORY_SAMPLE_INTERVAL).zero? || completed == total
+
+      Rails.logger.info(event: "distillator.transition.memory", run_id: transition_run.id, phase: phase,
+        completed: completed, total: total, rss_kib: process_rss_kib, heap_live_slots: GC.stat(:heap_live_slots))
+    end
+
+    def process_rss_kib
+      rss = File.foreach("/proc/self/status").find { |line| line.start_with?("VmRSS:") }
+      rss&.split&.fetch(1)&.to_i
+    rescue SystemCallError
+      nil
+    end
 
     attr_reader :transition_run, :statement_comparator, :website, :refresh_helper, :export_service, :transition_check_service, :fetch_cache_store, :cache_compare,
                 :timeout_guard_seconds
@@ -140,17 +176,10 @@ module Distillator
     end
 
     def performance_snapshot(records, started)
-      artifacts = Array(records[:statement_delta].details["statement_artifacts"])
-      sources = artifacts.group_by { |row| row["source_id"] }.map do |id, rows|
-        timings = rows.flat_map { |row| row.fetch("timing", {}).to_h.values }.compact
-        { source_id: id, field: rows.first["property_label"], executions: timings.length,
-          extraction_ms: timings.sum { |row| row["extraction_ms"].to_f }.round(2),
-          formatting_ms: timings.sum { |row| row["formatting_ms"].to_f }.round(2) }
-      end
       { total_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round(2),
         phases_ms: @phase_timings.dup,
         reconciliation: refresh_helper.respond_to?(:reconciliation_performance) ? refresh_helper.reconciliation_performance : {},
-        slowest_sources: sources.sort_by { |row| -(row[:extraction_ms] + row[:formatting_ms]) }.first(10) }
+        slowest_sources: Array(records[:statement_delta].details["slowest_sources"]) }
     end
 
     def record_fetch_check(transition_check, representative_url_results)
@@ -180,9 +209,11 @@ module Distillator
       end
       parity = Distillator::StatementParityCheck.call(website: website, webpages: representative_webpages,
         url_results: representative_url_results, refresh_helper: refresh_helper, comparator: statement_comparator,
-        strict: @check_options.strict?, stop_requested: -> { timeout_budget_exceeded? },
-        progress: ->(completed, total) { transition_run&.record_progress!("statements", completed: completed, total: total) })
-      failing = parity.critical_failures + parity.optional_failures
+        strict: @check_options.strict?, stop_requested: -> { timeout_budget_exceeded? }, compact_evidence: true,
+        snapshot_reader: method(:read_html_pair),
+        progress: ->(completed, total) { record_page_progress("statements", completed, total) })
+      critical = parity.critical_failures.map { |entry| failure_identity(entry) }
+      optional = parity.optional_failures.map { |entry| failure_identity(entry) }
       Distillator::TransitionEvidenceRecorder.call(
         website: website, transition_run: transition_run,
         url: representative_webpages.first&.url.presence || cache_or_seed_url(latest_cache),
@@ -193,16 +224,20 @@ module Distillator
           source: "paired_extraction", comparison_basis: "paired_dsl", reason: parity.reason,
           representative_url_statement_results: parity.url_results,
           statement_artifacts: parity.artifacts,
-          statements_compared_count: parity.artifacts.length, statements_refreshed_count: 0,
+          statements_compared_count: parity.comparison_count, statements_refreshed_count: 0,
+          slowest_sources: parity.slowest_sources,
           compared_webpage_count: parity.url_results.count { |row| row[:status].in?(%w[passed warning failed unverified]) },
           shared_extraction_failure_count: parity.artifacts.count { |entry| MigrationComparator.shared_extraction_failure?(entry) },
-          statements_failed_count: failing.length, failing_statements: failing,
-          critical_statements_failed_count: parity.critical_failures.length,
-          optional_statements_failed_count: parity.optional_failures.length,
-          critical_failing_statements: parity.critical_failures,
-          optional_failing_statements: parity.optional_failures
+          statements_failed_count: critical.length + optional.length, failing_statements: critical + optional,
+          critical_statements_failed_count: critical.length,
+          optional_statements_failed_count: optional.length,
+          critical_failing_statements: critical, optional_failing_statements: optional
         )
       )
+    end
+
+    def failure_identity(entry)
+      entry.except(:legacy, :condenser, :timing, :legacy_error, :condenser_error)
     end
 
     def record_export_check(transition_check, representative_webpages, representative_url_results)
@@ -494,12 +529,12 @@ module Distillator
       fetch_status = fetch_result.cache_hit != true && fetch_result.transport_success? && fetch_result.content_success? ? "passed" : "failed"
       active_path_failed = @require_native_path && (!fetch_result.respond_to?(:fetch_path) || fetch_result.fetch_path != "native")
       fetch_status = "failed" if active_path_failed
+      cache = fetch_result.cache
       {
         url: webpage.url,
         webpage_id: webpage.id,
-        cache: fetch_result.cache,
-        legacy_html: comparison&.dig(:legacy_cache, :html),
-        condenser_html: fetch_result.cache&.html,
+        cache: cache && CacheMetadata.new(cache.normalized_url, cache.primary_issue_key, cache.http_response_code),
+        html_pair: (store_html_pair(comparison&.dig(:legacy_cache, :html), cache&.html) if fetch_status == "passed"),
         attempted_condenser_fetch: true,
         condenser_fetch_success: fetch_status == "passed",
         http_response_code: fetch_result.http_response_code.presence || fetch_result.cache&.http_response_code,
@@ -520,6 +555,22 @@ module Distillator
         compare_summary: comparison&.dig(:summary),
         comparison_status: comparison_status(comparison)
       }
+    end
+
+    def store_html_pair(legacy, condenser)
+      return if legacy.blank? || condenser.blank?
+
+      [legacy, condenser].map do |html|
+        offset = @snapshot_file.pos
+        @snapshot_file.write(html)
+        [offset, html.bytesize, html.encoding]
+      end
+    end
+
+    def read_html_pair(input)
+      input[:html_pair]&.map do |offset, bytes, encoding|
+        @snapshot_file.pread(bytes, offset).force_encoding(encoding)
+      end
     end
 
     def recorded_fetch_diagnostics(result)
@@ -548,7 +599,7 @@ module Distillator
         end
 
         collected << representative_url_result_for(webpage, comparison_policy)
-        transition_run&.record_progress!("fetch", completed: index + 1, total: representative_webpages.length)
+        record_page_progress("fetch", index + 1, representative_webpages.length)
       end
 
       collected
@@ -567,7 +618,7 @@ module Distillator
     end
 
     def serializable_representative_url_result(result)
-      result.except(:cache, :legacy_html, :condenser_html)
+      result.except(:cache, :html_pair)
     end
 
     def representative_failed_layer(results)

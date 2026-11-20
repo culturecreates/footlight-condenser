@@ -163,6 +163,21 @@ class Distillator::StatementParityCheckTest < ActiveSupport::TestCase
     assert result.artifacts.all? { |row| row[:verdict] == Distillator::MigrationComparator::MATCH }
   end
 
+  test "compact evidence compares complete values and counts matching fields" do
+    prefix = "Événement " * 120
+    result = compare(html(title: "#{prefix}Legacy"), html(title: "#{prefix}Condenser"), strict: true, compact_evidence: true)
+
+    assert_equal :failed, result.status
+    assert_equal 4, result.comparison_count
+    assert_equal ["Title"], result.artifacts.map { |row| row[:property_label] }
+    entry = result.critical_failures.sole
+    assert_equal "DIFFERENT_VALUE", entry[:verdict]
+    assert_equal entry[:legacy][:preview], entry[:condenser][:preview]
+    assert entry[:legacy][:preview].valid_encoding?
+    assert_not_equal entry[:legacy][:sha256], entry[:condenser][:sha256]
+    assert_equal 4, result.slowest_sources.size
+  end
+
   test "an exhausted budget records incomplete coverage without running more sources" do
     @helper.expects(:format_datatype).never
     result = compare(html, html, stop_requested: -> { true })
@@ -186,9 +201,9 @@ class Distillator::StatementParityCheckTest < ActiveSupport::TestCase
     "<html><head><title>#{title}</title></head><body><time>#{date}</time><div id='location'>Hall</div><span id='price'>#{price}</span></body></html>"
   end
 
-  def compare(legacy, candidate, strict: false, stop_requested: nil)
+  def compare(legacy, candidate, strict: false, stop_requested: nil, compact_evidence: false)
     Distillator::StatementParityCheck.call(website: @website, webpages: [@page], refresh_helper: @helper,
       url_results: [{ url: @page.url, fetch_status: "passed", legacy_html: legacy, condenser_html: candidate }], strict: strict,
-      stop_requested: stop_requested)
+      stop_requested: stop_requested, compact_evidence: compact_evidence)
   end
 end

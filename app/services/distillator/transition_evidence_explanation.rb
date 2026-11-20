@@ -183,7 +183,7 @@ module Distillator
       if details_hash["comparison_basis"] == "paired_dsl"
         entries = Array(details_hash["statement_artifacts"]).map(&:symbolize_keys)
         differences = entries.reject { |entry| entry[:verdict] == "MATCH" }
-        return ["Sources compared: #{entries.length}"] + differences.first(10).map do |entry|
+        return ["Sources compared: #{details_hash['statements_compared_count'] || entries.length}"] + differences.first(10).map do |entry|
           location = entry[:webpage_url].present? ? "#{entry[:webpage_url]} — " : ""
           if MigrationComparator.shared_extraction_failure?(entry)
             next "#{location}#{entry[:property_label]} / #{entry[:language]}: Shared local extraction failure; parity unverified (#{entry[:legacy_error].to_h['error_type']})."

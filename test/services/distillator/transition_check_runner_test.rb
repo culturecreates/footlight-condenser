@@ -150,6 +150,9 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal ["https://runner-site.example/event"], result.records[:statement_delta].details["representative_webpages"]
     assert_equal 0, result.records[:statement_delta].details["statements_refreshed_count"]
     assert_equal "paired_dsl", result.records[:statement_delta].details["comparison_basis"]
+    assert_operator result.records[:statement_delta].details["statements_compared_count"], :>, 0
+    assert_empty result.records[:statement_delta].details["statement_artifacts"]
+    refute_includes result.records[:fetch_parity].details["representative_url_results"].first.keys, "html_pair"
     assert_equal "completed", website.latest_transition_run.status
     assert_equal "current export vs production-equivalent export", result.records[:export_diff].details["export_basis"]
     assert_equal true, result.records[:export_diff].details["export_compared"]
