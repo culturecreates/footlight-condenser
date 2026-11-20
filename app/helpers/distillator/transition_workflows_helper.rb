@@ -22,6 +22,12 @@ module Distillator::TransitionWorkflowsHelper
     text + " Queue waiting time is additional."
   end
 
+  def workflow_job_wait(item)
+    return unless item.status == "running"
+
+    Distillator::TransitionJobStatus.new(run: item.current_run, workflow: item).message
+  end
+
   def workflow_elapsed(item)
     return "Not started" unless item.started_at
     seconds = ((item.completed_at || Time.current) - item.started_at).to_i

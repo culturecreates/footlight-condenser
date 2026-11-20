@@ -14,7 +14,8 @@
     <tbody><% @items.each do |item| %>
       <tr data-workflow-result="<%= item.status %>">
         <th scope="row"><%= link_to item.website_name, distillator_site_transition_path(item) %></th>
-        <td><%= workflow_state_badge(item.status) %><% unless item.terminal? %><br><%= workflow_phase_label(item) %><% end %><br><%= workflow_elapsed(item) %></td>
+        <td><%= workflow_state_badge(item.status) %><% unless item.terminal? %><br><%= workflow_phase_label(item) %><% end %><br><%= workflow_elapsed(item) %>
+          <% if (waiting = workflow_job_wait(item)) %><br><%= waiting %><% end %></td>
         <td><%= item.initial_mode.humanize %></td>
         <td><%= workflow_check_link(item, :pre) %></td>
         <td><%= workflow_check_link(item, :post) %></td>

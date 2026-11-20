@@ -1,5 +1,3 @@
-require "sidekiq/api"
-
 module Distillator
   class TransitionRunProgress
     PHASE_EVIDENCE = { "fetch_parity" => "Fetch", "statement_delta" => "Statements", "export_diff" => "Export" }.freeze
@@ -20,7 +18,8 @@ module Distillator
       active = status.in?(%w[queued running])
       { status: status, label: status.humanize, message: message(status), phase_message: phase_message(status, evidence),
         page_message: statement_page_message(evidence),
-        waiting_message: active ? waiting_message(status) : nil, workflow_id: @workflow&.id,
+        waiting_message: active ? TransitionJobStatus.new(run: @run, workflow: @workflow, now: @now).message : nil,
+        workflow_id: @workflow&.id,
         phases_recorded: PHASE_EVIDENCE.filter_map { |kind, label| label if evidence.include?(kind) } }
     end
 
@@ -64,50 +63,6 @@ module Distillator
         .where("details ->> 'representative_webpage_count' = ?", total.to_s)
         .pick(Arel.sql("details -> 'representative_webpages' ->> #{index}"))
       "Last page reached (#{index + 1}/#{total}): #{url}" if url.present?
-    end
-
-    def waiting_message(status)
-      return "Waiting for a worker to start this check." if status == "queued"
-
-      case worker_state
-      when :not_reported
-        if @workflow&.deadline_at
-          deadline = local_time(@workflow.deadline_at)
-          timing = @now < @workflow.deadline_at ? "scheduled for" : "due since"
-          "No worker is reporting this run. Waiting for automatic recovery, #{timing} #{deadline}."
-        else
-          "No worker is reporting this run. Its lease expires at #{local_time(lease_end)}."
-        end
-      when :unavailable
-        "Worker status is unavailable."
-      end
-    end
-
-    def worker_state
-      return :unmonitored unless ActiveJob::Base.queue_adapter_name.to_s == "sidekiq"
-      # Sidekiq publishes its work set on a heartbeat, so let new claims appear first.
-      return :starting if @now - (@run.started_at || @run.requested_at) < 15.seconds
-
-      Sidekiq::WorkSet.new.any? { |_, _, work| same_run?(work.job.item) } ? :reported : :not_reported
-    rescue StandardError
-      :unavailable
-    end
-
-    def same_run?(job)
-      arguments = job.dig("args", 0, "arguments")
-      return false unless arguments.is_a?(Array) && arguments.last.is_a?(Hash)
-
-      case job["wrapped"]
-      when "Distillator::TransitionCheckJob"
-        arguments.last["run_id"].to_s == @run.id.to_s
-      when "Distillator::SiteTransitionJob"
-        return false unless @workflow && arguments.first.to_s == @workflow.id.to_s && @workflow.current_run&.id == @run.id
-
-        phases = @workflow.phase == "precheck" ? %w[queued precheck] : [@workflow.phase]
-        phases.include?(arguments.last["phase"])
-      else
-        false
-      end
     end
 
     def lease_end = @run.requested_at + TransitionRun::LEASE

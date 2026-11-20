@@ -182,7 +182,7 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
     assert_empty ActiveJob::Base.queue_adapter.enqueued_jobs
   end
 
-  test "an export whose worker disappeared shows the recovery deadline without expiring the workflow" do
+  test "transition reports follow the actual scheduled, queued and busy Sidekiq jobs" do
     target = websites(:two)
     run = Distillator::TransitionRun.request!(website: target).run
     run.update!(status: "running", requested_at: 61.minutes.ago, started_at: 61.minutes.ago)
@@ -194,6 +194,20 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
       phase_started_at: run.started_at, pre_run: run, deadline_at: deadline)
     ActiveJob::Base.stubs(:queue_adapter_name).returns("sidekiq")
     Sidekiq::WorkSet.stubs(:new).returns([])
+    native_job = Sidekiq::JobRecord.new({ "class" => "UnrelatedWorker", "args" => ["native argument"] })
+    Sidekiq::Queue.stubs(:new).with("default").returns([native_job])
+    scheduled = stub("scheduled jobs")
+    retries = stub("retry jobs")
+    Sidekiq::ScheduledSet.stubs(:new).returns(scheduled)
+    Sidekiq::RetrySet.stubs(:new).returns(retries)
+    retries.stubs(:scan).with("Distillator::SiteTransition").returns([])
+    watchdog_payload = { "wrapped" => "Distillator::SiteTransitionWatchdogJob",
+      "args" => [{ "arguments" => [workflow.id] }] }
+    scheduled_at = deadline + 30.seconds
+    unrelated = Sidekiq::SortedEntry.new(scheduled, (deadline - 20.seconds).to_f,
+      watchdog_payload.merge("args" => [{ "arguments" => [workflow.id + 1] }]))
+    watchdog = Sidekiq::SortedEntry.new(scheduled, scheduled_at.to_f, watchdog_payload)
+    scheduled.stubs(:scan).with("Distillator::SiteTransition").returns([unrelated, watchdog])
 
     get distillator_transition_check_path(run)
     assert_select "[data-run-phase]", text: /Current phase: Export/
@@ -203,8 +217,23 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
 
     get distillator_transition_check_path(run, format: :json)
     assert_equal "running", response.parsed_body["status"]
-    assert_includes response.parsed_body["waiting_message"], deadline.strftime("%b %-d, %H:%M:%S %Z")
+    assert_includes response.parsed_body["waiting_message"], scheduled_at.strftime("%b %-d, %H:%M:%S %Z")
     assert_equal "running", run.reload.status
+
+    get distillator_site_transition_path(workflow, format: :json)
+    assert_includes response.parsed_body["html"], "Waiting for automatic recovery."
+    batch.site_transitions.create!(website_name: "Another site", position: 1, initial_mode: "legacy", expected_mode: "legacy")
+    get distillator_transition_batch_path(batch, format: :json)
+    assert_includes response.parsed_body["html"], "Waiting for automatic recovery."
+
+    Sidekiq::Queue.stubs(:new).with("default").returns([Sidekiq::JobRecord.new(watchdog_payload)])
+    get distillator_transition_check_path(run, format: :json)
+    assert_equal "The recovery job is queued. Waiting for a Sidekiq worker.", response.parsed_body["waiting_message"]
+
+    Sidekiq::Queue.stubs(:new).with("default").returns([])
+    scheduled.stubs(:scan).with("Distillator::SiteTransition").returns([unrelated])
+    get distillator_transition_check_path(run, format: :json)
+    assert_match(/Sidekiq reports no job.*recorded recovery deadline/, response.parsed_body["waiting_message"])
 
     job = Struct.new(:item).new({ "wrapped" => "Distillator::SiteTransitionJob",
       "args" => [{ "arguments" => [workflow.id, { "phase" => "queued" }] }] })

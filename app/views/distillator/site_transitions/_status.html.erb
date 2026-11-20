@@ -11,6 +11,7 @@
   <% if @website %><p>Current mode: <strong><%= @website.distillator_mode.humanize %></strong> ·
     Serving backend: <strong><%= website_rollout_backend_for(@website) %></strong></p><% else %><p>Website was deleted.</p><% end %>
   <p><%= workflow_elapsed(@item) %></p>
+  <% if (waiting = workflow_job_wait(@item)) %><p class="transition-secondary" aria-live="polite"><%= waiting %></p><% end %>
   <% unless @item.terminal? %><p class="transition-secondary"><%= workflow_estimate([@item]) %></p><% end %>
 </section>
 <ol class="transition-workflow-phases">
