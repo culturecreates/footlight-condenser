@@ -19,6 +19,7 @@ module Distillator
       evidence = @run.transition_evidences.distinct.pluck(:check_kind)
       active = status.in?(%w[queued running])
       { status: status, label: status.humanize, message: message(status), phase_message: phase_message(status, evidence),
+        page_message: statement_page_message(evidence),
         waiting_message: active ? waiting_message(status) : nil, workflow_id: @workflow&.id,
         phases_recorded: PHASE_EVIDENCE.filter_map { |kind, label| label if evidence.include?(kind) } }
     end
@@ -48,6 +49,21 @@ module Distillator
       text += " · #{@progress['completed']}/#{@progress['total']} pages processed" if @progress["total"]
       text += " · updated #{local_time(Time.iso8601(@progress['updated_at']))}" if @progress["updated_at"]
       text
+    end
+
+    def statement_page_message(evidence)
+      return unless @progress["phase"] == "statements" && evidence.include?("fetch_parity")
+
+      index = Integer(@progress["completed"], exception: false)
+      total = Integer(@progress["total"], exception: false)
+      return unless index && total && index >= 0 && index < total
+
+      # Statement comparison visits the same ordered page list recorded by Fetch.
+      # Read just this URL, since Fetch evidence can be large.
+      url = @run.transition_evidences.for_kind("fetch_parity").latest_first
+        .where("details ->> 'representative_webpage_count' = ?", total.to_s)
+        .pick(Arel.sql("details -> 'representative_webpages' ->> #{index}"))
+      "Last page reached (#{index + 1}/#{total}): #{url}" if url.present?
     end
 
     def waiting_message(status)

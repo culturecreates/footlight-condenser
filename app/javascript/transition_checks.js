@@ -53,7 +53,7 @@ export function followTransitionRun(panel, {
       connectionMessage("");
       panel.querySelector("[data-run-label]").textContent = data.label;
       panel.querySelector("[data-run-message]").textContent = data.message;
-      for (const [target, text] of [["phase", data.phase_message], ["waiting", data.waiting_message]]) {
+      for (const [target, text] of [["phase", data.phase_message], ["page", data.page_message], ["waiting", data.waiting_message]]) {
         const element = panel.querySelector(`[data-run-${target}]`);
         if (!element) continue;
         element.textContent = text || "";

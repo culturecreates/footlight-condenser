@@ -214,6 +214,24 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
     assert_nil response.parsed_body["waiting_message"]
   end
 
+  test "a stopped statement check identifies its last page from the recorded fetch order" do
+    target = websites(:two)
+    run = Distillator::TransitionRun.request!(website: target).run
+    run.update!(status: "running", started_at: Time.current)
+    urls = ["https://example.org/z", "https://example.org/b", "https://example.org/a"]
+    run.transition_evidences.create!(website: target, url: urls.first, check_kind: "fetch_parity", status: "checked",
+      checked_at: Time.current, details: { representative_webpages: urls, representative_webpage_count: 3 })
+    run.record_progress!("statements", completed: 1, total: 3)
+    run.fail!("The workflow expired.")
+
+    get distillator_transition_check_path(run)
+
+    assert_select "[data-run-page]:not([hidden])", text: "Last page reached (2/3): https://example.org/b"
+    assert_select "[data-run-phase]", text: /Last phase: Statements/
+    get distillator_transition_check_path(run, format: :json)
+    assert_equal "Last page reached (2/3): https://example.org/b", response.parsed_body["page_message"]
+  end
+
   test "failure stays visible and retry preserves scope with a new run" do
     target = websites(:two)
     run = Distillator::TransitionRun.request!(website: target, options: { sample_mode: "all", strictness: "strict" }).run
