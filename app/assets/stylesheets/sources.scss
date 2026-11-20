@@ -2,15 +2,21 @@
 // They will automatically be included in application.css.
 // You can use Sass (SCSS) here: http://sass-lang.com/
 
-.source-form-cards .source-algorithm-card,
-.source-form-cards .source-diagnostics-card {
-  grid-column: 1 / -1;
+.source-algorithm-card,
+.source-diagnostics-card {
+  box-sizing: border-box;
+  margin: 0 0 1rem;
 }
 
-.source-form-cards .source-algorithm-card textarea {
+.source-diagnostics-card {
+  max-width: 72rem;
+}
+
+.source-algorithm-editor {
   box-sizing: border-box;
   width: 100%;
-  max-width: 100%;
+  font-size: 18pt;
+  resize: vertical;
 }
 
 .source-show-section {

@@ -363,8 +363,8 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     get edit_source_url(@source)
 
     assert_response :success
-    assert_select ".source-form-cards .source-algorithm-card", 1
-    assert_select ".source-form-cards .source-diagnostics-card", 1
+    assert_select "form > .source-algorithm-card textarea#source_algorithm_value.source-algorithm-editor[rows='12']", 1
+    assert_select "form > .source-diagnostics-card", 1
     assert_match "Identity", @response.body
     assert_match "Activation", @response.body
     assert_match "Fetch strategy", @response.body

@@ -73,38 +73,38 @@
       <p><strong>Current fetch strategy:</strong> <%= source_form_fetch_strategy_summary(source) %></p>
       <p class="sources-secondary-text"><%= source_form_fetch_strategy_note(source) %></p>
     </section>
-
-    <section class="cache-detail-card source-algorithm-card">
-      <h2>Extraction algorithm</h2>
-
-      <div class="field">
-        <%= form.label :algorithm_value, "Raw extraction DSL" %>
-        <%= form.text_area :algorithm_value, id: :source_algorithm_value, cols: 60, rows: 6, style: "font-size: 18pt" %>
-      </div>
-
-      <p class="sources-secondary-text">Use pipeline steps such as <code>url=</code>, <code>xpath=</code>, <code>ruby=</code>. Test with trace before activating.</p>
-      <div class="field">
-        <%= label_tag :dsl_library_choice, "Library instruction" %>
-        <%= select_tag :dsl_library_choice, options_for_select(DslLibraryEntry.order(:name).pluck(:name).map { |name| ["$$#{name}$$", "$$#{name}$$"] }), include_blank: "Choose an instruction" %>
-        <button type="button" onclick="const choice=document.getElementById('dsl_library_choice').value; const field=document.getElementById('source_algorithm_value'); if(choice){const current=field.value.replace(/[;\s]*$/, ''); field.value=current+(current ? ';\n' : '')+choice; field.dispatchEvent(new Event('input',{bubbles:true})); field.focus();}">Append instruction</button>
-      </div>
-      <p class="sources-secondary-text"><%= link_to "DSL Library", dsl_library_entries_path %>: use complete steps such as <code>$$META_TITLE$$;$$A_UNIQ$$</code>. Shared edits apply on the next run.</p>
-      <p class="sources-secondary-text">Use <code>api="$$SELF_URL$$/statements.json?..."</code> for this Condenser environment. Defaults to this app’s origin (no trailing slash); <code>CONDENSER_PUBLIC_URL</code> optionally overrides it. Also supported by URL navigation steps.</p>
-      <details class="sources-secondary-text"><summary>Monitor a specific DSL error</summary>
-        <p>Return <code>['abort_update', { error: 'Audience mapping is stale', notify: 'daily' }]</code> to show that error in Monitoring and the optional daily email. Other errors retain their existing behavior.</p>
-      </details>
-    </section>
-
-    <section class="cache-detail-card source-diagnostics-card">
-      <h2>Diagnostics</h2>
-      <dl class="sources-detail-list">
-        <% source_diagnostics_pairs(source).each do |label, value| %>
-          <dt><%= label %></dt>
-          <dd><%= value %></dd>
-        <% end %>
-      </dl>
-    </section>
   </div>
+
+  <section class="cache-detail-card source-algorithm-card">
+    <h2>Extraction algorithm</h2>
+
+    <div class="field">
+      <%= form.label :algorithm_value, "Raw extraction DSL" %>
+      <%= form.text_area :algorithm_value, id: :source_algorithm_value, rows: 12, class: "source-algorithm-editor" %>
+    </div>
+
+    <p class="sources-secondary-text">Use pipeline steps such as <code>url=</code>, <code>xpath=</code>, <code>ruby=</code>. Test with trace before activating.</p>
+    <div class="field">
+      <%= label_tag :dsl_library_choice, "Library instruction" %>
+      <%= select_tag :dsl_library_choice, options_for_select(DslLibraryEntry.order(:name).pluck(:name).map { |name| ["$$#{name}$$", "$$#{name}$$"] }), include_blank: "Choose an instruction" %>
+      <button type="button" onclick="const choice=document.getElementById('dsl_library_choice').value; const field=document.getElementById('source_algorithm_value'); if(choice){const current=field.value.replace(/[;\s]*$/, ''); field.value=current+(current ? ';\n' : '')+choice; field.dispatchEvent(new Event('input',{bubbles:true})); field.focus();}">Append instruction</button>
+    </div>
+    <p class="sources-secondary-text"><%= link_to "DSL Library", dsl_library_entries_path %>: use complete steps such as <code>$$META_TITLE$$;$$A_UNIQ$$</code>. Shared edits apply on the next run.</p>
+    <p class="sources-secondary-text">Use <code>api="$$SELF_URL$$/statements.json?..."</code> for this Condenser environment. Defaults to this app’s origin (no trailing slash); <code>CONDENSER_PUBLIC_URL</code> optionally overrides it. Also supported by URL navigation steps.</p>
+    <details class="sources-secondary-text"><summary>Monitor a specific DSL error</summary>
+      <p>Return <code>['abort_update', { error: 'Audience mapping is stale', notify: 'daily' }]</code> to show that error in Monitoring and the optional daily email. Other errors retain their existing behavior.</p>
+    </details>
+  </section>
+
+  <section class="cache-detail-card source-diagnostics-card">
+    <h2>Diagnostics</h2>
+    <dl class="sources-detail-list">
+      <% source_diagnostics_pairs(source).each do |label, value| %>
+        <dt><%= label %></dt>
+        <dd><%= value %></dd>
+      <% end %>
+    </dl>
+  </section>
 
   <div class="actions">
     <%= form.submit %>
