@@ -1,4 +1,5 @@
 require "test_helper"
+require "minitest/mock"
 
 class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
   include WebMock::API
@@ -58,6 +59,39 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_includes run.error_message, "configured limit 900 MiB"
     assert_empty website.latest_transition_evidences_by_kind
     assert_equal "shadow", website.reload.distillator_mode
+  end
+
+  test "fetch and statement comparison reuse selected sources within each class and language" do
+    website = build_website
+    page = website.webpages.sole
+    same_profile = website.webpages.create!(url: "#{page.url}/other", language: "en", rdf_uri: "rdf:other", rdfs_class: page.rdfs_class)
+    french = website.webpages.create!(url: "#{page.url}/fr", language: "fr", rdf_uri: "rdf:fr", rdfs_class: page.rdfs_class)
+    place = website.webpages.create!(url: "#{page.url}/place", language: "en", rdf_uri: "rdf:place", rdfs_class: rdfs_classes(:place))
+    pages = [page, same_profile, french, place]
+    event_property = Property.create!(label: "Event fixture", rdfs_class: page.rdfs_class, value_datatype: "MyString", uri: "https://example.org/event")
+    place_property = Property.create!(label: "Place fixture", rdfs_class: place.rdfs_class, value_datatype: "MyString", uri: "https://example.org/place")
+    website.sources.create!(property: event_property, language: "", selected: true, render_js: false, algorithm_value: "manual=Event")
+    website.sources.create!(property: event_property, language: "fr", selected: true, render_js: true, algorithm_value: "manual=Événement")
+    website.sources.create!(property: event_property, language: "en", selected: false, render_js: true, algorithm_value: "manual=Alternate")
+    website.sources.create!(property: place_property, language: "en", selected: true, render_js: true, algorithm_value: "manual=Place")
+    cache = Distillator::FetchCache.find_by!(normalized_url: page.url)
+    fetcher = fake_fetch_cache_store_for(website, cache)
+    lookup = Statements::RefreshWebpageStatementsService.method(:sources_for_webpage)
+    counts = Hash.new(0)
+    track = ->(webpage, **options) do
+      counts[[webpage.rdfs_class.name, webpage.language]] += 1
+      lookup.call(webpage, **options)
+    end
+
+    result = Statements::RefreshWebpageStatementsService.stub(:sources_for_webpage, track) do
+      Distillator::TransitionCheckRunner.call(website: website, fetch_cache_store: fetcher,
+        transition_check_service: fake_transition_check_service(website: website, cache: cache, representative_webpages: pages),
+        cache_compare: fake_cache_compare_for(website), export_service: FakeExportService.new(actual: '{}', expected: '{}'))
+    end
+
+    assert_equal({ ["Event", "en"] => 1, ["Event", "fr"] => 1, ["Place", "en"] => 1 }, counts)
+    assert_equal [false, false, true, true], fetcher.calls.map { |call| call[:render_js] }
+    assert_equal 4, result.records[:statement_delta].details.fetch("statements_compared_count")
   end
 
   test "records current fetch error even when a last good body remains in the operational cache" do

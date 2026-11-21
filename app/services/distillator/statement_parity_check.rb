@@ -7,7 +7,10 @@ module Distillator
       :comparison_count, :slowest_sources, keyword_init: true)
 
     def self.call(website:, webpages:, url_results:, refresh_helper:, comparator: Distillator::MigrationComparator,
-      strict: false, stop_requested: nil, progress: nil, compact_evidence: false, snapshot_reader: nil)
+      strict: false, stop_requested: nil, progress: nil, compact_evidence: false, snapshot_reader: nil, source_lookup: nil)
+      source_lookup ||= ->(page) do
+        Statements::RefreshWebpageStatementsService.sources_for_webpage(page, default_language: website.default_language).select(&:selected?)
+      end
       artifacts = []
       timings = {}
       comparison_count = 0
@@ -25,8 +28,7 @@ module Distillator
         if legacy.blank? || condenser.blank?
           next { url: page.url, status: "inconclusive", reason: "paired_snapshot_missing" }
         end
-        sources = Statements::RefreshWebpageStatementsService.sources_for_webpage(page,
-          default_language: website.default_language).select(&:selected?)
+        sources = source_lookup.call(page)
         # A single HTML pair cannot establish parity for sources that require
         # different rendered/unrendered responses. Do not conflate these inputs.
         if sources.map { |source| source.render_js == true }.uniq.length > 1

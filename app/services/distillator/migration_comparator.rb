@@ -118,6 +118,7 @@ module Distillator
 
     def compare_statements
       artifacts = []
+      @parsed_documents = {}
       resolved_sources.sort_by { |source| [source.property_id.to_i, source.id.to_i] }.each do |source|
         artifacts << compare_source(source)
       end
@@ -129,6 +130,8 @@ module Distillator
     rescue BudgetExceeded => error
       error.artifacts = artifacts
       raise
+    ensure
+      @parsed_documents = nil
     end
 
     def compare_export
@@ -212,8 +215,6 @@ module Distillator
           ),
           tracer: Dsl::Tracing::NullTracer.new
         )
-        runner.instance_variable_set(:@html, html)
-        runner.instance_variable_set(:@page, Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s))
         runner.define_singleton_method(:fetch_result_for) do |url:, render_js:, scrape_options:|
           {
             status: :abort,
@@ -233,7 +234,8 @@ module Distillator
           }
         end
 
-        runner.run(source.algorithm_value)
+        runner.run(source.algorithm_value, snapshot_html: html,
+          shared_document: -> { @parsed_documents[side] ||= Nokogiri::HTML(html, nil, Encoding::UTF_8.to_s) })
       end
       return { value: nil, error: raw.second.to_h, timing: timing } if abort_structure?(raw)
 

@@ -1,4 +1,5 @@
 require "test_helper"
+require "minitest/mock"
 
 class Distillator::MigrationComparatorTest < ActiveSupport::TestCase
   test "matching local execution errors are shared failures rather than value differences" do
@@ -42,6 +43,35 @@ class Distillator::MigrationComparatorTest < ActiveSupport::TestCase
       assert_equal Distillator::MigrationComparator::MATCH, result.verdict
       assert_equal [chosen.id], result.artifacts.map { |artifact| artifact[:source_id] }
     end
+  end
+
+  test "read-only expanded instructions share one parse per backend while Ruby keeps its own snapshot" do
+    website, webpage = build_fixture("shared-dom")
+    DslLibraryEntry.create!(name: "COMPARISON_XPATH", body: "xpath=//title/text()")
+    DslLibraryEntry.create!(name: "COMPARISON_RUBY",
+      body: 'ruby=@page.at_css("title").content = "Edited";ruby=@html.replace("Changed snapshot").then { [] };xpath=//title/text()')
+    algorithms = ["xpath=//title/text()", '$$COMPARISON_RUBY$$', '$$COMPARISON_XPATH$$', "css=title"]
+    sources = algorithms.each_with_index.map do |algorithm, index|
+      create_source(website: website, property: property_fixture(310 + index, "Field #{index}"), algorithm: algorithm)
+    end
+    legacy = "<title>Legacy title</title>"
+    condenser = "<title>Condenser title</title>"
+    # Enforce the parse count on the snapshot path while using real Nokogiri
+    # documents to detect state leaking between sources or backends.
+    parse = Nokogiri.method(:HTML)
+    count = Hash.new(0)
+    wrapper = ->(input, *args) { count[input.dup] += 1; parse.call(input, *args) }
+    result = Nokogiri.stub(:HTML, wrapper) do
+      Distillator::MigrationComparator.new(website: website, webpage: webpage, sources: sources,
+        legacy_html: legacy, condenser_html: condenser).compare_statements
+    end
+
+    assert_equal({ legacy => 2, condenser => 2 }, count)
+    assert_equal ["Legacy title", "Edited", "Legacy title", "Legacy title"], result.artifacts.map { |entry| entry[:legacy] }
+    assert_equal ["Condenser title", "Edited", "Condenser title", "Condenser title"], result.artifacts.map { |entry| entry[:condenser] }
+    assert_equal %w[DIFFERENT_VALUE MATCH DIFFERENT_VALUE DIFFERENT_VALUE], result.artifacts.map { |entry| entry[:verdict] }
+    assert_equal "<title>Legacy title</title>", legacy
+    assert_equal "<title>Condenser title</title>", condenser
   end
 
   class ExportServiceStub

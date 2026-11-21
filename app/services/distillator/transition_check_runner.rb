@@ -95,6 +95,7 @@ module Distillator
       @clock = clock || -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
       @started_at = monotonic_now
       @representative_result_cache = {}
+      @selected_sources = {}
       @verify_active_path = verify_active_path
       @require_native_path = require_native_path || verify_active_path
     end
@@ -129,6 +130,7 @@ module Distillator
     ensure
       @snapshot_file = nil
       @representative_result_cache.clear
+      @selected_sources.clear
     end
 
     private
@@ -227,6 +229,7 @@ module Distillator
         url_results: representative_url_results, refresh_helper: refresh_helper, comparator: statement_comparator,
         strict: @check_options.strict?, stop_requested: -> { timeout_budget_exceeded? }, compact_evidence: true,
         snapshot_reader: method(:read_html_pair),
+        source_lookup: method(:selected_sources_for),
         progress: ->(completed, total, timings) { record_page_progress("statements", completed, total, timings: timings) unless completed.zero? })
       critical = parity.critical_failures.map { |entry| failure_identity(entry) }
       optional = parity.optional_failures.map { |entry| failure_identity(entry) }
@@ -511,8 +514,7 @@ module Distillator
       cached = @representative_result_cache[webpage.url]
       return cached.merge(url: webpage.url, webpage_id: webpage.id) if cached.present?
 
-      render_js = Statements::RefreshWebpageStatementsService.sources_for_webpage(webpage,
-        default_language: website.default_language).any? { |source| source.selected? && source.render_js == true }
+      render_js = selected_sources_for(webpage).any? { |source| source.render_js == true }
       if @verify_active_path
         resolution = FetchMode.rollout_resolution_object(website: website.reload)
         raise "Active serving path is not Condenser" unless website.distillator_mode == "active" && resolution.active_backend == :condenser
@@ -540,6 +542,13 @@ module Distillator
       built = build_representative_url_result(webpage, fetch_result, comparison)
       @representative_result_cache[webpage.url] = built
       built
+    end
+
+    def selected_sources_for(webpage)
+      language = website.default_language
+      key = [webpage.website_id, webpage.rdfs_class.name, webpage.language, language]
+      @selected_sources[key] ||= Statements::RefreshWebpageStatementsService.sources_for_webpage(webpage,
+        default_language: language).select(&:selected?)
     end
 
     def build_representative_url_result(webpage, fetch_result, comparison)

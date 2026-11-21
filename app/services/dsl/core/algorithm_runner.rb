@@ -6,6 +6,7 @@ module Dsl
 
     HALT = Object.new
     CONTRACT_VERSION = "production_append_v1".freeze
+    SNAPSHOT_READ_ONLY_STEPS = %w[xpath xpath_sanitize if_xpath unless_xpath css manual time_zone].freeze
 
     StepTrace = Struct.new(
       :step,
@@ -41,7 +42,7 @@ module Dsl
         obj.last.is_a?(Hash)
     end
 
-    def run(algorithm)
+    def run(algorithm, snapshot_html: nil, shared_document: nil)
       results = []
       previous_locals = snapshot_thread_locals
 
@@ -65,6 +66,17 @@ module Dsl
         @tracer.step(step: 0, type: "library", code: algorithm.to_s.first(160), input: [], output: [], error: result.last,
           url_before: @url, url_after: @url, duration_ms: 0) if tracing
         return result
+      end
+      if snapshot_html
+        # Classify after expanding library tokens. Ruby and any unknown step
+        # get their own HTML and DOM, since a DSL step can change runner state.
+        if shared_document && steps.all? { |step| SNAPSHOT_READ_ONLY_STEPS.include?(step.partition("=").first) }
+          @html = snapshot_html
+          @page = shared_document.call
+        else
+          @html = snapshot_html.dup
+          @page = Nokogiri::HTML(@html, nil, Encoding::UTF_8.to_s)
+        end
       end
       if export_debug?
         Rails.logger.warn(
