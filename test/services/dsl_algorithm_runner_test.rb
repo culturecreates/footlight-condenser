@@ -82,6 +82,52 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     assert_no_wringer_requests
   end
 
+  test "each 100 repeated definitions produce one summary while other warnings remain visible" do
+    verbose = $VERBOSE
+    $VERBOSE = false
+    counter = Dsl::RubyWarnings::REPEATED_DEFINITIONS
+    previous_count = counter.value
+    counter.value = 0
+    runner, = build_runner_with_html
+    code = "ruby=DSL_WARNING_TEST_CONSTANT = ['first']"
+    log = StringIO.new
+    logger = ActiveSupport::Logger.new(log, level: Logger::INFO)
+    Rails.stubs(:logger).returns(logger)
+
+    _, stderr = capture_io do
+      assert_equal ["first"], runner.run(code)
+      99.times { runner.run(code) }
+    end
+    assert_empty stderr
+    assert_empty log.string
+
+    _, stderr = capture_io { assert_equal ["first"], runner.run(code) }
+    assert_empty stderr
+    assert_equal 1, log.string.lines.size
+    assert_includes log.string, "dsl.ruby.constant_redefinitions"
+    assert_includes log.string, "suppressed_redefinitions: 100"
+
+    _, stderr = capture_io { 100.times { runner.run(code) } }
+    assert_empty stderr
+    assert_equal 2, log.string.lines.size
+    assert_includes log.string, "suppressed_redefinitions: 200"
+
+    _, stderr = capture_io do
+      assert_equal ["second"], runner.run("ruby=DSL_WARNING_TEST_CONSTANT = ['second']")
+      runner.run("ruby=warn 'another Ruby warning'")
+    end
+    assert_match(/already initialized constant .*DSL_WARNING_TEST_CONSTANT/, stderr)
+    assert_match(/previous definition of DSL_WARNING_TEST_CONSTANT/, stderr)
+    assert_includes stderr, "another Ruby warning"
+    assert_equal 200, counter.value
+    assert_nil Thread.current[Dsl::RubyWarnings::CONTEXT_KEY]
+  ensure
+    $VERBOSE = verbose
+    counter.value = previous_count if counter
+    runner_class = Dsl::Core::AlgorithmRunner
+    runner_class.send(:remove_const, :DSL_WARNING_TEST_CONSTANT) if runner_class.const_defined?(:DSL_WARNING_TEST_CONSTANT, false)
+  end
+
   test "if_xpath short-circuits subsequent steps when no match" do
     expect_no_fetch_seams
     runner, = build_runner_with_html(html: "<html><body><h1>Title</h1></body></html>")

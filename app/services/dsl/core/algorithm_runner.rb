@@ -340,7 +340,7 @@ module Dsl
         text = @page.respond_to?(:text) ? @page.text : @html.to_s
         @json = JSON.parse(text)
         Thread.current[:dsl_json] = @json
-        value = @dsl_binding.eval(sub(code, arr))
+        value = evaluate_ruby(code, arr)
         return value if abort_structure?(value)
 
         arr << value
@@ -354,7 +354,7 @@ module Dsl
         Thread.current[:dsl_url]   = @url
         Thread.current[:dsl_json]  = @json
 
-        result = @dsl_binding.eval(sub(code, arr))
+        result = evaluate_ruby(code, arr)
 
         # sync back DSL state
         @url  = Thread.current[:dsl_url]
@@ -404,7 +404,7 @@ module Dsl
     end
 
     def resolve_and_fetch_url(code, arr, render_js: @render_js, opts: @scrape_opts, step: 'url')
-      raw = @dsl_binding.eval(sub(code, arr))
+      raw = evaluate_ruby(code, arr)
       new_url = Dsl::Support::UrlResolver.extract(raw)
       if new_url.blank?
         Rails.logger.warn { "[DSL] abort invalid URL from #{raw.inspect}" }
@@ -435,7 +435,7 @@ module Dsl
     end
 
     def resolve_url_only(code, arr, step: 'url')
-      raw = @dsl_binding.eval(sub(code, arr))
+      raw = evaluate_ruby(code, arr)
       new_url = Dsl::Support::UrlResolver.extract(raw)
       return new_url if new_url.present?
 
@@ -484,6 +484,10 @@ module Dsl
       obj.is_a?(Array) &&
         obj.length == 2 &&
         obj.first.equal?(HALT)
+    end
+
+    def evaluate_ruby(code, results)
+      Dsl::RubyWarnings.evaluate(@dsl_binding, sub(code, results))
     end
 
     # Rewrite DSL references into thread-locals
@@ -868,7 +872,7 @@ module Dsl
           Thread.current[:dsl_url]   = item
           Thread.current[:dsl_json]  = nil
 
-          result = @dsl_binding.eval(sub(code, [item]))
+          result = evaluate_ruby(code, [item])
 
           result.is_a?(Array) ? result : [result]
         ensure
