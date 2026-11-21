@@ -400,7 +400,10 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     get "/distillator/cache/#{cache.id}"
 
     assert_response :success
-    assert_match %r{all websites</a>\s*\|\s*<a[^>]+href="/websites/#{website.id}">Cache &amp; Safety &lt;Site&gt;</a>\s*\|\s*<a[^>]+href="/webpages\?seedurl=#{Regexp.escape(website.seedurl)}"}, @response.body
+    assert_select 'nav[aria-label="Current website"]' do
+      assert_select 'a[href=?]', website_path(website), text: website.name
+      assert_select 'a[href=?]', webpages_path(seedurl: website.seedurl), text: "Webpages"
+    end
     assert_select "a[href='https://centredecreationdiffusiondegaspe.com/programmation/koros-experiences-vr/']", text: "https://centredecreationdiffusiondegaspe.com/programmation/koros-experiences-vr/"
     assert_no_match %r{<a[^>]+href="http://localhost:3000/websites/wring\.json\?uri=}m, @response.body
     text = visible_text(@response.body)
@@ -420,7 +423,8 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     get "/distillator/cache/#{cache.id}"
 
     assert_response :success
-    assert_match %r{all websites</a>\s*\|\s*<a[^>]+href="/webpages"}, @response.body
+    assert_select 'nav[aria-label="Current website"]', count: 0
+    assert_select 'nav[aria-label="Condenser"] details a[href=?]', webpages_path(seedurl: "all"), text: "Webpages"
   end
 
   test "cache owner overrides an unrelated sticky website and singleton redirect is Direct" do
@@ -435,7 +439,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_select '[data-transition-context]', text: /Culture Owner.*culture-owner/m
     assert_select '[data-transition-context]', text: /Shadow.*Wringer/m
     assert_select '[data-transition-context]', text: /Previous Active/, count: 0
-    assert_select 'a', text: "console" do |links|
+    assert_select 'nav[aria-label="Current website"] a', text: /\AConsole/ do |links|
       assert_includes links.first["href"], "seedurl=culture-owner"
       assert_not_includes links.first["href"], "previous-active"
     end
@@ -449,7 +453,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     get website_url(previous)
     get distillator_cache_path(cache)
     assert_select '[data-transition-context]', count: 0
-    assert_select 'a', text: "console" do |links|
+    assert_select 'nav[aria-label="Condenser"] details a', text: /\AConsole/ do |links|
       assert_not_includes links.first["href"], "seedurl="
     end
     [previous, websites(:two)].each do |site|
@@ -460,6 +464,11 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     get distillator_cache_index_path
     follow_redirect! if response.redirect?
     assert_select '[data-transition-context]', count: 0
+
+    get webpages_path(seedurl: "all")
+    assert_response :success
+    assert_select 'nav[aria-label="Current website"]', count: 0
+    assert_select 'nav[aria-label="Condenser"] details a[href=?][aria-current=page]', webpages_path(seedurl: "all")
   end
 
   test "show page keeps non http normalized urls as escaped text instead of external links" do

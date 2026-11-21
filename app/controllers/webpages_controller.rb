@@ -218,7 +218,8 @@ class WebpagesController < ApplicationController
       else
         cookies[:seedurl].presence
       end
-    return [nil, nil] if seedurl.blank? || seedurl == "all"
+    return [seedurl, nil] if seedurl == "all"
+    return [nil, nil] if seedurl.blank?
 
     website = Website.find_by(seedurl: seedurl)
     website.present? ? [seedurl, website] : [nil, nil]

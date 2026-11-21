@@ -240,10 +240,12 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "Showing 2 matching webpages."
     assert_match(%r{href="/webpages\?(?:scope=all&amp;seedurl=#{website.seedurl}|seedurl=#{website.seedurl}&amp;scope=all)"}, @response.body)
     assert_match(%r{href="/webpages\?seedurl=#{website.seedurl}">Show publishable event pages}, @response.body)
-    assert_select "a[href='#{website_path(website)}']", text: website.name
-    assert_select "a[href='/webpages?seedurl=#{website.seedurl}']", text: "webpages"
-    assert_select "a[href='#{sources_path(seedurl: website.seedurl, selected: true, term: 'xpath', per_page: 100)}']", text: "sources"
-    assert_select "a[href='/statements?seedurl=#{website.seedurl}']", text: "statements"
+    assert_select 'nav[aria-label="Current website"]' do
+      assert_select 'a[href=?]', website_path(website), text: website.name
+      assert_select 'a[href=?][aria-current=page]', webpages_path(seedurl: website.seedurl), text: "Webpages"
+      assert_select 'a[href=?]', sources_path(seedurl: website.seedurl, selected: true, term: "xpath", per_page: 100), text: "Sources"
+      assert_select 'a[href=?]', statements_path(seedurl: website.seedurl), text: "Statements"
+    end
   end
 
   test "should get new" do

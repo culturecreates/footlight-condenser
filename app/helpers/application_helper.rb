@@ -42,6 +42,13 @@ module ApplicationHelper
     { seedurl: website.seedurl }
   end
 
+  def header_navigation_link(label, path, section:, action: nil, **html_options)
+    if Array(section).include?(controller_path) && (action.nil? || action == action_name)
+      html_options[:aria] = { current: "page" }
+    end
+    link_to(label, path, html_options)
+  end
+
   def contextual_webpages_path
     webpages_path(contextual_seedurl_params)
   end

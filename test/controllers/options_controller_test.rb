@@ -8,14 +8,30 @@ class OptionsControllerTest < ActionDispatch::IntegrationTest
     Website.update_all(distillator_mode: "shadow")
   end
 
-  test "options page shows transition report link between cache and options in internal navigation" do
+  test "navigation groups operational and configuration links and preserves global lists" do
     get options_path
 
     assert_response :success
-    assert_match %r{/distillator/cache.*?/distillator/shadow_report.*?/options}m, @response.body
-    assert_match '>cache<', @response.body
-    assert_match '>Transition report<', @response.body
-    assert_match '>options<', @response.body
+    assert_select 'nav[aria-label="Condenser"]' do
+      assert_select 'details' do |menus|
+        assert_equal %w[Operations Configuration], menus.map { |menu| menu.at_css("summary").text }
+        assert_equal [
+          monitoring_path(seedurl: "all"), distillator_shadow_report_path, distillator_cache_index_path,
+          sidekiq_web_path, databus_index_path, messages_path, test_api_websites_path,
+          webpages_path(seedurl: "all"), sources_path(seedurl: "all"), statements_path(seedurl: "all")
+        ], menus.first.css("a").map { |link| link["href"] }.take(10)
+        assert_equal [properties_path, rdfs_classes_path, search_exceptions_path, jsonld_outputs_path],
+          menus.last.css("a").map { |link| link["href"] }
+      end
+      assert_select '> a[href=?]', dsl_library_entries_path, text: "DSL Library"
+      assert_select '> a[href=?][aria-current=page]', options_path, text: "Options"
+    end
+    assert_select 'nav[aria-label="Current website"]', count: 0
+    assert_select '[data-condenser-header] a', text: "Trace on", count: 0
+
+    get set_dsl_trace_options_path(state: "true")
+    follow_redirect!
+    assert_select '[data-condenser-header] a[href=?]', options_path(tab: "trace"), text: "Trace on"
   end
 
   test "navigation links to the configured Wringer without probing on page render" do
@@ -25,8 +41,9 @@ class OptionsControllerTest < ActionDispatch::IntegrationTest
     get options_path
 
     assert_response :success
-    assert_select 'a[href=?]', "https://wringer-staging.example", text: "https://wringer-staging.example"
-    assert_select 'span[data-wringer-reachability-url=?][role=status]', wringer_reachability_options_path, text: "Checking…"
+    assert_select '[data-condenser-header] a[href=?][title=?]', "https://wringer-staging.example", "https://wringer-staging.example" do
+      assert_select 'span[data-wringer-reachability-url=?][role=status]', wringer_reachability_options_path, text: "Checking…"
+    end
     assert_not_includes response.body, "operator:secret"
     assert_not_requested probe
   end
@@ -247,7 +264,7 @@ class OptionsControllerTest < ActionDispatch::IntegrationTest
     }
     assert_redirected_to options_path(tab: "connections")
     get options_path(tab: "connections", seedurl: website.seedurl)
-    assert_select "a[href=?]", "https://console-comparison.example/events?seedurl=#{website.seedurl}", text: "console"
+    assert_select 'nav[aria-label="Current website"] a[href=?]', "https://console-comparison.example/events?seedurl=#{website.seedurl}", text: /\AConsole/
     assert_select "a[href=?]", "https://wringer-staging.example"
     assert_select "input#wringer_inspection_url[value=?]", "https://wringer-comparison.example"
 

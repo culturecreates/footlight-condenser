@@ -1571,7 +1571,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_select 'a[href*="publishable=true"][href*="scope=all"]', text: /all dates/
     assert_select 'a[href*="archive_state=active"][href*="rdfs_class=Event"]', text: /Upcoming event pages/
     assert_select 'a[href*="selected=true"][href*="term=xpath"][href*="per_page=100"]', text: "Selected XPath sources"
-    assert_select 'a[href*="selected=true"][href*="term=xpath"][href*="per_page=100"]', text: "sources"
+    assert_select 'nav[aria-label="Current website"] a[href*="selected=true"][href*="term=xpath"][href*="per_page=100"]', text: "Sources"
 
     cache = Distillator::FetchCache.find(Distillator::ShadowReportQuery.latest_cache_for_website(website).id)
     cache.update!(scrape_date: 1.minute.from_now, health_status: "network_failed", signals: { transport_success: false, fetch_backend: "native" })

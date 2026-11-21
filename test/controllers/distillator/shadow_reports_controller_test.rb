@@ -83,11 +83,12 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     assert_no_cohort_source_requests
   end
 
-  test "shadow report shows navigation link between cache and options" do
+  test "shadow report is the current link in the Operations menu" do
     get distillator_shadow_report_path
 
     assert_response :success
-    assert_match %r{/distillator/cache.*?/distillator/shadow_report.*?/options}m, @response.body
+    assert_select 'nav[aria-label="Condenser"] details a[href=?][aria-current=page]', distillator_shadow_report_path,
+      text: "Transition report"
   end
 
   test "shadow report lists shadow sites with summary actions only on the index" do
@@ -757,7 +758,10 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
-    assert_match %r{all websites</a>\s*\|\s*<a[^>]+href="/websites/#{website.id}">#{Regexp.escape(website.name)}</a>\s*\|\s*<a[^>]+href="/webpages\?seedurl=#{Regexp.escape(website.seedurl)}"}, @response.body
+    assert_select 'nav[aria-label="Current website"]' do
+      assert_select 'a[href=?]', website_path(website), text: website.name
+      assert_select 'a[href=?]', webpages_path(seedurl: website.seedurl), text: "Webpages"
+    end
     assert_match "Condenser fetch/cache failed for one or more sampled URLs.", @response.body
     assert_select ".transition-recorded-failure, #transition-fetch-comparison-findings", minimum: 1
     assert_select '[data-check="statement_delta"] .transition-result--neutral', text: /Not evaluated/
