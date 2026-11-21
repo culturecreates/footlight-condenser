@@ -61,7 +61,10 @@ class Distillator::TransitionExclusionsControllerTest < ActionDispatch::Integrat
     original = @run.transition_evidences.map(&:attributes)
     get distillator_shadow_report_site_path(@website)
     assert_response :success
-    assert_select '#transition-batch-exclusion-review form', count: 1
+    assert_select '#transition-batch-exclusion-review form[data-exclusion-review]', count: 1
+    assert_select '#transition-batch-exclusion-review th label', text: "Select all" do
+      assert_select 'input[type=checkbox][data-exclusion-select-all]:not([name]):not([checked])', count: 1
+    end
     assert_select '#transition-batch-exclusion-review input[name="urls[]"]:not([checked])', count: 2
     assert_select '#transition-batch-exclusion-review textarea[name="reason"][required]', count: 1
     assert_no_difference "Distillator::TransitionExclusion.count" do

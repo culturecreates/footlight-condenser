@@ -6,6 +6,7 @@ import consumer from "./channels/cable";
 import "./statements_show";
 import "./operator_context_card";
 import "./transition_checks";
+import "./transition_exclusions";
 import "./website_index";
 import "./transition_workflows";
 import "./wringer_reachability";
