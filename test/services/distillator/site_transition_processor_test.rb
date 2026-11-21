@@ -129,6 +129,22 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     assert_equal "completed", item.phase_results.dig("recovery", "state")
   end
 
+  test "the sweep restores the Active check dispatch if the worker disappears between checks" do
+    _, item = request
+    @processor.perform(item.id, phase: "queued")
+    assert_equal "completed", item.reload.pre_run.status
+    assert_equal "active", @website.reload.distillator_mode
+    assert_nil item.post_run_id
+    Distillator::SiteTransitionJob.expects(:perform_later).with(item.id, phase: "postcheck").returns(true)
+    Distillator::TransitionBatchReconcileJob.perform_now
+
+    replacement = Runner.new
+    Distillator::SiteTransitionProcessor.new(runner: replacement).perform(item.id, phase: "postcheck")
+    assert_equal [{ website_id: @website.id, active_path: true, mode: "active", native_required: true }], replacement.calls
+    assert_equal "passed", item.reload.status
+    assert_equal "completed", item.post_run.status
+  end
+
   test "manual rollback wins over automation even while a check is executing" do
     _, item = request
     @processor.perform(item.id, phase: "queued")

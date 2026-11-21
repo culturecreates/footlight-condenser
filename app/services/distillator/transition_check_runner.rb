@@ -129,8 +129,10 @@ module Distillator
       end
     ensure
       @snapshot_file = nil
+      @representative_url_results = nil
       @representative_result_cache.clear
       @selected_sources.clear
+      @memory.record(run_id: transition_run.id, phase: "after_cleanup", enforce_limit: false)
     end
 
     private

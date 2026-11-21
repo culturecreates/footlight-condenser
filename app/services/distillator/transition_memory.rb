@@ -1,6 +1,9 @@
+require "securerandom"
+
 module Distillator
   class TransitionMemory
     class LimitExceeded < StandardError; end
+    WORKER_BOOT_ID = SecureRandom.uuid.freeze
 
     PROCESS_FIELDS = { "VmRSS" => :rss_kib, "VmSwap" => :swap_kib, "VmSize" => :virtual_kib,
       "VmHWM" => :peak_rss_kib }.freeze
@@ -16,15 +19,16 @@ module Distillator
       @cgroup = cgroup_directory
     end
 
-    def record(run_id:, phase:, completed: nil, total: nil, sample: true, profile: nil)
+    def record(run_id:, phase:, completed: nil, total: nil, sample: true, profile: nil, enforce_limit: true)
       return unless sample || @limit_kib
 
       metrics = process_metrics
       used_kib = metrics[:rss_plus_swap_kib] || metrics[:rss_kib]
-      exceeded = @limit_kib && used_kib && used_kib >= @limit_kib
+      exceeded = enforce_limit && @limit_kib && used_kib && used_kib >= @limit_kib
       if sample || exceeded
         stats = metrics.merge(GC.stat.slice(*HEAP_FIELDS)).merge(cgroup_metrics)
-        Rails.logger.info({ event: "distillator.transition.memory", pid: Process.pid, run_id: run_id, phase: phase,
+        Rails.logger.info({ event: "distillator.transition.memory", pid: Process.pid, worker_boot_id: WORKER_BOOT_ID,
+          dyno: ENV["DYNO"], run_id: run_id, phase: phase,
           completed: completed, total: total, process_memory_limit_kib: @limit_kib, profile: profile }.compact.merge(stats))
       end
       return unless exceeded

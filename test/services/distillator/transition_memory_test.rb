@@ -27,4 +27,13 @@ class Distillator::TransitionMemoryTest < ActiveSupport::TestCase
     end
     assert_includes error.message, "900 MiB process memory"
   end
+
+  test "completion telemetry reports the worker and never enforces the memory limit" do
+    memory = Distillator::TransitionMemory.new(limit_mib: "800")
+    memory.stubs(:process_metrics).returns({ rss_kib: 900 * 1024 })
+    Rails.logger.expects(:info).with(has_entries(phase: "after_cleanup", rss_kib: 900 * 1024,
+      worker_boot_id: Distillator::TransitionMemory::WORKER_BOOT_ID, pid: Process.pid))
+
+    assert_nil memory.record(run_id: 69, phase: "after_cleanup", enforce_limit: false)
+  end
 end
