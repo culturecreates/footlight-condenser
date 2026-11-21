@@ -14,6 +14,21 @@ class Distillator::TransitionRunTest < ActiveSupport::TestCase
     assert_equal 1, @website.transition_runs.count
   end
 
+  test "a repeatedly interrupted batch fails without publishing partial coverage" do
+    run = Distillator::TransitionRun.request!(website: @website, options: { sample_mode: "all" }).run
+    interruption = Class.new(Exception)
+    Distillator::TransitionRun::MAX_BATCH_ATTEMPTS.times do
+      assert_raises(interruption) { run.execute(resumable: true) { raise interruption } }
+    end
+
+    assert_raises(Distillator::TransitionRun::ConfigurationChanged) do
+      run.execute(resumable: true) { flunk "An exhausted batch must not be tried again" }
+    end
+    assert_equal "failed", run.reload.status
+    assert_match "Coverage is incomplete", run.error_message
+    assert_empty @website.latest_transition_evidences_by_kind
+  end
+
   test "first recorded phase does not end pending state or publish partial evidence" do
     run = Distillator::TransitionRun.request!(website: @website).run
     assert_raises(RuntimeError) do

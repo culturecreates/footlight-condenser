@@ -4,7 +4,7 @@ module Distillator
   class StatementParityCheck
     DIAGNOSTIC_BYTES = 1024
     Result = Struct.new(:status, :reason, :artifacts, :url_results, :critical_failures, :optional_failures,
-      :comparison_count, :slowest_sources, keyword_init: true)
+      :comparison_count, :slowest_sources, :timings, keyword_init: true)
 
     def self.call(website:, webpages:, url_results:, refresh_helper:, comparator: Distillator::MigrationComparator,
       strict: false, stop_requested: nil, progress: nil, compact_evidence: false, snapshot_reader: nil, source_lookup: nil)
@@ -83,6 +83,10 @@ module Distillator
         end
       end
       progress&.call(webpages.length, webpages.length, timings)
+      summarize(rows: rows, artifacts: artifacts, comparison_count: comparison_count, timings: timings, strict: strict)
+    end
+
+    def self.summarize(rows:, artifacts:, comparison_count:, timings:, strict:)
       critical, optional = artifacts.reject do |entry|
         entry[:verdict] == MigrationComparator::MATCH || MigrationComparator.shared_extraction_failure?(entry) ||
           [entry[:legacy_error], entry[:condenser_error]].compact.any? { |error| error.to_h["error_type"].to_s.include?("FetchUnsupported") }
@@ -108,7 +112,7 @@ module Distillator
       # A known critical failure cannot be hidden by incomplete coverage elsewhere.
       state, reason = :failed, (strict ? "strict_statement_parity_failed" : "critical_statement_parity_failed") if critical.any?
       Result.new(status: state, reason: reason, artifacts: artifacts, url_results: rows,
-        critical_failures: critical, optional_failures: optional, comparison_count: comparison_count,
+        critical_failures: critical, optional_failures: optional, comparison_count: comparison_count, timings: timings,
         slowest_sources: timings.values.sort_by { |row| -(row[:extraction_ms] + row[:formatting_ms]) }.first(10).map do |row|
           row.merge(extraction_ms: row[:extraction_ms].round(2), formatting_ms: row[:formatting_ms].round(2))
         end)

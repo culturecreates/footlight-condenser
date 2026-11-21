@@ -61,6 +61,51 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal "shadow", website.reload.distillator_mode
   end
 
+  test "an all-pages check resumes at its durable cursor and exports only after full coverage" do
+    website = build_website
+    first = website.webpages.sole
+    pages = [first] + 10.times.map do |index|
+      website.webpages.create!(url: "#{first.url}/#{index}", language: first.language,
+        rdf_uri: "rdf:checkpoint:#{index}", rdfs_class: first.rdfs_class)
+    end
+    create_selected_statement(first, status: "ok")
+    cache = Distillator::FetchCache.find_by!(normalized_url: first.url)
+    fetcher = fake_fetch_cache_store_for(website, cache)
+    check = fake_transition_check_service(website: website, cache: cache, representative_webpages: pages)
+    export = FakeExportService.new(actual: '{"@id":"https://example.org/event"}', expected: '{"@id":"https://example.org/event"}')
+    export.expects(:call).once.with(seedurl: website.seedurl).returns('{"@id":"https://example.org/event"}')
+    run = Distillator::TransitionRun.request!(website: website, options: { sample_mode: "all", strictness: "strict" }).run
+    perform = -> do
+      reloaded = Distillator::TransitionRun.find(run.id)
+      reloaded.execute(resumable: true) do
+        Distillator::TransitionCheckRunner.call(website: website, transition_run: reloaded, fetch_cache_store: fetcher,
+          transition_check_service: check, cache_compare: fake_cache_compare_for(website), export_service: export)
+      end
+    end
+
+    assert_equal Distillator::TransitionRun::CONTINUE, perform.call
+    assert_equal "running", run.reload.status
+    assert_equal [[0, 10]], run.transition_checkpoints.pluck(:offset, :page_count)
+    assert_empty run.transition_evidences
+
+    interruption = Class.new(Exception)
+    assert_raises(interruption) { run.execute(resumable: true) { raise interruption } }
+    assert_equal "running", run.reload.status
+    assert_equal [[0, 10]], run.transition_checkpoints.pluck(:offset, :page_count)
+
+    assert_equal Distillator::TransitionRun::CONTINUE, perform.call
+    assert_equal [[0, 10], [10, 1]], run.transition_checkpoints.order(:offset).pluck(:offset, :page_count)
+    assert_empty run.transition_evidences
+
+    result = perform.call
+    assert_equal "completed", run.reload.status
+    assert_empty run.transition_checkpoints
+    assert_equal pages.map(&:url), fetcher.calls.map { |call| call[:uri] }
+    assert_equal "checked", result.records.fetch(:statement_delta).status
+    assert_equal 11, result.records.fetch(:statement_delta).details.fetch("compared_webpage_count")
+    assert_equal "checked", result.records.fetch(:export_diff).status
+  end
+
   test "fetch and statement comparison reuse selected sources within each class and language" do
     website = build_website
     page = website.webpages.sole

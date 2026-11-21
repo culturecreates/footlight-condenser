@@ -5,6 +5,7 @@ module Distillator
     REQUEST_BUDGET_SECONDS = 20
     TIMEOUT_GUARD_SECONDS = 3
     MEMORY_SAMPLE_INTERVAL = 10
+    CHECKPOINT_BATCH_SIZE = 10
     CacheMetadata = Struct.new(:normalized_url, :primary_issue_key, :http_response_code)
 
     Result = Struct.new(:website, :records, keyword_init: true) do
@@ -146,6 +147,9 @@ module Distillator
       check_args[:check_options] = @check_options unless @check_options.default?
       transition_check = timed_phase("selection") { transition_check_service.call(**check_args) }
       representative_webpages = Array(transition_check.representative_webpages)
+      if transition_run.resumable? && (representative_webpages.length > CHECKPOINT_BATCH_SIZE || transition_run.transition_checkpoints.exists?)
+        return perform_checkpoint_batch(transition_check, representative_webpages, started)
+      end
       record_page_progress("fetch", 0, representative_webpages.length)
       representative_url_results = @representative_url_results = timed_phase("fetch") do
         collect_representative_url_results(representative_webpages, transition_check.comparison_policy)
@@ -154,9 +158,107 @@ module Distillator
       @memory.record(run_id: transition_run.id, phase: "after_fetch",
         completed: representative_url_results.count { |row| row[:attempted_condenser_fetch] }, total: representative_webpages.length)
 
+      finish_checks(transition_check, representative_webpages, representative_url_results, started)
+    end
+
+    def perform_checkpoint_batch(check, webpages, started)
+      checkpoints = transition_run.transition_checkpoints.order(:offset)
+      scope = Digest::SHA256.hexdigest(JSON.generate([
+        ENV["HEROKU_RELEASE_VERSION"] || ENV["SOURCE_VERSION"] || Digest::SHA256.file(__FILE__).hexdigest,
+        transition_run.configuration_digest, website.distillator_mode, @verify_active_path, @require_native_path,
+        check.comparison_policy, webpages.map { |page| [page.id, page.url] },
+        DslLibraryEntry.order(:id).pluck(:name, :body, :revision, :aliases),
+        WringerEndpoint.current.legacy_lookup_base_url
+      ]))
+      saved_scope = checkpoints.limit(1).pick(Arel.sql("payload ->> 'scope'"))
+      if saved_scope && saved_scope != scope
+        raise TransitionRun::ConfigurationChanged, "Checkpoint scope or release changed. Run a new check."
+      end
+
+      offset = checkpoints.sum(:page_count)
+      if offset > webpages.length || timeout_budget_exceeded?
+        raise TransitionRun::ConfigurationChanged, "Verification coverage is incomplete. Run a new check."
+      end
+      if offset == webpages.length
+        return TransitionRun.transaction { complete_checkpointed_check(check, webpages, checkpoints, scope, started) }
+      end
+
+      attempt = transition_run.progress.fetch("batch_attempts", 1)
+      batch_size = [CHECKPOINT_BATCH_SIZE / (2**(attempt - 1)), 1].max
+      batch = webpages.slice(offset, batch_size)
+      record_page_progress("fetch", offset, webpages.length)
+      inputs = timed_phase("fetch") do
+        collect_representative_url_results(batch, check.comparison_policy, offset: offset, total: webpages.length)
+      end
+      @snapshot_file.flush
+      record_page_progress("statements", offset, webpages.length)
+      parity = timed_phase("statements") { compare_statements(batch, inputs, offset: offset, total: webpages.length) }
+      if timeout_budget_exceeded?
+        raise TransitionRun::ConfigurationChanged, "Check expired before finishing this batch. Coverage is incomplete."
+      end
+
+      transition_run.save_checkpoint!(offset: offset, page_count: batch.length, payload: {
+        scope: scope,
+        fetch: inputs.map { |row| serializable_representative_url_result(row).merge(cache: row[:cache]&.to_h) },
+        rows: parity.url_results, artifacts: parity.artifacts, comparison_count: parity.comparison_count, timings: parity.timings,
+        phases_ms: @phase_timings, reconciliation: reconciliation_performance
+      })
+      @memory.record(run_id: transition_run.id, phase: "checkpoint_saved", completed: offset + batch.length,
+        total: webpages.length, profile: { html_snapshot_bytes: @snapshot_file.size }, enforce_limit: false)
+      TransitionRun::CONTINUE
+    end
+
+    def complete_checkpointed_check(check, webpages, checkpoints, checkpoints_scope, started)
+      # A worker can stop after committing the final evidence but before
+      # changing the run status. The evidence transaction commits all phases.
+      records = transition_run.transition_evidences.where(check_kind: TransitionEvidence::REPORT_CHECK_KINDS)
+        .index_by { |record| record.check_kind.to_sym }
+      if records.size == TransitionEvidence::REPORT_CHECK_KINDS.size
+        return Result.new(website: website, records: records)
+      end
+
+      inputs = []
+      rows = []
+      artifacts = []
+      count = 0
+      timings = {}
+      @checkpoint_reconciliation = {}
+      checkpoints.reorder(nil).find_each(batch_size: 1) do |checkpoint|
+        payload = checkpoint.payload
+        fetch = payload.fetch("fetch")
+        batch_rows = payload.fetch("rows")
+        expected_pages = webpages.slice(inputs.length, checkpoint.page_count)
+        if expected_pages.nil? || payload.fetch("scope") != checkpoints_scope || checkpoint.offset != inputs.length ||
+            fetch.map { |row| row.fetch("webpage_id") } != expected_pages.map(&:id) ||
+            batch_rows.map { |row| row.fetch("url") } != expected_pages.map(&:url)
+          raise TransitionRun::ConfigurationChanged, "Checkpoint coverage could not be verified. Run a new check."
+        end
+
+        inputs.concat(fetch.map do |row|
+          restored = row.symbolize_keys
+          restored[:cache] = CacheMetadata.new(*row["cache"].values_at("normalized_url", "primary_issue_key", "http_response_code")) if row["cache"]
+          restored
+        end)
+        rows.concat(batch_rows.map(&:symbolize_keys))
+        artifacts.concat(payload.fetch("artifacts").map(&:symbolize_keys))
+        count += payload.fetch("comparison_count")
+        payload.fetch("timings").each do |source_id, data|
+          timing = timings[source_id] ||= data.symbolize_keys.merge(executions: 0, extraction_ms: 0.0, formatting_ms: 0.0)
+          %i[executions extraction_ms formatting_ms].each { |key| timing[key] += data.fetch(key.to_s) }
+        end
+        payload.fetch("phases_ms").each { |phase, time| @phase_timings[phase] = @phase_timings.fetch(phase, 0) + time }
+        @checkpoint_reconciliation = sum_metrics(@checkpoint_reconciliation, payload.fetch("reconciliation"))
+      end
+      parity = StatementParityCheck.summarize(rows: rows, artifacts: artifacts, comparison_count: count,
+        timings: timings, strict: @check_options.strict?)
+      @representative_url_results = inputs
+      finish_checks(check, webpages, inputs, started, parity: parity)
+    end
+
+    def finish_checks(transition_check, representative_webpages, representative_url_results, started, parity: nil)
       records = {
         fetch_parity: record_fetch_check(transition_check, representative_url_results),
-        statement_delta: timed_phase("statements") { record_statement_check(transition_check, representative_webpages, representative_url_results) },
+        statement_delta: timed_phase("statements") { record_statement_check(transition_check, representative_webpages, representative_url_results, parity: parity) },
         export_diff: timed_phase("export") { record_export_check(transition_check, representative_webpages, representative_url_results) }
       }
       transition_run&.record_progress!("completed", completed: representative_webpages.length, total: representative_webpages.length)
@@ -192,14 +294,26 @@ module Distillator
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       yield
     ensure
-      @phase_timings[name] = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round(2)
+      elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round(2)
+      @phase_timings[name] = (@phase_timings.fetch(name, 0) + elapsed_ms).round(2)
     end
 
     def performance_snapshot(records, started)
-      { total_ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round(2),
+      elapsed = @checkpoint_reconciliation ? Time.current - transition_run.started_at : Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+      { total_ms: (elapsed * 1000).round(2),
         phases_ms: @phase_timings.dup,
-        reconciliation: refresh_helper.respond_to?(:reconciliation_performance) ? refresh_helper.reconciliation_performance : {},
+        reconciliation: @checkpoint_reconciliation || reconciliation_performance,
         slowest_sources: Array(records[:statement_delta].details["slowest_sources"]) }
+    end
+
+    def reconciliation_performance
+      refresh_helper.respond_to?(:reconciliation_performance) ? refresh_helper.reconciliation_performance : {}
+    end
+
+    def sum_metrics(totals, values)
+      totals.merge(values) do |_, left, right|
+        left.is_a?(Hash) ? sum_metrics(left, right) : left + right
+      end
     end
 
     def record_fetch_check(transition_check, representative_url_results)
@@ -219,20 +333,15 @@ module Distillator
       )
     end
 
-    def record_statement_check(transition_check, representative_webpages, representative_url_results)
-      record_page_progress("statements", 0, representative_webpages.length)
+    def record_statement_check(transition_check, representative_webpages, representative_url_results, parity: nil)
+      record_page_progress("statements", 0, representative_webpages.length) unless parity
       latest_cache = representative_url_results.first&.dig(:cache) || transition_check.cache
       return record_missing_representatives(latest_cache, :statement_delta, transition_check) if representative_webpages.blank?
       if timeout_budget_exceeded?
         fetched, failed = partition_representative_webpages(representative_webpages, representative_url_results)
         return pending_statement_timeout_record(latest_cache, transition_check, representative_webpages, fetched, failed)
       end
-      parity = Distillator::StatementParityCheck.call(website: website, webpages: representative_webpages,
-        url_results: representative_url_results, refresh_helper: refresh_helper, comparator: statement_comparator,
-        strict: @check_options.strict?, stop_requested: -> { timeout_budget_exceeded? }, compact_evidence: true,
-        snapshot_reader: method(:read_html_pair),
-        source_lookup: method(:selected_sources_for),
-        progress: ->(completed, total, timings) { record_page_progress("statements", completed, total, timings: timings) unless completed.zero? })
+      parity ||= compare_statements(representative_webpages, representative_url_results)
       critical = parity.critical_failures.map { |entry| failure_identity(entry) }
       optional = parity.optional_failures.map { |entry| failure_identity(entry) }
       Distillator::TransitionEvidenceRecorder.call(
@@ -255,6 +364,14 @@ module Distillator
           critical_failing_statements: critical, optional_failing_statements: optional
         )
       )
+    end
+
+    def compare_statements(webpages, inputs, offset: 0, total: webpages.length)
+      StatementParityCheck.call(website: website, webpages: webpages,
+        url_results: inputs, refresh_helper: refresh_helper, comparator: statement_comparator,
+        strict: @check_options.strict?, stop_requested: -> { timeout_budget_exceeded? }, compact_evidence: true,
+        snapshot_reader: method(:read_html_pair), source_lookup: method(:selected_sources_for),
+        progress: ->(completed, _, timings) { record_page_progress("statements", offset + completed, total, timings: timings) unless completed.zero? })
     end
 
     def failure_identity(entry)
@@ -618,7 +735,7 @@ module Distillator
       }.compact
     end
 
-    def collect_representative_url_results(representative_webpages, comparison_policy)
+    def collect_representative_url_results(representative_webpages, comparison_policy, offset: 0, total: representative_webpages.length)
       collected = []
 
       representative_webpages.each_with_index do |webpage, index|
@@ -627,7 +744,7 @@ module Distillator
         end
 
         collected << representative_url_result_for(webpage, comparison_policy)
-        record_page_progress("fetch", index + 1, representative_webpages.length)
+        record_page_progress("fetch", offset + index + 1, total)
       end
 
       collected

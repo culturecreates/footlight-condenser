@@ -20,6 +20,14 @@ module Distillator
       TransitionRun.guarded_running.find_each do |run|
         run.recover_interrupted! do
           workflow = SiteTransition.active.find_by(pre_run_id: run.id) || SiteTransition.active.find_by(post_run_id: run.id)
+          if run.resumable? && run.requested_at > Time.current - TransitionRun::LEASE
+            if workflow && workflow.current_run&.id == run.id
+              SiteTransitionJob.perform_later(workflow.id, phase: workflow.phase)
+            elsif !workflow
+              TransitionCheckJob.perform_later(run.website_id, run_id: run.id)
+            end
+            next
+          end
           reason = "The worker stopped before the transition check finished. Retry with the same options."
           if workflow && workflow.current_run&.id == run.id
             SiteTransitionProcessor.new.recover(workflow, reason: reason, token: workflow.phase_token)

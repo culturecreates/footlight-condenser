@@ -14,9 +14,15 @@ module Distillator
       guard = SiteTransitionWatchdogJob.set(wait_until: item.deadline_at).perform_later(item.id)
       raise "Could not schedule recovery guard" unless guard
       run = item.current_run
-      run.execute do
+      result = run.execute(resumable: run.options.sample_mode == "all") do
         @runner.call(website: item.website, transition_run: run, verify_active_path: item.phase == "postcheck", require_native_path: true)
       end
+      if result == TransitionRun::CONTINUE
+        queue_continuation(item)
+        return
+      end
+      return if run.reload.resumable? && run.status == "running" # Another delivery owns this batch.
+
       finish_phase(item, token, run.reload)
     rescue StandardError => error
       Rails.logger.warn(event: "distillator.site_transition.failed", id: id, error_class: error.class.name)
@@ -55,6 +61,12 @@ module Distillator
 
     private
 
+    def queue_continuation(item)
+      SiteTransitionJob.perform_later(item.id, phase: item.phase)
+    rescue StandardError => error
+      Rails.logger.warn(event: "distillator.site_transition.continuation_enqueue_failed", id: item.id, error_class: error.class.name)
+    end
+
     def claim(item, requested_phase)
       token = nil
       website = item.website
@@ -66,10 +78,15 @@ module Distillator
       website.with_lock do
         item.batch.with_lock do
           item.with_lock do
-            next if item.terminal? || item.phase != requested_phase || item.phase_started_at
+            next if item.terminal? || item.phase != requested_phase
             next if requested_phase == "queued" && item.batch.site_transitions.where(status: "running").where.not(id: item.id).exists?
             unless matches_operator_state?(item, website)
               finish(item, website, "cancelled", "The operator changed the website mode; automation stopped without changing it.")
+              next
+            end
+            if item.phase_started_at
+              run = item.current_run
+              token = item.phase_token if run && (run.status == "queued" || run.resumable?)
               next
             end
             unless EventSiteSelection.eligible_ids([website]).include?(website.id) && website.webpages.event_pages.exists?
@@ -103,6 +120,8 @@ module Distillator
     def finish_phase(item, token, run)
       dispatch_post = false
       changed = owned(item, token) do |website|
+        next unless item.phase_started_at && item.current_run&.id == run.id
+
         raise "This site is no longer eligible for event-site migration" unless EventSiteSelection.eligible_ids([website]).include?(website.id)
         unless website.latest_transition_run&.id == run.id && run.status == "completed" &&
             run.configuration_digest == TransitionFingerprint.call(website)

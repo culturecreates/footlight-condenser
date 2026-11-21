@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_17_000600) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_21_000100) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -129,6 +129,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_17_000600) do
     t.datetime "updated_at", null: false
     t.datetime "last_reconciled_at"
     t.index ["request_key"], name: "index_distillator_transition_batches_on_request_key", unique: true
+  end
+
+  create_table "distillator_transition_checkpoints", force: :cascade do |t|
+    t.bigint "transition_run_id", null: false
+    t.integer "offset", null: false
+    t.integer "page_count", null: false
+    t.jsonb "payload", null: false
+    t.index ["transition_run_id", "offset"], name: "index_transition_checkpoints_on_run_and_offset", unique: true
   end
 
   create_table "distillator_transition_evidence", force: :cascade do |t|
@@ -407,6 +415,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_17_000600) do
   add_foreign_key "distillator_site_transitions", "distillator_transition_runs", column: "post_run_id", on_delete: :nullify
   add_foreign_key "distillator_site_transitions", "distillator_transition_runs", column: "pre_run_id", on_delete: :nullify
   add_foreign_key "distillator_site_transitions", "websites", on_delete: :nullify
+  add_foreign_key "distillator_transition_checkpoints", "distillator_transition_runs", column: "transition_run_id", on_delete: :cascade
   add_foreign_key "distillator_transition_evidence", "distillator_transition_runs", column: "transition_run_id"
   add_foreign_key "distillator_transition_evidence", "websites"
   add_foreign_key "distillator_transition_exclusions", "distillator_transition_runs", column: "source_run_id"

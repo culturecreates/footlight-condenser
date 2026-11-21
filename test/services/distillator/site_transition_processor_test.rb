@@ -129,6 +129,27 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     assert_equal "completed", item.phase_results.dig("recovery", "state")
   end
 
+  test "a paused Active verification continues the same run after worker interruption" do
+    _, item = request
+    @processor.perform(item.id, phase: "queued")
+    paused_runner = Object.new
+    def paused_runner.call(**) = Distillator::TransitionRun::CONTINUE
+    Distillator::SiteTransitionProcessor.new(runner: paused_runner).perform(item.id, phase: "postcheck")
+    run = item.reload.post_run
+    assert_equal "running", run.status
+    assert_equal "active", @website.reload.distillator_mode
+    assert_empty run.transition_evidences
+
+    Distillator::SiteTransitionJob.expects(:perform_later).with(item.id, phase: "postcheck").returns(true)
+    Distillator::TransitionBatchReconcileJob.perform_now
+    @processor.perform(item.id, phase: "postcheck")
+
+    assert_equal run.id, item.reload.post_run_id
+    assert_equal "completed", run.reload.status
+    assert_equal "passed", item.status
+    assert_equal "active", @website.reload.distillator_mode
+  end
+
   test "the sweep restores the Active check dispatch if the worker disappears between checks" do
     _, item = request
     @processor.perform(item.id, phase: "queued")

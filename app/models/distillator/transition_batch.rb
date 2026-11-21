@@ -74,6 +74,8 @@ module Distillator
             dispatch!(SiteTransitionWatchdogJob, item.id)
           elsif item.phase_started_at.nil?
             dispatch!(SiteTransitionJob, item.id, phase: item.phase)
+          elsif (run = item.current_run) && (run.status == "queued" || (run.resumable? && run.status == "completed"))
+            dispatch!(SiteTransitionJob, item.id, phase: item.phase)
           end
         elsif !stopped_at
           item = site_transitions.where(status: "queued").order(:position).first

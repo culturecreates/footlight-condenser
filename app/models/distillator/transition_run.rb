@@ -2,6 +2,8 @@ module Distillator
   class TransitionRun < ApplicationRecord
     self.table_name = "distillator_transition_runs"
     LEASE = 1.hour
+    MAX_BATCH_ATTEMPTS = 3
+    CONTINUE = :continue_transition
     STATUSES = %w[queued running completed failed].freeze
     class ConfigurationChanged < StandardError; end
     class OptionsConflict < StandardError; end
@@ -10,6 +12,7 @@ module Distillator
 
     belongs_to :website
     has_many :transition_evidences, class_name: "Distillator::TransitionEvidence", dependent: :destroy
+    has_many :transition_checkpoints, class_name: "Distillator::TransitionCheckpoint", foreign_key: :transition_run_id, dependent: :delete_all
     validates :status, inclusion: { in: STATUSES }
     validates :configuration_digest, :requested_at, presence: true
     validate :valid_check_options
@@ -52,8 +55,20 @@ module Distillator
       ])
     end
 
-    def execute(&block)
-      with_execution_lock { execute_claimed(&block) }
+    def execute(resumable: false, &block)
+      with_execution_lock { execute_claimed(resumable, &block) }
+    end
+
+    def resumable?
+      progress["resumable"] == true
+    end
+
+    def save_checkpoint!(offset:, page_count:, payload:)
+      with_lock do
+        raise ConfigurationChanged, "Check stopped before checkpointing." unless status == "running"
+        transition_checkpoints.create!(offset: offset, page_count: page_count, payload: payload)
+        update!(progress: progress.merge("batch_attempts" => 0))
+      end
     end
 
     def recover_interrupted!
@@ -87,18 +102,31 @@ module Distillator
       end
     end
 
-    def execute_claimed
+    def execute_claimed(resumable)
       claimed = website.with_lock do
         with_lock do
-          next false unless status == "queued"
+          next false unless status == "queued" || (status == "running" && resumable && resumable?)
           raise ConfigurationChanged, "Check expired. Run a new check." if requested_at <= Time.current - LEASE
-          update!(status: "running", started_at: Time.current, progress: { execution_lock: true })
+          if resumable
+            unless configuration_digest == Distillator::TransitionFingerprint.call(website)
+              raise ConfigurationChanged, "Check configuration changed. Run a new check."
+            end
+            attempts = progress.fetch("batch_attempts", 0)
+            if attempts >= MAX_BATCH_ATTEMPTS
+              raise ConfigurationChanged, "The verification batch was interrupted repeatedly. Coverage is incomplete."
+            end
+            update!(status: "running", started_at: started_at || Time.current,
+              progress: progress.merge("execution_lock" => true, "resumable" => true, "batch_attempts" => attempts + 1))
+          else
+            update!(status: "running", started_at: Time.current, progress: { execution_lock: true })
+          end
           true
         end
       end
       return unless claimed
 
       result = yield self
+      return result if resumable && result == CONTINUE
       website.with_lock do
         with_lock do
           unless status == "running" && requested_at > Time.current - LEASE &&
@@ -110,6 +138,7 @@ module Distillator
             raise ConfigurationChanged, "Check did not finish all required phases. Run a new check."
           end
           update!(status: "completed", completed_at: Time.current)
+          transition_checkpoints.delete_all if resumable
         end
       end
       result

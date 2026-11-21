@@ -41,6 +41,15 @@ class Distillator::TransitionBatchReconcileJobTest < ActiveJob::TestCase
     assert_no_enqueued_jobs { sweep }
   end
 
+  test "sweep requeues a checkpointed check after its execution lock is released" do
+    site = event_site("checkpoint-restart")
+    run = Distillator::TransitionRun.request!(website: site, options: { sample_mode: "all" }).run
+    run.execute(resumable: true) { Distillator::TransitionRun::CONTINUE }
+
+    assert_enqueued_with(job: Distillator::TransitionCheckJob, args: [site.id, { run_id: run.id }]) { sweep }
+    assert_equal "running", run.reload.status
+  end
+
   test "sweep only fails guarded standalone runs once their worker lock is released" do
     site = event_site("standalone-crash")
     run = Distillator::TransitionRun.request!(website: site).run
