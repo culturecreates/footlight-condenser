@@ -1,0 +1,16 @@
+<span class="status status-<%= @statement.status %>">
+  <%=
+    case @statement.status.to_sym
+    when :error then "🔴 error"
+    when :warning then "🟠 warning"
+    when :ok then "🟢 ok"
+    else @statement.status
+    end
+  %>
+</span>
+<% freshness = cache_freshness_label(@statement) %>
+<% if freshness.present? %>
+  <span class="status-note">
+    (<%= freshness %>)
+  </span>
+<% end %>

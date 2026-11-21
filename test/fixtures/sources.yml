@@ -131,6 +131,192 @@ onesource:
   render_js: false
   property: ones
   website: one
-  
-  
-  
+
+distillator_title_source:
+  algorithm_value: fixture:title
+  selected: true
+  selected_by: Distillator
+  language: en
+  render_js: false
+  property: four
+  website: distillator_fixture_pack
+
+distillator_description_source:
+  algorithm_value: fixture:description
+  selected: true
+  selected_by: Distillator
+  language: en
+  render_js: false
+  property: five
+  website: distillator_fixture_pack
+
+distillator_dates_source:
+  algorithm_value: fixture:dates
+  selected: true
+  selected_by: Distillator
+  language: en
+  render_js: false
+  property: ten
+  website: distillator_fixture_pack
+
+distillator_render_js_source:
+  algorithm_value: fixture:render_js
+  selected: true
+  selected_by: Distillator
+  language: en
+  render_js: true
+  property: four
+  website: distillator_fixture_pack
+
+culture3r_refresh_source:
+  algorithm_value: xpath=//h1/text()
+  selected: true
+  selected_by: Distillator
+  language: en
+  render_js: false
+  property: four
+  website: culture3r_refresh_fixture
+
+distillator_event_name_source:
+  algorithm_value: xpath=//h1/text()
+  selected: true
+  selected_by: Distillator
+  language: en
+  render_js: false
+  property: four
+  website: distillator_fixture_pack
+
+distillator_event_description_source:
+  algorithm_value: xpath_sanitize=//div[@class='description'];ruby=$array.map { |str| str.squish }
+  selected: true
+  selected_by: Distillator
+  language: en
+  render_js: false
+  property: five
+  website: distillator_fixture_pack
+
+distillator_event_url_source:
+  algorithm_value: ruby=[$url]
+  selected: true
+  selected_by: Distillator
+  language:
+  render_js: false
+  property: eventUrl
+  website: distillator_fixture_pack
+
+distillator_event_start_date_source:
+  algorithm_value: xpath=//time[@itemprop='startDate']/@datetime
+  selected: true
+  selected_by: Distillator
+  language:
+  render_js: false
+  property: ten
+  website: distillator_fixture_pack
+
+distillator_event_end_date_source:
+  algorithm_value: xpath=//time[@itemprop='endDate']/@datetime
+  selected: true
+  selected_by: Distillator
+  language:
+  render_js: false
+  property: eventEndDate
+  website: distillator_fixture_pack
+
+distillator_event_image_source:
+  algorithm_value: xpath=//img[@class='hero']/@src
+  selected: true
+  selected_by: Distillator
+  language:
+  render_js: false
+  property: eleven
+  website: distillator_fixture_pack
+
+distillator_event_location_source:
+  algorithm_value: xpath=//div[@data-venue]/@data-venue
+  selected: true
+  selected_by: Distillator
+  language:
+  render_js: false
+  property: location
+  website: distillator_fixture_pack
+
+distillator_event_offer_url_source:
+  algorithm_value: xpath=//a[@class='offer-link']/@href
+  selected: true
+  selected_by: Distillator
+  language:
+  render_js: false
+  property: offerUrl
+  website: distillator_fixture_pack
+
+distillator_event_price_source:
+  algorithm_value: xpath=//span[@class='price']/text()
+  selected: true
+  selected_by: Distillator
+  language:
+  render_js: false
+  property: price
+  website: distillator_fixture_pack
+
+distillator_event_status_source:
+  algorithm_value: xpath=//meta[@property='eventStatus']/@content
+  selected: true
+  selected_by: Distillator
+  language:
+  render_js: false
+  property: twelve
+  website: distillator_fixture_pack
+
+distillator_event_attendance_mode_source:
+  algorithm_value: xpath=//meta[@property='eventAttendanceMode']/@content
+  selected: true
+  selected_by: Distillator
+  language:
+  render_js: false
+  property: AttendanceMode
+  website: distillator_fixture_pack
+
+distillator_event_type_source:
+  algorithm_value: xpath=//meta[@property='additionalType']/@content
+  selected: true
+  selected_by: Distillator
+  language:
+  render_js: false
+  property: additionalType
+  website: distillator_fixture_pack
+
+distillator_place_name_source:
+  algorithm_value: xpath=//h2[@class='venue-name']/text()
+  selected: true
+  selected_by: Distillator
+  language:
+  render_js: false
+  property: two
+  website: distillator_fixture_pack
+
+resource_list_rdf_class_source:
+  algorithm_value: manual=Event
+  selected: true
+  selected_by: Distillator
+  language: en
+  render_js: false
+  property: one
+  website: two
+
+resource_list_uri_list_source:
+  algorithm_value: manual=[]
+  selected: true
+  selected_by: Distillator
+  language: en
+  render_js: false
+  property: three
+  website: two
+
+resource_list_url_list_source:
+  algorithm_value: manual=[]
+  selected: true
+  selected_by: Distillator
+  language: en
+  render_js: false
+  property: four
+  website: two

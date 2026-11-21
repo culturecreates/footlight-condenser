@@ -1,67 +1,15 @@
-<h1>  Places for <%= params[:seedurl] %> <%= @places.count %> Event Series</h1>
- 
-<table>
-<tr>
-<th> Event Series URI </th>
-<th> Based on </th>
-<th> Class </th>
-<th> Linked Name </th>
-<th> Linked URI </th>
-</tr>
-<% @places.each do |place| %>
+<h1>Places for <%= params[:seedurl] %></h1>
 
-    <% if place[1][0].class == Array %>
-        <% place[1].each do |subcache| %>
-            <tr>
-            <td>
-                <%=link_to place[0], statements_path(rdf_uri: place[0] ) %>
-            </td>  
-            <% subcache.each do |item| %>
-                <% if item.class == Array %>
-                    <%  item.each do |link| %>
-                        <td>
-                            <%= link %>
-                        </td>
-                      
-                    <% end %>
-                <% else %>
-                    <td>
-                        <%= item %>
-                    </td>
-                <% end %>
-            <% end %>
-            </tr>
-        <% end %>
-    <% else %>
-        
-        <tr>
-        <td>
-            <%=link_to place[0], statements_path(rdf_uri: place[0] ) %>
-        </td>  
-        <% if place[1].class == Array %>
-            <% place[1].each do |item| %>
-                <% if item.class == Array %>
-                <% puts "item.class for #{item}" %>
-                    <%  item.each do |link| %>
-                        
-                        <td>
-                            <%= link %>
-                        </td>
-                       
-                    <% end %>
-                <% else %>
-                    <td>
-                        <%= item %>
-                    </td>
-                <% end %>
-            <% end %>
-        <% else %>
-            <td>
-                place[1]
-            </td>
-        <% end %>
-        </tr>
-    <% end %>
-   
-<% end %>
-</table>
+<%= render "shared/tables/table_shell",
+           table_key: :places,
+           records: @places,
+           row_partial: "places/harmonized_row",
+           row_name: :place_row,
+           headers: @place_table_headers,
+           filters: @filters,
+           pagination: @pagination,
+           sort: @sort,
+           direction: @direction,
+           sortable_filters: @sortable_filters.merge(seedurl: params[:seedurl]),
+           table_css_class: "cache-table places-table",
+           empty_message: "No places match the current scope." %>

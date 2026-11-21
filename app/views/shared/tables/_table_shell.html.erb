@@ -1,0 +1,198 @@
+<%
+table_key = local_assigns[:table_key]
+view_mode = local_assigns[:view_mode]
+filters = local_assigns[:filters] || {}
+pagination = local_assigns[:pagination] || {}
+sort = local_assigns[:sort]
+direction = local_assigns[:direction]
+sortable_filters = local_assigns[:sortable_filters] || {}
+headers = Array(local_assigns[:headers])
+records = Array(local_assigns[:records])
+caches = Array(local_assigns[:caches])
+row_partial = local_assigns[:row_partial]
+row_name = local_assigns[:row_name]
+empty_message = local_assigns[:empty_message] || "No rows match the current filters."
+
+if table_key.present?
+  raise ArgumentError, "shared/tables/table_shell requires :row_partial" if row_partial.blank?
+  raise ArgumentError, "shared/tables/table_shell requires :row_name" if row_name.blank?
+end
+%>
+
+<section class="harmonized-table-shell">
+  <% if table_key == :webpages || table_key == :sources %>
+    <%= render "shared/tables/filters",
+               table_key: table_key,
+               filters: filters,
+               pagination: pagination,
+               sort: sort,
+               direction: direction,
+               seedurl: local_assigns[:seedurl] %>
+    <table class="<%= local_assigns[:table_css_class] || "cache-table" %>">
+      <thead>
+        <tr>
+          <% headers.each do |header| %>
+            <% if header[:sort_key].present? %>
+              <th><%= harmonized_sortable_header(header[:sort_key], header[:label], filters: sortable_filters, current_sort: sort, current_direction: direction) %></th>
+            <% else %>
+              <th><%= header[:label] %></th>
+            <% end %>
+          <% end %>
+        </tr>
+      </thead>
+      <tbody>
+        <% if records.any? %>
+          <%= render partial: row_partial, collection: records, as: row_name %>
+        <% else %>
+          <tr>
+            <td colspan="<%= headers.length %>"><%= render "shared/tables/empty_state", message: empty_message %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% elsif table_key.present? %>
+    <% if local_assigns.fetch(:render_filters, false) %>
+      <%= render "shared/tables/filters",
+                 table_key: table_key,
+                 filters: filters,
+                 pagination: pagination,
+                 sort: sort,
+                 direction: direction,
+                 seedurl: local_assigns[:seedurl],
+                 source_id: local_assigns[:source_id] %>
+    <% end %>
+    <table class="<%= local_assigns[:table_css_class] || "cache-table" %>">
+      <thead>
+        <tr>
+          <% headers.each do |header| %>
+            <% if header[:sort_key].present? %>
+              <th><%= harmonized_sortable_header(header[:sort_key], header[:label], filters: sortable_filters, current_sort: sort, current_direction: direction) %></th>
+            <% else %>
+              <th><%= header[:label] %></th>
+            <% end %>
+          <% end %>
+        </tr>
+      </thead>
+      <tbody>
+          <% if records.any? %>
+            <%= render partial: row_partial, collection: records, as: row_name %>
+          <% else %>
+            <tr>
+              <td colspan="<%= headers.length %>"><%= render "shared/tables/empty_state", message: empty_message %></td>
+            </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% elsif view_mode == "parity" %>
+    <%= form_with url: distillator_cache_index_path, method: :get, local: true, html: { autocomplete: "off" } do %>
+      <%= hidden_field_tag :sort, sort if sort.present? %>
+      <%= hidden_field_tag :direction, direction if direction.present? %>
+      <%= hidden_field_tag :per_page, pagination[:per_page] if pagination[:per_page].to_i != Distillator::CacheController::DEFAULT_PER_PAGE %>
+      <table class="cache-table cache-table-compact cache-table-parity">
+        <thead>
+          <tr>
+            <th><%= harmonized_sortable_header("normalized_url", "Uri", filters: sortable_filters, current_sort: sort, current_direction: direction) %></th>
+            <th><%= harmonized_sortable_header("http_response_code", "HTTP Response", filters: sortable_filters, current_sort: sort, current_direction: direction) %></th>
+            <th><%= harmonized_sortable_header("scrape_date", "Scrape Date", filters: sortable_filters, current_sort: sort, current_direction: direction) %></th>
+            <th><%= harmonized_sortable_header("successful_refresh", "Last Successful Refresh", filters: sortable_filters, current_sort: sort, current_direction: direction) %></th>
+            <th><%= harmonized_sortable_header("name", "Page Name", filters: sortable_filters, current_sort: sort, current_direction: direction) %></th>
+            <th>Html</th>
+            <th>Operations</th>
+            <th>Fetch actions</th>
+          </tr>
+          <%= render "shared/tables/filters", view_mode: view_mode, filters: filters, pagination: pagination, sort: sort, direction: direction %>
+        </thead>
+        <tbody>
+          <% if caches.any? %>
+            <% caches.each do |cache| %>
+              <tr>
+                <td>
+                  <div class="cache-normalized-url"><%= cache[:normalized_url] %></div>
+                  <div class="cache-uri-key"><small><%= cache[:uri_key] %></small></div>
+                  <% if cache_content_failure_warning(cache).present? %>
+                    <div class="cache-content-warning"><small><strong><%= cache_content_failure_warning(cache) %></strong></small></div>
+                    <div class="cache-content-warning"><small>Transport: <%= cache_transport_status(cache) %></small></div>
+                    <div class="cache-content-warning"><small>Content: <%= cache_content_status(cache) %></small></div>
+                    <div class="cache-content-warning"><small>Blocking issue: <%= cache_blocking_issue_key(cache) %></small></div>
+                    <div class="cache-content-warning"><small>Last good content preserved: <%= cache_last_good_content_preserved?(cache) ? "yes" : "no" %></small></div>
+                  <% end %>
+                </td>
+                <td><%= cache_status_badge(cache) %></td>
+                <td><%= cache_timestamp_label(cache[:scrape_date]) %></td>
+                <td><%= cache_timestamp_label(cache[:successful_refresh]) %></td>
+                <td><%= cache[:name].presence || "Unnamed cache row" %></td>
+                <td><small><%= cache_html_preview_text(cache) %></small></td>
+                <td><%= render "shared/tables/actions", cache: cache, preserved_index_params: preserved_index_params, refresh_ui_enabled: false, mode: :parity_operations %></td>
+                <td><%= render "shared/tables/actions", cache: cache, preserved_index_params: preserved_index_params, refresh_ui_enabled: refresh_ui_enabled, mode: :parity_refresh %></td>
+              </tr>
+            <% end %>
+          <% else %>
+            <tr>
+              <td colspan="8"><%= render "shared/tables/empty_state", message: "No cache rows match the current filters." %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+  <% else %>
+    <%= render "shared/tables/filters", view_mode: view_mode, filters: filters, pagination: pagination, sort: sort, direction: direction %>
+    <table class="cache-table cache-table-compact">
+      <thead>
+        <tr>
+          <th>Health</th>
+          <th><%= harmonized_sortable_header("normalized_url", "URI / Name", filters: sortable_filters, current_sort: sort, current_direction: direction) %></th>
+          <th><%= harmonized_sortable_header("http_response_code", "HTTP", filters: sortable_filters, current_sort: sort, current_direction: direction) %></th>
+          <th><%= harmonized_sortable_header("scrape_date", "Last attempt", filters: sortable_filters, current_sort: sort, current_direction: direction) %></th>
+          <th><%= harmonized_sortable_header("successful_refresh", "Last success", filters: sortable_filters, current_sort: sort, current_direction: direction) %></th>
+          <th><%= harmonized_sortable_header("html_bytes", "Size", filters: sortable_filters, current_sort: sort, current_direction: direction) %></th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if caches.any? %>
+          <% caches.each do |cache| %>
+            <tr>
+              <td><%= cache_health_badge(cache) %></td>
+              <td>
+                <div><strong><%= cache[:name].presence || "Unnamed cache row" %></strong></div>
+                <div class="cache-normalized-url"><%= cache[:normalized_url] %></div>
+                <div class="cache-uri-key"><%= cache[:uri_key] %></div>
+                <% if cache_content_failure_warning(cache).present? %>
+                  <div class="cache-content-warning"><small><strong><%= cache_content_failure_warning(cache) %></strong></small></div>
+                  <div class="cache-content-warning"><small>Transport: <%= cache_transport_status(cache) %></small></div>
+                  <div class="cache-content-warning"><small>Content: <%= cache_content_status(cache) %></small></div>
+                  <div class="cache-content-warning"><small>Blocking issue: <%= cache_blocking_issue_key(cache) %></small></div>
+                  <div class="cache-content-warning"><small>Last good content preserved: <%= cache_last_good_content_preserved?(cache) ? "yes" : "no" %></small></div>
+                <% end %>
+              </td>
+              <td>
+                <div><%= cache_status_badge(cache) %></div>
+                <div><small>Network: <%= cache_signal(cache, :network_status).presence || "unknown" %></small></div>
+                <div><small>Content: <%= cache_signal(cache, :content_type).presence || "unknown" %></small></div>
+                <div><small>Redirect: <%= cache_redirect_chain(cache).any? ? "yes" : "no" %></small></div>
+                <div><small>Path: <%= cache[:fetch_path].presence || "unknown" %></small></div>
+              </td>
+              <td><%= cache_timestamp_label(cache[:scrape_date]) %></td>
+              <td><%= cache_timestamp_label(cache[:successful_refresh]) %></td>
+              <td>
+                <div><%= cache_html_badge(cache) %></div>
+                <div><small>HTML: <%= number_with_delimiter(cache[:html_bytes]) %></small></div>
+                <div><small>Body: <%= number_with_delimiter(cache[:body_bytes]) %></small></div>
+                <div><small>Hints: <%= cache_hints(cache).presence&.join(", ") || "None" %></small></div>
+                <% if cache[:native_ineligible_reason].present? %>
+                  <div><small><%= cache[:native_ineligible_reason] %></small></div>
+                <% end %>
+                <div><small><%= cache_html_preview_text(cache) %></small></div>
+              </td>
+              <td><%= render "shared/tables/actions", cache: cache, preserved_index_params: preserved_index_params, refresh_ui_enabled: refresh_ui_enabled, mode: :rich %></td>
+            </tr>
+          <% end %>
+        <% else %>
+          <tr>
+            <td colspan="7"><%= render "shared/tables/empty_state", message: "No cache rows match the current filters." %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+</section>

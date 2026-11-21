@@ -1,9 +1,19 @@
 # Class to convert data in the Condensor data model to JSON-LD
 class JsonldGenerator
   extend ResourcesHelper # for method adjust_labels_for_api
+
+  class EventSeriesConversionError < StandardError
+    attr_reader :rdf_uri, :start_dates, :end_dates, :locations
+
+    def initialize(rdf_uri:, start_dates:, end_dates:, locations:, reason:)
+      @rdf_uri, @start_dates, @end_dates, @locations = rdf_uri, start_dates, end_dates, locations
+      super("Cannot export #{rdf_uri} as EventSeries: #{start_dates} start dates, #{end_dates} end dates, " \
+        "#{locations} location values. #{reason}")
+    end
+  end
   
   # main method to dump all event statements into a graph to push to artsdata
-  def self.dump_events(events) # list of event uris
+  def self.dump_events_old(events) # list of event uris
     graphs = RDF::Graph.new
     events.each do |uri|
       statements = load_uri_statements(uri)
@@ -17,6 +27,46 @@ class JsonldGenerator
     end
     graphs = remove_annotations(graphs) # annotations from rdf-star
     graphs.dump(:jsonld)
+  end
+
+  def self.dump_events(events)
+    graphs = RDF::Graph.new
+
+    all_statements = load_all_statements(events)
+
+    events.each do |uri|
+      statements = all_statements[uri] || []
+
+      statements_hash = statements.map do |stat|
+        adjust_labels_for_api(
+          stat,
+          subject: stat.webpage.rdf_uri,
+          webpage_class_name: stat.webpage.rdfs_class.name
+        )
+      end
+
+      graph = timed("build_graph #{uri}") { build_graph(statements_hash, { for_artsdata: true }) }
+      graph = timed("contact #{uri}") { make_contact_series(graph, uri) }
+      graph = timed("offer #{uri}") { make_offer_series(graph, uri) }
+      graph = timed("event_series #{uri}") { make_event_series(graph, uri) }
+
+      graphs << graph
+    end
+
+    # ✅ global operations ONLY
+    graphs = timed("add_triples_from_footlight") { add_triples_from_footlight(graphs) }
+    graphs = timed("remove_annotations") { remove_annotations(graphs) }
+
+    graphs.dump(:jsonld)
+  end
+
+  def self.load_all_statements(uris)
+    webpages = Webpage.where(rdf_uri: uris)
+
+    Statement
+      .where(webpage_id: webpages.select(:id), selected_individual: true)
+      .includes(:webpage)
+      .group_by { |s| s.webpage.rdf_uri }
   end
 
   # main method to dump all statements bedsides events into a graph to push to artsdata
@@ -91,9 +141,12 @@ class JsonldGenerator
 
   # Add triples from artsdata.ca AND Footlight database using URIs of people, places and organizations
   def self.add_triples_from_artsdata(local_graph)
-    uris = extract_object_uris(local_graph)
+    descriptions, subjects = {}, {}
+    uris = extract_object_uris(local_graph).map(&:to_s)
+                                           .uniq
+                                           .map { |u| RDF::URI(u) }
     uris.each do |uri|
-      additional_graph = describe_uri(uri)
+      additional_graph = describe_uri(uri, cache: descriptions, subject_cache: subjects)
       # TODO: fetch remote data from Wikidata if additional_graph.count == 0
       local_graph << additional_graph
     end
@@ -102,17 +155,34 @@ class JsonldGenerator
 
   # Add triples ONLY from Footlight database (not Artsdata) using URIs of people, places and organizations
   def self.add_triples_from_footlight(local_graph)
-
-    ## Refresh local entities (People, Places, Organizations) entered manually into Footlight
-    # ArtsdataGraph.graph << LocalGraphGenerator.graph_all
-
+    descriptions = {}
+    parent_places = []
+    contained_in_place = RDF::URI("http://schema.org/containedInPlace")
     uris = extract_object_uris(local_graph)
+           .map(&:to_s)
+           .reject { |u| u.include?("http://kg.artsdata.ca/resource/K") }
+           .reject { |u| vocabulary_uri?(u) }
+           .uniq
+           .map { |u| RDF::URI(u) }
+
     uris.each do |uri|
-      if !uri.value.include?("http://kg.artsdata.ca/resource/K")
-        additional_graph = describe_uri(uri)
-        local_graph << additional_graph
+      # Do not initialize ArtsdataGraph here: its first use loads entire remote
+      # graphs. Local exports need only the explicitly linked database resources.
+      additional_graph = descriptions[uri.to_s] ||= describe_footlight_uri(uri)
+      local_graph << additional_graph
+      additional_graph.query([nil, contained_in_place, nil]).each do |statement|
+        parent_places << statement.object if statement.object.uri?
       end
     end
+
+    # Include the containing venue and its inline address, once. Inspect only
+    # the root descriptions above; parent links never expand recursively.
+    parent_places.uniq.each do |uri|
+      next if vocabulary_uri?(uri) || uri.to_s.start_with?("http://kg.artsdata.ca/resource/", "https://kg.artsdata.ca/resource/")
+
+      local_graph << (descriptions[uri.to_s] ||= describe_footlight_uri(uri))
+    end
+
     local_graph
   end
 
@@ -208,8 +278,13 @@ class JsonldGenerator
                 end
     
     
-    # TODO: Better handling of error 
-    return RDF::Graph.new unless filename
+    unless filename
+      raise EventSeriesConversionError.new(
+        rdf_uri: full_uri(uri), start_dates: number_of_start_dates,
+        end_dates: number_of_end_dates, locations: number_of_locations,
+        reason: "Location values must describe one shared location or one location per start date. Review extracted locations and reconciliation matches."
+      )
+    end
 
     sparql = RdfLoader.load_sparql(filename,["http://kg.artsdata.ca/resource/spec-qc-ca_broue", full_uri(uri)])
 
@@ -217,7 +292,11 @@ class JsonldGenerator
       sse = SPARQL.parse(sparql, update: true)
       local_graph.query(sse)
     rescue => exception
-      Rails.logger.error "ERROR: #{exception}"
+      raise EventSeriesConversionError.new(
+        rdf_uri: full_uri(uri), start_dates: number_of_start_dates,
+        end_dates: number_of_end_dates, locations: number_of_locations,
+        reason: "EventSeries transformation failed (#{exception.class}): #{exception.message}"
+      )
     end
     local_graph
   end
@@ -423,7 +502,7 @@ class JsonldGenerator
   end
 
   # Get triples about a URI from Artsdata.ca AND Footlight database
-  def self.describe_uri(uri)
+  def self.describe_uri_old(uri)
     query = RDF::Query.new do
       pattern [uri, :p, :o]
     end
@@ -474,6 +553,95 @@ class JsonldGenerator
     graph
   end
 
+  # Reuse lookups within one enrichment pass, never across exports or DB changes.
+  def self.describe_uri(uri, cache: {}, subject_cache: {})
+    cache[uri.to_s] ||= begin
+      if describe_candidate_uri?(uri)
+        triples = subject_triples(uri, cache: subject_cache)
+        if triples.empty? && footlight_uri?(uri)
+          describe_footlight_uri(uri)
+        else
+          graph = RDF::Graph.new
+
+          triples.each do |subject, predicate, object|
+            graph << [subject, predicate, object]
+
+            if object.uri? && !vocabulary_uri?(object) &&
+                (!object.value.start_with?("http://kg.artsdata.ca/resource/K") || object.value.include?("#PostalAddress"))
+              subject_triples(object, cache: subject_cache).each do |nested_subject, nested_predicate, nested_object|
+                graph << [nested_subject, nested_predicate, nested_object]
+              end
+            end
+
+            if object.node?
+              subject_triples(object, cache: subject_cache).each do |nested_subject, nested_predicate, nested_object|
+                graph << [nested_subject, nested_predicate, nested_object]
+              end
+            end
+          end
+
+          graph
+        end
+      else
+        RDF::Graph.new
+      end
+    end
+  end
+
+  def self.subject_triples(subject, cache: {})
+    key = subject.to_s
+
+    cache[key] ||= ArtsdataGraph.graph.query([subject, nil, nil])
+      .map { |statement| [statement.subject, statement.predicate, statement.object] }
+  end
+
+  def self.describe_candidate_uri?(uri)
+    value = uri.to_s
+    return false if vocabulary_uri?(uri)
+    return false if value.start_with?("http://kg.footlight.io/resource/") &&
+                    value.include?("#") &&
+                    !value.end_with?("#PostalAddress")
+
+    # A known venue may use its own HTTPS identifier. This is a local graph
+    # lookup, not permission to dereference arbitrary websites or recurse.
+    value.start_with?("http://kg.artsdata.ca/resource/", "http://kg.footlight.io/resource/") ||
+      ArtsdataGraph.graph.has_subject?(uri)
+  end
+
+  def self.vocabulary_uri?(uri)
+    uri.to_s.start_with?("http://schema.org/", "https://schema.org/", "http://www.w3.org/", "https://www.w3.org/")
+  end
+
+  def self.footlight_uri?(subject)
+    value = subject.to_s
+    value.start_with?("http://kg.footlight.io/resource/")
+  end
+
+  def self.describe_footlight_uri(uri)
+    value = uri.to_s
+    webpages = Webpage.joins(:rdfs_class)
+      .where(rdf_uri: [value, value.sub(/\Ahttp:\/\/kg\.footlight\.io\/resource\//, "footlight:")])
+      .where(rdfs_classes: { name: %w[Place Organization Person EventType] })
+    return RDF::Graph.new if webpages.empty?
+
+    statements =
+      Statement.joins(source: :property)
+               .where(webpage_id: webpages, sources: { selected: true })
+               .includes(webpage: :rdfs_class, source: { property: :rdfs_class })
+
+    return RDF::Graph.new if statements.empty?
+
+    statements_hash = statements.map do |statement|
+      adjust_labels_for_api(
+        statement,
+        subject: statement.webpage.rdf_uri,
+        webpage_class_name: statement.webpage.rdfs_class.name
+      )
+    end
+
+    build_graph(statements_hash)
+  end
+
   # Derefence URI and return a graph object
   def self.dereference_uri(uri)
     return  RDF::Graph.new unless uri.value.include?('kg.artsdata.ca/resource/K')
@@ -493,6 +661,15 @@ class JsonldGenerator
       Rails.logger.error "No server running at: #{artsdata_rank_api_url}. Unable to dereference URI: #{uri.inspect}. Exception: #{e.inspect}"
       { error: "No server running at #{artsdata_rank_api_url}", method: 'dereference_uri', message: "#{e.inspect}"}
     end
+  end
+
+  def self.timed(label)
+    return yield unless ENV["EXPORT_ARTSDATA_TIMING"].present?
+
+    start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    result = yield
+    puts "#{label}: #{(Process.clock_gettime(Process::CLOCK_MONOTONIC) - start).round(3)}s"
+    result
   end
 
   def self.artsdata_rank_api_url

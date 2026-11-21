@@ -1,128 +1,361 @@
+<%
+  current_mode = @trace_view_mode.to_i
+  is_trace = current_mode == 3
+  is_interactive = current_mode == 4
+  is_debug = current_mode == 5
 
+  trace_raw = trace_presenter.raw
+  trace_present = trace_raw.present?
+  trace_visible = @show_trace
+  trace_steps = trace_present ? trace_steps_for_view(trace_raw) : []
+  trace_data_present = trace_present && trace_steps.present?
+  trace_step_details_visible = trace_data_present && trace_visible && (is_interactive || is_debug)
 
-<p>
-  <strong>Cache:</strong>
-  <pre>
-    <%= @statement.cache %>
-  </pre>
-</p>
+  cache_links = statement_cache_links(@statement)
+  steps = trace_steps
+  diagnosis = nil
+  diagnosis_label = nil
 
-<p>
-  <strong>Status:</strong>
-  <%= @statement.status %>
-</p>
+  if trace_data_present
+    trace_metrics = Dsl::PipelineInterpreter.new(steps).metrics
+    wringer_context =
+      steps.reverse.map { |step| step[:wringer] }.find { |wringer| wringer.is_a?(Hash) && wringer.present? && !wringer.with_indifferent_access[:inherited] } || {}
+    diagnosis = Dsl::PipelineDiagnosis.new(metrics: trace_metrics, wringer: wringer_context, steps: steps).result
+    diagnosis_label =
+      case diagnosis[:pipeline_category].to_s
+      when "fetch" then "Fetch error"
+      when "navigation" then "Navigation issue"
+      when "extraction" then "Extraction error"
+      else "Pipeline status"
+      end
+  end
+%>
 
+<%= render "shared/cards/card_grid",
+           cards: [
+             {
+               title: "Statement ##{@statement.id}",
+               rows: [
+                 { label: "Cache", value: @statement.cache.to_s.truncate(160) },
+                 { label: "Manual", value: @statement.manual },
+                 { label: "Selected individual", value: @statement.selected_individual },
+                 { label: "Status origin", value: @statement.status_origin },
+                 { label: "Cache refreshed", value: @statement.cache_refreshed },
+                 { label: "Cache changed", value: @statement.cache_changed },
+                 { label: "Updated", value: @statement.updated_at }
+               ],
+               actions: [
+                 {
+                   title: "Actions",
+                   links: [
+                     { label: "Edit", url: edit_statement_path(@statement) },
+                     { label: "Webpage", url: webpage_path(@statement.webpage) },
+                     { label: "Source", url: source_path(@statement.source) }
+                   ]
+                 }
+               ]
+             }
+           ],
+           variant: :record,
+           css_class: "statement-detail-cards" %>
 
-<p>
-  <strong>manual:</strong>
-  <%= @statement.manual %>
-</p>
+<section class="statement-show-section statement-show-primary-review">
+  <p class="statement-show-status">
+    <strong>Status:</strong>
+    <%= render "trace_header" %>
+  </p>
 
-<p>
-  <strong>selected_individual:</strong>
-  <%= @statement.selected_individual %>
-</p>
+  <p><strong>Cache:</strong></p>
+  <pre class="statement-show-cache"><%= @statement.cache %></pre>
+</section>
 
-<p>
-  <strong>Status origin:</strong>
-  <%= @statement.status_origin %>
-</p>
+<section class="statement-show-section statement-show-primary-actions">
+  <%= button_to "Refresh", refresh_statement_path(@statement), method: :patch, form_class: "inline", class: "as-link" %> |
+  <%= link_to "Edit", edit_statement_path(@statement) %> |
+  <%= link_to "Back", statements_path %>
+</section>
 
-<p>
-  <strong>Cache refreshed:</strong>
-  <%= @statement.cache_refreshed %>
-</p>
+<details class="statement-show-details statement-show-context">
+  <summary>Webpage</summary>
+  <div class="statement-show-section">
+    <p>
+      <strong>Webpage:</strong>
+      <%= @statement.webpage.url %>
+      <%= statement_rollout_badge(@statement) %>
+      <%= link_to "Show", webpage_path(@statement.webpage) %>
+    </p>
 
-<p>
-  <strong>Cache changed:</strong>
-  <%= @statement.cache_changed %>
-</p>
+    <p class="rollout-note"><%= statement_rollout_explanation(@statement) %></p>
 
-<p>
-  <strong>Source:</strong>
-  <%= @statement.source.algorithm_value %>
-   <%= link_to "Show", source_path(@statement.source.id) %>
-</p>
-
-<p>
-  <strong>Webpage:</strong>
-  <%= @statement.webpage.url %>
-  <a href="<%= get_wringer_url_per_environment %>/websites?term=<%= CGI.escape(CGI.escape(@statement.webpage.url)) %>"> View on Wringer</a> 
-  <%= link_to "Show", webpage_path(@statement.webpage) %>
-</p>
-
-<p>
-  <strong>updated:</strong>
-  <%= @statement.updated_at %>
-</p>
-
-
-<hr>
-<p>
-Change status:
-
-
-  <%= form_with(model: @statement, local: true,  html: { style:'display:inline;' }) do |form| %>
-    <%= form.hidden_field :status, id: :statement_status, value: "initial"%>
-      <%= form.submit "Initial"%>
-  <% end %>
-
-  <%= form_with(model: @statement, local: true,  html: { style:'display:inline;' }) do |form| %>
-    <%= form.hidden_field :status, id: :statement_status, value: "missing"%>
-   
-      <%= form.submit "Missing"%>
-    
-  <% end %>
-
-   <%= form_with(model: @statement, local: true,  html: { style:'display:inline;' }) do |form| %>
-    <%= form.hidden_field :status, id: :statement_status, value: "ok"%>
-   
-      <%= form.submit "Ok"%>
-   
-  <% end %>
-
-  <%= form_with(model: @statement, local: true,  html: { style:'display:inline;' }) do |form| %>
-    <%= form.hidden_field :status, id: :statement_status, value: "problem"%>
-  
-      <%= form.submit "Problem"%>
-   
-  <% end %>
-
-  <%= form_with(model: @statement, local: true,  html: { style:'display:inline;' }) do |form| %>
-    <%= form.hidden_field :status, id: :statement_status, value: "updated"%>
-   
-      <%= form.submit "Updated"%>
-    
-  <% end %>
-
-</p>
-
-<hr>
-<p>
-Activate:
-<%= link_to "Activate source", activate_statement_path(@statement), local: true, format: :json,  method: :patch %>
-|
-<%= link_to "Activate indivdual statement", activate_individual_statement_path(@statement), local: true, format: :json,  method: :patch %>
-|
-<%= link_to "Deactive indivdual statement", deactivate_individual_statement_path(@statement), local: true, format: :json,  method: :patch %>
-
-</p>
-
-<hr>
-<p>
-Manual update:
-<%= form_with(model: @statement, local: true) do |form| %>
-
-  <%= form.text_field :cache, id: :statement_cache, size: 80%>
-  <div class="actions">
-    <%= form.submit "Update Cache"%>
+    <p>
+      <strong>Cache:</strong>
+      <% if cache_links[:disabled] %>
+        <span><%= cache_links[:warning] %></span>
+      <% elsif cache_links[:active_cache_url].present? %>
+        <%= link_to cache_links[:label], cache_links[:active_cache_url] %>
+        | <%= operator_active_backend_badge(cache_links) %>
+        <% cache_links[:secondary_links].each do |link| %>
+          | <%= link_to link[:label], link[:url] %>
+        <% end %>
+        <% if cache_links[:warning].present? %>
+          | <span><%= cache_links[:warning] %></span>
+        <% end %>
+        |
+      <% end %>
+      <%= link_to "Diagnose refresh", distillator_refresh_preview_url_for(@statement.webpage.url) %>
+    </p>
   </div>
-<% end %>
-</p>
+</details>
 
-<hr>
-<%= button_to 'Refresh', refresh_statement_path(@statement), method: :patch, form_class: 'inline', class: 'as-link' %> |
-<%= link_to 'Edit', edit_statement_path(@statement) %> |
-<%= link_to 'Back', statements_path %>
+<details class="statement-show-details statement-show-trace">
+  <summary>Trace</summary>
+  <div class="statement-show-section">
+    <p>
+      <strong>View:</strong>
+      <%= case current_mode
+          when 5 then "DEBUG 🟢 (Overview — all steps expanded)"
+          when 4 then "INTERACTIVE 🔵 (Step-by-step)"
+          when 3 then "TRACE 🟡"
+          else "CLEAN ⚪"
+          end %>
+    </p>
 
-<%= render partial: "trace_table", locals: { trace: @trace, result: @result } if @trace.present? %>
+    <p>
+      <strong>Trace:</strong>
+      <%= trace_visible ? "Enabled" : "Disabled" %>
+    </p>
+
+    <div class="dsl-source" data-trace-view-mode="<%= @trace_view_mode.to_i %>">
+      <strong>Source:</strong>
+      <%
+        dsl_steps = split_algorithm_steps(@statement.source.algorithm_value)
+        trace_by_step = {}
+        trace_steps.each do |trace_step|
+          trace_by_step[trace_step[:step].to_i] ||= []
+          trace_by_step[trace_step[:step].to_i] << trace_step
+        end
+      %>
+
+      <div class="dsl-steps">
+        <% dsl_steps.each_with_index do |code, i| %>
+          <% step_number = i + 1 %>
+          <% type = code.split("=").first.to_s.strip %>
+          <% trace_entries = trace_by_step[step_number] || [] %>
+          <% primary_step = trace_entries.last || { step: step_number, type: type } %>
+          <% previous_primary_step = (trace_by_step[step_number - 1] || []).last %>
+          <% dsl_status = trace_entries.any? ? trace_presenter.compute_step_status(primary_step) : :neutral %>
+          <% semantic = trace_presenter.semantic_label(primary_step.merge(type: primary_step[:type].presence || type)) %>
+          <% explanation = trace_presenter.explain_step(primary_step, previous_primary_step) %>
+          <% suggestion = trace_presenter.suggest_fix(primary_step, previous_primary_step) %>
+          <div class="dsl-step <%= 'clickable' if is_interactive %> <%= "dsl-#{dsl_status}" if (is_trace || is_interactive || is_debug) %>"
+               data-step="<%= step_number %>"
+               <% if is_interactive %>onclick="toggleDslStep(this)"<% end %>>
+            <span class="dsl-step-index"><%= i + 1 %></span>
+            <% if is_interactive %>
+              <div class="dsl-step-main">
+                <% if semantic == "Condition" %>
+                  <span class="dsl-step-type dsl-step-label">Condition</span><span class="dsl-step-subtle">[If found]</span>
+                <% else %>
+                  <span class="dsl-step-type dsl-step-label"><%= semantic %></span>
+                <% end %>
+                <% if explanation.present? %>
+                  <span class="dsl-step-explanation"><%= explanation %></span>
+                <% end %>
+                <% if suggestion.present? %>
+                  <div class="dsl-suggestion">💡 <%= suggestion %></div>
+                <% end %>
+              </div>
+            <% else %>
+              <% if semantic == "Condition" %>
+                <span class="dsl-step-type dsl-step-label">Condition</span><span class="dsl-step-subtle">[If found]</span>
+              <% else %>
+                <span class="dsl-step-type"><%= semantic %></span>
+              <% end %>
+              <code class="dsl-step-code"><%= code %></code>
+            <% end %>
+          </div>
+          <% if trace_step_details_visible %>
+            <div class="dsl-step-details" data-step="<%= step_number %>" style="display:<%= is_interactive ? "none" : "block" %>;">
+              <% step = trace_entries.last %>
+              <% if step.present? %>
+                <% full_code = step[:code].to_s %>
+                <% truncated_code = truncate(full_code, length: @trace_code_length) %>
+                <% output_preview = trace_display_output(step) %>
+                <% full_output_text = output_preview.to_s %>
+                <% truncated_output_text = truncate(output_preview.to_s, length: @trace_output_length) %>
+                <% previous_step = trace_by_step[step[:step].to_i - 1]&.last %>
+                <% detail_suggestion = trace_presenter.suggest_fix(step, previous_step) %>
+                <% wringer_meta = trace_presenter.interactive_wringer_meta(step) %>
+                <% probe_text = trace_presenter.interactive_probe_text(step) %>
+                <% links = wringer_links_for_step(step, website: @statement.webpage.website) %>
+                <% detail_semantic = trace_presenter.semantic_label(step) %>
+                <% redirect_url = interactive_redirect_info(step) %>
+                <div class="trace-mini">
+                  <% if step[:error].present? %>
+                    <div class="trace-error-message">⚠ <%= truncate(step[:error].to_s, length: @trace_error_length) %></div>
+                  <% end %>
+
+                  <% if step[:code].present? %>
+                    <div class="trace-code">
+                      <span class="trace-code-toggle"
+                            onclick="event.stopPropagation(); toggleTraceExpandable(this)"
+                            data-full="<%= h(full_code) %>"
+                            data-truncated="<%= h(truncated_code) %>"><%= truncated_code %></span>
+                    </div>
+                  <% end %>
+
+                  <div class="trace-output-line">
+                    <span class="trace-arrow">→</span>
+                    <span class="trace-output-toggle"
+                            onclick="event.stopPropagation(); toggleTraceExpandable(this)"
+                            data-full="<%= h(full_output_text) %>"
+                            data-truncated="<%= h(truncated_output_text) %>"><%= truncated_output_text %></span>
+                  </div>
+
+                  <% if redirect_url.present? && detail_semantic == "Navigation" %>
+                    <div class="trace-subline trace-redirect">
+                      <span>⚠ redirected →</span>
+                      <span class="trace-redirect-url"><%= redirect_url %></span>
+                    </div>
+                  <% end %>
+
+                  <% if links.present? && detail_semantic == "Navigation" %>
+                    <div class="trace-navigation-links">
+                      <% active_cache = links[:active_cache] || {} %>
+                      <% if active_cache[:active_cache_url].present? %>
+                        <a href="<%= active_cache[:active_cache_url] %>" target="_blank" rel="noopener noreferrer">🧭 <%= active_cache[:label] %></a>
+                        <span><%= operator_active_backend_badge(active_cache) %></span>
+                      <% end %>
+                      <% active_cache.fetch(:secondary_links, []).each do |link| %>
+                        <a href="<%= link[:url] %>" target="_blank" rel="noopener noreferrer">🔍 <%= link[:label] %></a>
+                      <% end %>
+                      <a href="<%= links[:raw_url] %>" target="_blank" rel="noopener noreferrer">🌐 View page</a>
+                    </div>
+                    <% if active_cache[:warning].present? %>
+                      <div class="trace-subline trace-redirect"><span>⚠ <%= active_cache[:warning] %></span></div>
+                    <% end %>
+                  <% end %>
+
+                  <% if wringer_meta.present? || probe_text.present? %>
+                    <div class="trace-output-meta">
+                      <% if wringer_meta.present? %>
+                        <div><%= wringer_meta %></div>
+                      <% end %>
+                      <% if probe_text.present? %>
+                        <div class="trace-probe-insight"><%= probe_text %></div>
+                      <% end %>
+                    </div>
+                  <% end %>
+
+                  <% if is_interactive && detail_suggestion.present? %>
+                    <div class="dsl-suggestion">💡 <%= detail_suggestion %></div>
+                  <% end %>
+
+                  <% if is_interactive && step[:delta].present? %>
+                    <div class="trace-delta">Δ <%= step[:delta] %></div>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        <% end %>
+      </div>
+
+      <%= link_to "Show", source_path(@statement.source.id) %>
+    </div>
+
+    <% if trace_data_present %>
+      <%= render "trace_diagnosis", diagnosis: diagnosis, diagnosis_label: diagnosis_label, steps: steps %>
+    <% end %>
+
+    <% if trace_data_present && trace_visible && is_trace %>
+      <% error_indices = steps.each_index.select { |i| steps[i][:error].present? } %>
+      <% first_error_index = error_indices.first %>
+      <% visible_indices =
+          if error_indices.any?
+            error_indices
+              .flat_map { |i| (i - 2..i + 2).to_a }
+              .select { |i| i >= 0 && i < steps.size }
+              .uniq
+          else
+            start_index = [steps.size - 3, 0].max
+            (start_index..[steps.size - 1, 0].max)
+          end %>
+      <% visible_indices = visible_indices.to_a %>
+      <% hidden_count = [steps.size - visible_indices.size, 0].max %>
+      <% first_error_step = first_error_index.nil? ? nil : steps[first_error_index]&.dig(:step) %>
+
+      <h3>Algorithm Trace</h3>
+
+      <div class="dsl-trace">
+        <%= render partial: "trace_step",
+                   collection: steps,
+                   as: :step,
+                   locals: {
+                     steps: steps,
+                     visible_indices: visible_indices,
+                     hidden_count: hidden_count,
+                     first_error_index: first_error_index,
+                     first_error_step: first_error_step
+                   } %>
+      </div>
+    <% end %>
+  </div>
+</details>
+
+<details class="statement-show-details statement-show-status-actions">
+  <summary>Change status</summary>
+  <div class="statement-show-section">
+    <p>
+      <%= form_with(model: @statement, local: true, html: { style: "display:inline;" }) do |form| %>
+        <%= form.hidden_field :status, id: :statement_status, value: "initial" %>
+        <%= form.submit "Initial" %>
+      <% end %>
+
+      <%= form_with(model: @statement, local: true, html: { style: "display:inline;" }) do |form| %>
+        <%= form.hidden_field :status, id: :statement_status, value: "missing" %>
+        <%= form.submit "Missing" %>
+      <% end %>
+
+      <%= form_with(model: @statement, local: true, html: { style: "display:inline;" }) do |form| %>
+        <%= form.hidden_field :status, id: :statement_status, value: "ok" %>
+        <%= form.submit "Ok" %>
+      <% end %>
+
+      <%= form_with(model: @statement, local: true, html: { style: "display:inline;" }) do |form| %>
+        <%= form.hidden_field :status, id: :statement_status, value: "problem" %>
+        <%= form.submit "Problem" %>
+      <% end %>
+
+      <%= form_with(model: @statement, local: true, html: { style: "display:inline;" }) do |form| %>
+        <%= form.hidden_field :status, id: :statement_status, value: "updated" %>
+        <%= form.submit "Updated" %>
+      <% end %>
+    </p>
+  </div>
+</details>
+
+<details class="statement-show-details statement-show-activation">
+  <summary>Activate</summary>
+  <div class="statement-show-section">
+    <p>
+      <%= link_to "Activate source", activate_statement_path(@statement), local: true, format: :json, method: :patch %>
+      |
+      <%= link_to "Activate indivdual statement", activate_individual_statement_path(@statement), local: true, format: :json, method: :patch %>
+      |
+      <%= link_to "Deactive indivdual statement", deactivate_individual_statement_path(@statement), local: true, format: :json, method: :patch %>
+    </p>
+  </div>
+</details>
+
+<details class="statement-show-details statement-show-manual-update">
+  <summary>Manual update</summary>
+  <div class="statement-show-section">
+    <%= form_with(model: @statement, local: true) do |form| %>
+      <%= form.text_field :cache, id: :statement_cache, size: 80 %>
+      <div class="actions">
+        <%= form.submit "Update Cache" %>
+      </div>
+    <% end %>
+  </div>
+</details>

@@ -1,0 +1,7 @@
+{"event":"distillator.fetch_shadow.compare","url":"https://example.com/a","matched":true,"mismatches":[]}
+{"event":"distillator.fetch_shadow.compare","url":"https://example.com/b","matched":false,"mismatches":[{"field":"body_hash","legacy":"abc123","internal":"def456"},{"field":"final_url","legacy":"https://example.com/b","internal":"https://example.com/final"}]}
+{:event=>"distillator.fetch_shadow.error", :url=>"https://example.com/c", :error_class=>"RuntimeError", :error=>"boom"}
+{:event=>"distillator.fetch_mode.internal_ineligible", :url=>"https://example.com/d", :render_js=>true, :json_post=>false}
+{:event=>"distillator.fetch_shadow.compare", :url=>"https://example.com/e", :matched=>false, :mismatches=>[{:field=>:body_hash}, {:field=>"final_url"}]}
+{:event=>"distillator.fetch_shadow.compare", :url=>"https://example.com/f", :matched=>true, :mismatches=>[]}
+{:event=>"distillator.fetch_shadow.compare", :url=>"https://example.com/g", :matched=>false, :mismatches=>[{:field=>:wringer_error_type, :internal=>"DistillatorFetchBlocked"}]}

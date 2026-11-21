@@ -1,0 +1,26 @@
+<article class="harmonized-card cache-detail-card <%= card[:css_class] %>">
+  <h2 class="harmonized-card-title"><%= card[:title] %></h2>
+
+  <% if card[:status].present? %>
+    <%= render "shared/cards/status_badge", label: card[:status][:label], value: card[:status][:value] %>
+  <% end %>
+
+  <% Array(card[:rows]).each do |row| %>
+    <% if row[:html] %>
+      <p>
+        <strong><%= row[:label] %>:</strong>
+        <span class="<%= ['harmonized-card-value', row[:value_class]].compact.join(' ') %>"><%= raw(row[:value].to_s) %></span>
+      </p>
+    <% else %>
+      <%= render "shared/cards/metadata_row", label: row[:label], value: row[:value], value_class: row[:value_class] %>
+    <% end %>
+  <% end %>
+
+  <% if card[:body].present? %>
+    <div class="harmonized-card-value"><%= card[:body] %></div>
+  <% end %>
+
+  <% if card[:actions].present? %>
+    <%= render "shared/cards/action_bar", groups: card[:actions] %>
+  <% end %>
+</article>

@@ -1,21 +1,17 @@
-
-
 <h1> <%=  @page_title %> </h1>
 
-<table>
-<% @statements.each do |statement| %>
-
-    <tr>
-    <td><%# <%= link_to @event_titles[d[0]], statements_path(rdf_uri: d[0]) %></td>
-    <td> <%= @filtered_event_titles[statement["webpage_id"]] %></td>
-    <td><%= sanitize(statement['cache']) %></td>
-    <td><%= statement["webpage_id"] %></td>
-    <td><%= @filtered_archive_dates[statement["webpage_id"]] %></td>
-    <td><%= @filtered_event_uris[statement["webpage_id"]] %></td>
-
-
-    </tr>
-
-
-<% end %>
-</table>
+<%= render "shared/tables/table_shell",
+           table_key: :reports,
+           records: @report_rows,
+           row_partial: "reports/harmonized_row",
+           row_name: :report_row,
+           headers: @report_table_headers,
+           filters: @filters,
+           pagination: @pagination,
+           sort: @sort,
+           direction: @direction,
+           sortable_filters: @sortable_filters.merge(source_id: params[:source_id]),
+           table_css_class: "cache-table reports-table",
+           render_filters: true,
+           source_id: params[:source_id],
+           empty_message: "No report rows match the current filters." %>

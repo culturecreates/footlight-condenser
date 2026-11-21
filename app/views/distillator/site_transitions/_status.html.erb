@@ -1,0 +1,37 @@
+<section class="transition-decision transition-decision--<%= workflow_status_tone(@item.status) %>">
+  <h2 aria-live="polite"><%= workflow_state_badge(@item.status) %><% unless @item.terminal? %> · <%= workflow_phase_label(@item) %><% end %></h2>
+  <% if @item.terminal? %>
+    <p><strong>Recorded final state:</strong> <%= @item.final_mode&.humanize || "Not run" %> · <%= @item.final_backend&.humanize || "Backend not recorded" %></p>
+    <p><strong>Why:</strong> <%= workflow_reason_summary(@item) %></p>
+    <% if workflow_challenge_reported?(@item) %>
+      <% if (path = workflow_failure_report_path(@item)) %><p><%= link_to "Inspect recorded failure", path %></p><% end %>
+      <details><summary>Technical detail</summary><p><%= @item.reason %></p></details>
+    <% end %>
+  <% end %>
+  <% if @website %><p>Current mode: <strong><%= @website.distillator_mode.humanize %></strong> ·
+    Serving backend: <strong><%= website_rollout_backend_for(@website) %></strong></p><% else %><p>Website was deleted.</p><% end %>
+  <p><%= workflow_elapsed(@item) %></p>
+  <% if (waiting = workflow_job_wait(@item)) %><p class="transition-secondary" aria-live="polite"><%= waiting %></p><% end %>
+  <% unless @item.terminal? %><p class="transition-secondary"><%= workflow_estimate([@item]) %></p><% end %>
+</section>
+<ol class="transition-workflow-phases">
+  <li><strong>Starting state:</strong> <%= @item.initial_mode.humanize %></li>
+  <li><strong>Pre-activation comparison:</strong> <%= workflow_check_link(@item, :pre) %></li>
+  <li><strong>Activation:</strong> <%= @item.phase_results.dig("activation", "state")&.humanize || (@item.initial_mode == "active" ? "Already Active" : "Not performed") %></li>
+  <li><strong>Ordinary Active path and fresh comparison:</strong> <%= workflow_check_link(@item, :post) %></li>
+  <% if (recovery = @item.phase_results["recovery"]) %><li><strong>Recovery:</strong> <%= recovery["state"].humanize %> · <%= recovery["mode"]&.humanize %></li><% end %>
+</ol>
+<% %w[precheck postcheck].each do |phase| %>
+  <% if (result = @item.phase_results[phase]) %>
+    <% findings = (Array(result["blockers"]) + Array(result["warnings"]) + Array(result["reason"])).reject(&:blank?).uniq %>
+    <% label = phase == "precheck" ? "Pre-activation verification" : "Active verification" %>
+    <% if result["state"] == "ready" && findings.empty? %>
+      <p class="transition-result--passed"><strong><%= label %> passed.</strong> <%= workflow_check_link(@item, phase == "precheck" ? :pre : :post) %></p>
+    <% else %>
+    <details id="workflow-<%= phase %>-findings" open><summary id="workflow-<%= phase %>-toggle"><%= label %> · <%= result["state"]&.humanize %></summary>
+      <p>Fetch: <%= result["fetch"] || "Not recorded" %> · Statements: <%= result["statements"] || "Not recorded" %> · Export: <%= result["export"] || "Not recorded" %></p>
+      <% if findings.any? %><ul><% findings.each do |reason| %><li><%= reason %></li><% end %></ul><% end %>
+    </details>
+    <% end %>
+  <% end %>
+<% end %>

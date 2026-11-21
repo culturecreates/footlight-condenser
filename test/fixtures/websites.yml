@@ -28,3 +28,21 @@ four:
 musiconmain:
   name: test musiconmain-ca
   seedurl: musiconmain-ca
+
+distillator_fixture_pack:
+  name: Distillator migration fixture pack
+  seedurl: distillator-fixture-pack
+  graph_name: https://fixtures.example/distillator
+  default_language: en
+  last_refresh: <%= Time.now - 1.day %>
+  schedule_time: <%= Time.now - 5.minutes %>
+  schedule_every_days: 1
+
+culture3r_refresh_fixture:
+  name: culture3r refresh fixture
+  seedurl: culture3r-com
+  graph_name: https://fixtures.example/culture3r
+  default_language: en
+  last_refresh: <%= Time.now - 2.days %>
+  schedule_time: <%= Time.now - 5.minutes %>
+  schedule_every_days: 1

@@ -1,0 +1,31 @@
+<% @presentation.shared_failure_groups.each_with_index do |entries, group_index| %>
+  <% first = entries.first.first %>
+  <article class="transition-shared-failure" id="shared-source-<%= group_index %>">
+    <h3><%= first[:property_label] || first[:source] %> · Source #<%= first[:source_id] %>
+      <% if first[:language].present? %> · <%= first[:language] %><% end %></h3>
+    <p><strong>Shared extraction failure — parity unverified.</strong>
+      <%= entries.length %> shared local extraction errors across <%= entries.filter_map { |entry, _| entry[:webpage_url].presence }.uniq.length %> recorded URLs.</p>
+    <p>Matching errors support equivalent behavior on these inputs; they do not establish a transition regression or successful extraction.</p>
+    <% matching = @presentation.matching_html_count(entries) %>
+    <% if matching.positive? %><p><strong>Matching HTML hashes and byte counts recorded for <%= pluralize(matching, "affected URL") %>.</strong> This supports input equivalence.</p><% end %>
+    <p>Both HTML inputs were evaluated by the same local Condenser DSL engine. These matching errors do not establish how the production Wringer DSL engine behaves.</p>
+    <ul>
+      <% entries.group_by { |entry, _| entry[:legacy_error].to_h }.each do |error, variant| %>
+        <li><strong><%= variant.length %> affected</strong> · <%= error["error_type"] || error[:error_type] %>
+          <pre><%= error["error"] || error[:error] %></pre>
+          <%= link_to "Inspect representative page", distillator_shadow_report_site_path(@website,
+            run_id: @detail.completed_transition_run_id, evidence: "recorded-statement-#{variant.first.last}", anchor: "recorded-statement-#{variant.first.last}") %></li>
+      <% end %>
+    </ul>
+    <% if first[:source_id] %><p><%= link_to "Inspect current source ##{first[:source_id]}", source_path(first[:source_id]) %> ·
+      <%= link_to "Edit current algorithm", edit_source_path(first[:source_id]) %></p><% end %>
+    <details <%= "open" if entries.any? { |_, index| params[:evidence] == "recorded-statement-#{index}" } %>>
+      <summary>Affected pages and recorded evidence · <%= entries.length %></summary>
+      <ul><% entries.each do |entry, index| %>
+        <li id="recorded-statement-<%= index %>"><%= entry[:webpage_url].present? ? external_website_link(entry[:webpage_url], max: 140) : "URL not recorded" %>
+          <pre><%= JSON.pretty_generate(entry.slice(:source_id, :language, :legacy, :condenser, :legacy_error, :condenser_error, :verdict)) %></pre></li>
+      <% end %></ul>
+    </details>
+    <p>Repair or validate this selected source before activation. Matching errors are not a pass.</p>
+  </article>
+<% end %>

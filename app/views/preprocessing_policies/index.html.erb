@@ -1,0 +1,19 @@
+<h1>Preprocessing refresh policies</h1>
+<p>Only explicitly enrolled statements run here. Existing Event, ResourceList and export schedules are unchanged.</p>
+<p><%= link_to "Add policy", new_preprocessing_policy_path %> · <%= link_to "Monitoring", monitoring_path(seedurl: "all") %></p>
+<details><summary>Pilot targets — verify IDs in this environment</summary>
+  <p>These are statement IDs, not webpage IDs. Adding a policy creates a disabled draft.</p>
+  <% {646580 => "gatineau-cloud-RList", 663745 => "gatineau-cloud-RList", 2020881 => "culturemauricie_lepointdevente-com-RList"}.each do |id, seedurl| %>
+    <p><%= link_to "Inspect / enroll ##{id} (#{seedurl})", new_preprocessing_policy_path(statement_id: id, expected_seedurl: seedurl) %></p>
+  <% end %>
+</details>
+<table>
+  <thead><tr><th>Site / statement</th><th>Enabled</th><th>Recorded problems</th><th>Last result</th><th>Last attempt</th><th>Last successful save</th><th>Next due</th><th>Freshness checked</th></tr></thead>
+  <tbody><% @policies.each do |policy| %>
+    <tr><td><%= link_to "#{policy.seedurl} · ##{policy.statement_id}", edit_preprocessing_policy_path(policy) %></td>
+      <td><%= policy.enabled? ? "Yes" : "No" %></td><td><%= link_to "#{@issue_counts.fetch(policy.id, 0)} open", edit_preprocessing_policy_path(policy) %></td><td><%= policy.active_run_id ? "Queued / running" : policy.last_result || "Not run" %></td>
+      <td><%= policy.last_attempt_at || "Never" %></td><td><%= policy.last_success_at || "Never through this policy" %></td>
+      <td><%= policy.enabled? ? (policy.next_due_at || "Now") : "Disabled" %></td><td><%= policy.last_checked_at || "Never" %></td></tr>
+  <% end %></tbody>
+</table>
+<%= will_paginate @policies %>

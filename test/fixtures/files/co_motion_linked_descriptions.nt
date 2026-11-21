@@ -1,0 +1,13 @@
+<http://kg.footlight.io/resource/a9a70dca-dffc-430f-8afa-7b69674e5a1c> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://schema.org/EventType> .
+<http://kg.footlight.io/resource/a9a70dca-dffc-430f-8afa-7b69674e5a1c> <http://www.w3.org/2004/02/skos/core#closeMatch> <http://kg.artsdata.ca/resource/MusicPerformance> .
+<http://kg.footlight.io/resource/a9a70dca-dffc-430f-8afa-7b69674e5a1c> <http://www.w3.org/2004/02/skos/core#prefLabel> "Musique"@fr .
+<https://www.co-motion.ca/nos-salles-de-spectacles/salle-andre-mathieu/#Place-PostalAddress> <http://schema.org/addressCountry> "CA"@fr .
+<https://www.co-motion.ca/nos-salles-de-spectacles/salle-andre-mathieu/#Place-PostalAddress> <http://schema.org/addressLocality> "Laval"@fr .
+<https://www.co-motion.ca/nos-salles-de-spectacles/salle-andre-mathieu/#Place-PostalAddress> <http://schema.org/addressRegion> "Québec"@fr .
+<https://www.co-motion.ca/nos-salles-de-spectacles/salle-andre-mathieu/#Place-PostalAddress> <http://schema.org/postalCode> " H7N 5H9" .
+<https://www.co-motion.ca/nos-salles-de-spectacles/salle-andre-mathieu/#Place-PostalAddress> <http://schema.org/streetAddress> "475 Bd de l'Avenir"@fr .
+<https://www.co-motion.ca/nos-salles-de-spectacles/salle-andre-mathieu/#Place-PostalAddress> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://schema.org/PostalAddress> .
+<https://www.co-motion.ca/nos-salles-de-spectacles/salle-andre-mathieu/#Place> <http://schema.org/address> <https://www.co-motion.ca/nos-salles-de-spectacles/salle-andre-mathieu/#Place-PostalAddress> .
+<https://www.co-motion.ca/nos-salles-de-spectacles/salle-andre-mathieu/#Place> <http://schema.org/name> "Salle André-Mathieu"@fr .
+<https://www.co-motion.ca/nos-salles-de-spectacles/salle-andre-mathieu/#Place> <http://schema.org/sameAs> "http://kg.artsdata.ca/resource/K11-211" .
+<https://www.co-motion.ca/nos-salles-de-spectacles/salle-andre-mathieu/#Place> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://schema.org/Place> .

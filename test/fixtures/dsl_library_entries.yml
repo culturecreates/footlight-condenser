@@ -1,0 +1,79 @@
+{
+  "meta_title": {
+    "name": "META_TITLE",
+    "body": "xpath=//meta[@property='og:title']/@content",
+    "description": "Append Open Graph title matches; does not clear prior results.",
+    "revision": 1,
+    "lock_version": 0
+  },
+  "meta_image": {
+    "name": "META_IMAGE",
+    "body": "xpath=//meta[@property='og:image']/@content",
+    "description": "Append Open Graph image URLs.",
+    "revision": 1,
+    "lock_version": 0
+  },
+  "meta_description": {
+    "name": "META_DESCRIPTION",
+    "body": "xpath=//meta[@property='og:description']/@content",
+    "description": "Append Open Graph descriptions.",
+    "revision": 1,
+    "lock_version": 0
+  },
+  "html_title": {
+    "name": "HTML_TITLE",
+    "body": "xpath=//title",
+    "description": "Append document title matches.",
+    "revision": 1,
+    "lock_version": 0
+  },
+  "json_ld_scripts": {
+    "name": "JSON_LD_SCRIPTS",
+    "body": "xpath=//script[@type='application/ld+json']",
+    "description": "Append script text only; no assumption about JSON object, array or @graph shape.",
+    "revision": 1,
+    "lock_version": 0
+  },
+  "current_url": {
+    "name": "CURRENT_URL",
+    "body": "ruby=$url",
+    "description": "Replace results with the current URL string.",
+    "revision": 1,
+    "lock_version": 0
+  },
+  "array_uniq": {
+    "name": "ARRAY_UNIQ",
+    "body": "ruby=$array.uniq",
+    "description": "Remove duplicate values, preserving order and nested value types.",
+    "revision": 1,
+    "lock_version": 0
+  },
+  "array_squish": {
+    "name": "ARRAY_SQUISH",
+    "body": "ruby=$array.map{|e| e.squish}",
+    "description": "Normalize whitespace on string elements. Requires an array of strings.",
+    "revision": 1,
+    "lock_version": 0
+  },
+  "array_save": {
+    "name": "ARRAY_SAVE",
+    "body": "ruby=[$array]",
+    "description": "Preserve current state as one nested element before more accumulating extraction.",
+    "revision": 1,
+    "lock_version": 0
+  },
+  "array_drop_first": {
+    "name": "ARRAY_DROP_FIRST",
+    "body": "ruby=$array.drop(1)",
+    "description": "Remove the first outer element; distinct from ARRAY_FIRST.",
+    "revision": 1,
+    "lock_version": 0
+  },
+  "array_first": {
+    "name": "ARRAY_FIRST",
+    "body": "ruby=$array.size > 1 ? $array.drop(1).map{|e| e.squish} : $array",
+    "description": "Operator-supplied instruction: drop the saved first element only when size > 1, then squish remaining strings. Does NOT mean return .first.",
+    "revision": 1,
+    "lock_version": 0
+  }
+}

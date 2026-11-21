@@ -1,0 +1,32 @@
+<div class="transition-source-unavailable">
+  <p><strong><%= @exclusion_candidates.length %> source URLs unavailable on both backends.</strong> Fresh source HTTP 404/410 responses were recorded. These URLs were not compared.</p>
+  <details id="transition-batch-exclusion-review">
+    <summary>Review <%= @exclusion_candidates.length %> shared 404/410 candidates</summary>
+    <p>Confirm which URLs are retired rather than relocated. Select only those verified URLs and record one justification. Each exclusion remains individually reversible. Nothing is selected automatically.</p>
+    <%= form_with url: distillator_transition_exclusions_path, method: :post, local: true, class: "transition-review-form",
+          data: { exclusion_review: true } do |form| %>
+      <%= form.hidden_field :website_id, value: @website.id %>
+      <%= form.hidden_field :source_run_id, value: @detail.completed_transition_run_id %>
+      <table class="cache-table">
+        <thead>
+          <tr>
+            <th scope="col"><label><input type="checkbox" data-exclusion-select-all disabled> Select all</label></th>
+            <th scope="col">Source URL</th>
+            <th scope="col">Condenser</th>
+            <th scope="col">Wringer source</th>
+            <th scope="col">Evidence</th>
+          </tr>
+        </thead>
+        <tbody><% @exclusion_candidates.each_with_index do |row, index| %>
+          <tr><td><%= check_box_tag "urls[]", row[:url], false, id: "exclude-candidate-#{index}" %></td>
+            <td><%= label_tag "exclude-candidate-#{index}", row[:url] %><br><%= external_website_link(row[:url], max: 130) %></td>
+            <td>HTTP <%= row[:http_response_code] %></td><td>HTTP <%= row[:legacy_fetch].to_h.with_indifferent_access[:upstream_http_code] %></td>
+            <td><%= link_to "Recorded fetch evidence", shadow_report_recorded_evidence_path(@detail, @presentation.fetch_rows.index { |entry| entry[:url] == row[:url] }) %></td></tr>
+        <% end %></tbody>
+      </table>
+      <%= form.label :reason, "Reason for the selected exclusions" %>
+      <%= form.text_area :reason, required: true, maxlength: 2000, rows: 2 %>
+      <%= form.submit "Record reviewed exclusions for selected URLs" %>
+    <% end %>
+  </details>
+</div>

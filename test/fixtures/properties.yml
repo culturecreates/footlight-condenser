@@ -98,6 +98,31 @@ AttendanceMode:
   rdfs_class: one
   expected_class: EventAttendanceModeEnumeration
 
+eventUrl:
+  label: URL
+  value_datatype:
+  uri: http://schema.org/url
+  rdfs_class: one
+
+eventEndDate:
+  label: EndDate
+  value_datatype: xsd:dateTime
+  uri: http://schema.org/endDate
+  rdfs_class: one
+
+location:
+  label: Location
+  value_datatype: xsd:anyURI
+  uri: http://schema.org/location
+  rdfs_class: one
+  expected_class: Place, VirtualLocation
+
+offerUrl:
+  label: URL
+  value_datatype:
+  uri: http://schema.org/url
+  rdfs_class: offer
+
 personName:
   label: Name
   value_datatype: 

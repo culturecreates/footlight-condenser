@@ -1,0 +1,10 @@
+<main class="transition-report" data-workflow-follow data-status-url="<%= distillator_site_transition_path(@item, format: :json) %>">
+  <h1><%= @item.website_name %> · Transition workflow #<%= @item.id %></h1>
+  <p>All eligible pages · Strict · Selected sources only</p>
+  <div data-workflow-status><%= render "status" %></div>
+  <p data-workflow-poll-note aria-live="polite"></p>
+  <noscript><p><%= link_to "Refresh workflow status", distillator_site_transition_path(@item) %></p></noscript>
+  <% if @item.batch.site_transitions.count > 1 %><p><%= link_to "Group progress and results", distillator_transition_batch_path(@item.batch) %></p><% end %>
+  <% if @website %><p><%= link_to "Website controls", website_path(@website) %></p><% end %>
+  <p><%= link_to "Back to websites", websites_path %></p>
+</main>

@@ -1,0 +1,220 @@
+<main class="transition-report">
+<% active = @website.distillator_mode == "active" %>
+<% shadow = @website.distillator_mode == "shadow" %>
+<% operation = @detail.operation_status %>
+<% completed_status = @detail.completed_transition_status %>
+<% fetches = @detail.fetch_summary %>
+
+<%= render "overview", operation: operation, fetches: fetches %>
+<%= render "exclusions" %>
+<%= render "findings", operation: operation, fetches: fetches %>
+
+<% performance = @detail.transition_evidence_by_kind["export_diff"]&.details.to_h["performance"] %>
+<% if performance.present? %>
+  <details class="website-rollout-panel" id="transition-performance">
+    <summary>Where time was spent</summary>
+    <p>Total check work: <%= (performance["total_ms"].to_f / 1000).round(2) %> seconds.</p>
+    <ul>
+      <% performance.fetch("phases_ms", {}).each do |phase, duration| %>
+        <li><%= phase.humanize %>: <%= (duration.to_f / 1000).round(2) %> seconds</li>
+      <% end %>
+    </ul>
+    <% reconciliation = performance.fetch("reconciliation", {}) %>
+    <% if reconciliation.present? %>
+      <p>Reconciliation: <%= reconciliation["lookups"] %> lookups,
+        <%= reconciliation["http_requests"] %> HTTP requests,
+        <%= reconciliation["cache_hits"] %> reused responses,
+        <%= reconciliation["errors"] %> errors.
+        HTTP time: <%= (reconciliation["http_ms"].to_f / 1000).round(2) %> seconds.</p>
+      <p class="cache-page-note">Responses are reused only within this check. Reconciliation HTTP time is included in formatting and statement time.</p>
+    <% end %>
+    <% if performance["slowest_sources"].present? %>
+      <table class="cache-table">
+        <thead><tr><th>Field / source</th><th>Executions</th><th>Extraction</th><th>Formatting</th></tr></thead>
+        <tbody>
+          <% performance["slowest_sources"].each do |source| %>
+            <tr>
+              <td><%= source["field"] %> · #<%= source["source_id"] %></td>
+              <td><%= source["executions"] %></td>
+              <td><%= (source["extraction_ms"].to_f / 1000).round(2) %>s</td>
+              <td><%= (source["formatting_ms"].to_f / 1000).round(2) %>s</td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+  </details>
+<% end %>
+
+<details class="website-rollout-panel" id="transition-url-diagnostics">
+  <summary>Sampled URL diagnostics · current inspection links</summary>
+  <% if @detail.url_matrix.any? %>
+    <table class="cache-table cache-compare-table">
+      <thead>
+        <tr>
+          <th>URL</th>
+          <th>Condenser fetch result</th>
+          <th>Legacy lookup result</th>
+          <th>Cache comparison result</th>
+          <th>Statement check result</th>
+          <th>Export impact</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @detail.url_matrix.each do |row| %>
+          <tr>
+            <td><%= external_website_link(row[:url]) %></td>
+            <td>
+              <%= row[:condenser_fetch_result] %>
+              <% if shadow_report_matrix_reason(row, :fetch_reason).present? %>
+                <div class="sources-secondary-text"><%= shadow_report_matrix_reason(row, :fetch_reason) %></div>
+              <% end %>
+            </td>
+            <td>
+              <%= row[:legacy_lookup_result] %>
+              <% if shadow_report_matrix_reason(row, :legacy_lookup_reason).present? %>
+                <div class="sources-secondary-text"><%= shadow_report_matrix_reason(row, :legacy_lookup_reason) %></div>
+              <% end %>
+            </td>
+            <td>
+              <%= row[:cache_comparison_result] %>
+              <% if shadow_report_matrix_reason(row, :cache_compare_reason).present? %>
+                <div class="sources-secondary-text"><%= shadow_report_matrix_reason(row, :cache_compare_reason) %></div>
+              <% end %>
+            </td>
+            <td>
+              <%= row[:statement_check_result] %>
+              <% if shadow_report_matrix_reason(row, :statement_reason).present? %>
+                <div class="sources-secondary-text"><%= shadow_report_matrix_reason(row, :statement_reason) %></div>
+              <% end %>
+            </td>
+            <td>
+              <%= row[:export_impact] %>
+              <% if shadow_report_matrix_reason(row, :export_reason).present? %>
+                <div class="sources-secondary-text"><%= shadow_report_matrix_reason(row, :export_reason) %></div>
+              <% end %>
+            </td>
+            <td><%= shadow_report_url_matrix_actions(row, @website) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <p>No sampled representative URLs were recorded.</p>
+  <% end %>
+</details>
+
+<details class="website-rollout-panel" id="transition-checked-scope">
+  <summary>Checked scope</summary>
+  <% scope_lines = shadow_report_scope_lines(@detail.checked_scope) %>
+  <p><%= scope_lines.first %></p>
+  <details>
+    <summary>Sampling and comparison details</summary>
+    <ul>
+      <% scope_lines.drop(1).each do |line| %>
+        <li><%= line %></li>
+      <% end %>
+    </ul>
+    <% if shadow_report_scope_warning(@detail.checked_scope).present? %>
+      <p><%= shadow_report_scope_warning(@detail.checked_scope) %></p>
+    <% end %>
+  </details>
+  <p><%= link_to "Website batch jobs", website_path(@website, anchor: "website-batch-jobs-transition") %> |
+    <%= link_to "Inspect publishable event pages", website_publishable_event_pages_path(@website) %> |
+    <%= link_to "Open cache diagnostics", website_cache_diagnostics_path(@website) %> (current inspection)</p>
+</details>
+
+<details class="website-rollout-panel" id="transition-report-audit">
+  <summary>Audit</summary>
+  <p><strong>Website:</strong> <%= @website.name %></p>
+  <p><strong>Seedurl:</strong> <%= @website.seedurl %></p>
+  <p><strong>Cohort:</strong> <%= @detail.summary.cohort_label.presence || "Other" %></p>
+  <p><strong>Current rollout mode:</strong> <%= Distillator::RolloutCopy.label(@website.distillator_mode) %></p>
+  <p><strong>Production backend:</strong> <%= shadow_report_production_backend_label(@detail.summary) %></p>
+  <p><strong>Cache diagnostics policy:</strong> <%= cache_compare_policy_label(@detail.transition_status.comparison_policy) %></p>
+  <h3>Current cache observation</h3>
+  <p><strong>Latest attempt:</strong> <%= shadow_report_timestamp(@detail.summary.latest_refresh) %></p>
+  <p><strong>Latest successful refresh:</strong> <%= shadow_report_timestamp(@detail.summary.latest_successful_refresh) %></p>
+  <p><strong>Health:</strong> <%= @detail.summary.health_summary %></p>
+  <p><strong>Issue:</strong> <%= @detail.summary.issue_key.presence || "None" %></p>
+  <p><strong>Cache links:</strong> <%= shadow_report_cache_diagnostic_links(@detail.summary) %></p>
+
+  <h3>Recorded check evidence</h3>
+  <% if completed_status %>
+    <p><strong>Completed comparison safety:</strong> <%= completed_status.safety.to_s.humanize %>
+      · <strong>Evidence confidence:</strong> <%= completed_status.confidence.to_s.humanize %></p>
+  <% end %>
+  <% @detail.transition_evidence_explanations.each do |explanation| %>
+    <% evidence = @detail.transition_evidence_by_kind[explanation.key] %>
+    <details class="website-rollout-panel" data-check-kind="<%= explanation.key %>">
+      <summary><%= explanation.check %> details</summary>
+      <p><strong>State:</strong> <%= shadow_report_transition_evidence_status_label(explanation.state) %></p>
+      <p><strong>Checked at:</strong> <%= shadow_report_timestamp(evidence&.checked_at) %></p>
+      <% if evidence&.url.present? %><p><strong>Representative URL:</strong> <%= external_website_link(evidence.url, max: 120) %></p><% end %>
+      <p><strong>Headline:</strong> <%= explanation.headline %></p>
+      <% detail_lines = explanation.details.reject { |line| evidence&.url.present? && line.to_s.strip == "URL: #{evidence.url}" } %>
+      <% if detail_lines.any? %>
+        <% visible_details = detail_lines.first(10) %>
+        <ul>
+          <% visible_details.each do |line| %>
+            <li><%= line %></li>
+          <% end %>
+        </ul>
+        <% if detail_lines.size > visible_details.size %>
+          <p><%= detail_lines.size - visible_details.size %> additional detail lines hidden from this summary.</p>
+        <% end %>
+      <% end %>
+      <p><strong>Recorded guidance:</strong> <%= explanation.next_action %></p>
+      <% if explanation.links.any? %>
+        <p><strong>Links:</strong> <%= safe_join(shadow_report_explanation_links(explanation, @website, detail: @detail), " | ") %></p>
+      <% end %>
+    </details>
+  <% end %>
+
+  <h3>Recent rollout events</h3>
+  <%= render "websites/rollout_history", events: @detail.recent_rollout_events %>
+
+  <% if @exclusion_history.present? %>
+    <details id="transition-exclusion-history">
+      <summary>URL exclusion history · latest 10 reviews</summary>
+      <ul><% @exclusion_history.each do |review| %>
+        <li><%= external_website_link(review.url, max: 180) %> — excluded <%= shadow_report_timestamp(review.created_at) %>.
+          Reason: <%= review.reason %>.
+          <%= link_to "Supporting run ##{review.source_run_id}", distillator_shadow_report_site_path(@website, run_id: review.source_run_id) %>
+          <% if review.revoked_at %><br>Restored <%= shadow_report_timestamp(review.revoked_at) %>. Reason: <%= review.revocation_reason %>.<% end %>
+        </li>
+      <% end %></ul>
+    </details>
+  <% end %>
+
+  <% if shadow && !@historical_run && @detail.transition_status.review_activation_eligible %>
+    <h3>Review checklist</h3>
+    <% sampled_webpages = shadow_report_sampled_webpages(@detail) %>
+    <% first_sample = sampled_webpages.first %>
+    <ul>
+      <li><%= link_to "Open source website", first_sample[:links].find { |link| link[:label] == "Source website" }[:url], target: "_blank", rel: "noopener" if first_sample.present? && first_sample[:links].any? { |link| link[:label] == "Source website" } %></li>
+      <li><%= link_to "Open compare page", first_sample[:links].find { |link| link[:label] == "Compare" }[:url] if first_sample.present? && first_sample[:links].any? { |link| link[:label] == "Compare" } %></li>
+      <li><%= link_to "Open active cache", first_sample[:links].find { |link| link[:label] == "Open active cache" }[:url] if first_sample.present? && first_sample[:links].any? { |link| link[:label] == "Open active cache" } %></li>
+      <li><%= link_to "Open Condenser cache", first_sample[:links].find { |link| link[:label] == "Open Condenser cache" }[:url] if first_sample.present? && first_sample[:links].any? { |link| link[:label] == "Open Condenser cache" } %></li>
+      <li><%= link_to "Open webpage record", first_sample[:links].find { |link| link[:label] == "Webpage record" }[:url] if first_sample.present? && first_sample[:links].any? { |link| link[:label] == "Webpage record" } %></li>
+      <li>Compare title, date, location, and ticket link.</li>
+      <li><%= link_to "Check statements page", statements_path(seedurl: @website.seedurl) %></li>
+      <li>Check JSON-LD/export if relevant.</li>
+      <li>Activate after review, with reason.</li>
+    </ul>
+  <% end %>
+</details>
+
+<% if active %>
+  <details class="website-rollout-panel">
+    <summary>Rollback path</summary>
+    <p>Set rollout mode to Legacy in website options.</p>
+    <p>Wringer becomes production backend.</p>
+    <p>Condenser cache remains available for inspection.</p>
+  </details>
+<% end %>
+
+<p><%= link_to "Back to Transition Report", distillator_shadow_report_path %></p>
+
+</main>
