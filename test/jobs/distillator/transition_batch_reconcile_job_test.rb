@@ -41,6 +41,28 @@ class Distillator::TransitionBatchReconcileJobTest < ActiveJob::TestCase
     assert_no_enqueued_jobs { sweep }
   end
 
+  test "sweep only fails guarded standalone runs once their worker lock is released" do
+    site = event_site("standalone-crash")
+    run = Distillator::TransitionRun.request!(website: site).run
+    run.update!(status: "running", started_at: Time.current, progress: { execution_lock: true })
+    run.record_progress!("statements", completed: 41, total: 183)
+
+    Distillator::TransitionRun.with_connection do |connection|
+      params = connection.raw_connection.conninfo_hash.compact_blank
+      PG.connect(params) do |worker_session|
+        worker_session.exec_params("SELECT pg_advisory_lock(hashtextextended($1, 0))", ["distillator.transition_run:#{run.id}"])
+        sweep
+        assert_equal "running", run.reload.status
+      end
+    end
+
+    sweep
+    assert_equal "failed", run.reload.status
+    assert_equal 41, run.progress["completed"]
+    assert_includes run.error_message, "worker stopped"
+    assert_empty site.latest_transition_evidences_by_kind
+  end
+
   test "expired work gets its recovery guard even when the batch was stopped" do
     @first.update!(status: "running", phase: "postcheck", phase_started_at: 2.hours.ago, deadline_at: 1.minute.ago)
     @batch.stop_remaining!

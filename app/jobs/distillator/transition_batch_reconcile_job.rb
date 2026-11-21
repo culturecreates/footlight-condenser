@@ -11,6 +11,25 @@ module Distillator
         # An unavailable queue or one damaged group must not stop other groups.
         Rails.logger.warn(event: "distillator.batch.reconcile_failed", id: batch.id, error_class: error.class.name)
       end
+      recover_interrupted_runs
+    end
+
+    private
+
+    def recover_interrupted_runs
+      TransitionRun.guarded_running.find_each do |run|
+        run.recover_interrupted! do
+          workflow = SiteTransition.active.find_by(pre_run_id: run.id) || SiteTransition.active.find_by(post_run_id: run.id)
+          reason = "The worker stopped before the transition check finished. Retry with the same options."
+          if workflow && workflow.current_run&.id == run.id
+            SiteTransitionProcessor.new.recover(workflow, reason: reason, token: workflow.phase_token)
+          elsif !workflow
+            run.fail!(reason)
+          end
+        end
+      rescue StandardError => error
+        Rails.logger.warn(event: "distillator.transition.recovery_failed", run_id: run.id, error_class: error.class.name)
+      end
     end
   end
 end

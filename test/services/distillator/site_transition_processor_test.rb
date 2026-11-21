@@ -111,6 +111,24 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     end
   end
 
+  test "a dead worker comparing the Active path rolls back before the workflow deadline" do
+    _, item = request
+    @processor.perform(item.id, phase: "queued")
+    assert_equal "active", @website.reload.distillator_mode
+    @processor.send(:claim, item, "postcheck")
+    run = item.reload.post_run
+    run.update!(status: "running", started_at: Time.current, progress: { execution_lock: true })
+    assert_operator item.deadline_at, :>, 1.minute.from_now
+
+    Distillator::TransitionBatchReconcileJob.perform_now
+
+    assert_equal "failed", run.reload.status
+    assert_equal "attention", item.reload.status
+    assert_equal "failed", item.phase_results.dig("postcheck", "state")
+    assert_equal "shadow", @website.reload.distillator_mode
+    assert_equal "completed", item.phase_results.dig("recovery", "state")
+  end
+
   test "manual rollback wins over automation even while a check is executing" do
     _, item = request
     @processor.perform(item.id, phase: "queued")

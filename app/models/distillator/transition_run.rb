@@ -15,6 +15,7 @@ module Distillator
     validate :valid_check_options
     scope :active, -> { where(status: %w[queued running]) }
     scope :completed, -> { where(status: "completed") }
+    scope :guarded_running, -> { where(status: "running").where("progress ->> 'execution_lock' = 'true'") }
 
     def self.request!(website:, options: {}, workflow_item: nil)
       requested_options = Distillator::TransitionCheckOptions.coerce(options)
@@ -43,17 +44,55 @@ module Distillator
     end
 
     def record_progress!(phase, completed: nil, total: nil)
-      self.class.where(id: id, status: "running").update_all(progress: {
+      update = {
         phase: phase, completed: completed, total: total, updated_at: Time.current.iso8601(6)
-      }.compact)
+      }.compact
+      self.class.where(id: id, status: "running").update_all([
+        "progress = (progress - ARRAY['phase', 'completed', 'total', 'updated_at']) || CAST(? AS jsonb)", update.to_json
+      ])
     end
 
-    def execute
+    def execute(&block)
+      with_execution_lock { execute_claimed(&block) }
+    end
+
+    def recover_interrupted!
+      with_execution_lock do
+        reload
+        yield if status == "running" && progress["execution_lock"] == true
+      end
+    end
+
+    def fail!(message)
+      self.class.where(id: id, status: %w[queued running]).update_all(
+        status: "failed", completed_at: Time.current, error_message: message, updated_at: Time.current)
+      reload
+    end
+
+    private
+
+    # A PostgreSQL session lock disappears on process death. The marker is set
+    # only after the lock is acquired, so legacy executions keep their lease.
+    def with_execution_lock
+      self.class.with_connection do |connection|
+        key = "hashtextextended(#{connection.quote("distillator.transition_run:#{id}")}, 0)"
+        acquired = self.class.uncached { connection.select_value("SELECT pg_try_advisory_lock(#{key})") }
+        next unless acquired
+
+        begin
+          yield
+        ensure
+          self.class.uncached { connection.select_value("SELECT pg_advisory_unlock(#{key})") }
+        end
+      end
+    end
+
+    def execute_claimed
       claimed = website.with_lock do
         with_lock do
           next false unless status == "queued"
           raise ConfigurationChanged, "Check expired. Run a new check." if requested_at <= Time.current - LEASE
-          update!(status: "running", started_at: Time.current)
+          update!(status: "running", started_at: Time.current, progress: { execution_lock: true })
           true
         end
       end
@@ -75,17 +114,14 @@ module Distillator
       end
       result
     rescue StandardError => error
-      fail!(error.is_a?(ConfigurationChanged) ? error.message : "Transition check failed (#{error.class.name}). Check logs and retry.")
+      message = if error.is_a?(ConfigurationChanged) || error.is_a?(TransitionMemory::LimitExceeded)
+        error.message
+      else
+        "Transition check failed (#{error.class.name}). Check logs and retry."
+      end
+      fail!(message)
       raise
     end
-
-    def fail!(message)
-      self.class.where(id: id, status: %w[queued running]).update_all(
-        status: "failed", completed_at: Time.current, error_message: message, updated_at: Time.current)
-      reload
-    end
-
-    private
 
     def valid_check_options
       options

@@ -1,4 +1,5 @@
 require "test_helper"
+require "tempfile"
 
 class Distillator::ComparisonRefreshProxyTest < ActiveSupport::TestCase
   setup do
@@ -22,6 +23,22 @@ class Distillator::ComparisonRefreshProxyTest < ActiveSupport::TestCase
     first = @helper.reconciliation_response_for(@url)
     first["result"].first["name"] = "Changed locally"
     assert_equal "Good venue", @helper.reconciliation_response_for(@url)["result"].first["name"]
+  end
+
+  test "file-backed comparison reuses immutable snapshots even after a different lookup" do
+    venue = { "result" => [{ "name" => "Original venue", "id" => "K1" }] }
+    HTTParty.expects(:get).with(@url, timeout: 10).once.returns(venue)
+    another_url = "#{@url}&lang=fr"
+    HTTParty.expects(:get).with(another_url, timeout: 10).once.returns({ "result" => [] })
+
+    Tempfile.create("reconciliation-test", anonymous: true, binmode: true) do |file|
+      helper = Distillator::ComparisonRefreshProxy.new(response_file: file, cookies: {})
+      helper.reconciliation_response_for(@url)["result"].first["name"] = "Changed locally"
+      assert_equal({ "result" => [] }, helper.reconciliation_response_for(another_url))
+      assert_equal "Original venue", helper.reconciliation_response_for(@url).dig("result", 0, "name")
+      assert_equal 1, helper.reconciliation_performance["cache_hits"]
+      assert_operator file.size, :>, 0
+    end
   end
 
   test "region-specific request URLs cannot share a cached result" do

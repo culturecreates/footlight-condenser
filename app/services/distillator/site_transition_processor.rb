@@ -26,9 +26,9 @@ module Distillator
     def recover(item, reason:, token:)
       changed = owned(item, token) do |website|
         if (run = item.current_run)
+          run.fail!("Workflow stopped: #{reason}")
           item.phase_results = item.phase_results.merge(item.phase => comparison_result(run, website).merge(reason: reason)) unless item.phase_results.key?(item.phase)
         end
-        item.current_run&.fail!("Workflow stopped: #{reason}")
         if website.distillator_mode == "active"
           result = @rollout.call(website: website, to_mode: "shadow", actor: item.actor, reason: "Automatic recovery: #{reason}")
           unless result.success? && website.reload.distillator_mode == "shadow"

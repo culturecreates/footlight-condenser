@@ -4,7 +4,7 @@ module Distillator
   class TransitionCheckRunner
     REQUEST_BUDGET_SECONDS = 20
     TIMEOUT_GUARD_SECONDS = 3
-    MEMORY_SAMPLE_INTERVAL = 25
+    MEMORY_SAMPLE_INTERVAL = 10
     CacheMetadata = Struct.new(:normalized_url, :primary_issue_key, :http_response_code)
 
     Result = Struct.new(:website, :records, keyword_init: true) do
@@ -73,6 +73,7 @@ module Distillator
       budget_seconds: nil,
       timeout_guard_seconds: TIMEOUT_GUARD_SECONDS,
       clock: nil,
+      memory: Distillator::TransitionMemory.new,
       verify_active_path: false,
       require_native_path: false
     )
@@ -83,7 +84,8 @@ module Distillator
       end
       @statement_comparator = statement_comparator
       @website = website.is_a?(Website) ? website : Website.find(website)
-      @refresh_helper = refresh_helper || Distillator::ComparisonRefreshProxy.new(cookies: {})
+      @refresh_helper = refresh_helper
+      @memory = memory
       @export_service = export_service
       @transition_check_service = transition_check_service
       @fetch_cache_store = fetch_cache_store
@@ -112,7 +114,16 @@ module Distillator
       ActiveRecord::Base.uncached do
         Tempfile.create("distillator-html", anonymous: true, binmode: true) do |file|
           @snapshot_file = file
-          perform_checks_with_snapshots
+          if @refresh_helper
+            perform_checks_with_snapshots
+          else
+            Tempfile.create("distillator-reconciliation", anonymous: true, binmode: true) do |responses|
+              @refresh_helper = Distillator::ComparisonRefreshProxy.new(cookies: {}, response_file: responses)
+              perform_checks_with_snapshots
+            ensure
+              @refresh_helper = nil
+            end
+          end
         end
       end
     ensure
@@ -126,6 +137,7 @@ module Distillator
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       @phase_timings = {}
       transition_run&.record_progress!("selection")
+      @memory.record(run_id: transition_run.id, phase: "selection")
       check_args = { website: website, run_fetch: false }
       check_args[:check_options] = @check_options unless @check_options.default?
       transition_check = timed_phase("selection") { transition_check_service.call(**check_args) }
@@ -135,6 +147,8 @@ module Distillator
         collect_representative_url_results(representative_webpages, transition_check.comparison_policy)
       end
       @snapshot_file.flush
+      @memory.record(run_id: transition_run.id, phase: "after_fetch",
+        completed: representative_url_results.count { |row| row[:attempted_condenser_fetch] }, total: representative_webpages.length)
 
       records = {
         fetch_parity: record_fetch_check(transition_check, representative_url_results),
@@ -142,27 +156,29 @@ module Distillator
         export_diff: timed_phase("export") { record_export_check(transition_check, representative_webpages, representative_url_results) }
       }
       transition_run&.record_progress!("completed", completed: representative_webpages.length, total: representative_webpages.length)
+      @memory.record(run_id: transition_run.id, phase: "finalizing")
       performance = performance_snapshot(records, started)
       records[:export_diff].update!(details: records[:export_diff].details.merge("performance" => performance))
       Rails.logger.info(event: "distillator.transition.performance", website_id: website.id, run_id: transition_run&.id, performance: performance)
       Result.new(website: website, records: records)
     end
 
-    def record_page_progress(phase, completed, total)
+    def record_page_progress(phase, completed, total, timings: nil)
       return unless transition_run
 
-      transition_run.record_progress!(phase, completed: completed, total: total)
-      return unless (completed % MEMORY_SAMPLE_INTERVAL).zero? || completed == total
+      updated = transition_run.record_progress!(phase, completed: completed, total: total)
+      raise TransitionRun::ConfigurationChanged, "Transition check is no longer running." if updated.zero?
 
-      Rails.logger.info(event: "distillator.transition.memory", run_id: transition_run.id, phase: phase,
-        completed: completed, total: total, rss_kib: process_rss_kib, heap_live_slots: GC.stat(:heap_live_slots))
-    end
-
-    def process_rss_kib
-      rss = File.foreach("/proc/self/status").find { |line| line.start_with?("VmRSS:") }
-      rss&.split&.fetch(1)&.to_i
-    rescue SystemCallError
-      nil
+      sample = (completed % MEMORY_SAMPLE_INTERVAL).zero? || completed == total
+      if sample && timings
+        rows = timings.values
+        profile = { paired_dsl_ms: rows.sum { |row| row[:extraction_ms] }.round(2),
+          formatting_ms: rows.sum { |row| row[:formatting_ms] }.round(2),
+          source_executions: rows.sum { |row| row[:executions] } }
+        profile[:reconciliation] = refresh_helper.reconciliation_performance if refresh_helper.respond_to?(:reconciliation_performance)
+      end
+      @memory.record(run_id: transition_run.id, phase: phase, completed: completed, total: total,
+        sample: sample, profile: profile)
     end
 
     attr_reader :transition_run, :statement_comparator, :website, :refresh_helper, :export_service, :transition_check_service, :fetch_cache_store, :cache_compare,
@@ -200,7 +216,7 @@ module Distillator
     end
 
     def record_statement_check(transition_check, representative_webpages, representative_url_results)
-      transition_run&.record_progress!("statements", completed: 0, total: representative_webpages.length)
+      record_page_progress("statements", 0, representative_webpages.length)
       latest_cache = representative_url_results.first&.dig(:cache) || transition_check.cache
       return record_missing_representatives(latest_cache, :statement_delta, transition_check) if representative_webpages.blank?
       if timeout_budget_exceeded?
@@ -211,7 +227,7 @@ module Distillator
         url_results: representative_url_results, refresh_helper: refresh_helper, comparator: statement_comparator,
         strict: @check_options.strict?, stop_requested: -> { timeout_budget_exceeded? }, compact_evidence: true,
         snapshot_reader: method(:read_html_pair),
-        progress: ->(completed, total) { record_page_progress("statements", completed, total) })
+        progress: ->(completed, total, timings) { record_page_progress("statements", completed, total, timings: timings) unless completed.zero? })
       critical = parity.critical_failures.map { |entry| failure_identity(entry) }
       optional = parity.optional_failures.map { |entry| failure_identity(entry) }
       Distillator::TransitionEvidenceRecorder.call(
@@ -242,6 +258,7 @@ module Distillator
 
     def record_export_check(transition_check, representative_webpages, representative_url_results)
       transition_run&.record_progress!("export")
+      @memory.record(run_id: transition_run.id, phase: "export")
       latest_cache = representative_url_results.first&.dig(:cache) || transition_check.cache
       return record_missing_representatives(latest_cache, :export_diff, transition_check) if representative_webpages.blank?
       fetched_webpages, failed_fetch_results = partition_representative_webpages(representative_webpages, representative_url_results)

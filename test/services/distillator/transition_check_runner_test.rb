@@ -43,6 +43,23 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     end
   end
 
+  test "a memory limit breach keeps partial evidence out of the completed report" do
+    website = build_website
+    memory = Distillator::TransitionMemory.new(limit_mib: "900")
+    memory.stubs(:process_metrics).returns({ rss_kib: 520 * 1024 }, { rss_kib: 900 * 1024 })
+
+    assert_raises(Distillator::TransitionMemory::LimitExceeded) do
+      Distillator::TransitionCheckRunner.call(website: website, memory: memory,
+        fetch_cache_store: FakeFetchCacheStore.new({}), cache_compare: fake_cache_compare_for(website))
+    end
+
+    run = website.latest_transition_run
+    assert_equal "failed", run.status
+    assert_includes run.error_message, "configured limit 900 MiB"
+    assert_empty website.latest_transition_evidences_by_kind
+    assert_equal "shadow", website.reload.distillator_mode
+  end
+
   test "records current fetch error even when a last good body remains in the operational cache" do
     website = build_website
     cache = Distillator::FetchCache.find_by!(normalized_url: website.webpages.first.url)

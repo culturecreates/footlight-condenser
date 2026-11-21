@@ -13,7 +13,7 @@ module Distillator
       comparison_count = 0
       inputs = url_results.each_with_object({}) { |row, by_url| by_url[row[:url]] ||= row }
       rows = webpages.each_with_index.map do |page, index|
-        progress&.call(index, webpages.length)
+        progress&.call(index, webpages.length, timings)
         if stop_requested&.call
           next { url: page.url, status: "inconclusive", reason: "transition_check_timeout_budget_exceeded" }
         end
@@ -80,7 +80,7 @@ module Distillator
           { url: page.url, status: "passed", reason: "paired_statements_match" }
         end
       end
-      progress&.call(webpages.length, webpages.length)
+      progress&.call(webpages.length, webpages.length, timings)
       critical, optional = artifacts.reject do |entry|
         entry[:verdict] == MigrationComparator::MATCH || MigrationComparator.shared_extraction_failure?(entry) ||
           [entry[:legacy_error], entry[:condenser_error]].compact.any? { |error| error.to_h["error_type"].to_s.include?("FetchUnsupported") }

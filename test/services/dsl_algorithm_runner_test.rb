@@ -36,6 +36,13 @@ class DslAlgorithmRunnerTest < ActiveSupport::TestCase
     super(url: start_url, scrape_options: scrape_options, tracer: tracer, render_js: render_js)
   end
 
+  test "untraced DSL steps skip input snapshots and previews" do
+    runner, = build_runner(tracer: Dsl::Tracing::NullTracer.new)
+    runner.expects(:trace_preview).never
+
+    assert_equal ["original", "changed"], runner.run('ruby=["original"];ruby=$array << "changed"')
+  end
+
   def build_compat_runner(*args, url: nil, scrape_options: {}, tracer: Dsl::Tracing::TraceCollector.new, render_js: false)
     start_url = url || args.first || "http://example.local"
     super(url: start_url, scrape_options: scrape_options, tracer: tracer, render_js: render_js)

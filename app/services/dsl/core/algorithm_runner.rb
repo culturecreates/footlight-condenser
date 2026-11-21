@@ -50,7 +50,9 @@ module Dsl
       Thread.current[:dsl_url]   = @url
       Thread.current[:dsl_json]  = nil
 
+      previous_binding = @dsl_binding
       @dsl_binding = binding
+      tracing = !@tracer.is_a?(Dsl::Tracing::NullTracer)
 
       @library_evidence = []
       begin
@@ -61,7 +63,7 @@ module Dsl
       rescue Dsl::LibraryExpander::Error => error
         result = abort_update(error: error.message, error_type: "LibraryExpansionError", step: "library")
         @tracer.step(step: 0, type: "library", code: algorithm.to_s.first(160), input: [], output: [], error: result.last,
-          url_before: @url, url_after: @url, duration_ms: 0)
+          url_before: @url, url_after: @url, duration_ms: 0) if tracing
         return result
       end
       if export_debug?
@@ -79,7 +81,7 @@ module Dsl
         step_index  = idx + 1
 
         @current_wringer_status = nil
-        input_copy  = Marshal.load(Marshal.dump(results))
+        input_copy  = Marshal.load(Marshal.dump(results)) if tracing
         url_before  = @url
         start_time  = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
@@ -89,7 +91,7 @@ module Dsl
         Thread.current[:dsl_json]  = @json
 
         out = execute(prefix, code, results)
-        input_preview = trace_preview(input_copy)
+        input_preview = trace_preview(input_copy) if tracing
 
         # handle abort payload
         if abort_structure?(out)
@@ -111,7 +113,7 @@ module Dsl
             url_before: url_before,
             url_after: @url,
             duration_ms: duration_ms
-          )
+          ) if tracing
 
           if export_debug?
             Rails.logger.warn(
@@ -142,7 +144,7 @@ module Dsl
             url_before: url_before,
             url_after: @url,
             duration_ms: duration_ms
-          )
+          ) if tracing
 
           if export_debug?
             Rails.logger.warn(
@@ -156,7 +158,7 @@ module Dsl
         duration_ms = ((end_time - start_time) * 1000).round(1)
 
         url_after   = @url
-        output      = trace_preview(out)
+        output      = trace_preview(out) if tracing
         probe_output = prefix == 'xpath' ? @current_xpath_matches : out
         probe       = build_xpath_probe(previous_prefix, prefix, probe_output, previous_step_index)
         if abort_structure?(probe)
@@ -175,7 +177,7 @@ module Dsl
             url_before: url_before,
             url_after: url_after,
             duration_ms: duration_ms
-          )
+          ) if tracing
 
           return probe
         end
@@ -195,7 +197,7 @@ module Dsl
           url_before: url_before,
           url_after: url_after,
           duration_ms: duration_ms
-        )
+        ) if tracing
 
         results = out
         previous_prefix = prefix
@@ -219,7 +221,7 @@ module Dsl
           url_before: url_before,
           url_after: @url,
           duration_ms: duration_ms
-        )
+        ) if tracing
         return abort_update(
           error: e.message,
           error_type: e.class.to_s,
@@ -232,6 +234,7 @@ module Dsl
       end
       results
     ensure
+      @dsl_binding = previous_binding
       restore_thread_locals(previous_locals)
     end
 
