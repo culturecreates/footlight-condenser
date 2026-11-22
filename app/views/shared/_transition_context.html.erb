@@ -1,4 +1,4 @@
-<details class="transition-context-card" data-transition-context>
+<details class="transition-context-card" data-transition-context <%= "open" if local_assigns[:expanded] %>>
   <summary>Transition context · <%= context[:mode] %> · <%= context[:backend] %></summary>
   <div class="transition-context-body">
     <p><strong>Website:</strong> <%= website.name %>

@@ -1,6 +1,7 @@
 .condenser-header {
   margin-bottom: 1.25rem;
-  color: #24364b;
+  color: var(--operator-ink);
+  font-family: var(--operator-font);
 }
 
 .condenser-header__main,
@@ -46,6 +47,13 @@
 .condenser-header__links > a,
 .condenser-header summary {
   font-weight: 600;
+}
+
+.condenser-header .condenser-header__brand {
+  color: var(--operator-primary);
+  font-size: 1.02rem;
+  font-weight: 750;
+  letter-spacing: -.025em;
 }
 
 .condenser-header .condenser-header__site-name {

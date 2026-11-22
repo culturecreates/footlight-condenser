@@ -328,9 +328,18 @@ class StatementsController < ApplicationController
   # PATCH/PUT /statements/1
   # PATCH/PUT /statements/1.json
   def update
+    attributes = statement_params
+    submitted_cache = attributes[:cache]
+    original_cache = @statement.cache
+    # Browsers normalize textarea line endings on submission.
+    if request.format.html? && submitted_cache.is_a?(String) && original_cache.is_a?(String) &&
+        submitted_cache.gsub(/\r\n?/, "\n") == original_cache.gsub(/\r\n?/, "\n")
+      attributes[:cache] = original_cache
+    end
+
     respond_to do |format|
-      if @statement.update(statement_params)
-        if statement_params.include?("cache") && !statement_params.include?("manual")
+      if @statement.update(attributes)
+        if attributes.include?("cache") && !attributes.include?("manual")
           # This statement's value has been edited so it should be set to manual so it does not get updated automatically
           @statement.update(manual: true)
         end

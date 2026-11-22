@@ -1,20 +1,29 @@
-<h1><%= @statements.count %> Statements</h1>
-<% if params[:rdf_uri].present? %>
-  <p> Showing statements for resource <%= params[:rdf_uri] %> <%= link_to "Refresh URI", refresh_rdf_uri_statements_path(rdf_uri: params[:rdf_uri]), method: :patch %>
-    | <%= link_to "Crawl URI(1 hr cache)", refresh_rdf_uri_statements_path(rdf_uri: params[:rdf_uri], force_scrape_every_hrs: 1), method: :patch %>
-   <% if params[:rdf_uri].starts_with? "adr:" %> 
-    |  <%= link_to "Console", "#{get_console_url_per_environment}/events/#{params[:rdf_uri]}" %>
-   <% else %>
-    |  <%= link_to "Console Resource", "#{get_console_url_per_environment}/resource?uri=#{CGI.escape(params[:rdf_uri])}" %>
+<% content_for :compact_operator_context, "true" %>
+<main class="operator-workspace statement-workspace">
+<header class="operator-editor__header">
+  <div>
+    <h1>Statements</h1>
+    <p class="operator-editor__context"><%= number_with_delimiter(@statements.total_entries) %> matching
+      <%= "statement".pluralize(@statements.total_entries) %></p>
+  </div>
+  <div class="operator-editor__actions">
+    <% if @filters[:rdf_uri].present? %>
+      <% uri = @filters[:rdf_uri] %>
+      <%= link_to "Refresh URI", refresh_rdf_uri_statements_path(rdf_uri: uri), method: :patch, class: "operator-editor__button" %>
+      <%= link_to "Crawl URI (1 hr cache)", refresh_rdf_uri_statements_path(rdf_uri: uri, force_scrape_every_hrs: 1), method: :patch, class: "operator-editor__button" %>
+      <% console_url = uri.start_with?("adr:") ? "#{get_console_url_per_environment}/events/#{uri}" : "#{get_console_url_per_environment}/resource?uri=#{CGI.escape(uri)}" %>
+      <%= link_to "Open in Console", console_url, class: "operator-editor__button" %>
+    <% elsif @filters[:seedurl].present? && @filters[:seedurl] != "all" %>
+      <%= link_to "Open in Console", contextual_console_url, class: "operator-editor__button" %>
     <% end %>
-  </p>
-<% elsif params[:seedurl] && params[:seedurl] != "all" %>
- <p> Showing statements for website <%= params[:seedurl] %> | <%= link_to "Console", "#{get_console_url_per_environment}/events?seedurl=#{params[:seedurl]}" %>
-      </p>
-<% end %>
-<br>
+    <%= link_to "New statement", new_statement_path, class: "operator-editor__button operator-editor__button--primary" %>
+  </div>
+</header>
+
+<%= render "shared/operator_active_filters", filters: @filters.except(:seedurl).merge(@filters.slice(:seedurl).reject { |_, value| value == "all" }),
+      labels: { seedurl: "Website", rdf_uri: "Resource", prop: "Property ID", source: "Source ID", selected: "Selected source" } %>
+
 <%= will_paginate @statements %>
-<br>
 
 <details class="statements-batch-actions harmonized-operator-section">
   <summary>Batch actions</summary>
@@ -60,6 +69,5 @@
            render_filters: true,
            empty_message: "No statements match the current filters." %>
 
-<br>
-
-<%= link_to "New Statement", new_statement_path %>
+<%= will_paginate @statements %>
+</main>

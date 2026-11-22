@@ -2,6 +2,9 @@
 <html>
   <head>
     <title>Condenser <%= " DEV" if Rails.env.development? %></title>
+    <% if content_for?(:compact_operator_context) %>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+    <% end %>
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
@@ -42,16 +45,27 @@
     <%= javascript_include_tag "application", type: "module", "data-turbo-track": "reload" %>
   </head>
 
-  <body style="<%= 'background-color: #EE9;' if Rails.env.development? %>">
+  <body class="<%= 'operator-workspace-page' if content_for?(:compact_operator_context) %>" style="<%= 'background-color: #EE9;' if Rails.env.development? %>">
     <%= render "layouts/header" %>
     <%= render "shared/flash" %>
-    <% if show_transition_context? %>
-      <%= render "shared/transition_context",
-                 website: transition_context_website,
-                 context: transition_context_summary(transition_context_website) %>
+    <% page_context = capture do %>
+      <% if show_transition_context? %>
+        <%= render "shared/transition_context",
+                   website: transition_context_website,
+                   context: transition_context_summary(transition_context_website),
+                   expanded: content_for?(:compact_operator_context) %>
+      <% end %>
+      <% if !suppress_operator_context_card? && (operator_context = operator_context_payload).present? %>
+        <%= render "shared/operator_context_card", context: operator_context, expanded: content_for?(:compact_operator_context) %>
+      <% end %>
     <% end %>
-    <% if !suppress_operator_context_card? && (operator_context = operator_context_payload).present? %>
-      <%= render "shared/operator_context_card", context: operator_context %>
+    <% if content_for?(:compact_operator_context) && page_context.present? %>
+      <details class="operator-context-disclosure">
+        <summary>Page context</summary>
+        <%= page_context %>
+      </details>
+    <% else %>
+      <%= page_context %>
     <% end %>
     <%= yield %>
   </body>

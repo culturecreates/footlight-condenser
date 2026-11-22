@@ -1,4 +1,5 @@
-<main class="transition-report">
+<% content_for :compact_operator_context, "true" %>
+<main class="transition-report operator-workspace">
 <% active = @website.distillator_mode == "active" %>
 <% shadow = @website.distillator_mode == "shadow" %>
 <% operation = @detail.operation_status %>

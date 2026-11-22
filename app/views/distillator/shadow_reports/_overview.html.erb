@@ -1,7 +1,7 @@
-<header class="transition-report-heading">
+<header class="transition-report-heading operator-editor__header">
   <div>
     <h1><%= @website.name %> · Transition report</h1>
-    <p class="transition-secondary"><%= @website.seedurl %> · Website #<%= @website.id %></p>
+    <p class="operator-editor__context"><%= @website.seedurl %> · Website #<%= @website.id %></p>
   </div>
   <p>Current mode: <strong><%= @website.distillator_mode.humanize %></strong> ·
     Serving backend: <strong><%= website_rollout_backend_for(@website) %></strong></p>

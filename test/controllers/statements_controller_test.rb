@@ -26,6 +26,7 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "details.statements-batch-actions", 1
     assert_select ".harmonized-table-shell", 1
+    assert_select "main.operator-workspace .operator-table-scroll[aria-label='Statement results'] thead th[scope=col]", minimum: 1
     assert_select ".harmonized-table-filters", 1
     assert_select 'form[action="/statements"][method="get"]', 1
     assert_select 'input[type="submit"][value="Apply filters"]', 1
@@ -215,6 +216,8 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".statement-show-primary-review .statement-show-status", 1
     assert_select ".statement-show-primary-review pre.statement-show-cache", text: /MyString/
     assert_select ".statement-show-primary-actions", 1
+    assert_select "main.operator-workspace h1", text: @statement.source.property.label
+    assert_select ".statement-show-primary-actions a.operator-editor__button--primary", text: "Edit statement"
     assert_select ".statement-show-details summary", text: "Webpage"
     assert_select ".statement-show-details summary", text: "Trace"
     assert_select ".statement-show-details summary", text: "Change status"
@@ -484,6 +487,17 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
   test "should get edit" do
     get edit_statement_url(@statement)
     assert_response :success
+    assert_select "main.operator-editor h1", text: "Edit #{@statement.source.property.label}"
+    assert_select "form[data-statement-editor]" do
+      assert_select "textarea#statement_cache[name='statement[cache]']", text: @statement.cache
+      assert_select "select#statement_status option[selected]", value: @statement.status
+      assert_select "input[type='checkbox'][name='statement[manual]']"
+      assert_select "input[type='checkbox'][name='statement[selected_individual]']"
+      assert_select "label[for='statement_cache_refreshed_1i']", text: "Year"
+      assert_select "select#statement_cache_refreshed_1i[name='statement[cache_refreshed(1i)]']"
+      assert_select "select#statement_cache_changed_5i[name='statement[cache_changed(5i)]']"
+      assert_select "input[type='submit'][value='Save statement']"
+    end
   end
 
   test "should update statement" do
@@ -497,6 +511,17 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
         status_origin: @statement.status_origin,
         webpage_id: @statement.webpage_id } }
     assert_redirected_to statements_path(rdf_uri: @statement.webpage.rdf_uri)
+  end
+
+  test "editing metadata preserves the original line endings of a multiline cache" do
+    original = "First line\nSecond line"
+    @statement.update_columns(cache: original)
+
+    patch statement_url(@statement), params: { statement: { cache: "First line\r\nSecond line", manual: "1" } }
+
+    assert_redirected_to statements_path(rdf_uri: @statement.webpage.rdf_uri)
+    assert_equal original, @statement.reload.cache
+    assert @statement.manual?
   end
 
   test "should REFRESH webpage" do

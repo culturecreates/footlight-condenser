@@ -214,6 +214,17 @@ module StatementsHelper
     operator_rollout_badge(statement.webpage.website)
   end
 
+  def operator_statement_status_badge(status)
+    label = status.to_s.humanize.presence || "Unknown"
+    tone = case status.to_s
+    when "ok" then "passed"
+    when "problem", "error" then "failed"
+    when "missing", "updated", "warning" then "review"
+    else "neutral"
+    end
+    tag.span(label, class: "operator-status operator-status--#{tone}")
+  end
+
   def statement_rollout_explanation(statement)
     operator_rollout_explanation(statement.webpage.website)
   end

@@ -1,6 +1,6 @@
 <% domains = operator_context_domains(context) %>
 <% if domains.any? %>
-  <details class="operator-context-card" data-operator-context-card>
+  <details class="operator-context-card" data-operator-context-card <%= "open" if local_assigns[:expanded] %>>
     <summary>Context</summary>
 
     <div class="operator-context-card-body">

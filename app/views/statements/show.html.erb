@@ -1,3 +1,4 @@
+<% content_for :compact_operator_context, "true" %>
 <%
   current_mode = @trace_view_mode.to_i
   is_trace = current_mode == 3
@@ -31,12 +32,38 @@
   end
 %>
 
+<main class="operator-workspace statement-workspace">
+<header class="operator-editor__header">
+  <div>
+    <h1><%= @statement.source.property.label %></h1>
+    <p class="operator-editor__context"><%= @statement.webpage.website.name %> · Statement #<%= @statement.id %></p>
+  </div>
+  <div class="operator-editor__actions statement-show-primary-actions">
+    <%= link_to "Back to statements", statements_path, class: "operator-editor__button" %>
+    <%= button_to "Refresh", refresh_statement_path(@statement), method: :patch, form_class: "inline", class: "operator-editor__button" %>
+    <%= link_to "Edit statement", edit_statement_path(@statement), class: "operator-editor__button operator-editor__button--primary" %>
+  </div>
+</header>
+
+<section class="statement-show-section statement-show-primary-review statement-review-panel" aria-labelledby="statement-value-heading">
+  <div class="operator-form__panel-heading">
+    <h2 id="statement-value-heading">Current value</h2>
+    <p class="statement-show-status"><%= render "trace_header" %></p>
+  </div>
+  <% if @statement.cache.present? %>
+    <pre class="statement-show-cache" tabindex="0"><%= @statement.cache %></pre>
+  <% else %>
+    <p class="operator-editor__muted">No cached value</p>
+  <% end %>
+</section>
+
+<details class="statement-show-details">
+  <summary>Statement details</summary>
 <%= render "shared/cards/card_grid",
            cards: [
              {
                title: "Statement ##{@statement.id}",
                rows: [
-                 { label: "Cache", value: @statement.cache.to_s.truncate(160) },
                  { label: "Manual", value: @statement.manual },
                  { label: "Selected individual", value: @statement.selected_individual },
                  { label: "Status origin", value: @statement.status_origin },
@@ -59,21 +86,7 @@
            variant: :record,
            css_class: "statement-detail-cards" %>
 
-<section class="statement-show-section statement-show-primary-review">
-  <p class="statement-show-status">
-    <strong>Status:</strong>
-    <%= render "trace_header" %>
-  </p>
-
-  <p><strong>Cache:</strong></p>
-  <pre class="statement-show-cache"><%= @statement.cache %></pre>
-</section>
-
-<section class="statement-show-section statement-show-primary-actions">
-  <%= button_to "Refresh", refresh_statement_path(@statement), method: :patch, form_class: "inline", class: "as-link" %> |
-  <%= link_to "Edit", edit_statement_path(@statement) %> |
-  <%= link_to "Back", statements_path %>
-</section>
+</details>
 
 <details class="statement-show-details statement-show-context">
   <summary>Webpage</summary>
@@ -359,3 +372,4 @@
     <% end %>
   </div>
 </details>
+</main>

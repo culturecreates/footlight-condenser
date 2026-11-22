@@ -1,62 +1,109 @@
-<%= form_with(model: statement, local: true) do |form| %>
-  <% if statement.errors.any? %>
-    <div id="error_explanation">
-      <h2><%= pluralize(statement.errors.count, "error") %> prohibited this statement from being saved:</h2>
+<% content_for :compact_operator_context, "true" %>
 
-      <ul>
-      <% statement.errors.full_messages.each do |message| %>
-        <li><%= message %></li>
+<main class="operator-editor statement-editor">
+  <header class="operator-editor__header">
+    <div>
+      <h1><%= statement.persisted? ? "Edit #{statement.source&.property&.label.presence || 'statement'}" : "New statement" %></h1>
+      <% if statement.persisted? %>
+        <p class="operator-editor__context">
+          <%= [statement.webpage&.website&.name, "Statement ##{statement.id}"].compact.join(" · ") %>
+        </p>
       <% end %>
-      </ul>
     </div>
+    <% if statement.persisted? %>
+      <%= link_to "View statement", statement, class: "operator-editor__button" %>
+    <% end %>
+  </header>
+
+  <%= form_with(model: statement, local: true, class: "operator-form", data: { statement_editor: true }) do |form| %>
+    <% if statement.errors.any? %>
+      <div class="operator-form__errors" role="alert">
+        <h2>Couldn’t save statement</h2>
+        <ul>
+          <% statement.errors.full_messages.each do |message| %>
+            <li><%= message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <section class="operator-form__panel operator-form__panel--primary" aria-labelledby="statement-cache-heading">
+      <div class="operator-form__panel-heading">
+        <h2 id="statement-cache-heading"><%= form.label :cache, "Cache value" %></h2>
+        <div class="operator-form__tools" data-cache-tools hidden>
+          <span class="operator-form__tag" data-cache-format role="status"></span>
+          <button type="button" class="operator-editor__button operator-editor__button--small" data-format-json>Format JSON</button>
+          <button type="button" class="operator-editor__button operator-editor__button--small" data-preview-json
+            aria-pressed="false" aria-controls="statement_cache_preview">JSON preview</button>
+        </div>
+      </div>
+      <%= form.text_area :cache, id: :statement_cache, rows: 8, class: "operator-form__code",
+            spellcheck: false, autocapitalize: "off", autocomplete: "off" %>
+      <pre id="statement_cache_preview" class="operator-form__code operator-form__preview" aria-label="Formatted JSON preview"
+        tabindex="0" hidden></pre>
+    </section>
+
+    <div class="operator-form__grid operator-form__grid--stack">
+      <section class="operator-form__panel" aria-labelledby="statement-review-heading">
+        <h2 id="statement-review-heading">Review</h2>
+        <div class="operator-form__grid">
+          <div class="operator-form__field">
+            <%= form.label :status %>
+            <%= form.select :status, Statement::STATUSES.map { |value, label| [label, value] }, { prompt: "Choose status" }, id: :statement_status %>
+          </div>
+          <div class="operator-form__field">
+            <%= form.label :status_origin %>
+            <%= form.text_field :status_origin, id: :statement_status_origin %>
+          </div>
+        </div>
+        <div class="operator-form__grid operator-form__checks">
+          <label class="operator-form__check">
+            <%= form.check_box :manual, id: :statement_manual %>
+            <span>Manual</span>
+          </label>
+          <label class="operator-form__check">
+            <%= form.check_box :selected_individual, id: :statement_selected_individual %>
+            <span>Selected individual</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="operator-form__panel" aria-labelledby="statement-record-heading">
+        <h2 id="statement-record-heading">Source &amp; webpage</h2>
+        <div class="operator-form__grid">
+          <div class="operator-form__field">
+            <%= form.label :source_id, "Source ID" %>
+            <%= form.text_field :source_id, id: :statement_source_id, inputmode: "numeric" %>
+          </div>
+          <div class="operator-form__field">
+            <%= form.label :webpage_id, "Webpage ID" %>
+            <%= form.text_field :webpage_id, id: :statement_webpage_id, inputmode: "numeric" %>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="operator-form__panel" aria-labelledby="statement-timestamps-heading">
+      <div class="operator-form__panel-heading">
+        <h2 id="statement-timestamps-heading">Cache timestamps</h2>
+        <span class="operator-editor__muted"><%= Time.zone.name %></span>
+      </div>
+      <div class="operator-form__grid operator-form__grid--stack">
+        <% { cache_refreshed: "Cache refreshed", cache_changed: "Cache changed" }.each do |attribute, label| %>
+          <fieldset class="operator-form__datetime">
+            <legend><%= label %></legend>
+            <% %w[Year Month Day Hour Minute].each_with_index do |part, index| %>
+              <%= label_tag form.field_id(attribute, "#{index + 1}i"), part, class: "operator-editor__sr-only" %>
+            <% end %>
+            <div><%= form.datetime_select attribute %></div>
+          </fieldset>
+        <% end %>
+      </div>
+    </section>
+
+    <footer class="operator-form__actions">
+      <%= form.submit(statement.persisted? ? "Save statement" : "Create statement", class: "operator-editor__button operator-editor__button--primary") %>
+      <%= link_to "Back to statements", statements_path, class: "operator-editor__button" %>
+    </footer>
   <% end %>
-
-  <div class="field">
-    <%= form.label :cache %>
-    <%= form.text_field :cache, id: :statement_cache %>
-  </div>
-
-  <div class="field">
-    <%= form.label :status %>
-    <%= form.text_field :status, id: :statement_status %>
-  </div>
-
-  <div class="field">
-    <%= form.label :manual %>
-    <%= form.check_box :manual, id: :statement_manual %>
-  </div>
-
-  <div class="field">
-    <%= form.label :selected_individual %>
-    <%= form.check_box :selected_individual, id: :statement_selected_individual %>
-  </div>
-
-  <div class="field">
-    <%= form.label :status_origin %>
-    <%= form.text_field :status_origin, id: :statement_status_origin %>
-  </div>
-
-  <div class="field">
-    <%= form.label :cache_refreshed %>
-    <%= form.datetime_select :cache_refreshed, id: :statement_cache_refreshed %>
-  </div>
-
-  <div class="field">
-    <%= form.label :cache_changed %>
-    <%= form.datetime_select :cache_changed, id: :statement_cache_changed %>
-  </div>
-
-  <div class="field">
-    <%= form.label :source_id %>
-    <%= form.text_field :source_id, id: :statement_source_id %>
-  </div>
-
-  <div class="field">
-    <%= form.label :webpage_id %>
-    <%= form.text_field :webpage_id, id: :statement_webpage_id %>
-  </div>
-
-  <div class="actions">
-    <%= form.submit %>
-  </div>
-<% end %>
+</main>

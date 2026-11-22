@@ -61,14 +61,17 @@ end
                  seedurl: local_assigns[:seedurl],
                  source_id: local_assigns[:source_id] %>
     <% end %>
+    <% if table_key == :statements %>
+      <div class="operator-table-scroll" tabindex="0" role="region" aria-label="Statement results">
+    <% end %>
     <table class="<%= local_assigns[:table_css_class] || "cache-table" %>">
       <thead>
         <tr>
           <% headers.each do |header| %>
             <% if header[:sort_key].present? %>
-              <th><%= harmonized_sortable_header(header[:sort_key], header[:label], filters: sortable_filters, current_sort: sort, current_direction: direction) %></th>
+              <th scope="col"><%= harmonized_sortable_header(header[:sort_key], header[:label], filters: sortable_filters, current_sort: sort, current_direction: direction) %></th>
             <% else %>
-              <th><%= header[:label] %></th>
+              <th scope="col"><%= header[:label] %></th>
             <% end %>
           <% end %>
         </tr>
@@ -83,6 +86,7 @@ end
         <% end %>
       </tbody>
     </table>
+    <% if table_key == :statements %></div><% end %>
   <% elsif view_mode == "parity" %>
     <%= form_with url: distillator_cache_index_path, method: :get, local: true, html: { autocomplete: "off" } do %>
       <%= hidden_field_tag :sort, sort if sort.present? %>

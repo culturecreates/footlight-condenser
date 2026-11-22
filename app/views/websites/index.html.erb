@@ -1,11 +1,14 @@
-<section class="website-index">
-  <header class="website-index-header">
+<% content_for :compact_operator_context, "true" %>
+<main class="website-index operator-workspace">
+  <header class="website-index-header operator-editor__header">
     <div>
       <h1>Websites</h1>
-      <p class="muted"><%= @filters.present? ? "#{@websites.size} of #{@rollout_counts.values.sum} sites match" : "#{@rollout_counts.values.sum} sites" %> · <%= number_to_human(@total_statements) %> statements across all websites</p>
+      <p class="operator-editor__context"><%= @filters.present? ? "#{@websites.size} of #{@rollout_counts.values.sum} sites match" : "#{@rollout_counts.values.sum} sites" %> · <%= number_to_human(@total_statements) %> statements across all websites</p>
     </div>
-    <div><%= link_to "Recent transitions", distillator_transition_batches_path %> ·
-      <%= link_to "New Website", new_website_path, class: "website-index-primary-action" %></div>
+    <div class="operator-editor__actions">
+      <%= link_to "Recent transitions", distillator_transition_batches_path, class: "operator-editor__button" %>
+      <%= link_to "New Website", new_website_path, class: "operator-editor__button operator-editor__button--primary" %>
+    </div>
   </header>
 
   <div class="website-index-view-controls">
@@ -62,6 +65,9 @@
       </details>
     <% end %>
 
+    <%= render "shared/operator_active_filters", filters: @filters.except(:view),
+          labels: { q: "Website search", distillator_mode: "Mode", seed_filter: "Seedurl", default_language: "Language", graph_name: "Graph" } %>
+
     <%= form_with url: distillator_transition_batches_path, method: :post, local: true, id: "website-transition-batch", class: "website-transition-selection" do %>
       <%= hidden_field_tag :request_key, SecureRandom.uuid %>
       <%= hidden_field_tag :selection_context, @filters.map { |key, value| "#{key}: #{value}" }.join(" · ") %>
@@ -96,4 +102,4 @@
     <% end %>
 
   </div>
-</section>
+</main>

@@ -2,6 +2,7 @@
 <header class="condenser-header" data-condenser-header>
   <div class="condenser-header__main">
     <nav class="condenser-header__links" aria-label="Condenser">
+      <%= link_to "Condenser", websites_path, class: "condenser-header__brand" %>
       <%= header_navigation_link "Websites", websites_path, section: "websites", action: "index" %>
 
       <details class="condenser-header__menu" name="condenser-navigation" data-header-menu>
@@ -42,6 +43,9 @@
     </nav>
 
     <div class="condenser-header__status">
+      <% if Distillator::TransitionRuntime.staging? || Rails.env.development? %>
+        <span class="operator-status operator-status--review"><%= Rails.env.development? ? "Development" : "Staging" %></span>
+      <% end %>
       <% if (wringer_url = wringer_navigation_url) %>
         <%= link_to wringer_url, title: wringer_url do %>
           Wringer · <span data-wringer-reachability-url="<%= wringer_reachability_options_path %>" role="status">Checking…</span>
