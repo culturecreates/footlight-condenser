@@ -4,7 +4,7 @@
   --form-border: var(--operator-line);
   --form-surface: var(--operator-surface);
   --form-tint: var(--operator-tint);
-  --form-accent: var(--operator-primary);
+  --form-accent: var(--operator-action);
   --form-focus: var(--operator-focus);
   --form-radius: var(--operator-radius);
 
@@ -173,10 +173,10 @@
   overflow: auto;
 }
 
-.operator-form__preview .json-key { color: #1d5399; }
-.operator-form__preview .json-string { color: #116247; }
-.operator-form__preview .json-number { color: #904328; }
-.operator-form__preview .json-literal { color: #723faf; }
+.operator-form__preview .json-key { color: var(--operator-json-key); }
+.operator-form__preview .json-string { color: var(--operator-json-string); }
+.operator-form__preview .json-number { color: var(--operator-json-number); }
+.operator-form__preview .json-literal { color: var(--operator-json-literal); }
 
 .operator-form__checks {
   margin-top: 0.75rem;
@@ -194,7 +194,7 @@
 }
 
 .operator-form__check:has(input:checked) {
-  border-color: #9bb4dc;
+  border-color: var(--operator-line);
   background: var(--form-tint);
 }
 
@@ -226,8 +226,8 @@
 .operator-form__tag {
   padding: 0.2rem 0.55rem;
   border-radius: 999px;
-  background: #dce9ff;
-  color: #1c4482;
+  background: var(--operator-selection);
+  color: var(--operator-primary);
   font-size: 0.75rem;
   font-weight: 650;
 }
@@ -245,8 +245,8 @@
 }
 
 .operator-editor__button:hover:not(:disabled) {
-  border-color: #9bb4dc;
-  background: #f3f7ff;
+  border-color: var(--operator-line);
+  background: var(--operator-tint);
 }
 
 .operator-editor__button--small {
@@ -256,8 +256,8 @@
 }
 
 .operator-editor__button[aria-pressed="true"] {
-  border-color: #8ca8d5;
-  background: #dce9ff;
+  border-color: var(--operator-line);
+  background: var(--operator-selection);
 }
 
 .operator-editor__button:disabled {
@@ -273,7 +273,7 @@
 }
 
 .operator-editor__button--primary:hover:not(:disabled) {
-  background: #193e7d;
+  background: var(--operator-action-hover);
 }
 
 .operator-editor :focus-visible {
@@ -283,10 +283,10 @@
 
 .operator-form__errors {
   padding: 0.75rem 1rem;
-  border: 1px solid #e9b6b9;
+  border: 1px solid var(--operator-blocked);
   border-radius: var(--form-radius);
-  background: #fff1f1;
-  color: #85282d;
+  background: var(--operator-blocked-bg);
+  color: var(--operator-blocked);
 }
 
 .operator-form__errors ul {
@@ -300,7 +300,7 @@
 }
 
 .operator-form .field_with_errors :is(input, select, textarea) {
-  border-color: #b74149;
+  border-color: var(--operator-blocked);
 }
 
 @media (max-width: 50rem) {

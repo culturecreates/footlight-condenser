@@ -22,6 +22,25 @@ class CacheLinkRenderingTest < ActionView::TestCase
     assert_equal "noopener noreferrer", fragment.at_css("a")["rel"]
   end
 
+  test "webpage links leave sentence punctuation and wrapping parentheses outside the link" do
+    source = "Compare https://example.org/event, https://example.org/details. " \
+      "See (https://example.org/series/act(2)#dates)."
+    fragment = Nokogiri::HTML.fragment(link_webpage_urls(source))
+
+    assert_equal source, fragment.text
+    assert_equal %w[https://example.org/event https://example.org/details https://example.org/series/act(2)#dates],
+      fragment.css("a").map { |link| link["href"] }
+  end
+
+  test "webpage links keep punctuation within quoted URLs and IPv6 hosts" do
+    urls = ["https://example.org/event,", "https://example.org/event?view=full#dates", "https://example.org/act(2)."]
+    source = "#{urls.to_json} and (http://[2001:db8::1])."
+    fragment = Nokogiri::HTML.fragment(link_webpage_urls(source))
+
+    assert_equal source, fragment.text
+    assert_equal urls + ["http://[2001:db8::1]"], fragment.css("a").map { |link| link["href"] }
+  end
+
   test "report cache links retain one purpose and distinct legacy and comparison links" do
     cache = Distillator::FetchCache.create!(uri_key: "clarity-cache", normalized_url: "https://example.org/event",
       html: "<title>Event</title>", body: "<title>Event</title>", http_response_code: 200,

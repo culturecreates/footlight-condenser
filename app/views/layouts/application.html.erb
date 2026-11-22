@@ -7,6 +7,7 @@
     <% end %>
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
+    <%= javascript_include_tag "color_theme", "data-turbo-track": "reload" %>
 
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
     <script>
@@ -19,33 +20,11 @@
       });
     </script>
 
-    <style>
-      .trace-details {
-        display: none;
-        background: #f9f9f9;
-        font-size: 0.9em;
-        padding: 8px;
-      }
-      .trace-details.expanded {
-        display: table-row;
-      }
-
-      .trace-table .trace-row.xpath {
-        background-color: #e8f5e9; /* light green */
-      }
-      .trace-table .trace-row.ruby {
-        background-color: #e3f2fd; /* light blue */
-      }
-      .trace-table .trace-row.error {
-        background-color: #ffebee; /* light red */
-      }
-    </style>
-
     <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
     <%= javascript_include_tag "application", type: "module", "data-turbo-track": "reload" %>
   </head>
 
-  <body class="<%= 'operator-workspace-page' if content_for?(:compact_operator_context) %>" style="<%= 'background-color: #EE9;' if Rails.env.development? %>">
+  <body class="<%= 'operator-workspace-page' if content_for?(:compact_operator_context) %>">
     <%= render "layouts/header" %>
     <%= render "shared/flash" %>
     <% page_context = capture do %>

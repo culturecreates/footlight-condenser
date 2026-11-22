@@ -12,10 +12,10 @@
 .transition-report h2 { font-size: 1.25rem; margin: 0 0 0.6rem; }
 .transition-report h3 { font-size: 1.05rem; }
 .transition-report p { margin: 0.5rem 0; }
-.transition-report a { color: #2455aa; text-underline-offset: 0.15em; }
+.transition-report a { color: var(--operator-primary); text-underline-offset: 0.15em; }
 .transition-report-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
 .transition-report .transition-secondary { color: var(--transition-muted); }
-.transition-decision { padding: 1rem; margin: 1rem 0; background: var(--transition-surface); border-left: 4px solid #64748b; border-radius: var(--operator-radius); }
+.transition-decision { padding: 1rem; margin: 1rem 0; background: var(--transition-surface); border-left: 4px solid var(--operator-muted); border-radius: var(--operator-radius); }
 .transition-decision--passed { background: var(--operator-success-bg); border-color: var(--operator-success); }
 .transition-decision--review { background: var(--operator-review-bg); border-color: var(--operator-review); }
 .transition-decision--failed { background: var(--operator-blocked-bg); border-color: var(--operator-blocked); }
@@ -31,7 +31,7 @@
 .transition-result--running { color: var(--operator-primary); background: var(--operator-tint); }
 .transition-next-action { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; margin: 1rem 0 1.5rem; }
 .transition-next-action > p { flex: 1 1 25rem; }
-.transition-report .transition-primary-action { display: inline-block; color: #fff; background: var(--operator-primary); border: 1px solid var(--operator-primary); border-radius: 7px; padding: 0.65rem 0.9rem; font: 640 .875rem/1.4 var(--operator-font); text-decoration: none; cursor: pointer; }
+.transition-report .transition-primary-action { display: inline-block; color: #fff; background: var(--operator-action); border: 1px solid var(--operator-action); border-radius: 7px; padding: 0.65rem 0.9rem; font: 640 .875rem/1.4 var(--operator-font); text-decoration: none; cursor: pointer; }
 .transition-report > section, .transition-report > details { margin: 1.5rem 0; }
 .transition-report details { padding: 0.8rem 0; border-top: 1px solid var(--transition-line); }
 .transition-report summary { cursor: pointer; overflow-wrap: anywhere; }
@@ -45,9 +45,9 @@
 .transition-field-finding h4 { margin: 0 0 0.75rem; }
 .transition-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .transition-values pre, .transition-recorded-json { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
-.transition-extraction-error { color: #aa293a; }
-.transition-report .transition-observation { background: #fff0f1; border-color: #aa293a; }
-.transition-source-unavailable, .transition-reviewed-exclusion { border-left: 3px solid #815100; padding: 0.5rem 1rem; margin: 1rem 0; background: #fff6df; }
+.transition-extraction-error { color: var(--operator-blocked); }
+.transition-report .transition-observation { background: var(--operator-blocked-bg); border-color: var(--operator-blocked); }
+.transition-source-unavailable, .transition-reviewed-exclusion { border-left: 3px solid var(--operator-review); padding: 0.5rem 1rem; margin: 1rem 0; background: var(--operator-review-bg); }
 .transition-review-form { display: grid; gap: 0.5rem; max-width: 45rem; }
 .transition-review-form textarea { width: 100%; box-sizing: border-box; font: inherit; }
 .transition-review-form input[type="submit"] { justify-self: start; padding: 0.5rem 0.75rem; }

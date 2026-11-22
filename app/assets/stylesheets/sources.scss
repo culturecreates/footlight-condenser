@@ -37,7 +37,7 @@
 
 .sources-show-list dt {
   font-weight: 700;
-  color: #334155;
+  color: var(--operator-muted);
 }
 
 .sources-show-list dd {
@@ -48,9 +48,9 @@
 .sources-show-pre {
   margin: 0.35rem 0 0;
   padding: 0.85rem 1rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--operator-line);
   border-radius: 0.5rem;
-  background: #fcfcfd;
+  background: var(--operator-surface);
   white-space: pre-wrap;
   word-break: break-word;
   overflow-x: auto;

@@ -1,28 +1,47 @@
-<h1>Monitoring</h1>
-<p>Shows blocked fetches on monitored sites, flagged DSL errors, and enrolled preprocessing problems.</p>
-<%= form_with url: monitoring_path, method: :get, local: true, class: "harmonized-table-filters" do %>
-  <%= label_tag :seedurl, "Site" %>
-  <%= select_tag :seedurl, options_for_select([["All sites", "all"]] + @sites.map { |site| [site, site] }, @seedurl || "all") %>
-  <%= label_tag :status, "Status" %>
-  <%= select_tag :status, options_for_select([["Open", "open"], ["Resolved", "resolved"], ["All", "all"]], @status) %>
-  <%= submit_tag "Filter" %>
-<% end %>
-<p><%= @issues.total_entries %> issues</p>
-<%= will_paginate @issues, params: { seedurl: @seedurl || "all", status: @status } %>
-<table>
-  <thead><tr><th>Site / property</th><th>Error</th><th>Last seen</th><th>Occurrences</th><th>Status</th><th>Inspect</th></tr></thead>
-  <tbody>
-    <% @issues.each do |issue| %>
-      <tr>
-        <td><strong><%= issue.website_name.presence || issue.seedurl %></strong><br><%= issue.property_name %><br><%= issue.kind.humanize %></td>
-        <td><%= link_webpage_urls(issue.message) %></td><td><span title="First seen: <%= issue.first_seen_at %>"><%= issue.last_seen_at %></span></td><td><%= issue.occurrences %></td>
-        <td><%= issue.resolved_at? ? "Resolved" : "Open" %></td>
-        <td><%= link_to "Source ##{issue.source_id}", source_path(issue.source_id) %>
-          <% if issue.statement_id %> · <%= link_to "Statement ##{issue.statement_id}", statement_path(issue.statement_id) %><% end %>
-          <% if issue.preprocessing_policy_id %> · <%= link_to "Policy", edit_preprocessing_policy_path(issue.preprocessing_policy_id) %><% end %>
-        </td>
-      </tr>
-    <% end %>
-  </tbody>
-</table>
-<% if @issues.empty? %><p>No monitored issues match these filters.</p><% end %>
+<% content_for :compact_operator_context, "true" %>
+<main class="operator-workspace monitoring-workspace">
+  <header class="operator-editor__header">
+    <div>
+      <h1>Monitoring</h1>
+      <p class="operator-editor__context">
+        <%= number_with_delimiter(@issues.total_entries) %> <%= @status unless @status == "all" %>
+        <%= "issue".pluralize(@issues.total_entries) %>
+      </p>
+    </div>
+  </header>
+
+  <%= form_with url: monitoring_path, method: :get, local: true, class: "harmonized-table-filters operator-filter-bar" do %>
+    <div>
+      <%= label_tag :seedurl, "Site" %>
+      <%= select_tag :seedurl, options_for_select([["All sites", "all"]] + @sites.map { |site| [site, site] }, @seedurl || "all") %>
+    </div>
+    <div>
+      <%= label_tag :status, "Status" %>
+      <%= select_tag :status, options_for_select([["Open", "open"], ["Resolved", "resolved"], ["All", "all"]], @status) %>
+    </div>
+    <%= submit_tag "Apply filters", class: "operator-editor__button operator-editor__button--small" %>
+  <% end %>
+
+  <% if @issues.empty? %>
+    <%= render "shared/tables/empty_state", message: "No monitored issues match these filters." %>
+  <% else %>
+    <div class="operator-table-scroll" tabindex="0" role="region" aria-label="Monitoring issues">
+      <table class="cache-table monitoring-table">
+        <thead>
+          <tr>
+            <th scope="col">Site</th>
+            <th scope="col">Issue</th>
+            <th scope="col" aria-sort="descending">Last seen</th>
+            <th scope="col" class="monitoring-table__count">Occurrences</th>
+            <th scope="col">Status</th>
+            <th scope="col">Diagnostics</th>
+          </tr>
+        </thead>
+        <tbody>
+          <%= render partial: "issue", collection: @issues, locals: { targets: @diagnostic_targets } %>
+        </tbody>
+      </table>
+    </div>
+    <%= will_paginate @issues, params: { seedurl: @seedurl || "all", status: @status } %>
+  <% end %>
+</main>

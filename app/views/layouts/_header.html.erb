@@ -57,6 +57,7 @@
       <% if cookies[:dsl_trace] == "true" %>
         <%= link_to "Trace on", options_path(tab: "trace"), class: "condenser-header__trace" %>
       <% end %>
+      <button type="button" class="condenser-header__theme" data-theme-toggle aria-pressed="false" hidden>Dark mode</button>
     </div>
   </div>
 

@@ -10,8 +10,14 @@ module ApplicationHelper
   end
 
   def link_webpage_urls(value)
-    parts = value.to_s.split(%r{(https?://[^\s<>"'\\]+)})
-    safe_join(parts.each_with_index.map { |part, index| index.odd? ? webpage_url_link(part) : part })
+    parts = value.to_s.split(%r{(https?://[^\s<>"'`\\]+)})
+    safe_join(parts.each_with_index.map do |part, index|
+      next part if index.even?
+      # Quoted URL values, such as strings in JSON, keep their exact contents.
+      quoted = parts[index - 1].end_with?('"') && parts[index + 1]&.start_with?('"')
+      url = quoted ? part : webpage_url_without_prose_punctuation(part)
+      safe_join([webpage_url_link(url), part[url.length..]])
+    end)
   end
 
   def list_of_websites
@@ -191,6 +197,15 @@ module ApplicationHelper
   end
 
   private
+
+  def webpage_url_without_prose_punctuation(token)
+    url = token.sub(/[.,;:!?]+\z/, "")
+    brackets = { ")" => "(", "]" => "[", "}" => "{" }
+    while (opening = brackets[url[-1]]) && url.count(url[-1]) > url.count(opening)
+      url = url[0...-1].sub(/[.,;:!?]+\z/, "")
+    end
+    url
+  end
 
   def external_http_url?(url)
     uri = URI.parse(url.to_s)
