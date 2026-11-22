@@ -11,7 +11,7 @@ source_id = local_assigns[:source_id]
 
 <% if table_key == :webpages %>
   <details class="harmonized-table-filters webpage-advanced-filters" open>
-    <summary>Advanced filters</summary>
+    <summary class="operator-filter-heading">Advanced filters</summary>
     <%= form_with url: webpages_path, method: :get, local: true, html: { autocomplete: "off", class: "webpage-advanced-filters-form" } do %>
       <%= hidden_field_tag :seedurl, seedurl if local_assigns[:seedurl].present? %>
       <%= hidden_field_tag :scope, filters[:scope] if filters[:scope].present? %>
@@ -52,7 +52,7 @@ source_id = local_assigns[:source_id]
   </details>
 <% elsif table_key == :properties %>
   <details class="harmonized-table-filters property-advanced-filters" open>
-    <summary>Advanced filters</summary>
+    <summary class="operator-filter-heading">Advanced filters</summary>
     <%= form_with url: properties_path, method: :get, local: true, html: { autocomplete: "off", class: "property-advanced-filters-form" } do %>
       <%= hidden_field_tag :sort, sort if sort.present? %>
       <%= hidden_field_tag :direction, direction if direction.present? %>
@@ -71,7 +71,7 @@ source_id = local_assigns[:source_id]
   </details>
 <% elsif table_key == :rdfs_classes %>
   <details class="harmonized-table-filters rdfs-class-advanced-filters" open>
-    <summary>Advanced filters</summary>
+    <summary class="operator-filter-heading">Advanced filters</summary>
     <%= form_with url: rdfs_classes_path, method: :get, local: true, html: { autocomplete: "off", class: "rdfs-class-advanced-filters-form" } do %>
       <%= hidden_field_tag :sort, sort if sort.present? %>
       <%= hidden_field_tag :direction, direction if direction.present? %>
@@ -90,7 +90,7 @@ source_id = local_assigns[:source_id]
   </details>
 <% elsif table_key == :statements %>
   <details class="harmonized-table-filters statement-advanced-filters" open>
-    <summary>Advanced filters</summary>
+    <summary class="operator-filter-heading">Advanced filters</summary>
     <%= form_with url: statements_path, method: :get, local: true, html: { autocomplete: "off", class: "statement-advanced-filters-form" } do %>
       <%= hidden_field_tag :sort, sort if sort.present? %>
       <%= hidden_field_tag :direction, direction if direction.present? %>
@@ -141,7 +141,7 @@ source_id = local_assigns[:source_id]
   </details>
 <% elsif table_key == :events %>
   <details class="harmonized-table-filters event-advanced-filters" open>
-    <summary>Advanced filters</summary>
+    <summary class="operator-filter-heading">Advanced filters</summary>
     <%= form_with url: website_events_path(seedurl: seedurl), method: :get, local: true, html: { autocomplete: "off", class: "event-advanced-filters-form" } do %>
       <%= hidden_field_tag :sort, sort if sort.present? %>
       <%= hidden_field_tag :direction, direction if direction.present? %>
@@ -168,7 +168,7 @@ source_id = local_assigns[:source_id]
   </details>
 <% elsif table_key == :reports %>
   <details class="harmonized-table-filters report-advanced-filters" open>
-    <summary>Advanced filters</summary>
+    <summary class="operator-filter-heading">Advanced filters</summary>
     <%= form_with url: source_reports_path, method: :get, local: true, html: { autocomplete: "off", class: "report-advanced-filters-form" } do %>
       <%= hidden_field_tag :source_id, source_id if local_assigns[:source_id].present? %>
       <%= hidden_field_tag :sort, sort if sort.present? %>
@@ -196,7 +196,7 @@ source_id = local_assigns[:source_id]
   </details>
 <% elsif table_key == :sources %>
   <details class="harmonized-table-filters source-advanced-filters" open>
-    <summary>Advanced filters</summary>
+    <summary class="operator-filter-heading">Advanced filters</summary>
     <%= form_with url: sources_path, method: :get, local: true, html: { autocomplete: "off", class: "source-advanced-filters-form" } do %>
       <%= hidden_field_tag :seedurl, seedurl if local_assigns[:seedurl].present? %>
       <%= hidden_field_tag :sort, sort if sort.present? %>
@@ -252,7 +252,7 @@ source_id = local_assigns[:source_id]
   </tr>
 <% else %>
   <details class="cache-advanced-filters harmonized-table-filters">
-    <summary>Advanced filters</summary>
+    <summary class="operator-filter-heading">Advanced filters</summary>
     <%= form_with url: distillator_cache_index_path, method: :get, local: true, html: { autocomplete: "off", class: "cache-advanced-filters-form" } do %>
       <%= hidden_field_tag :sort, sort if sort.present? %>
       <%= hidden_field_tag :direction, direction if direction.present? %>

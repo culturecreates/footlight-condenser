@@ -4,7 +4,9 @@
   <p class="rollout-note">
     <%= statement_rollout_badge(rollout_statement) %>
     <span><%= statement_rollout_explanation(rollout_statement) %></span>
+    <%= render "shared/source_page_view_link", webpage: rollout_statement.webpage, label: "View webpage" %>
   </p>
+  <%= render "shared/source_page_preview" %>
 <% end %>
 
 <ul>

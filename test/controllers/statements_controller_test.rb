@@ -500,6 +500,24 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "webpage preview uses one unloaded frame and direct source links on list, detail, and edit" do
+    statement = statements(:six)
+    url = statement.webpage.url
+
+    [statements_path, statement_path(statement), edit_statement_path(statement)].each do |path|
+      get path
+      assert_response :success
+      assert_select "a[data-source-page-view][href=?][target='_blank']", url, count: 1
+      assert_select "#source-page-preview[hidden][popover=manual]", count: 1 do
+        assert_select "iframe[sandbox='allow-scripts'][referrerpolicy='no-referrer']:not([src])", count: 1
+        assert_select "a[data-preview-external][target='_blank']"
+      end
+    end
+
+    get edit_statement_path(@statement)
+    assert_select "a[data-source-page-view]", count: 0
+  end
+
   test "should update statement" do
     patch statement_url(@statement),
     params: { statement:

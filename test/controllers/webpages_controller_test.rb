@@ -311,6 +311,20 @@ class WebpagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "public webpage heading keeps a direct source link with lazy hover preview" do
+    assert_read_only_page_does_not_fetch
+    webpage = webpages(:three)
+
+    get webpage_path(webpage)
+    assert_response :success
+    assert_select "h1 a[href=?][target='_blank'][data-source-page-view=hover]", webpage.url, text: webpage.url
+    assert_select "#source-page-preview[hidden] iframe:not([src])", count: 1
+
+    get webpage_path(webpages(:one))
+    assert_response :success
+    assert_select "h1 a[data-source-page-view], #source-page-preview", count: 0
+  end
+
   test "webpage pages render representative cache links without fetching" do
     assert_read_only_page_does_not_fetch
     website, webpage = create_test_website_with_webpage(

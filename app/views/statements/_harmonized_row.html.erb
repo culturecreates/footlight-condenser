@@ -26,7 +26,11 @@
   <td class="statement-list-secondary"><%= statement.cache_changed %></td>
   <td class="statement-list-secondary"><%= statement.updated_at %></td>
   <td class="statement-list-actions">
-    <%= link_to "Show", statement %> · <%= link_to "Edit", edit_statement_path(statement) %>
+    <div class="statement-list-links">
+      <%= render "shared/source_page_view_link", webpage: statement.webpage, label: "View" %>
+      <%= link_to "Show", statement %>
+      <%= link_to "Edit", edit_statement_path(statement) %>
+    </div>
     <details>
       <summary>More actions</summary>
       <%= link_to "Report", source_reports_path(source_id: statement.source) %>

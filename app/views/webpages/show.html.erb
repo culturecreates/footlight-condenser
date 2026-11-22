@@ -1,6 +1,7 @@
 <section class="webpage-show-section">
   <h1>
-    <%= @webpage.url %>
+    <%= render "shared/source_page_view_link", webpage: @webpage, label: @webpage.url,
+          preview_on_click: false, show_unlinked: true, css_class: "webpage-source-url" %>
     <span class="rollout-inline"><%= webpage_rollout_badge(@webpage) %></span>
   </h1>
 
@@ -13,6 +14,8 @@
 
   <p class="webpage-debug-id"><%= webpage_debug_id_label(@webpage) %></p>
 </section>
+
+<%= render "shared/source_page_preview" if external_http_url?(@webpage.url) %>
 
 <% cache_links = webpage_cache_panel_links(@webpage) %>
 <section class="webpage-rollout-panel webpage-show-section">

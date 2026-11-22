@@ -11,7 +11,10 @@
       <% end %>
     </div>
     <% if statement.persisted? %>
-      <%= link_to "View statement", statement, class: "operator-editor__button" %>
+      <div class="operator-editor__actions">
+        <%= render "shared/source_page_view_link", webpage: statement.webpage, label: "View webpage", css_class: "operator-editor__button" if statement.webpage %>
+        <%= link_to "View statement", statement, class: "operator-editor__button" %>
+      </div>
     <% end %>
   </header>
 
@@ -106,4 +109,5 @@
       <%= link_to "Back to statements", statements_path, class: "operator-editor__button" %>
     </footer>
   <% end %>
+  <%= render "shared/source_page_preview" if statement.persisted? %>
 </main>

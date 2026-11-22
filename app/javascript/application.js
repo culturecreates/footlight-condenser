@@ -5,6 +5,7 @@ ujs.start();
 import consumer from "./channels/cable";
 import "./statements_show";
 import "./statement_editor";
+import "./source_page_preview";
 import "./operator_context_card";
 import "./transition_checks";
 import "./transition_exclusions";

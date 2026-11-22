@@ -40,6 +40,7 @@
   </div>
   <div class="operator-editor__actions statement-show-primary-actions">
     <%= link_to "Back to statements", statements_path, class: "operator-editor__button" %>
+    <%= render "shared/source_page_view_link", webpage: @statement.webpage, label: "View webpage", css_class: "operator-editor__button" %>
     <%= button_to "Refresh", refresh_statement_path(@statement), method: :patch, form_class: "inline", class: "operator-editor__button" %>
     <%= link_to "Edit statement", edit_statement_path(@statement), class: "operator-editor__button operator-editor__button--primary" %>
   </div>
@@ -372,4 +373,5 @@
     <% end %>
   </div>
 </details>
+<%= render "shared/source_page_preview" %>
 </main>

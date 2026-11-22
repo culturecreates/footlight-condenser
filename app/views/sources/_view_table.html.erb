@@ -20,7 +20,7 @@
 </div>
 
 <details class="source-advanced-filters" <%= "open" if source_advanced_filters_open? %>>
-  <summary>Advanced filters</summary>
+  <summary class="operator-filter-heading">Advanced filters</summary>
 
   <%= form_with url: source_filters_form_path, method: :get, local: true, class: "source-advanced-filters-form" do |form| %>
     <%= hidden_field_tag :seedurl, params[:seedurl] if params[:seedurl].present? %>

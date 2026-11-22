@@ -13,6 +13,8 @@
   --operator-review-bg: #fff6df;
   --operator-blocked: #a12739;
   --operator-blocked-bg: #fff0f1;
+  --operator-filter-ink: #514078;
+  --operator-filter-surface: #f1ebfb;
   --operator-radius: 12px;
   --operator-font: system-ui, sans-serif;
 }
@@ -46,6 +48,19 @@
 .operator-workspace .operator-editor__actions form { margin: 0; }
 .operator-filter-chips { margin: .75rem 0; }
 .operator-filter-chips > span { overflow-wrap: anywhere; }
+
+details > summary.operator-filter-heading {
+  padding: .45rem .65rem;
+  border-radius: 6px;
+  background: var(--operator-filter-surface);
+  color: var(--operator-filter-ink);
+  font-weight: 650;
+}
+
+.operator-filter-heading:focus-visible {
+  outline: 2px solid var(--operator-filter-ink);
+  outline-offset: 2px;
+}
 
 .operator-workspace .harmonized-table-filters :is(input[type="text"], select) {
   box-sizing: border-box;

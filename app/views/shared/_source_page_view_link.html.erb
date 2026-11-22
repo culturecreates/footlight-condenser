@@ -1,0 +1,10 @@
+<% if external_http_url?(webpage.url) %>
+  <%= link_to label, webpage.url,
+        class: local_assigns[:css_class],
+        target: "_blank",
+        rel: "noopener noreferrer",
+        title: webpage.url,
+        data: { source_page_view: local_assigns.fetch(:preview_on_click, true) ? "preview" : "hover" } %>
+<% elsif local_assigns[:show_unlinked] %>
+  <%= label %>
+<% end %>
