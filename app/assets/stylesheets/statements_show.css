@@ -24,6 +24,8 @@
   opacity: 0.75;
 }
 
+[data-theme="kolada"] .dsl-step.dsl-ok { opacity: 1; }
+
 .dsl-step.dsl-warning {
   color: var(--operator-review);
   border-left: 3px solid var(--operator-review);
@@ -57,6 +59,12 @@
 .dsl-step-code {
   flex: 1;
   font-family: monospace;
+  overflow-wrap: anywhere;
+}
+
+:root[data-theme="kolada"] :is(.statement-show-cache, .statement-list-cache, .dsl-step-details) .webpage-url-link {
+  color: var(--operator-code-link);
+  text-decoration: underline;
 }
 
 .dsl-step-main {

@@ -8,15 +8,15 @@ const storageKey = "condenser.colorTheme";
 
 function loadPage(preferences = new Map(), blockedStorage = false) {
   const root = { dataset: {} };
-  const button = {
+  const select = {
     hidden: true,
-    attributes: {},
-    setAttribute(name, value) { this.attributes[name] = value; }
+    value: "light",
+    matches: (selector) => selector === "[data-theme-select]"
   };
   const listeners = new Map();
   const document = {
     documentElement: root,
-    querySelector: () => button,
+    querySelector: () => select,
     addEventListener: (name, callback) => listeners.set(name, callback)
   };
   const window = {
@@ -33,42 +33,52 @@ function loadPage(preferences = new Map(), blockedStorage = false) {
 
   return {
     root,
-    button,
+    select,
     ready: () => listeners.get("DOMContentLoaded")(),
-    toggle: () => listeners.get("click")({ target: { closest: () => button } }),
+    chooseTheme: (value) => {
+      select.value = value;
+      listeners.get("change")({ target: select });
+    },
     restoreFromHistory: () => listeners.get("pageshow")({ persisted: true })
   };
 }
 
-test("dark mode remembers the choice and restores it before page ready", () => {
+test("Kolada persists across navigation and reflects changes when returning through browser history", () => {
   const preferences = new Map();
   const page = loadPage(preferences);
   page.ready();
-  assert.notEqual(page.root.dataset.theme, "dark");
-  assert.equal(page.button.hidden, false);
-  assert.equal(page.button.attributes["aria-pressed"], "false");
+  assert.equal(page.root.dataset.theme, "light");
+  assert.equal(page.select.hidden, false);
+  assert.equal(page.select.value, "light");
 
-  page.toggle();
-  assert.equal(page.root.dataset.theme, "dark");
-  assert.equal(page.button.attributes["aria-pressed"], "true");
-  assert.equal(preferences.get(storageKey), "dark");
+  page.chooseTheme("kolada");
+  assert.equal(page.root.dataset.theme, "kolada");
+  assert.equal(preferences.get(storageKey), "kolada");
 
   const nextPage = loadPage(preferences);
-  assert.equal(nextPage.root.dataset.theme, "dark");
+  assert.equal(nextPage.root.dataset.theme, "kolada");
   nextPage.ready();
-  assert.equal(nextPage.button.attributes["aria-pressed"], "true");
-  nextPage.toggle();
+  assert.equal(nextPage.select.value, "kolada");
+  nextPage.chooseTheme("light");
   assert.equal(nextPage.root.dataset.theme, "light");
   assert.equal(preferences.get(storageKey), "light");
   page.restoreFromHistory();
   assert.equal(page.root.dataset.theme, "light");
-  assert.equal(page.button.attributes["aria-pressed"], "false");
+  assert.equal(page.select.value, "light");
 });
 
-test("the switch works on the current page when browser storage is unavailable", () => {
+test("existing Light and Dark preferences still work and unknown saved values fall back to Light", () => {
+  for (const [value, expected] of [["light", "light"], ["dark", "dark"], ["invalid", "light"]]) {
+    const page = loadPage(new Map([[storageKey, value]]));
+    assert.equal(page.root.dataset.theme, expected);
+    page.ready();
+    assert.equal(page.select.value, expected);
+  }
+});
+
+test("the appearance selector works on the current page when browser storage is unavailable", () => {
   const page = loadPage(new Map(), true);
   page.ready();
-  page.toggle();
-  assert.equal(page.root.dataset.theme, "dark");
-  assert.equal(page.button.attributes["aria-pressed"], "true");
+  page.chooseTheme("kolada");
+  assert.equal(page.root.dataset.theme, "kolada");
 });

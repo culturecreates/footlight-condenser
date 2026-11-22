@@ -1,29 +1,31 @@
 (() => {
   const storageKey = "condenser.colorTheme";
+  const themes = new Set(["light", "dark", "kolada"]);
   const root = document.documentElement;
 
   function updateControl() {
-    const button = document.querySelector("[data-theme-toggle]");
-    if (button) {
-      button.setAttribute("aria-pressed", String(root.dataset.theme === "dark"));
-      button.hidden = false;
+    const select = document.querySelector("[data-theme-select]");
+    if (select) {
+      select.value = root.dataset.theme || "light";
+      select.hidden = false;
     }
   }
 
   function restoreTheme() {
     try {
-      root.dataset.theme = window.localStorage.getItem(storageKey) === "dark" ? "dark" : "light";
+      const savedTheme = window.localStorage.getItem(storageKey);
+      root.dataset.theme = themes.has(savedTheme) ? savedTheme : "light";
     } catch {
       // Storage can be unavailable. Keep the current theme.
     }
   }
 
   restoreTheme();
-  document.addEventListener("click", (event) => {
-    if (!event.target.closest("[data-theme-toggle]")) return;
-    const theme = root.dataset.theme === "dark" ? "light" : "dark";
+  document.addEventListener("change", (event) => {
+    if (!event.target.matches("[data-theme-select]")) return;
+    const theme = event.target.value;
+    if (!themes.has(theme)) return;
     root.dataset.theme = theme;
-    updateControl();
     try {
       window.localStorage.setItem(storageKey, theme);
     } catch {

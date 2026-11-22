@@ -78,7 +78,7 @@
   font-weight: 700;
 }
 
-.condenser-header :is(a, summary, button):focus-visible {
+.condenser-header :is(a, summary, select):focus-visible {
   outline: 2px solid var(--operator-focus);
   outline-offset: 2px;
 }
@@ -136,10 +136,8 @@
   cursor: pointer;
 }
 
-.condenser-header__theme:hover,
-.condenser-header__theme[aria-pressed="true"] {
-  background: var(--operator-selection);
-  color: var(--operator-primary);
+.condenser-header__theme:hover {
+  background: var(--operator-surface-raised);
 }
 
 @media (max-width: 580px) {

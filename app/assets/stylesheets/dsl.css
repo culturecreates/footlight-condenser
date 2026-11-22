@@ -6,7 +6,9 @@
   tab-size: 2;
 }
 
-.dsl-highlight .dsl-instruction {
+.dsl-step-code .dsl-instruction-prefix { font-weight: inherit; }
+
+:is(.dsl-highlight, [data-theme="kolada"] .dsl-step-code) .dsl-instruction {
   display: inline;
   color: var(--operator-ink);
   padding: 0.06em 0.12em;
@@ -15,16 +17,31 @@
   box-decoration-break: clone;
 }
 
-.dsl-highlight .dsl-instruction-prefix {
+:is(.dsl-highlight, [data-theme="kolada"] .dsl-step-code) .dsl-instruction-prefix {
   display: inline;
   white-space: nowrap;
   font-weight: 650;
 }
-.dsl-highlight .dsl-instruction--extraction { background-color: var(--operator-dsl-extraction); }
-.dsl-highlight .dsl-instruction--ruby-a { background-color: var(--operator-dsl-ruby-a); }
-.dsl-highlight .dsl-instruction--ruby-b { background-color: var(--operator-dsl-ruby-b); }
-.dsl-highlight .dsl-instruction--navigation { background-color: var(--operator-dsl-navigation); }
-.dsl-highlight .dsl-instruction--library { background-color: var(--operator-dsl-library); }
+:is(.dsl-highlight, [data-theme="kolada"] .dsl-step-code) .dsl-instruction--extraction {
+  background-color: var(--operator-dsl-extraction);
+  color: var(--operator-dsl-extraction-ink, var(--operator-ink));
+}
+:is(.dsl-highlight, [data-theme="kolada"] .dsl-step-code) .dsl-instruction--ruby-a {
+  background-color: var(--operator-dsl-ruby-a);
+  color: var(--operator-dsl-ruby-a-ink, var(--operator-ink));
+}
+:is(.dsl-highlight, [data-theme="kolada"] .dsl-step-code) .dsl-instruction--ruby-b {
+  background-color: var(--operator-dsl-ruby-b);
+  color: var(--operator-dsl-ruby-b-ink, var(--operator-ink));
+}
+:is(.dsl-highlight, [data-theme="kolada"] .dsl-step-code) .dsl-instruction--navigation {
+  background-color: var(--operator-dsl-navigation);
+  color: var(--operator-dsl-navigation-ink, var(--operator-ink));
+}
+:is(.dsl-highlight, [data-theme="kolada"] .dsl-step-code) .dsl-instruction--library {
+  background-color: var(--operator-dsl-library);
+  color: var(--operator-dsl-library-ink, var(--operator-ink));
+}
 
 .dsl-library-preview {
   margin: 0;

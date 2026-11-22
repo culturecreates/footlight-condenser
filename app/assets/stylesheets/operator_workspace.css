@@ -34,7 +34,7 @@
   --operator-dsl-library: #e2d8fa;
 }
 
-:root[data-theme="dark"] {
+:root:is([data-theme="dark"], [data-theme="kolada"]) {
   color-scheme: dark;
   --operator-page: #121722;
   --operator-surface: #1a2230;
@@ -68,7 +68,38 @@
   --operator-dsl-library: #3a2c55;
 }
 
-:root[data-theme="dark"] :focus-visible {
+:root[data-theme="kolada"] {
+  --operator-page: #101116;
+  --operator-surface: #18181e;
+  --operator-surface-muted: #202027;
+  --operator-surface-raised: #282834;
+  --operator-ink: #e8e8f0;
+  --operator-muted: #adafbc;
+  --operator-line: #656577;
+  --operator-primary: #af8bff;
+  --operator-action: #623da5;
+  --operator-action-hover: #704ab5;
+  --operator-focus: #aaefff;
+  --operator-tint: #292238;
+  --operator-selection: #34264b;
+  --operator-json-key: #c1a6ff;
+  --operator-json-string: #7ce6b8;
+  --operator-json-number: #ffb85c;
+  --operator-json-literal: #ff90e4;
+  --operator-dsl-extraction: #16343e;
+  --operator-dsl-ruby-a: #35284b;
+  --operator-dsl-ruby-b: #243651;
+  --operator-dsl-navigation: #303647;
+  --operator-dsl-library: #462a43;
+  --operator-dsl-extraction-ink: #aaefff;
+  --operator-dsl-ruby-a-ink: #c1a6ff;
+  --operator-dsl-ruby-b-ink: #b9cfff;
+  --operator-dsl-navigation-ink: #c0cbe6;
+  --operator-dsl-library-ink: #ff90e4;
+  --operator-code-link: #aaefff;
+}
+
+:root:is([data-theme="dark"], [data-theme="kolada"]) :focus-visible {
   outline: 2px solid var(--operator-focus);
   outline-offset: 2px;
 }

@@ -144,6 +144,7 @@
       <strong>Source:</strong>
       <%
         dsl_steps = split_algorithm_steps(@statement.source.algorithm_value)
+        highlighted_steps = highlighted_dsl_steps(dsl_steps) unless is_interactive
         trace_by_step = {}
         trace_steps.each do |trace_step|
           trace_by_step[trace_step[:step].to_i] ||= []
@@ -186,7 +187,7 @@
               <% else %>
                 <span class="dsl-step-type"><%= semantic %></span>
               <% end %>
-              <code class="dsl-step-code"><%= code %></code>
+              <code class="dsl-step-code"><%= highlighted_steps[i] %></code>
             <% end %>
           </div>
           <% if trace_step_details_visible %>

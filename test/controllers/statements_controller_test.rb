@@ -234,6 +234,23 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_select "p > strong", text: "updated:", count: 0
   end
 
+  test "statement trace includes the shared appearance selector and preserves instruction text and Ruby alternation" do
+    assert_read_only_page_does_not_fetch
+    @statement.source.update!(algorithm_value: "xpath=//h1;ruby=$array;ruby=\"<script>\";$$META_TITLE$$")
+
+    get statement_url(@statement)
+
+    assert_response :success
+    assert_select "select[data-theme-select][aria-label=Appearance][hidden] option" do |options|
+      assert_equal %w[light dark kolada], options.map { |option| option["value"] }
+    end
+    assert_select "code.dsl-step-code .dsl-instruction--extraction", text: "xpath=//h1"
+    assert_select "code.dsl-step-code .dsl-instruction--ruby-a", text: "ruby=$array"
+    assert_select "code.dsl-step-code .dsl-instruction--ruby-b", text: 'ruby="<script>"'
+    assert_select "code.dsl-step-code .dsl-instruction--library", text: "$$META_TITLE$$"
+    assert_select "code.dsl-step-code script", count: 0
+  end
+
   test "statement show renders harmonized card hooks with collapsed secondary context" do
     assert_read_only_page_does_not_fetch
 

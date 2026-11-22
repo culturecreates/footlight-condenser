@@ -2,8 +2,13 @@ module DslHelper
   # Presentation only: retain every character and delimiter, without expanding
   # library tokens, evaluating Ruby, or changing the DSL execution parser.
   def highlighted_dsl(algorithm)
+    safe_join(highlighted_dsl_steps(algorithm.to_s.split(/(;)/, -1)))
+  end
+
+  def highlighted_dsl_steps(steps)
     ruby_index = 0
-    fragments = String.new(algorithm.to_s).split(/(;)/, -1).map do |step|
+    steps.map do |raw_step|
+      step = String.new(raw_step)
       if (token = step.match(/\A(\s*)(\$\$[A-Z][A-Z0-9_]*\$\$)(\s*)\z/))
         content_tag(:span, safe_join([token[1], content_tag(:strong, token[2], class: "dsl-instruction-prefix"), token[3]]),
           class: "dsl-instruction dsl-instruction--library")
@@ -26,6 +31,5 @@ module DslHelper
         step
       end
     end
-    safe_join(fragments)
   end
 end
