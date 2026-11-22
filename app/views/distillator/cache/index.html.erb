@@ -9,7 +9,7 @@
   <div class="cache-page-notice cache-last-action-result">
     <h2>Last Action Result</h2>
     <p><strong>Fetch mode:</strong> <%= @last_action_result["fetch_kind_label"] %></p>
-    <p><strong>Normalized URL:</strong> <%= @last_action_result["normalized_url"] %></p>
+    <p><strong>Normalized URL:</strong> <%= webpage_url_link(@last_action_result["normalized_url"]) %></p>
     <p><strong>HTTP response code:</strong> <%= @last_action_result["http_response_code"] || "Not recorded" %></p>
     <p><strong>Fetch path:</strong> <%= @last_action_result["fetch_path"].presence || "unknown" %></p>
     <p><strong>Cache reason:</strong> <%= @last_action_result["cache_reason"].presence || "unknown" %></p>

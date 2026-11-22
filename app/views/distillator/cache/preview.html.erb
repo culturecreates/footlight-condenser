@@ -36,7 +36,7 @@
   <p><strong>Successful refresh:</strong> <%= cache_timestamp_label(@preview[:successful_refresh]) %></p>
   <p><strong>HTTP response code:</strong> <%= @preview[:http_response_code] %></p>
   <p><strong>URI key:</strong> <%= @preview[:uri_key] %></p>
-  <p><strong>Normalized URL:</strong> <%= @preview[:normalized_url] %></p>
+  <p><strong>Normalized URL:</strong> <%= webpage_url_link(@preview[:normalized_url]) %></p>
   <p><strong>Diagnostic JSON:</strong> <%= link_to "Open diagnostic JSON", "#{preview_distillator_cache_index_path(format: :json)}?#{request.query_parameters.to_query}" %></p>
   <% if refresh_ui_enabled? %>
     <p>

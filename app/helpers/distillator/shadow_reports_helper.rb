@@ -444,9 +444,7 @@ module Distillator::ShadowReportsHelper
     return ERB::Util.html_escape(url.to_s) if url.blank?
 
     display_label = label.presence || truncated_url_label(url, max: max)
-    return ERB::Util.html_escape(display_label) unless url.to_s.start_with?("http://", "https://")
-
-    link_to(display_label, url, target: "_blank", rel: "noopener")
+    webpage_url_link(url, label: display_label)
   end
 
   def shadow_report_sampled_webpages(detail)

@@ -28,6 +28,8 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".harmonized-table-shell", 1
     assert_select "main.operator-workspace .operator-table-scroll[aria-label='Statement results'] thead th[scope=col]", minimum: 1
     assert_select ".harmonized-table-filters", 1
+    assert_select ".statement-advanced-filters > summary.operator-filter-heading", text: "Advanced filters"
+    assert_select ".harmonized-table-filters label[for='status']", text: "Status"
     assert_select 'form[action="/statements"][method="get"]', 1
     assert_select 'input[type="submit"][value="Apply filters"]', 1
     assert_select 'a', text: "Reset filters"
@@ -507,12 +509,15 @@ class StatementsControllerTest < ActionDispatch::IntegrationTest
     [statements_path, statement_path(statement), edit_statement_path(statement)].each do |path|
       get path
       assert_response :success
-      assert_select "a[data-source-page-view][href=?][target='_blank']", url, count: 1
+      assert_select "a[data-source-page-view=preview][href=?][target='_blank']", url, count: 1
       assert_select "#source-page-preview[hidden][popover=manual]", count: 1 do
         assert_select "iframe[sandbox='allow-scripts'][referrerpolicy='no-referrer']:not([src])", count: 1
         assert_select "a[data-preview-external][target='_blank']"
       end
     end
+
+    get statement_path(statement)
+    assert_select ".statement-show-context a[data-source-page-view=hover][href=?]", url, text: url
 
     get edit_statement_path(@statement)
     assert_select "a[data-source-page-view]", count: 0

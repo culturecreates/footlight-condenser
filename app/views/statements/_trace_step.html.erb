@@ -93,7 +93,7 @@
   <% if redirect_url.present? && detail_semantic == "Navigation" %>
   <div class="trace-subline trace-redirect">
     <span>⚠ redirected →</span>
-    <span class="trace-redirect-url"><%= redirect_url %></span>
+    <span class="trace-redirect-url"><%= webpage_url_link(redirect_url) %></span>
   </div>
   <% end %>
 
@@ -165,7 +165,7 @@
 
   <% if step[:url_after].present? && step[:url_after] != step[:url_before] %>
     <div class="trace-url">
-      URL → <%= step[:url_after] %>
+      URL → <%= webpage_url_link(step[:url_after]) %>
     </div>
   <% end %>
 </div>

@@ -52,7 +52,7 @@
     <p class="statement-show-status"><%= render "trace_header" %></p>
   </div>
   <% if @statement.cache.present? %>
-    <pre class="statement-show-cache" tabindex="0"><%= @statement.cache %></pre>
+    <pre class="statement-show-cache" tabindex="0"><%= link_webpage_urls(@statement.cache) %></pre>
   <% else %>
     <p class="operator-editor__muted">No cached value</p>
   <% end %>
@@ -94,7 +94,8 @@
   <div class="statement-show-section">
     <p>
       <strong>Webpage:</strong>
-      <%= @statement.webpage.url %>
+      <%= render "shared/source_page_view_link", webpage: @statement.webpage, label: @statement.webpage.url,
+            preview_on_click: false, show_unlinked: true %>
       <%= statement_rollout_badge(@statement) %>
       <%= link_to "Show", webpage_path(@statement.webpage) %>
     </p>
@@ -229,7 +230,7 @@
                   <% if redirect_url.present? && detail_semantic == "Navigation" %>
                     <div class="trace-subline trace-redirect">
                       <span>⚠ redirected →</span>
-                      <span class="trace-redirect-url"><%= redirect_url %></span>
+                      <span class="trace-redirect-url"><%= webpage_url_link(redirect_url) %></span>
                     </div>
                   <% end %>
 

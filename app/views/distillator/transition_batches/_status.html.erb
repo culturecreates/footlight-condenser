@@ -23,10 +23,10 @@
           <% if item.final_backend %> · <%= item.final_backend.humanize %><% end %>
           <% if item.website && item.website.distillator_mode != (item.terminal? ? item.final_mode : item.initial_mode) %><br>Current: <%= item.website.distillator_mode.humanize %><% end %></td>
         <td><% if item.reason.present? %>
-          <p><%= workflow_reason_summary(item) %></p>
+          <p><%= link_webpage_urls(workflow_reason_summary(item)) %></p>
           <% if workflow_challenge_reported?(item) %>
             <% if (path = workflow_failure_report_path(item)) %><p><%= link_to "Inspect recorded failure", path %></p><% end %>
-            <details><summary>Technical detail</summary><p><%= item.reason %></p></details>
+            <details><summary>Technical detail</summary><p><%= link_webpage_urls(item.reason) %></p></details>
           <% end %>
         <% end %><%= link_to "Site workflow report", distillator_site_transition_path(item) %></td>
       </tr>

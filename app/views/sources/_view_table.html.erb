@@ -9,7 +9,7 @@
 <% end %>
 
 <div class="sources-quick-filter-strip">
-  <strong>Quick filters</strong>
+  <strong class="operator-filter-heading operator-quick-filter-heading">Quick filters</strong>
   <% source_quick_filter_links(@sources).each do |filter| %>
     <%= link_to filter[:path], class: "sources-quick-filter #{'sources-quick-filter-active' if filter[:active]}" do %>
       <span><%= filter[:label] %></span>
@@ -19,7 +19,7 @@
   <%= link_to "Clear filters", source_clear_filters_path, class: "sources-quick-filter sources-quick-filter-clear" %>
 </div>
 
-<details class="source-advanced-filters" <%= "open" if source_advanced_filters_open? %>>
+<details class="harmonized-table-filters source-advanced-filters" <%= "open" if source_advanced_filters_open? %>>
   <summary class="operator-filter-heading">Advanced filters</summary>
 
   <%= form_with url: source_filters_form_path, method: :get, local: true, class: "source-advanced-filters-form" do |form| %>

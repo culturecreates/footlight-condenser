@@ -1,6 +1,19 @@
 module ApplicationHelper
   include AdminTableHelper
 
+  def webpage_url_link(url, label: nil, **options)
+    text = label || url.to_s
+    return ERB::Util.html_escape(text) unless external_http_url?(url)
+
+    link_to text, url, target: "_blank", rel: "noopener noreferrer",
+      class: class_names("webpage-url-link", options.delete(:class)), **options
+  end
+
+  def link_webpage_urls(value)
+    parts = value.to_s.split(%r{(https?://[^\s<>"'\\]+)})
+    safe_join(parts.each_with_index.map { |part, index| index.odd? ? webpage_url_link(part) : part })
+  end
+
   def list_of_websites
     @list_of_websites ||= Website.all.order(:name)
   end
@@ -178,6 +191,13 @@ module ApplicationHelper
   end
 
   private
+
+  def external_http_url?(url)
+    uri = URI.parse(url.to_s)
+    %w[http https].include?(uri.scheme) && uri.host.present?
+  rescue URI::InvalidURIError
+    false
+  end
 
   def alternate_wringer_cache_link(base_url, url, include_fragment:)
     key = Distillator::WringerUrlKey.legacy(url, include_fragment: include_fragment)

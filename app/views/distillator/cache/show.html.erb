@@ -113,7 +113,7 @@
     <% if cache_redirect_chain(@cache_payload).any? %>
       <ol>
         <% cache_redirect_chain(@cache_payload).each do |hop| %>
-          <li><%= hop %></li>
+          <li><%= webpage_url_link(hop) %></li>
         <% end %>
       </ol>
     <% else %>
@@ -175,6 +175,6 @@
     <p><strong>Successful refresh:</strong> <%= cache_timestamp_label(@preview[:successful_refresh]) %></p>
     <p><strong>HTTP response code:</strong> <%= @preview[:http_response_code] %></p>
     <p><strong>URI key:</strong> <%= @preview[:uri_key] %></p>
-    <p><strong>Normalized URL:</strong> <%= @preview[:normalized_url] %></p>
+    <p><strong>Normalized URL:</strong> <%= webpage_url_link(@preview[:normalized_url]) %></p>
   </div>
 <% end %>

@@ -36,8 +36,8 @@
     <% if observed[:attempted_at] %>
       <p><%= observed[:attempted_at].strftime("%Y-%m-%d %H:%M %Z") %>
         <% if observed[:backend] %> · Backend: <%= observed[:backend] %><% end %>
-        · <%= observed[:url] %></p>
-      <% if observed[:redirected] %><p>Observed redirect: <%= observed[:url] %> → <%= observed[:final_url] %></p><% end %>
+        · <%= webpage_url_link(observed[:url]) %></p>
+      <% if observed[:redirected] %><p>Observed redirect: <%= webpage_url_link(observed[:url]) %> → <%= webpage_url_link(observed[:final_url]) %></p><% end %>
       <p class="cache-page-note">This observation covers the latest cached page.</p>
     <% else %>
       <p>Refresh upcoming events to validate fetching and extraction after activation.</p>

@@ -2,10 +2,10 @@
   <h2 aria-live="polite"><%= workflow_state_badge(@item.status) %><% unless @item.terminal? %> · <%= workflow_phase_label(@item) %><% end %></h2>
   <% if @item.terminal? %>
     <p><strong>Recorded final state:</strong> <%= @item.final_mode&.humanize || "Not run" %> · <%= @item.final_backend&.humanize || "Backend not recorded" %></p>
-    <p><strong>Why:</strong> <%= workflow_reason_summary(@item) %></p>
+    <p><strong>Why:</strong> <%= link_webpage_urls(workflow_reason_summary(@item)) %></p>
     <% if workflow_challenge_reported?(@item) %>
       <% if (path = workflow_failure_report_path(@item)) %><p><%= link_to "Inspect recorded failure", path %></p><% end %>
-      <details><summary>Technical detail</summary><p><%= @item.reason %></p></details>
+      <details><summary>Technical detail</summary><p><%= link_webpage_urls(@item.reason) %></p></details>
     <% end %>
   <% end %>
   <% if @website %><p>Current mode: <strong><%= @website.distillator_mode.humanize %></strong> ·
@@ -30,7 +30,7 @@
     <% else %>
     <details id="workflow-<%= phase %>-findings" open><summary id="workflow-<%= phase %>-toggle"><%= label %> · <%= result["state"]&.humanize %></summary>
       <p>Fetch: <%= result["fetch"] || "Not recorded" %> · Statements: <%= result["statements"] || "Not recorded" %> · Export: <%= result["export"] || "Not recorded" %></p>
-      <% if findings.any? %><ul><% findings.each do |reason| %><li><%= reason %></li><% end %></ul><% end %>
+      <% if findings.any? %><ul><% findings.each do |reason| %><li><%= link_webpage_urls(reason) %></li><% end %></ul><% end %>
     </details>
     <% end %>
   <% end %>

@@ -259,17 +259,16 @@ module Distillator::CacheHelper
 
   def cache_linked_source_url(url)
     return "Not recorded" if url.blank?
-    return ERB::Util.html_escape(url) unless external_http_url?(url)
 
-    link_to(url, url, target: "_blank", rel: "noopener")
+    webpage_url_link(url)
   end
 
   def cache_linked_final_url(payload)
     url = payload.fetch("final_url", payload[:final_url]).presence
     return "Not recorded" if url.blank?
-    return ERB::Util.html_escape(url) unless external_http_url?(url) && !internal_cache_compatibility_url?(url)
+    return ERB::Util.html_escape(url) if internal_cache_compatibility_url?(url)
 
-    link_to(url, url, target: "_blank", rel: "noopener")
+    webpage_url_link(url)
   end
 
   def cache_fetch_response_summary(payload)
@@ -374,9 +373,7 @@ module Distillator::CacheHelper
 
   def external_website_link(url, label: nil, max: 80)
     return "Not recorded" if url.blank?
-    return ERB::Util.html_escape(label.presence || truncated_url_label(url, max: max)) unless external_http_url?(url)
-
-    link_to(label.presence || truncated_url_label(url, max: max), url, target: "_blank", rel: "noopener")
+    webpage_url_link(url, label: label.presence || truncated_url_label(url, max: max))
   end
 
   def cache_compare_policy_label(policy)
@@ -430,13 +427,6 @@ module Distillator::CacheHelper
   end
 
   private
-
-  def external_http_url?(url)
-    uri = URI.parse(url.to_s)
-    %w[http https].include?(uri.scheme) && uri.host.present?
-  rescue URI::InvalidURIError
-    false
-  end
 
   def internal_cache_compatibility_url?(url)
     uri = URI.parse(url.to_s)

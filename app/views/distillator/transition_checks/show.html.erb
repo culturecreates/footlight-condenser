@@ -17,7 +17,7 @@
   <div role="status" aria-live="polite" aria-atomic="true">
     <h2 data-run-label><%= @run_status[:label] %></h2>
     <p data-run-phase <%= "hidden" if @run_status[:phase_message].blank? %>><%= @run_status[:phase_message] %></p>
-    <p data-run-page <%= "hidden" if @run_status[:page_message].blank? %>><%= @run_status[:page_message] %></p>
+    <p data-run-page <%= "hidden" if @run_status[:page_message].blank? %>><%= link_webpage_urls(@run_status[:page_message]) %></p>
     <p data-run-waiting <%= "hidden" if @run_status[:waiting_message].blank? %>><%= @run_status[:waiting_message] %></p>
     <p data-run-message><%= @run_status[:message] %></p>
     <p data-run-phases><%= "Recorded phases: #{@run_status[:phases_recorded].join(', ')}." if @run_status[:phases_recorded].any? %></p>

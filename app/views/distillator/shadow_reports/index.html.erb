@@ -30,7 +30,7 @@
   <%= hidden_field_tag :direction, @direction if @direction.present? %>
   <%= hidden_field_tag :limit, @pagination[:per_page] if @pagination[:per_page].present? %>
 
-  <table class="harmonized-table-shell">
+  <table class="harmonized-table-shell operator-filter-table">
     <thead>
       <tr>
         <% sortable_filters = @filters.merge(limit: @pagination[:per_page]) %>
@@ -47,20 +47,19 @@
         <th>Next action</th>
         <th>Actions</th>
       </tr>
-      <tr>
-        <td><%= text_field_tag :term, @filters[:term], autocomplete: "off" %></td>
-        <td><%= select_tag :cohort, options_for_select(shadow_report_cohort_options, @filters[:cohort]) %></td>
-        <td><%= select_tag :mode, options_for_select(shadow_report_mode_options, @filters[:mode]) %></td>
+      <tr class="operator-filter-row">
+        <td><%= text_field_tag :term, @filters[:term], autocomplete: "off", aria: { label: "Website search" } %></td>
+        <td><%= select_tag :cohort, options_for_select(shadow_report_cohort_options, @filters[:cohort]), aria: { label: "Cohort" } %></td>
+        <td><%= select_tag :mode, options_for_select(shadow_report_mode_options, @filters[:mode]), aria: { label: "Mode" } %></td>
         <td></td>
-        <td><%= select_tag :status, options_for_select(shadow_report_status_options, @filters[:status] || @filters[:recommendation]) %></td>
-        <td><%= select_tag :safety, options_for_select(shadow_report_safety_options, @filters[:safety]) %></td>
-        <td><%= select_tag :confidence, options_for_select(shadow_report_confidence_options, @filters[:confidence]) %></td>
-        <td></td>
-        <td></td>
+        <td><%= select_tag :status, options_for_select(shadow_report_status_options, @filters[:status] || @filters[:recommendation]), aria: { label: "Readiness" } %></td>
+        <td><%= select_tag :safety, options_for_select(shadow_report_safety_options, @filters[:safety]), aria: { label: "Safety" } %></td>
+        <td><%= select_tag :confidence, options_for_select(shadow_report_confidence_options, @filters[:confidence]), aria: { label: "Confidence" } %></td>
         <td></td>
         <td></td>
-        <td><%= select_tag :promotable, options_for_select(shadow_report_promotable_options, @filters[:promotable]) %></td>
-        <td colspan="2">
+        <td></td>
+        <td><%= select_tag :promotable, options_for_select(shadow_report_promotable_options, @filters[:promotable]), aria: { label: "Promotable" } %></td>
+        <td>
           <%= submit_tag "Apply filters" %>
           <%= link_to "Reset filters", distillator_shadow_report_path %>
         </td>

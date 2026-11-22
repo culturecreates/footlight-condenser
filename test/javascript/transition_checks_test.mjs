@@ -19,6 +19,11 @@ function harness(responses, initialState = "queued") {
     setAttribute(key, value) { this.attributes[key] = value; },
     querySelector(selector) {
       if (!elements.has(selector)) elements.set(selector, { hidden: true, textContent: "", handlers: {},
+        ownerDocument: { createElement: (tagName) => ({ tagName }) },
+        replaceChildren(...children) {
+          this.children = children;
+          this.textContent = children.map(child => typeof child === "string" ? child : child.textContent).join("");
+        },
         addEventListener(name, callback) { this.handlers[name] = callback; } });
       return elements.get(selector);
     },
@@ -61,6 +66,8 @@ test("queued -> running -> completed opens only this run's report and stops poll
   assert.equal(h.element("phases").textContent, "Recorded phases: Fetch.");
   assert.equal(h.element("phase").textContent, "Current phase: Statements");
   assert.equal(h.element("page").textContent, "Last page reached (2/3): https://example.org/b");
+  assert.equal(h.element("page").children[1].href, "https://example.org/b");
+  assert.equal(h.element("page").children[1].rel, "noopener noreferrer");
   assert.equal(h.element("page").hidden, false);
   assert.equal(h.element("waiting").hidden, true);
   assert.equal(h.panel.attributes["aria-busy"], "true");

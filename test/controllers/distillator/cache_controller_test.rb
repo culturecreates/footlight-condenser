@@ -552,7 +552,7 @@ class Distillator::CacheControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match "Last Action Result", @response.body
     assert_match "Fetch mode:</strong> Direct fetch", @response.body
-    assert_match "Normalized URL:</strong> http://example.org/events", @response.body
+    assert_select ".cache-last-action-result a.webpage-url-link[href='http://example.org/events']", text: "http://example.org/events"
     assert_match "HTTP response code:</strong> 200", @response.body
     assert_match "Fetch path:</strong> legacy", @response.body
     assert_match "Cache reason:</strong> force_scrape", @response.body

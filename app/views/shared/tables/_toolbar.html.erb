@@ -11,7 +11,7 @@ view_mode = local_assigns[:view_mode] || "rich"
 <section class="harmonized-table-toolbar">
   <% if table_key == :sources %>
     <section class="cache-quick-filter-strip">
-      <strong>Quick filters</strong>
+      <strong class="operator-filter-heading operator-quick-filter-heading">Quick filters</strong>
       <% quick_filters.each do |quick_filter| %>
         <%= link_to quick_filter[:label], sources_path(quick_filter[:params]), class: "cache-quick-filter" %>
       <% end %>
@@ -25,7 +25,7 @@ view_mode = local_assigns[:view_mode] || "rich"
     </p>
 
     <section class="cache-quick-filter-strip">
-      <strong>Quick filters</strong>
+      <strong class="operator-filter-heading operator-quick-filter-heading">Quick filters</strong>
       <% cache_quick_filters.each do |quick_filter| %>
         <%= link_to quick_filter[:label], distillator_cache_index_path(quick_filter[:params].merge(view: view_mode)), class: "cache-quick-filter" %>
       <% end %>

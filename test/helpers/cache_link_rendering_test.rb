@@ -10,6 +10,18 @@ class CacheLinkRenderingTest < ActionView::TestCase
   include SourcesHelper
   include OperatorContextHelper
 
+  test "webpage links preserve query strings and leave nonweb identifiers as text" do
+    url = "https://example.org/events/42?language=fr&preview=1"
+    source = %(["Event", "#{url}", "<script>", "javascript:alert(1)", "footlight:event_42"])
+    fragment = Nokogiri::HTML.fragment(link_webpage_urls(source))
+
+    assert_equal source, fragment.text
+    assert_empty fragment.css("script")
+    assert_equal [url], fragment.css("a").map { |link| link["href"] }
+    assert_equal "_blank", fragment.at_css("a")["target"]
+    assert_equal "noopener noreferrer", fragment.at_css("a")["rel"]
+  end
+
   test "report cache links retain one purpose and distinct legacy and comparison links" do
     cache = Distillator::FetchCache.create!(uri_key: "clarity-cache", normalized_url: "https://example.org/event",
       html: "<title>Event</title>", body: "<title>Event</title>", http_response_code: 200,
@@ -88,15 +100,12 @@ class CacheLinkRenderingTest < ActionView::TestCase
     end
   end
 
-  test "cache compare and shadow report share the same inspection link labels" do
+  test "shared cache inspection links keep their operator labels" do
     ENV["DISTILLATOR_FETCH_MODE"] = "active"
     website, = rollout_fixture_for(mode: "shadow", suffix: "inspection-shared")
     url = website.webpages.first.url
 
-    cache_links = Distillator::CacheHelper.instance_method(:cache_inspection_links).bind_call(self, url, website: website)
-    shadow_links = Distillator::ShadowReportsHelper.instance_method(:cache_inspection_links).bind_call(self, url, website: website)
-
-    assert_equal cache_links, shadow_links
+    cache_links = cache_inspection_links(url, website: website)
     assert_equal ["Source website", "Compare", "Compare extracted statements", "Open active cache", "Open Condenser cache", "Webpage record"], cache_links.map { |link| link[:label] }
   end
 

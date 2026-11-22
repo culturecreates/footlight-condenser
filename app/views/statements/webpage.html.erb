@@ -15,7 +15,7 @@
   <%= statement.source.property[:label] %>
   <%= format_language statement.source[:language] %>
   -->
-  <%= statement[:cache] %>
+  <%= link_webpage_urls(statement[:cache]) %>
   <% cache_links = statement_cache_links(statement) %>
   <% if cache_links[:active_cache_url].present? %>
     <%= link_to cache_links[:label], cache_links[:active_cache_url] %>

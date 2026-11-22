@@ -235,16 +235,16 @@ source_id = local_assigns[:source_id]
     <% end %>
   </details>
 <% elsif view_mode == "parity" %>
-  <tr class="harmonized-table-filters">
-    <td><%= text_field_tag :term, filters[:term], autocomplete: "off" %></td>
+  <tr class="harmonized-table-filters operator-filter-row">
+    <td><%= text_field_tag :term, filters[:term], autocomplete: "off", aria: { label: "URL search" } %></td>
     <td class="cache-filter-stack">
-      <%= text_field_tag :http_response_code, filters[:http_response_code], autocomplete: "off", placeholder: "code" %>
-      <%= select_tag :status_group, options_for_select([["Any group", ""], ["2xx", "2xx"], ["3xx", "3xx"], ["4xx", "4xx"], ["5xx", "5xx"], ["nil", "nil"]], filters[:status_group]) %>
+      <%= text_field_tag :http_response_code, filters[:http_response_code], autocomplete: "off", placeholder: "code", aria: { label: "HTTP response code" } %>
+      <%= select_tag :status_group, options_for_select([["Any group", ""], ["2xx", "2xx"], ["3xx", "3xx"], ["4xx", "4xx"], ["5xx", "5xx"], ["nil", "nil"]], filters[:status_group]), aria: { label: "HTTP status group" } %>
     </td>
-    <td><%= select_tag :last_attempt, options_for_select([["Any", ""], ["never", "never"], ["last_hour", "last_hour"], ["last_24h", "last_24h"], ["last_7d", "last_7d"], ["older_7d", "older_7d"]], filters[:last_attempt]) %></td>
-    <td><%= select_tag :last_success, options_for_select([["Any", ""], ["never", "never"], ["last_hour", "last_hour"], ["last_24h", "last_24h"], ["last_7d", "last_7d"], ["older_7d", "older_7d"]], filters[:last_success]) %></td>
-    <td><%= select_tag :health, options_for_select([["Any", ""], ["healthy", "healthy"], ["preserved_after_failure", "preserved_after_failure"], ["never_fetched", "never_fetched"], ["network_failed", "network_failed"], ["blocked", "blocked"], ["empty_body", "empty_body"], ["redirect_changed", "redirect_changed"], ["stale", "stale"], ["unknown", "unknown"]], filters[:health]) %></td>
-    <td><%= select_tag :has_html, options_for_select([["Any", ""], ["true", "true"], ["false", "false"]], filters[:has_html]) %></td>
+    <td><%= select_tag :last_attempt, options_for_select([["Any", ""], ["never", "never"], ["last_hour", "last_hour"], ["last_24h", "last_24h"], ["last_7d", "last_7d"], ["older_7d", "older_7d"]], filters[:last_attempt]), aria: { label: "Last scrape date" } %></td>
+    <td><%= select_tag :last_success, options_for_select([["Any", ""], ["never", "never"], ["last_hour", "last_hour"], ["last_24h", "last_24h"], ["last_7d", "last_7d"], ["older_7d", "older_7d"]], filters[:last_success]), aria: { label: "Last successful refresh" } %></td>
+    <td><%= select_tag :health, options_for_select([["Any", ""], ["healthy", "healthy"], ["preserved_after_failure", "preserved_after_failure"], ["never_fetched", "never_fetched"], ["network_failed", "network_failed"], ["blocked", "blocked"], ["empty_body", "empty_body"], ["redirect_changed", "redirect_changed"], ["stale", "stale"], ["unknown", "unknown"]], filters[:health]), aria: { label: "Cache health" } %></td>
+    <td><%= select_tag :has_html, options_for_select([["Any", ""], ["true", "true"], ["false", "false"]], filters[:has_html]), aria: { label: "Has HTML" } %></td>
     <td class="cache-filter-actions" colspan="2">
       <%= submit_tag "Apply filters" %>
       <%= link_to "Reset filters", distillator_cache_index_path(view: view_mode) %>

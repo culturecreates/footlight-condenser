@@ -25,7 +25,7 @@
       <% observed = operation.observed_fetch %>
       <% if observed[:failed] || observed[:backend].in?(%w[legacy replay]) %>
         <p class="cache-page-notice transition-observation"><strong><%= observed[:label] %></strong>
-          · <%= shadow_report_timestamp(observed[:attempted_at]) %> · <%= observed[:url] %></p>
+          · <%= shadow_report_timestamp(observed[:attempted_at]) %> · <%= webpage_url_link(observed[:url]) %></p>
       <% end %>
     <% end %>
   </div>
@@ -38,7 +38,7 @@
       <% requested_options = operation.latest_run.options %>
       <% run_progress = Distillator::TransitionRunProgress.new(operation.latest_run).call %>
       <% if run_progress[:phase_message] %><p><%= run_progress[:phase_message] %></p><% end %>
-      <% if run_progress[:page_message] %><p><%= run_progress[:page_message] %></p><% end %>
+      <% if run_progress[:page_message] %><p><%= link_webpage_urls(run_progress[:page_message]) %></p><% end %>
       <% if run_progress[:waiting_message] %><p><%= run_progress[:waiting_message] %></p><% end %>
       <p class="transition-secondary">Requested scope: <%= requested_options.selection_rule %> <%= requested_options.field_policy_label %>.</p>
       <p><%= @detail.completed_transition_run_id ? "Results below remain from completed run ##{@detail.completed_transition_run_id}." : "Results will appear when all phases finish." %></p>
@@ -47,7 +47,7 @@
         <strong>Run #<%= @detail.transition_run_id %> failed:</strong> <%= @detail.transition_run_error %></p>
       <% run_progress = Distillator::TransitionRunProgress.new(operation.latest_run).call %>
       <% if run_progress[:phase_message] %><p><%= run_progress[:phase_message] %></p><% end %>
-      <% if run_progress[:page_message] %><p><%= run_progress[:page_message] %></p><% end %>
+      <% if run_progress[:page_message] %><p><%= link_webpage_urls(run_progress[:page_message]) %></p><% end %>
       <% if @detail.completed_transition_run_id %><p>Results below remain from completed run #<%= @detail.completed_transition_run_id %>.</p><% end %>
     <% end %>
   </div>

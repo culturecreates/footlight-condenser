@@ -1,5 +1,21 @@
 const RUN_STATES = new Set(["queued", "running", "completed", "failed", "expired"]);
 
+function displayCurrentPage(element, text) {
+  const url = text.match(/https?:\/\/[^\s]+$/)?.[0];
+  if (!url || !URL.canParse(url)) {
+    element.textContent = text;
+    return;
+  }
+
+  const link = element.ownerDocument.createElement("a");
+  link.href = url;
+  link.textContent = url;
+  link.className = "webpage-url-link";
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  element.replaceChildren(text.slice(0, -url.length), link);
+}
+
 export function followTransitionRun(panel, {
   fetchStatus = (...args) => fetch(...args),
   schedule = (callback, delay) => window.setTimeout(callback, delay),
@@ -56,7 +72,8 @@ export function followTransitionRun(panel, {
       for (const [target, text] of [["phase", data.phase_message], ["page", data.page_message], ["waiting", data.waiting_message]]) {
         const element = panel.querySelector(`[data-run-${target}]`);
         if (!element) continue;
-        element.textContent = text || "";
+        if (target === "page") displayCurrentPage(element, text || "");
+        else element.textContent = text || "";
         element.hidden = !text;
       }
       panel.querySelector("[data-run-phases]").textContent = data.phases_recorded.length ?
