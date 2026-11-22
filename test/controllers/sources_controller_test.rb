@@ -364,6 +364,10 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "form > .source-algorithm-card textarea#source_algorithm_value.source-algorithm-editor[rows='12']", 1
+    assert_select "[data-dsl-preview][data-dsl-preview-on-load=true]", 1
+    assert_select "button[data-dsl-preview-refresh][type=button][aria-controls=source_dsl_preview]", 1
+    assert_select "section#source_dsl_preview[hidden] pre.dsl-highlight[data-dsl-preview-output]", 1
+    assert_select "#source_dsl_preview input, #source_dsl_preview textarea, #source_dsl_preview select", 0
     assert_select "form > .source-diagnostics-card", 1
     assert_match "Identity", @response.body
     assert_match "Activation", @response.body
@@ -430,7 +434,9 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "should update source" do
-    patch source_url(@source), params: { source: { algorithm_value: @source.algorithm_value, property_id: @source.property_id, render_js: @source.render_js, selected: @source.selected, selected_by: @source.selected_by, website_id: @source.website_id } }
+    draft = "xpath=//h1;\nruby=\n  $array.map { |item| item.strip }\n;\n$$META_TITLE$$"
+    patch source_url(@source), params: { source: { algorithm_value: draft, property_id: @source.property_id, render_js: @source.render_js, selected: @source.selected, selected_by: @source.selected_by, website_id: @source.website_id } }
+    assert_equal draft, @source.reload.algorithm_value
     assert_redirected_to source_url(@source)
   end
 

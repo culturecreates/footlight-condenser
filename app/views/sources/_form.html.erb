@@ -75,12 +75,29 @@
     </section>
   </div>
 
-  <section class="cache-detail-card source-algorithm-card">
+  <section class="cache-detail-card source-algorithm-card operator-workspace"
+           data-dsl-preview data-dsl-preview-kinds="<%= dsl_highlight_kinds.to_json %>"
+           data-dsl-preview-on-load="<%= source.persisted? %>">
     <h2>Extraction algorithm</h2>
 
     <div class="field">
-      <%= form.label :algorithm_value, "Raw extraction DSL" %>
-      <%= form.text_area :algorithm_value, id: :source_algorithm_value, rows: 12, class: "source-algorithm-editor" %>
+      <div class="source-algorithm-toolbar">
+        <%= form.label :algorithm_value, "Raw extraction DSL" %>
+        <div class="source-algorithm-actions" data-dsl-preview-actions hidden>
+          <span data-dsl-preview-status role="status"></span>
+          <button type="button" class="operator-editor__button operator-editor__button--small"
+                  aria-controls="source_dsl_preview" data-dsl-preview-refresh>Colorize preview</button>
+          <button type="button" class="operator-editor__button operator-editor__button--small"
+                  aria-controls="source_dsl_preview" data-dsl-preview-hide hidden>Hide preview</button>
+        </div>
+      </div>
+      <div class="source-algorithm-panes">
+        <%= form.text_area :algorithm_value, id: :source_algorithm_value, rows: 12, class: "source-algorithm-editor" %>
+        <section id="source_dsl_preview" class="source-algorithm-preview" aria-labelledby="source_dsl_preview_label" hidden>
+          <h3 id="source_dsl_preview_label">Colorized DSL</h3>
+          <pre class="dsl-highlight" aria-labelledby="source_dsl_preview_label" tabindex="0" data-dsl-preview-output></pre>
+        </section>
+      </div>
     </div>
 
     <p class="sources-secondary-text">Use pipeline steps such as <code>url=</code>, <code>xpath=</code>, <code>ruby=</code>. Test with trace before activating.</p>
