@@ -247,7 +247,7 @@ module Distillator
 
       normalized_value = normalize_statement_value(formatted)
       { value: blank_value?(normalized_value) ? nil : normalized_value, error: nil, timing: timing }
-    rescue BudgetExceeded
+    rescue BudgetExceeded, TransitionRun::Cancelled
       raise
     rescue StandardError => error
       {

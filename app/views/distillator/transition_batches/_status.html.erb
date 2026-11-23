@@ -28,7 +28,9 @@
             <% if (path = workflow_failure_report_path(item)) %><p><%= link_to "Inspect recorded failure", path %></p><% end %>
             <details><summary>Technical detail</summary><p><%= link_webpage_urls(item.reason) %></p></details>
           <% end %>
-        <% end %><%= link_to "Site workflow report", distillator_site_transition_path(item) %></td>
+        <% end %>
+          <%= render "distillator/site_transitions/cancel_control", item: item, from: "batch" %>
+          <%= link_to "Site workflow report", distillator_site_transition_path(item) %></td>
       </tr>
     <% end %></tbody>
   </table>

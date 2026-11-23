@@ -13,6 +13,7 @@
   <p><%= workflow_elapsed(@item) %></p>
   <% if (waiting = workflow_job_wait(@item)) %><p class="transition-secondary" aria-live="polite"><%= waiting %></p><% end %>
   <% unless @item.terminal? %><p class="transition-secondary"><%= workflow_estimate([@item]) %></p><% end %>
+  <%= render "distillator/site_transitions/cancel_control", item: @item %>
 </section>
 <ol class="transition-workflow-phases">
   <li><strong>Starting state:</strong> <%= @item.initial_mode.humanize %></li>

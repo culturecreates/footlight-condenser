@@ -1,4 +1,10 @@
 module Distillator::TransitionWorkflowsHelper
+  def workflow_check_settings(batch)
+    options = Distillator::TransitionCheckOptions.new(batch.check_options)
+    sample = options.sample_mode == "all" ? "All eligible pages" : "Default sample"
+    [batch.check_profile.humanize, sample, options.strictness.humanize, "Selected sources only"].join(" · ")
+  end
+
   def workflow_phase_label(item)
     return item.status.humanize if item.terminal?
     return "Waiting for active-verification worker" if item.phase == "postcheck" && !item.phase_started_at

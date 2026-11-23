@@ -9,12 +9,19 @@ excluded on the server as well as in the UI. Event pages or selected Event
 sources establish event-site eligibility; a workflow with no event pages stops
 for attention rather than certifying an unrelated listing.
 
-**Validate and activate selected** authorizes the complete workflow. One selected
+Choose **Light** for the default sample and Standard field comparison, or
+**Thorough** for all eligible pages and Strict field comparison. Thorough is the
+default. Both profiles can activate sites and carry the same chosen settings through
+each phase. **Validate and activate selected** authorizes the complete workflow. One selected
 site opens its own workflow report. More than one opens a group report with
 aggregate progress, result filters, individual report links and Stop remaining
 sites. Sites in a group run sequentially. A site's failure does not prevent the
 remaining sites from being checked. Stop remaining cancels queued sites; it lets
-the current site finish verification or recovery. Already completed sites retain
+the current site finish verification or recovery. **Cancel current transition**
+requests a cooperative stop for the running site and returns it to Shadow when
+recovery is needed. An in-flight operation can finish before cancellation takes
+effect. The rest of the group can proceed unless Stop remaining sites was also
+used. Already completed sites retain
 their result. An already Active site skips pre-activation and verifies its Active
 path; failed verification returns it to Shadow under the same recovery policy.
 Use **Recent transitions** on Websites to resume or revisit reports. This history
@@ -23,11 +30,11 @@ is paginated, and entries for a single site link directly to its site report.
 Each Legacy/Shadow site performs:
 
 1. Enter Shadow (Wringer remains serving backend).
-2. Run All + Strict against fresh HTML from both backends and selected sources.
+2. Run the chosen profile against fresh HTML from both backends and selected sources.
    Existing reviewed URL exclusions apply and remain visible in each run.
 3. Activate only when all required checks and normal promotion gates pass.
    Review-needed or incomplete results stop for attention, without overrides.
-4. Run a separate All + Strict check through the ordinary Active serving path,
+4. Run a separate check with the same profile through the ordinary Active serving path,
    without a forced execution-mode override. Verify the resolved serving backend
    is Condenser and that every successful fetch actually uses its native path.
 5. Keep Active on success; otherwise return to Shadow and record recovery.

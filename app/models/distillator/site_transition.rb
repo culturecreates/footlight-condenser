@@ -14,6 +14,24 @@ module Distillator
       status.in?(TERMINAL)
     end
 
+    def request_cancellation!
+      return false unless website
+
+      website.with_lock do
+        with_lock do
+          next false unless status == "running"
+
+          update!(cancel_requested_at: Time.current) unless cancel_requested_at?
+          true
+        end
+      end
+    end
+
+    def check_cancellation!
+      requested = self.class.uncached { self.class.where(id: id).pick(:cancel_requested_at) }
+      raise TransitionRun::Cancelled, TransitionRun::CANCELLED_MESSAGE if requested
+    end
+
     def current_run
       phase == "postcheck" ? post_run : pre_run
     end

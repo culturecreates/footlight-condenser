@@ -1,27 +1,32 @@
 module Distillator
   class TransitionBatch < ApplicationRecord
     self.table_name = "distillator_transition_batches"
+    CHECK_PROFILES = {
+      "light" => { "sample_mode" => "default", "strictness" => "standard" }.freeze,
+      "thorough" => { "sample_mode" => "all", "strictness" => "strict" }.freeze
+    }.freeze
+    DEFAULT_CHECK_PROFILE = "thorough".freeze
     has_many :site_transitions, class_name: "Distillator::SiteTransition", foreign_key: :batch_id, dependent: :destroy
     validates :request_key, presence: true, uniqueness: true
     validate do
-      errors.add(:check_options, "must remain All pages and Strict") unless check_options == { "sample_mode" => "all", "strictness" => "strict" }
+      errors.add(:check_options, "must match Light or Thorough") unless CHECK_PROFILES.value?(check_options)
+      errors.add(:check_options, "cannot change after submission") if persisted? && will_save_change_to_check_options?
       errors.add(:request_key, "cannot change after submission") if persisted? && will_save_change_to_request_key?
     end
 
-    def self.request!(website_ids:, request_key:, selection_context: nil)
+    def self.request!(website_ids:, request_key:, selection_context: nil, check_profile: DEFAULT_CHECK_PROFILE)
       raise ArgumentError, "Select at least one event site" unless website_ids.is_a?(Array) && website_ids.any?
+      options = CHECK_PROFILES.fetch(check_profile) { raise ArgumentError, "Choose Light or Thorough." }
       ids = website_ids.map { |value| Integer(value.to_s, 10) }.uniq.sort
       raise ArgumentError, "Invalid selection" if ids.any? { |id| id <= 0 } || request_key.to_s !~ /\A[\w-]{16,80}\z/
       if (existing = find_by(request_key: request_key))
-        raise ArgumentError, "This request belongs to a different selection" unless existing.site_transitions.order(:website_id).pluck(:website_id) == ids
-        return existing
+        return reuse_request!(existing, ids, options)
       end
       created = false
       batch = transaction do
         websites = Website.where(id: ids).order(:id).lock.to_a
         if (same_request = find_by(request_key: request_key))
-          raise ArgumentError, "This request belongs to a different selection" unless same_request.site_transitions.order(:website_id).pluck(:website_id) == ids
-          next same_request
+          next reuse_request!(same_request, ids, options)
         end
         unless websites.size == ids.size && EventSiteSelection.eligible_ids(websites).sort == ids
           raise ArgumentError, "Only event sites are eligible. Templates, tests and place/person sites are excluded."
@@ -37,9 +42,9 @@ module Distillator
           names = websites.select { |website| busy.include?(website.id) }.first(5).map { |website| website.name.presence || website.seedurl }.join(", ")
           raise ArgumentError, "Already running or queued: #{names}. Follow the existing check before starting another workflow."
         end
-        estimates = TransitionTimeEstimate.for_sites(websites)
+        estimates = TransitionTimeEstimate.for_sites(websites, check_options: TransitionCheckOptions.new(options))
         events = RolloutEvent.where(website_id: ids).group(:website_id).maximum(:id)
-        create!(request_key: request_key, selection_context: selection_context.to_s.first(300)).tap do |record|
+        create!(request_key: request_key, selection_context: selection_context.to_s.first(300), check_options: options).tap do |record|
           created = true
           rows = websites.each_with_index.map do |website, index|
             { batch_id: record.id, website_id: website.id, website_name: website.name.presence || website.seedurl.presence || "Website ##{website.id}",
@@ -51,6 +56,18 @@ module Distillator
       end
       batch.enqueue_next! if created
       batch
+    end
+
+    def self.reuse_request!(batch, ids, options)
+      raise ArgumentError, "This request belongs to a different selection" unless batch.site_transitions.order(:website_id).pluck(:website_id) == ids
+      raise ArgumentError, "This request belongs to a different check profile" unless batch.check_options == options
+
+      batch
+    end
+    private_class_method :reuse_request!
+
+    def check_profile
+      CHECK_PROFILES.key(check_options)
     end
 
     def enqueue_next!
@@ -72,7 +89,7 @@ module Distillator
         if item
           if item.deadline_at && item.deadline_at <= Time.current
             dispatch!(SiteTransitionWatchdogJob, item.id)
-          elsif item.phase_started_at.nil?
+          elsif item.cancel_requested_at? || item.phase_started_at.nil?
             dispatch!(SiteTransitionJob, item.id, phase: item.phase)
           elsif (run = item.current_run) && (run.status == "queued" || (run.resumable? && run.status == "completed"))
             dispatch!(SiteTransitionJob, item.id, phase: item.phase)

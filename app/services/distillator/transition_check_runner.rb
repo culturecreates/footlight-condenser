@@ -76,7 +76,8 @@ module Distillator
       clock: nil,
       memory: Distillator::TransitionMemory.new,
       verify_active_path: false,
-      require_native_path: false
+      require_native_path: false,
+      cancellation_check: nil
     )
       @transition_run = transition_run
       @check_options = transition_run ? transition_run.options : Distillator::TransitionCheckOptions.coerce(check_options)
@@ -99,6 +100,7 @@ module Distillator
       @applicable_sources = {}
       @verify_active_path = verify_active_path
       @require_native_path = require_native_path || verify_active_path
+      @cancellation_check = cancellation_check
     end
 
     def call
@@ -139,6 +141,7 @@ module Distillator
     private
 
     def perform_checks_with_snapshots
+      @cancellation_check&.call
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       @phase_timings = {}
       transition_run&.record_progress!("selection")
@@ -224,6 +227,7 @@ module Distillator
       timings = {}
       @checkpoint_reconciliation = {}
       checkpoints.reorder(nil).find_each(batch_size: 1) do |checkpoint|
+        @cancellation_check&.call
         payload = checkpoint.payload
         fetch = payload.fetch("fetch")
         batch_rows = payload.fetch("rows")
@@ -256,6 +260,7 @@ module Distillator
     end
 
     def finish_checks(transition_check, representative_webpages, representative_url_results, started, parity: nil)
+      @cancellation_check&.call
       records = {
         fetch_parity: record_fetch_check(transition_check, representative_url_results),
         statement_delta: timed_phase("statements") { record_statement_check(transition_check, representative_webpages, representative_url_results, parity: parity) },
@@ -369,9 +374,14 @@ module Distillator
     def compare_statements(webpages, inputs, offset: 0, total: webpages.length)
       StatementParityCheck.call(website: website, webpages: webpages,
         url_results: inputs, refresh_helper: refresh_helper, comparator: statement_comparator,
-        strict: @check_options.strict?, stop_requested: -> { timeout_budget_exceeded? }, compact_evidence: true,
+        strict: @check_options.strict?, stop_requested: method(:comparison_stop_requested?), compact_evidence: true,
         snapshot_reader: method(:read_html_pair), source_lookup: method(:selected_sources_for),
         progress: ->(completed, _, timings) { record_page_progress("statements", offset + completed, total, timings: timings) unless completed.zero? })
+    end
+
+    def comparison_stop_requested?
+      @cancellation_check&.call
+      timeout_budget_exceeded?
     end
 
     def failure_identity(entry)
@@ -379,6 +389,7 @@ module Distillator
     end
 
     def record_export_check(transition_check, representative_webpages, representative_url_results)
+      @cancellation_check&.call
       transition_run&.record_progress!("export")
       @memory.record(run_id: transition_run.id, phase: "export")
       latest_cache = representative_url_results.first&.dig(:cache) || transition_check.cache
@@ -414,7 +425,9 @@ module Distillator
       end
 
       actual = export_service.call(seedurl: website.seedurl)
+      @cancellation_check&.call
       expected = export_service.production_equivalent(seedurl: website.seedurl)
+      @cancellation_check&.call
       if Distillator::ExportNormalizer.blank_export?(actual) || Distillator::ExportNormalizer.blank_export?(expected)
         return Distillator::TransitionEvidenceRecorder.call(
           website: website,
@@ -465,6 +478,8 @@ module Distillator
           changed_uri_objects: diff.changed_uri_objects.first(10)
         ).compact
       )
+    rescue TransitionRun::Cancelled
+      raise
     rescue StandardError => error
       Distillator::TransitionEvidenceRecorder.call(
         website: website,
@@ -650,6 +665,7 @@ module Distillator
           seedurl: website.seedurl
         }
       )
+      @cancellation_check&.call
       comparison = cache_compare.call(
         uri: webpage.url,
         condenser_result: fetch_result,
@@ -744,6 +760,7 @@ module Distillator
       collected = []
 
       representative_webpages.each_with_index do |webpage, index|
+        @cancellation_check&.call
         if timeout_budget_exceeded?
           return collected + representative_webpages.drop(index).map { |remaining| timed_out_representative_url_result(remaining) }
         end

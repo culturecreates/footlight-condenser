@@ -9,7 +9,8 @@ module Distillator
     end
 
     def create
-      batch = TransitionBatch.request!(website_ids: params[:website_ids], request_key: params[:request_key], selection_context: params[:selection_context])
+      batch = TransitionBatch.request!(website_ids: params[:website_ids], request_key: params[:request_key],
+        selection_context: params[:selection_context], check_profile: params.fetch(:check_profile, TransitionBatch::DEFAULT_CHECK_PROFILE))
       item = batch.site_transitions.order(:position).first
       redirect_to(batch.site_transitions.count == 1 ? distillator_site_transition_path(item) : distillator_transition_batch_path(batch))
     rescue ArgumentError, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => error

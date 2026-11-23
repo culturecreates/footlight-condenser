@@ -7,9 +7,10 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     def initialize
       @calls = []
     end
-    def call(website:, transition_run:, verify_active_path:, require_native_path:)
+    def call(website:, transition_run:, verify_active_path:, require_native_path:, cancellation_check: nil)
       @calls << { website_id: website.id, active_path: verify_active_path, mode: website.distillator_mode, native_required: require_native_path }
       callback&.call(website, verify_active_path)
+      cancellation_check&.call
       failed = verify_active_path ? post_failure : pre_failure
       urls = website.webpages.pluck(:url)
       %w[fetch_parity statement_delta export_diff].each do |kind|
@@ -72,6 +73,57 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     assert_equal "passed", item.phase_results.dig("precheck", "export")
     assert_nil item.post_run
     assert_equal 0, @website.rollout_events.where(to_mode: "active").count
+  end
+
+  test "cancelling a running site stops its work and keeps the rest of the group eligible" do
+    other = create_site("after-cancel")
+    batch = Distillator::TransitionBatch.request!(website_ids: [@website.id, other.id], request_key: SecureRandom.uuid)
+    first, second = batch.site_transitions.order(:position).to_a
+    @runner.callback = ->(_, _) { first.reload.request_cancellation! }
+
+    @processor.perform(first.id, phase: "queued")
+
+    assert_equal "cancelled", first.reload.status
+    assert_equal "failed", first.pre_run.status
+    assert_equal Distillator::TransitionRun::CANCELLED_MESSAGE, first.pre_run.error_message
+    assert_empty first.pre_run.transition_evidences
+    assert_equal "shadow", @website.reload.distillator_mode
+    assert_nil batch.reload.stopped_at
+    assert_equal "queued", second.reload.status
+
+    @runner.callback = nil
+    @processor.perform(second.id, phase: "queued")
+    assert_equal "postcheck", second.reload.phase
+  end
+
+  test "cancelling between checks recovers Shadow before creating the Active check" do
+    _, item = request
+    @processor.perform(item.id, phase: "queued")
+    assert_equal "active", @website.reload.distillator_mode
+    assert item.reload.request_cancellation!
+
+    assert_no_difference "Distillator::TransitionRun.count" do
+      @processor.perform(item.id, phase: "postcheck")
+    end
+
+    assert_equal "cancelled", item.reload.status
+    assert_equal "completed", item.pre_run.status
+    assert_equal "completed", item.phase_results.dig("recovery", "state")
+    assert_equal "shadow", @website.reload.distillator_mode
+  end
+
+  test "Light runs the same sampled Standard profile in precheck and Active verification" do
+    batch = Distillator::TransitionBatch.request!(website_ids: [@website.id], request_key: SecureRandom.uuid, check_profile: "light")
+    item = batch.site_transitions.sole
+
+    @processor.perform(item.id, phase: "queued")
+    @processor.perform(item.id, phase: "postcheck")
+
+    assert_equal "passed", item.reload.status
+    assert_equal batch.check_options, item.pre_run.check_options
+    assert_equal batch.check_options, item.post_run.check_options
+    assert_equal "default", item.post_run.options.sample_mode
+    refute item.post_run.options.strict?
   end
 
   test "failed active verification returns to Shadow and preserves both reports" do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_21_000100) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_23_000100) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -112,6 +112,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_21_000100) do
     t.integer "estimated_seconds"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "cancel_requested_at"
     t.index ["batch_id", "position"], name: "index_distillator_site_transitions_on_batch_id_and_position", unique: true
     t.index ["batch_id"], name: "index_distillator_site_transitions_on_batch_id"
     t.index ["post_run_id"], name: "index_distillator_site_transitions_on_post_run_id"

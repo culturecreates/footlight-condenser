@@ -21,6 +21,8 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     assert_select '#website-list-unscheduled input[data-transition-site][value="' + @two.id.to_s + '"]'
     assert_select 'input[data-transition-site][form="website-transition-batch"]', count: 2
     assert_select '[data-transition-master-label]', text: /Select all 2 matching event sites/
+    assert_select '#website-transition-batch select[name=check_profile] option[value=thorough][selected]', 1
+    assert_select '#website-transition-batch select[name=check_profile] option[value=light]', 1
     assert_select 'form form', count: 0
   end
 
@@ -66,6 +68,26 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     assert_equal "legacy", @one.reload.distillator_mode
   end
 
+  test "the group persists the chosen Light profile and rejects a different profile on replay" do
+    parameters = params_for([@one.id, @two.id]).merge(check_profile: "light")
+    post distillator_transition_batches_path, params: parameters
+    batch = Distillator::TransitionBatch.last
+    assert_redirected_to distillator_transition_batch_path(batch)
+    assert_equal({ "sample_mode" => "default", "strictness" => "standard" }, batch.check_options)
+    follow_redirect!
+    assert_includes response.body, "Light · Default sample · Standard"
+
+    assert_no_difference "Distillator::TransitionBatch.count" do
+      post distillator_transition_batches_path, params: parameters.merge(check_profile: "thorough")
+      assert_redirected_to websites_path
+      assert_equal "This request belongs to a different check profile", flash[:alert]
+
+      post distillator_transition_batches_path, params: params_for([@other.id]).merge(check_profile: "unknown")
+      assert_redirected_to websites_path
+      assert_equal "Choose Light or Thorough.", flash[:alert]
+    end
+  end
+
   test "empty selection and forged excluded sites never queue a workflow" do
     [[], [@template.id], [@test_site.id], [@place.id]].each do |ids|
       assert_no_difference ["Distillator::TransitionBatch.count", "Distillator::SiteTransition.count", "Distillator::RolloutEvent.count"] do
@@ -74,6 +96,33 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
       assert_redirected_to websites_path
       assert flash[:alert].present?
     end
+  end
+
+  test "the group can request cancellation of its running site independently of queued sites" do
+    post distillator_transition_batches_path, params: params_for([@one.id, @two.id])
+    batch = Distillator::TransitionBatch.last
+    current, queued = batch.site_transitions.order(:position).to_a
+    current.update!(status: "running", phase: "precheck", phase_token: SecureRandom.hex, started_at: Time.current)
+
+    get distillator_transition_batch_path(batch)
+    assert_select "input[type=submit][value='Cancel current transition']", 1
+    assert_select "input[type=submit][value='Stop remaining sites']", 1
+    patch cancel_distillator_site_transition_path(queued)
+    assert_nil queued.reload.cancel_requested_at
+
+    patch cancel_distillator_site_transition_path(current), params: { from: "batch" }
+    assert_redirected_to distillator_transition_batch_path(batch)
+    requested_at = current.reload.cancel_requested_at
+    assert requested_at
+    assert_equal "running", current.status
+    assert_equal "queued", queued.reload.status
+    assert_nil batch.reload.stopped_at
+
+    patch cancel_distillator_site_transition_path(current)
+    assert_equal requested_at, current.reload.cancel_requested_at
+    get distillator_site_transition_path(current)
+    assert_includes response.body, "Cancellation requested. The current operation may need to finish"
+    assert_select "input[type=submit][value='Cancel current transition']", 0
   end
 
   test "successful site report has one verdict and links both checks without empty findings" do

@@ -4,8 +4,10 @@ module Distillator
     LEASE = 1.hour
     MAX_BATCH_ATTEMPTS = 3
     CONTINUE = :continue_transition
+    CANCELLED_MESSAGE = "Cancelled by the operator".freeze
     STATUSES = %w[queued running completed failed].freeze
     class ConfigurationChanged < StandardError; end
+    class Cancelled < StandardError; end
     class OptionsConflict < StandardError; end
     class WorkflowBusy < ArgumentError; end
     Request = Struct.new(:run, :created?, keyword_init: true)
@@ -55,8 +57,8 @@ module Distillator
       ])
     end
 
-    def execute(resumable: false, &block)
-      with_execution_lock { execute_claimed(resumable, &block) }
+    def execute(resumable: false, cancellation_check: nil, &block)
+      with_execution_lock { execute_claimed(resumable, cancellation_check, &block) }
     end
 
     def resumable?
@@ -102,10 +104,11 @@ module Distillator
       end
     end
 
-    def execute_claimed(resumable)
+    def execute_claimed(resumable, cancellation_check)
       claimed = website.with_lock do
         with_lock do
           next false unless status == "queued" || (status == "running" && resumable && resumable?)
+          cancellation_check&.call
           raise ConfigurationChanged, "Check expired. Run a new check." if requested_at <= Time.current - LEASE
           if resumable
             unless configuration_digest == Distillator::TransitionFingerprint.call(website)
@@ -126,9 +129,11 @@ module Distillator
       return unless claimed
 
       result = yield self
+      cancellation_check&.call
       return result if resumable && result == CONTINUE
       website.with_lock do
         with_lock do
+          cancellation_check&.call
           unless status == "running" && requested_at > Time.current - LEASE &&
               configuration_digest == Distillator::TransitionFingerprint.call(website)
             raise ConfigurationChanged, "Check expired or source configuration changed. Run a new check."
@@ -142,6 +147,10 @@ module Distillator
         end
       end
       result
+    rescue Cancelled => error
+      fail!(error.message)
+      transition_checkpoints.delete_all
+      raise
     rescue StandardError => error
       message = if error.is_a?(ConfigurationChanged) || error.is_a?(TransitionMemory::LimitExceeded)
         error.message

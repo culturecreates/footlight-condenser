@@ -191,6 +191,16 @@ class Distillator::StatementParityCheckTest < ActiveSupport::TestCase
     assert_empty result.artifacts
   end
 
+  test "operator cancellation inside the paired comparison stops extraction" do
+    @helper.expects(:format_datatype).never
+    checks = 0
+    stop_requested = -> { raise Distillator::TransitionRun::Cancelled if (checks += 1) == 2 }
+
+    assert_raises(Distillator::TransitionRun::Cancelled) do
+      compare(html, html, stop_requested: stop_requested)
+    end
+  end
+
   test "a mid-page deadline retains already detected critical failures and cannot claim full coverage" do
     checks = 0
     result = compare(html, html(title: "Different"), stop_requested: -> { checks += 1; checks >= 6 })

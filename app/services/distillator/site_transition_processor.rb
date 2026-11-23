@@ -11,19 +11,27 @@ module Distillator
       return unless token
       # A durable delayed guard is queued before doing any verification work.
       # The pre-check guard also survives the handoff into Active/post-check.
-      guard = SiteTransitionWatchdogJob.set(wait_until: item.deadline_at).perform_later(item.id)
-      raise "Could not schedule recovery guard" unless guard
+      unless item.cancel_requested_at?
+        guard = SiteTransitionWatchdogJob.set(wait_until: item.deadline_at).perform_later(item.id)
+        raise "Could not schedule recovery guard" unless guard
+      end
       run = item.current_run
-      result = run.execute(resumable: run.options.sample_mode == "all") do
-        @runner.call(website: item.website, transition_run: run, verify_active_path: item.phase == "postcheck", require_native_path: true)
+      item.check_cancellation! unless run
+      cancellation_check = item.method(:check_cancellation!)
+      result = run.execute(resumable: run.options.sample_mode == "all", cancellation_check: cancellation_check) do
+        @runner.call(website: item.website, transition_run: run, verify_active_path: item.phase == "postcheck",
+          require_native_path: true, cancellation_check: cancellation_check)
       end
       if result == TransitionRun::CONTINUE
+        item.check_cancellation!
         queue_continuation(item)
         return
       end
-      return if run.reload.resumable? && run.status == "running" # Another delivery owns this batch.
+      return if run.reload.status.in?(%w[queued running]) # Another delivery owns the execution lock.
 
       finish_phase(item, token, run.reload)
+    rescue TransitionRun::Cancelled => error
+      recover(item, reason: error.message, token: token)
     rescue StandardError => error
       Rails.logger.warn(event: "distillator.site_transition.failed", id: id, error_class: error.class.name)
       recover(item, reason: error.message, token: token || item.reload.phase_token) if item && !item.reload.terminal?
@@ -31,8 +39,11 @@ module Distillator
 
     def recover(item, reason:, token:)
       changed = owned(item, token) do |website|
+        cancelled = item.cancel_requested_at?
+        reason = TransitionRun::CANCELLED_MESSAGE if cancelled
         if (run = item.current_run)
-          run.fail!("Workflow stopped: #{reason}")
+          run.fail!(cancelled ? reason : "Workflow stopped: #{reason}")
+          run.transition_checkpoints.delete_all if cancelled
           item.phase_results = item.phase_results.merge(item.phase => comparison_result(run, website).merge(reason: reason)) unless item.phase_results.key?(item.phase)
         end
         if website.distillator_mode == "active"
@@ -45,7 +56,7 @@ module Distillator
         else
           item.phase_results = item.phase_results.merge("recovery" => { state: "not_needed", mode: website.distillator_mode })
         end
-        finish(item, website, "attention", reason)
+        finish(item, website, cancelled ? "cancelled" : "attention", reason)
       end
       item.batch.enqueue_next! if changed
     rescue StandardError => error
@@ -81,7 +92,11 @@ module Distillator
             next if item.terminal? || item.phase != requested_phase
             next if requested_phase == "queued" && item.batch.site_transitions.where(status: "running").where.not(id: item.id).exists?
             unless matches_operator_state?(item, website)
-              finish(item, website, "cancelled", "The operator changed the website mode; automation stopped without changing it.")
+              finish_after_operator_change(item, website)
+              next
+            end
+            if item.cancel_requested_at?
+              token = item.phase_token
               next
             end
             if item.phase_started_at
@@ -120,6 +135,8 @@ module Distillator
     def finish_phase(item, token, run)
       dispatch_post = false
       changed = owned(item, token) do |website|
+        raise TransitionRun::Cancelled, TransitionRun::CANCELLED_MESSAGE if item.cancel_requested_at?
+
         next unless item.phase_started_at && item.current_run&.id == run.id
 
         raise "This site is no longer eligible for event-site migration" unless EventSiteSelection.eligible_ids([website]).include?(website.id)
@@ -175,7 +192,7 @@ module Distillator
           if matches_operator_state?(item, website)
             yield website
           else
-            finish(item, website, "cancelled", "The operator changed the website mode; automation stopped without changing it.")
+            finish_after_operator_change(item, website)
           end
         end
       end
@@ -184,6 +201,14 @@ module Distillator
 
     def matches_operator_state?(item, website)
       website.distillator_mode == item.expected_mode && website.rollout_events.maximum(:id) == item.expected_event_id
+    end
+
+    def finish_after_operator_change(item, website)
+      if item.cancel_requested_at? && (run = item.current_run)
+        run.fail!(TransitionRun::CANCELLED_MESSAGE)
+        run.transition_checkpoints.delete_all
+      end
+      finish(item, website, "cancelled", "The operator changed the website mode; automation stopped without changing it.")
     end
 
     def comparison_result(run, website)

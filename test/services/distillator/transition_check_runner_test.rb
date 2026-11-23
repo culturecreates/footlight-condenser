@@ -61,6 +61,29 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal "shadow", website.reload.distillator_mode
   end
 
+  test "cancellation during a fetch stops before requesting the paired snapshot" do
+    website = build_website
+    requested = false
+    fetcher = Object.new
+    fetcher.define_singleton_method(:fetch) do |**|
+      requested = true
+      nil
+    end
+    comparison = mock("Wringer snapshot comparison")
+    comparison.expects(:call).never
+    cancellation_check = -> {
+      raise Distillator::TransitionRun::Cancelled, Distillator::TransitionRun::CANCELLED_MESSAGE if requested
+    }
+
+    assert_raises(Distillator::TransitionRun::Cancelled) do
+      Distillator::TransitionCheckRunner.call(website: website, cancellation_check: cancellation_check,
+        fetch_cache_store: fetcher, cache_compare: comparison)
+    end
+
+    assert_equal "failed", website.latest_transition_run.status
+    assert_empty website.latest_transition_run.transition_evidences
+  end
+
   test "an all-pages check resumes at its durable cursor and exports only after full coverage" do
     website = build_website
     first = website.webpages.sole

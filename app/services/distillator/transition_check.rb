@@ -6,6 +6,10 @@ module Distillator
     FALLBACK_REPRESENTATIVE_SAMPLE_SIZE = 3
     SELECTION_RULE = "20% of publishable event pages, minimum 5, capped at 25, or all pages when fewer than 5 exist.".freeze
 
+    def self.default_publishable_sample_size(count)
+      [[(count * PUBLISHABLE_SAMPLE_PERCENT).ceil, MINIMUM_PUBLISHABLE_SAMPLE_SIZE].max, MAXIMUM_PUBLISHABLE_SAMPLE_SIZE].min
+    end
+
     Result = Struct.new(
       :website_id,
       :website,
@@ -192,8 +196,7 @@ module Distillator
       count = publishable_event_page_count
       return 0 if count.zero?
 
-      default = [[(count * PUBLISHABLE_SAMPLE_PERCENT).ceil, MINIMUM_PUBLISHABLE_SAMPLE_SIZE].max, MAXIMUM_PUBLISHABLE_SAMPLE_SIZE].min
-      @check_options.size_for(count, default: default)
+      @check_options.size_for(count, default: self.class.default_publishable_sample_size(count))
     end
 
     def publishable_event_scope

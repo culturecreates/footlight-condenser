@@ -35,7 +35,9 @@ Rails.application.routes.draw do
     resources :transition_checks, only: [:create, :show]
     resources :transition_exclusions, only: [:create, :update]
     resources :transition_batches, only: [:index, :create, :show, :update]
-    resources :site_transitions, only: [:show]
+    resources :site_transitions, only: [:show] do
+      patch :cancel, on: :member
+    end
 
     resources :cache, only: [:index, :show], controller: "cache" do
       collection do
