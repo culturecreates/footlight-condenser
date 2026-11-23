@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_23_000100) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_23_000200) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -129,6 +129,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_23_000100) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.datetime "last_reconciled_at"
+    t.string "workflow_action", default: "validate", null: false
     t.index ["request_key"], name: "index_distillator_transition_batches_on_request_key", unique: true
   end
 

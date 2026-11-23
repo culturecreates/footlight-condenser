@@ -88,6 +88,34 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     end
   end
 
+  test "Active audit is a separate Thorough request and rejects groups containing Shadow sites" do
+    @one.update_column(:distillator_mode, "active")
+    request = params_for([@one.id]).merge(workflow_action: "audit", check_profile: "light")
+    get websites_path
+    assert_select "button[data-transition-audit][name=workflow_action][value=audit]", text: "Audit selected Active sites (Thorough)"
+    assert_select 'input[data-transition-mode="active"][value="' + @one.id.to_s + '"]'
+
+    assert_no_difference "Distillator::TransitionBatch.count" do
+      post distillator_transition_batches_path, params: params_for([@one.id, @two.id]).merge(workflow_action: "audit")
+    end
+    assert_redirected_to websites_path
+    assert_equal "Select only Active event sites for an audit.", flash[:alert]
+
+    post distillator_transition_batches_path, params: request
+    batch = Distillator::TransitionBatch.last
+    assert batch.audit?
+    assert_equal "thorough", batch.check_profile
+    follow_redirect!
+    assert_includes response.body, "Active audit · Thorough"
+    assert_select "li", text: /Thorough Active audit/
+    assert_select "li", text: /Pre-activation comparison/, count: 0
+
+    assert_no_difference "Distillator::TransitionBatch.count" do
+      post distillator_transition_batches_path, params: request.merge(workflow_action: "validate", check_profile: "thorough")
+    end
+    assert_equal "This request belongs to a different workflow action", flash[:alert]
+  end
+
   test "batch diagnostics are unavailable while any site is unfinished" do
     post distillator_transition_batches_path, params: params_for([@one.id, @two.id])
     batch = Distillator::TransitionBatch.last

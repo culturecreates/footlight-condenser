@@ -17,10 +17,21 @@ module Distillator
       end
       attempts = fetch[:fetch_attempted_webpage_count]
       attempts ||= rows.count { |row| row[:attempted_condenser_fetch] } if rows.any? && rows.all? { |row| row.key?(:attempted_condenser_fetch) }
-      issues = rows.flat_map { |row| issues_for(row) }
+      fresh = fetch[:fetch_basis] == "fresh_both"
+      shared_missing, other = rows.partition { |row| fresh && TransitionExclusionReview.shared_source_missing?(row) }
+      issues = other.flat_map { |row| issues_for(row) } + shared_missing.map { |row| shared_source_issue(row) }
       Result.new(selected: selected.to_i, attempted: attempts, condenser_succeeded: native,
         wringer_available: legacy, paired: paired, compared: statements[:compared_webpage_count],
-        fresh: fetch[:fetch_basis] == "fresh_both", issues: issues)
+        fresh: fresh, issues: issues)
+    end
+
+    def self.shared_source_issue(row)
+      condenser = row[:http_response_code]
+      wringer = row.dig(:legacy_fetch, :upstream_http_code)
+      { url: row[:url], backend: "Both backends", code: "shared_source_unavailable",
+        reason: "The source URL returned HTTP #{condenser} to Condenser and HTTP #{wringer} to Wringer.",
+        action: "Verify whether the source URL is retired or has moved before recording a reviewed exclusion.",
+        condenser_http_code: condenser, wringer_http_code: wringer }
     end
 
     def self.issues_for(row)
@@ -66,6 +77,6 @@ module Distillator
 
       "Retry the transition check; both backends will fetch fresh results again."
     end
-    private_class_method :issues_for, :action_for
+    private_class_method :issues_for, :shared_source_issue, :action_for
   end
 end

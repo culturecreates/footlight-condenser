@@ -9,25 +9,31 @@ excluded on the server as well as in the UI. Event pages or selected Event
 sources establish event-site eligibility; a workflow with no event pages stops
 for attention rather than certifying an unrelated listing.
 
-Choose **Light** for the default sample and Standard field comparison, or
-**Thorough** for all eligible pages and Strict field comparison. Thorough is the
-default. Both profiles can activate sites and carry the same chosen settings through
-each phase. **Validate and activate selected** authorizes the complete workflow. One selected
+**Validate and activate selected** uses **Light** for the default sample and
+Standard field comparison, or **Thorough** for all eligible pages and Strict
+field comparison. Thorough is the default and moves previously Active sites to
+Shadow before the precheck. Light validation of an already Active site goes
+straight to Active verification and can return the site to Shadow on failure.
+**Audit selected Active sites (Thorough)** checks the Active path using all
+eligible pages and Strict field comparison. It reports failures for review
+while leaving the serving mode under operator control. Only Active event sites
+can enter an audit.
+
+One selected
 site opens its own workflow report. More than one opens a group report with
 aggregate progress, result filters, individual report links and Stop remaining
 sites. Sites in a group run sequentially. A site's failure does not prevent the
 remaining sites from being checked. Stop remaining cancels queued sites; it lets
 the current site finish verification or recovery. **Cancel current transition**
-requests a cooperative stop for the running site and returns it to Shadow when
-recovery is needed. An in-flight operation can finish before cancellation takes
+requests a cooperative stop for the running site. A stopped validation can
+return the site to Shadow during recovery. An in-flight operation can finish before cancellation takes
 effect. The rest of the group can proceed unless Stop remaining sites was also
-used. Already completed sites retain
-their result. An already Active site skips pre-activation and verifies its Active
-path; failed verification returns it to Shadow under the same recovery policy.
+used. Already completed sites retain their result.
 Use **Recent transitions** on Websites to resume or revisit reports. This history
 is paginated, and entries for a single site link directly to its site report.
 
-Each Legacy/Shadow site performs:
+The full validation workflow performs these steps for Legacy and Shadow sites,
+and for Active sites when Thorough is selected.
 
 1. Enter Shadow (Wringer remains serving backend).
 2. Run the chosen profile against fresh HTML from both backends and selected sources.
@@ -38,6 +44,12 @@ Each Legacy/Shadow site performs:
    without a forced execution-mode override. Verify the resolved serving backend
    is Condenser and that every successful fetch actually uses its native path.
 5. Keep Active on success; otherwise return to Shadow and record recovery.
+
+Shared extraction failures are reported as inconclusive statements. When both
+backends record fresh source HTTP 404 or 410 responses for the same URL, the
+report counts one source-availability finding. Activation still requires
+successful coverage of the in-scope pages. A reviewed exclusion remains an
+explicit, reversible decision.
 
 Both workflow checks require a native Condenser fetch; comparing two Wringer
 fallbacks cannot qualify. Existing diagnostic/standalone check behavior is retained.

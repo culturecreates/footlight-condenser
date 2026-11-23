@@ -18,6 +18,7 @@ module Distillator
       @redactor.call(
         schema_version: 1,
         batch_id: @batch.id,
+        workflow_action: @batch.workflow_action,
         check_profile: @batch.check_profile,
         check_options: @batch.check_options,
         selection_context: @batch.selection_context,
@@ -65,7 +66,8 @@ module Distillator
       details = record.details.to_h
       issues = TransitionFetchSummary.call(fetch_details: details, statement_details: {}).issues.map do |issue|
         { kind: "fetch", code: issue[:code], url: issue[:url], backend: issue[:backend],
-          http_code: issue[:http_code], message: message(issue[:reason]) }
+          http_code: issue[:http_code], condenser_http_code: issue[:condenser_http_code], wringer_http_code: issue[:wringer_http_code],
+          message: message(issue[:reason]) }
       end
       Array(details["representative_url_results"]).each do |row|
         status = row["comparison_status"]

@@ -168,7 +168,7 @@ module Distillator
       reasons << "Cannot activate yet: fetch check is stale." if fetch_status == :stale && lavitrine_pipeline?
       reasons << "Cannot activate yet: statements check failed." if statements_status == :failed
       reasons << "Cannot activate yet: statements could not be evaluated until fetch/cache is fixed." if statements_status == :not_evaluated && fetch_status != :failed
-      reasons << "Cannot activate yet: statements check is inconclusive." if statements_status == :inconclusive
+      reasons << "Cannot activate yet: #{inconclusive_statement_reason}" if statements_status == :inconclusive
       reasons << "Cannot activate yet: statements check is missing." if lavitrine_pipeline? && statements_status == :missing
       reasons << "Cannot activate yet: statements check is stale." if lavitrine_pipeline? && statements_status == :stale
       reasons << "Cannot activate yet: export check failed." if export_status == :failed
@@ -187,7 +187,7 @@ module Distillator
       reasons << "Needs review: fetch check is stale." if fetch_status == :stale && !lavitrine_pipeline?
       reasons << "Needs review: statements check is missing." if !lavitrine_pipeline? && statements_status == :missing
       reasons << "Needs review: statements check is stale." if !lavitrine_pipeline? && statements_status == :stale
-      reasons << "Needs review: statements check is inconclusive." if !lavitrine_pipeline? && statements_status == :inconclusive
+      reasons << "Needs review: #{inconclusive_statement_reason}" if !lavitrine_pipeline? && statements_status == :inconclusive
       reasons << optional_statement_warning if optional_statement_warning.present?
       reasons << "Needs review: export check is missing." if !lavitrine_pipeline? && export_status == :missing
       reasons << "Needs review: export check is stale." if !lavitrine_pipeline? && export_status == :stale
@@ -219,6 +219,7 @@ module Distillator
       return :not_evaluated if fetch_prevented_statement_refresh?(evidence)
       return :inconclusive if partial_fetch_prevented_statement_refresh?(evidence)
       return :inconclusive if no_selected_statements?(evidence)
+      return :inconclusive if evidence.status == "pending" && shared_extraction_failure?(evidence)
       return :missing if evidence.status.to_s == "pending"
       return :warning if evidence.status.to_s == "warning" || optional_statement_warning_evidence?(evidence)
       return :failed if evidence.status.to_s.in?(%w[failed blocked rejected]) || evidence.acceptable_statement_delta? == false
@@ -508,7 +509,7 @@ module Distillator
       return fetch_failure_blocker if fetch_status == :failed
       return "Cannot activate yet: fetch check is stale." if fetch_status == :stale && lavitrine_pipeline?
       return "Cannot activate yet: statements could not be evaluated until fetch/cache is fixed." if statements_status == :not_evaluated
-      return "Cannot activate yet: statements check is inconclusive." if statements_status == :inconclusive
+      return "Cannot activate yet: #{inconclusive_statement_reason}" if statements_status == :inconclusive
       return "Cannot activate yet: statements check failed." if statements_status == :failed
       return "Cannot activate yet: export comparison could not be evaluated until fetch/cache is fixed." if export_status == :blocked_by_fetch
       return "Cannot activate yet: export check is inconclusive." if export_status == :inconclusive
@@ -552,6 +553,16 @@ module Distillator
 
     def no_selected_statements?(evidence)
       evidence_reason(evidence).in?(%w[no_selected_statements paired_extraction_inconclusive])
+    end
+
+    def shared_extraction_failure?(evidence)
+      evidence_reason(evidence) == "shared_extraction_failure"
+    end
+
+    def inconclusive_statement_reason
+      return "statements check is inconclusive due to shared extraction failures." if shared_extraction_failure?(statement_delta_evidence)
+
+      "statements check is inconclusive."
     end
 
     def optional_statement_warning

@@ -18,7 +18,7 @@
         <tr class="website-index-row" data-website-id="<%= website.id %>">
           <td><% if @transition_eligible_ids.include?(website.id) %>
             <%= check_box_tag "website_ids[]", website.id, false, id: "website-transition-#{website.id}", form: "website-transition-batch",
-              data: { transition_site: true }, aria: { label: "Select for transition: #{website.name}" } %>
+              data: { transition_site: true, transition_mode: website.distillator_mode }, aria: { label: "Select for transition: #{website.name}" } %>
           <% else %>—<% end %></td>
           <th scope="row" class="website-index-name">
             <div class="website-index-identity">

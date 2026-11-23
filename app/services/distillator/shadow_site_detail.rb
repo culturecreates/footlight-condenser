@@ -206,7 +206,7 @@ module Distillator
         data_failure = primary_blocker&.state == "failed" && primary_blocker.key.in?(%w[statement_delta export_diff])
         if fetch_summary.issues.any? && !data_failure
           issue = fetch_summary.issues.first
-          return @root_cause = { failed_layer: { "Condenser" => "fetch", "Wringer" => "legacy lookup" }.fetch(issue[:backend], "check runtime"),
+          return @root_cause = { failed_layer: { "Condenser" => "fetch", "Wringer" => "legacy lookup", "Both backends" => "source availability" }.fetch(issue[:backend], "check runtime"),
             concrete_reason: "#{issue[:backend]}: #{issue[:reason]}",
             affected_url_count: fetch_summary.issues.map { |item| item[:url] }.uniq.length,
             next_operator_action: issue[:action] }

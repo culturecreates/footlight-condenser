@@ -46,7 +46,7 @@ module Distillator
           run.transition_checkpoints.delete_all if cancelled
           item.phase_results = item.phase_results.merge(item.phase => comparison_result(run, website).merge(reason: reason)) unless item.phase_results.key?(item.phase)
         end
-        if website.distillator_mode == "active"
+        if website.distillator_mode == "active" && !item.batch.audit?
           result = @rollout.call(website: website, to_mode: "shadow", actor: item.actor, reason: "Automatic recovery: #{reason}")
           unless result.success? && website.reload.distillator_mode == "shadow"
             finish(item, website, "recovery_failed", "Recovery failed: #{result.errors.join(', ')}. Original issue: #{reason}")
@@ -109,7 +109,7 @@ module Distillator
               next
             end
             if requested_phase == "queued"
-              if website.distillator_mode == "legacy"
+              if website.distillator_mode == "legacy" || item.batch.thorough_revalidation? && website.distillator_mode == "active"
                 result = @rollout.call(website: website, to_mode: "shadow", actor: item.actor, reason: "Start validation workflow ##{item.id}")
                 raise result.errors.join(", ") unless result.success?
               end
@@ -165,7 +165,14 @@ module Distillator
             phase_results: item.phase_results.merge("activation" => { state: "completed", at: Time.current.iso8601(6) }))
           dispatch_post = true
         else
-          finish(item, website, "passed", item.initial_mode == "active" ? "Active-path verification passed." : "Pre-activation and active-path verification passed.")
+          reason = if item.batch.audit?
+            "Thorough Active audit passed."
+          elsif item.pre_run_id
+            "Pre-activation and active-path verification passed."
+          else
+            "Active-path verification passed."
+          end
+          finish(item, website, "passed", reason)
         end
       end
       if dispatch_post

@@ -69,25 +69,30 @@ test("preferred controls submit the owning form once and initialization is idemp
 });
 
 test("master selection covers every matching event checkbox including closed categories and preserves partial selection", () => {
-  const input = () => ({ checked: false, handlers: {}, addEventListener(name, fn) { this.handlers[name] = fn; } });
-  const inputs = [input(), input(), input()];
+  const input = (mode) => ({ checked: false, dataset: { transitionMode: mode }, handlers: {}, addEventListener(name, fn) { this.handlers[name] = fn; } });
+  const inputs = [input("active"), input("shadow"), input("active")];
   const master = input();
   const count = { textContent: "" };
   const submit = { disabled: false };
+  const audit = { disabled: false };
   const label = { hidden: true };
-  const controls = { "[data-transition-master]": master, "[data-transition-selection-count]": count, "[data-transition-submit]": submit, "[data-transition-master-label]": label };
+  const controls = { "[data-transition-master]": master, "[data-transition-selection-count]": count, "[data-transition-submit]": submit,
+    "[data-transition-audit]": audit, "[data-transition-master-label]": label };
   const form = { dataset: {}, querySelector: (selector) => controls[selector] };
   const root = { getElementById: () => form, querySelectorAll: () => inputs };
   configureTransitionSelection(root);
   assert.equal(label.hidden, false);
   assert.equal(submit.disabled, true);
+  assert.equal(audit.disabled, true);
   master.checked = true;
   master.handlers.change();
   assert(inputs.every((field) => field.checked));
+  assert.equal(audit.disabled, true);
   assert.equal(count.textContent, "3 of 3 matching event sites selected");
   inputs[1].checked = false;
   inputs[1].handlers.change();
   assert.equal(master.indeterminate, true);
   assert.equal(master.checked, false);
   assert.equal(submit.disabled, false);
+  assert.equal(audit.disabled, false);
 });

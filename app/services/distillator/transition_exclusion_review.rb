@@ -11,14 +11,18 @@ module Distillator
       return [] unless details[:fetch_basis] == "fresh_both"
 
       Array(details[:representative_url_results]).map { |row| row.to_h.with_indifferent_access }.select do |row|
-        legacy = row[:legacy_fetch].to_h.with_indifferent_access
-        row[:url].to_s.match?(/\Ahttps?:\/\//) && row[:attempted_condenser_fetch] == true && row[:fetch_status] == "failed" &&
-          row[:condenser_fetch].to_h.with_indifferent_access[:cache_hit] == false &&
-          row[:condenser_fetch].to_h.with_indifferent_access[:fetch_path].in?([nil, "native"]) &&
-          [404, 410, "404", "410"].include?(row[:http_response_code]) &&
-          row[:legacy_lookup_status] == "unreachable" && legacy[:response_http_code].to_i.between?(200, 299) &&
-          legacy[:force_scrape] == true && [404, 410, "404", "410"].include?(legacy[:upstream_http_code])
+        shared_source_missing?(row)
       end
+    end
+
+    def self.shared_source_missing?(row)
+      legacy = row[:legacy_fetch].to_h.with_indifferent_access
+      condenser = row[:condenser_fetch].to_h.with_indifferent_access
+      row[:url].to_s.match?(/\Ahttps?:\/\//) && row[:attempted_condenser_fetch] == true && row[:fetch_status] == "failed" &&
+        condenser[:cache_hit] == false && condenser[:fetch_path].in?([nil, "native"]) &&
+        row[:http_response_code].to_s.in?(%w[404 410]) &&
+        row[:legacy_lookup_status] == "unreachable" && legacy[:response_http_code].to_i.between?(200, 299) &&
+        legacy[:force_scrape] == true && legacy[:upstream_http_code].to_s.in?(%w[404 410])
     end
 
     def self.create!(website:, run:, url:, reason:)

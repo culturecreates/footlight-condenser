@@ -34,14 +34,17 @@ export function configureTransitionSelection(root = document) {
   const master = form.querySelector("[data-transition-master]");
   const count = form.querySelector("[data-transition-selection-count]");
   const submit = form.querySelector("[data-transition-submit]");
+  const audit = form.querySelector("[data-transition-audit]");
   form.querySelector("[data-transition-master-label]").hidden = false;
   const update = () => {
-    const selected = inputs.filter((input) => input.checked).length;
+    const checked = inputs.filter((input) => input.checked);
+    const selected = checked.length;
     count.textContent = `${selected} of ${inputs.length} matching event sites selected`;
     master.checked = inputs.length > 0 && selected === inputs.length;
     master.indeterminate = selected > 0 && selected < inputs.length;
     master.disabled = inputs.length === 0;
     submit.disabled = selected === 0;
+    if (audit) audit.disabled = selected === 0 || checked.some((input) => input.dataset.transitionMode !== "active");
   };
   master.addEventListener("change", () => { inputs.forEach((input) => { input.checked = master.checked; }); update(); });
   inputs.forEach((input) => input.addEventListener("change", update));

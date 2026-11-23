@@ -63,6 +63,20 @@ class Distillator::TransitionFetchSummaryTest < ActiveSupport::TestCase
     assert_includes summarize(rows).issues.first[:action], "still valid"
   end
 
+  test "fresh source 404 and 410 responses from both backends are one source availability finding" do
+    rows = successful_rows
+    rows[0].merge!(fetch_status: "failed", http_response_code: 404, fetch_reason: "http_404", legacy_lookup_status: "unreachable",
+      condenser_fetch: { cache_hit: false, fetch_path: "native" },
+      legacy_fetch: { upstream_http_code: 410, response_http_code: 200, force_scrape: true })
+    issue = summarize(rows).issues.sole
+    assert_equal "shared_source_unavailable", issue[:code]
+    assert_equal "Both backends", issue[:backend]
+    assert_equal [404, 410], issue.values_at(:condenser_http_code, :wringer_http_code)
+
+    rows[0][:legacy_fetch][:force_scrape] = false
+    assert_equal %w[http_404 http_410], summarize(rows).issues.pluck(:code)
+  end
+
   test "successful HTTP rejected as a challenge is distinguished from a network failure" do
     rows = successful_rows
     rows[0].merge!(fetch_status: "failed", fetch_reason: "captcha_detected", http_response_code: 200,

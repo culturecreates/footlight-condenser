@@ -140,14 +140,86 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     assert_equal "active", @website.rollout_events.order(:id).last.from_mode
   end
 
-  test "already Active sites only verify their active path and recover on failure" do
+  test "Thorough validation sends an already Active site through Shadow first and recovers if Active verification fails" do
     @website.update_column(:distillator_mode, "active")
     _, item = request
     @runner.post_failure = true
+
     @processor.perform(item.id, phase: "queued")
+    assert_equal "active", @website.reload.distillator_mode
+    assert_equal "ready", item.reload.phase_results.dig("precheck", "state")
+    assert_equal "strict", item.pre_run.options.strictness
+    assert_equal "all", item.pre_run.options.sample_mode
+    assert_nil item.post_run
+
+    @processor.perform(item.id, phase: "postcheck")
+    assert_equal "attention", item.reload.status
+    assert_equal item.pre_run.check_options, item.post_run.check_options
+    assert_equal %w[shadow active], @runner.calls.pluck(:mode)
+    assert_equal [false, true], @runner.calls.pluck(:active_path)
+    assert_equal %w[shadow active shadow], @website.rollout_events.order(:id).pluck(:to_mode)
+    assert_equal "shadow", item.final_mode
+  end
+
+  test "Thorough validation stays in Shadow if a previously Active site fails the precheck" do
+    @website.update_column(:distillator_mode, "active")
+    _, item = request
+    @runner.pre_failure = true
+
+    @processor.perform(item.id, phase: "queued")
+
+    assert_equal "attention", item.reload.status
+    assert_equal "shadow", @website.reload.distillator_mode
+    assert_equal %w[shadow], @website.rollout_events.order(:id).pluck(:to_mode)
+    assert_nil item.post_run
+  end
+
+  test "existing workflows preserve their verification behavior for an already Active site" do
+    @website.update_column(:distillator_mode, "active")
+    batch, item = request
+    batch.update_column(:workflow_action, "verify")
+    @runner.post_failure = true
+
+    @processor.perform(item.id, phase: "queued")
+
     assert_nil item.reload.pre_run
     assert_equal [true], @runner.calls.map { |call| call[:active_path] }
     assert_equal "shadow", @website.reload.distillator_mode
+  end
+
+  test "Active audit captures Thorough verification failures without changing rollout mode" do
+    @website.update_column(:distillator_mode, "active")
+    _, item = request(workflow_action: "audit", check_profile: "light")
+    @runner.post_failure = true
+
+    assert_no_difference "Distillator::RolloutEvent.count" do
+      @processor.perform(item.id, phase: "queued")
+    end
+
+    assert_equal [true], @runner.calls.pluck(:active_path)
+    assert_nil item.reload.pre_run
+    assert_equal "all", item.post_run.options.sample_mode
+    assert item.post_run.options.strict?
+    assert_equal "blocked", item.phase_results.dig("postcheck", "state")
+    assert_equal "attention", item.status
+    assert_equal "active", item.final_mode
+    assert_equal "active", @website.reload.distillator_mode
+  end
+
+  test "an Active audit timeout records the failure without rolling back the website" do
+    @website.update_column(:distillator_mode, "active")
+    _, item = request(workflow_action: "audit")
+    @processor.send(:claim, item, "queued")
+    item.reload.update!(deadline_at: 1.minute.ago)
+
+    assert_no_difference "Distillator::RolloutEvent.count" do
+      Distillator::SiteTransitionWatchdogJob.perform_now(item.id)
+    end
+
+    assert_equal "attention", item.reload.status
+    assert_equal "failed", item.post_run.status
+    assert_equal "active", @website.reload.distillator_mode
+    assert_equal "active", item.final_mode
   end
 
   test "a dead worker after activation is recovered and late jobs cannot reactivate" do
@@ -319,7 +391,7 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     assert_nil second.pre_run
   end
 
-  test "a mixed three-site group records a pass a failure and an already Active verification" do
+  test "a mixed three-site group records a pass a failure and a successful revalidation" do
     other = create_site("mixed-attention")
     active = create_site("mixed-active")
     active.update_column(:distillator_mode, "active")
@@ -331,9 +403,10 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     @processor.perform(second.id, phase: "queued")
     @runner.pre_failure = false
     @processor.perform(third.id, phase: "queued")
+    @processor.perform(third.id, phase: "postcheck")
     assert_equal %w[passed attention passed], batch.site_transitions.order(:position).pluck(:status)
     assert_equal %w[active shadow active], batch.site_transitions.order(:position).pluck(:final_mode)
-    assert_nil third.reload.pre_run
+    assert_equal "completed", third.reload.pre_run.status
     assert_equal "completed", third.post_run.status
     assert_equal 3, batch.site_transitions.count
   end
@@ -466,8 +539,8 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     website
   end
 
-  def request
-    batch = Distillator::TransitionBatch.request!(website_ids: [@website.id], request_key: SecureRandom.uuid)
+  def request(**options)
+    batch = Distillator::TransitionBatch.request!(website_ids: [@website.id], request_key: SecureRandom.uuid, **options)
     [batch, batch.site_transitions.sole]
   end
 end

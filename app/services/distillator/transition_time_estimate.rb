@@ -4,7 +4,7 @@ module Distillator
       for_sites([website])[website.id]
     end
 
-    def self.for_sites(websites, check_options: nil)
+    def self.for_sites(websites, check_options: nil, shadow_first: false)
       ids = websites.map(&:id)
       ranked = TransitionRun.completed.where(website_id: ids).where.not(started_at: nil).where.not(completed_at: nil)
         .select("distillator_transition_runs.*, ROW_NUMBER() OVER (PARTITION BY website_id ORDER BY id DESC) AS timing_rank")
@@ -23,7 +23,8 @@ module Distillator
         end.sort
         count = counts[website.id].to_i
         count = check_options.size_for(count, default: TransitionCheck.default_publishable_sample_size(count)) if check_options
-        estimate = (durations[durations.length / 2] * count * (website.distillator_mode == "active" ? 1 : 2)).ceil if durations.any? && count.positive?
+        checks = !shadow_first && website.distillator_mode == "active" ? 1 : 2
+        estimate = (durations[durations.length / 2] * count * checks).ceil if durations.any? && count.positive?
         [website.id, estimate]
       end
     end
@@ -36,7 +37,7 @@ module Distillator
         next 0 unless item.estimated_seconds
         estimate = item.estimated_seconds.to_f
         if item.status == "running"
-          estimate /= 2 if item.phase == "postcheck" && item.initial_mode != "active"
+          estimate /= 2 if item.phase == "postcheck" && (item.pre_run_id || item.initial_mode != "active")
           estimate -= now - item.phase_started_at if item.phase_started_at
           late ||= estimate <= 0
         end

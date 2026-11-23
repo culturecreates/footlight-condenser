@@ -355,6 +355,20 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     assert_equal "Verify selected sources/statements for the sampled webpages.", status.activation_recommendation[:next_action]
   end
 
+  test "recorded shared extraction failures are inconclusive and prevent activation" do
+    website = build_website("Outside Feed", "outside-feed")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true })
+    website.transition_evidences.create!(url: "https://example.org/event", check_kind: "statement_delta",
+      status: "pending", checked_at: 1.hour.ago, details: { reason: "shared_extraction_failure" })
+
+    isolate_transition_policy(website)
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :inconclusive, status.statements
+    assert_includes status.blockers, "Cannot activate yet: statements check is inconclusive due to shared extraction failures."
+    assert_not_equal :ready, status.status
+  end
+
   test "partial representative fetch failure keeps statements and export inconclusive" do
     website = build_website("Outside Feed", "outside-feed")
     cache = build_cache(signals: { "transport_success" => true, "content_success" => true })

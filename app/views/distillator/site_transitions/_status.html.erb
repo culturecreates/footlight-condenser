@@ -17,21 +17,25 @@
 </section>
 <ol class="transition-workflow-phases">
   <li><strong>Starting state:</strong> <%= @item.initial_mode.humanize %></li>
-  <li><strong>Pre-activation comparison:</strong> <%= workflow_check_link(@item, :pre) %></li>
-  <li><strong>Activation:</strong> <%= @item.phase_results.dig("activation", "state")&.humanize || (@item.initial_mode == "active" ? "Already Active" : "Not performed") %></li>
-  <li><strong>Ordinary Active path and fresh comparison:</strong> <%= workflow_check_link(@item, :post) %></li>
-  <% if (recovery = @item.phase_results["recovery"]) %><li><strong>Recovery:</strong> <%= recovery["state"].humanize %> · <%= recovery["mode"]&.humanize %></li><% end %>
+  <% if @item.batch.audit? %>
+    <li><strong>Thorough Active audit:</strong> <%= workflow_check_link(@item, :post) %></li>
+  <% else %>
+    <li><strong>Pre-activation comparison:</strong> <%= workflow_check_link(@item, :pre) %></li>
+    <li><strong>Activation:</strong> <%= @item.phase_results.dig("activation", "state")&.humanize || (@item.initial_mode == "active" && !@item.batch.thorough_revalidation? ? "Already Active" : "Not performed") %></li>
+    <li><strong>Ordinary Active path and fresh comparison:</strong> <%= workflow_check_link(@item, :post) %></li>
+    <% if (recovery = @item.phase_results["recovery"]) %><li><strong>Recovery:</strong> <%= recovery["state"].humanize %> · <%= recovery["mode"]&.humanize %></li><% end %>
+  <% end %>
 </ol>
 <% %w[precheck postcheck].each do |phase| %>
   <% if (result = @item.phase_results[phase]) %>
     <% findings = (Array(result["blockers"]) + Array(result["warnings"]) + Array(result["reason"])).reject(&:blank?).uniq %>
-    <% label = phase == "precheck" ? "Pre-activation verification" : "Active verification" %>
+    <% label = phase == "precheck" ? "Pre-activation verification" : (@item.batch.audit? ? "Active audit" : "Active verification") %>
     <% if result["state"] == "ready" && findings.empty? %>
       <p class="transition-result--passed"><strong><%= label %> passed.</strong> <%= workflow_check_link(@item, phase == "precheck" ? :pre : :post) %></p>
     <% else %>
     <details id="workflow-<%= phase %>-findings" open><summary id="workflow-<%= phase %>-toggle"><%= label %> · <%= result["state"]&.humanize %></summary>
       <p>Fetch: <%= result["fetch"] || "Not recorded" %> · Statements: <%= result["statements"] || "Not recorded" %> · Export: <%= result["export"] || "Not recorded" %></p>
-      <% if findings.any? %><ul><% findings.each do |reason| %><li><%= link_webpage_urls(reason) %></li><% end %></ul><% end %>
+      <% if findings.any? %><ul><% findings.each do |reason| %><li><%= link_webpage_urls(workflow_finding_text(@item, reason)) %></li><% end %></ul><% end %>
     </details>
     <% end %>
   <% end %>

@@ -2,13 +2,16 @@ module Distillator::TransitionWorkflowsHelper
   def workflow_check_settings(batch)
     options = Distillator::TransitionCheckOptions.new(batch.check_options)
     sample = options.sample_mode == "all" ? "All eligible pages" : "Default sample"
-    [batch.check_profile.humanize, sample, options.strictness.humanize, "Selected sources only"].join(" · ")
+    settings = [batch.check_profile.humanize, sample, options.strictness.humanize, "Selected sources only"]
+    settings.unshift("Active audit") if batch.audit?
+    settings.join(" · ")
   end
 
   def workflow_phase_label(item)
     return item.status.humanize if item.terminal?
     return "Waiting for active-verification worker" if item.phase == "postcheck" && !item.phase_started_at
     label = { "queued" => "Waiting in group", "precheck" => "Pre-activation check", "postcheck" => "Active-path verification" }.fetch(item.phase)
+    label = "Active audit" if item.phase == "postcheck" && item.batch.audit?
     progress = item.current_run&.progress.to_h
     if progress["phase"].present?
       label += " · #{progress['phase'].humanize}"
@@ -51,7 +54,7 @@ module Distillator::TransitionWorkflowsHelper
   def workflow_check_link(item, kind)
     run = item.public_send("#{kind}_run")
     data = item.phase_results.to_h[kind == :pre ? "precheck" : "postcheck"].to_h
-    return item.initial_mode == "active" && kind == :pre ? "Already Active" : "Not run" unless run
+    return item.initial_mode == "active" && kind == :pre && !item.batch.thorough_revalidation? ? "Already Active" : "Not run" unless run
     link_to "##{run.id} · #{data['state'].presence || run.status.humanize}",
       distillator_shadow_report_site_path(item.website_id, run_id: run.id)
   end
@@ -61,10 +64,14 @@ module Distillator::TransitionWorkflowsHelper
   end
 
   def workflow_reason_summary(item)
-    return item.reason unless workflow_challenge_reported?(item)
+    return workflow_finding_text(item, item.reason) unless workflow_challenge_reported?(item)
 
     backend = item.reason.to_s[/\A(Condenser|Wringer):/, 1] || "The fetch check"
     "#{backend} reported a Cloudflare/CAPTCHA challenge. Inspect the recorded response before retrying."
+  end
+
+  def workflow_finding_text(item, reason)
+    item.batch.audit? ? reason&.sub(/\ACannot activate yet: /, "Audit finding: ") : reason
   end
 
   def workflow_failure_report_path(item)
