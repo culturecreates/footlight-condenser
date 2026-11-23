@@ -11,7 +11,7 @@ class Distillator::PhantomjsFetcherTest < ActiveSupport::TestCase
     ENV["DISTILLATOR_ALLOW_RENDERED_DIRECT_FALLBACK"] = @old_direct_fallback
   end
 
-  test "uses the renderer key for transport and redacts it from logs and fetch metadata" do
+  test "uses the renderer key for transport and validates the redacted redirect URL" do
     key = "test-phantomjs-key"
     ENV["PHANTOMJS_API_KEY"] = key
     target = "https://example.com/rendered-event"
@@ -24,18 +24,21 @@ class Distillator::PhantomjsFetcherTest < ActiveSupport::TestCase
     agent = mock("renderer transport")
     agent.expects(:get).with(request_url).returns(response)
     agent.stubs(:history).returns([Struct.new(:uri).new(URI(response_url))])
+    Resolv.stubs(:getaddresses).with("example.com").returns(["93.184.216.34"])
+    Resolv.expects(:getaddresses).with("phantomjscloud.com").at_least_once.returns(["8.8.8.8"])
     logs = StringIO.new
     logger = Logger.new(logs)
 
-    result = Distillator::PhantomjsFetcher.call(url: target, uri_key: target, iframe: false, agent: agent, logger: logger)
+    result = Distillator::FetchService.fetch_result(url: target, mode: :internal, render_js: true, agent: agent, logger: logger)
 
     assert_equal :ok, result[:status]
     assert_equal page, result[:body]
     assert_equal page, result[:raw_body]
     assert_equal target, result[:final_url]
+    assert_equal [response_url.sub(key, "%5BFILTERED%5D")], result[:redirect_chain]
     assert_includes logs.string, "distillator.native_fetch.request"
     assert_includes logs.string, "distillator.native_fetch.response"
-    assert_includes logs.string, "[FILTERED]"
+    assert_includes logs.string, "/api/browser/v2/%5BFILTERED%5D/"
     refute_includes logs.string, key
     refute_includes result.inspect, key
     assert_equal "[FILTERED]", result.dig(:headers, :x_request_echo)
@@ -53,7 +56,7 @@ class Distillator::PhantomjsFetcherTest < ActiveSupport::TestCase
     result = Distillator::PhantomjsFetcher.call(url: target, uri_key: target, iframe: false, agent: agent, logger: Logger.new(logs))
 
     assert_equal :abort, result[:status]
-    assert_includes result[:body].last[:error], "[FILTERED]"
+    assert_includes result[:body].last[:error], "/api/browser/v2/%5BFILTERED%5D/"
     refute_includes result.inspect, key
     refute_includes logs.string, key
   end
@@ -70,7 +73,7 @@ class Distillator::PhantomjsFetcherTest < ActiveSupport::TestCase
       Distillator::PhantomjsFetcher.call(url: target, uri_key: target, iframe: false, agent: agent)
     end
 
-    assert_includes error.message, "[FILTERED]"
+    assert_includes error.message, "/api/browser/v2/%5BFILTERED%5D/"
     refute_includes error.full_message, key
     assert_nil error.cause
   end
