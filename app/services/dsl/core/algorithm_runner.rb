@@ -23,8 +23,11 @@ module Dsl
 
     def initialize(ctx)
       @url         = ctx[:url]
+      @initial_url = @url
       @render_js   = ctx[:render_js]
       @scrape_opts = ctx[:scrape_options] || {}
+      @page_fetch  = @scrape_opts[:page_fetch]
+      @scrape_opts = @scrape_opts.except(:page_fetch) if @page_fetch
       @tracer      = ctx[:tracer]
       @mode        = ctx[:mode] || @scrape_opts[:mode] || @scrape_opts["mode"]
       @agent       = Mechanize.new
@@ -434,7 +437,11 @@ module Dsl
 
       @url = new_url
 
-      fetch_result = fetch_result_for(url: @url, render_js: render_js, scrape_options: opts)
+      fetch_result = if %w[url json_url].include?(step) && @page_fetch && @url == @initial_url
+        fetch_document_result
+      else
+        fetch_result_for(url: @url, render_js: render_js, scrape_options: opts)
+      end
       @current_wringer_status =
         (fetch_result[:wringer] || {}).merge(
           duration_ms: fetch_result[:duration_ms]
@@ -517,7 +524,7 @@ module Dsl
     def ensure_page!(step: nil)
       return :ok if @page
 
-      fetch_result = fetch_result_for(url: @url, render_js: @render_js, scrape_options: @scrape_opts)
+      fetch_result = fetch_document_result
       @current_wringer_status =
         (fetch_result[:wringer] || {}).merge(
           duration_ms: fetch_result[:duration_ms]
@@ -536,7 +543,7 @@ module Dsl
     def ensure_graph!(step: nil)
       return :ok if @graph
 
-      fetch_result = fetch_result_for(url: @url, render_js: @render_js, scrape_options: @scrape_opts)
+      fetch_result = fetch_document_result
       @current_wringer_status =
         (fetch_result[:wringer] || {}).merge(
           duration_ms: fetch_result[:duration_ms]
@@ -606,6 +613,17 @@ module Dsl
 
       # Preserve upstream metadata (retry/cache/signals/etc.) while enforcing the shared abort shape.
       ["abort_update", built.merge(normalized.except(:error, :error_type, :step, :source))]
+    end
+
+    def fetch_document_result
+      if @page_fetch && @url == @initial_url
+        @page_fetch.call do
+          options = @scrape_opts.merge(use_phantomjs: @page_fetch.render_js, json_post: @page_fetch.json_post)
+          fetch_result_for(url: @url, render_js: @page_fetch.render_js, scrape_options: options)
+        end
+      else
+        fetch_result_for(url: @url, render_js: @render_js, scrape_options: @scrape_opts)
+      end
     end
 
     def fetch_result_for(url:, render_js:, scrape_options:)

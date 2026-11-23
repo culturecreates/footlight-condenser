@@ -414,10 +414,18 @@ module StatementsHelper
   end
 
   def statement_refresh_scrape_options(stat, scrape_options)
+    settings = scrape_options.respond_to?(:to_h) ? scrape_options.to_h.symbolize_keys : {}
+    settings[:page_fetch] ||= begin
+      webpage = stat.webpage
+      render_js = stat.source.render_js? || Statements::RefreshWebpageStatementsService.sources_for_webpage(
+        webpage, default_language: webpage.website.default_language
+      ).any?(&:render_js?)
+      Statements::PageFetch.new(render_js: render_js, scrape_options: settings)
+    end
     statement_scrape_options(
       source: stat.source,
       webpage: stat.webpage,
-      scrape_options: scrape_options,
+      scrape_options: settings,
       statement_id: stat.id,
       source_id: stat.source_id
     ).tap do |options|

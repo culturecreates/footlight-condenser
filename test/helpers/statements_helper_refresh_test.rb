@@ -242,13 +242,14 @@ class StatementsHelperRefreshTest < ActionView::TestCase
       render_js: stat.source.render_js,
       language: stat.source.language,
       url: stat.webpage.url,
-      scrape_options: {
+      scrape_options: has_entries(
+        page_fetch: kind_of(Statements::PageFetch),
         json_post: stat.source.json_post?,
         use_phantomjs: stat.source.render_js,
         website: stat.source.website,
         website_id: stat.source.website_id,
         log_context: expected_log_context
-      },
+      ),
       trace: true
     ).returns([run_result, trace_events])
     self.expects(:format_datatype).with(run_result, stat.source.property, stat.webpage).returns("formatted")
@@ -279,13 +280,14 @@ class StatementsHelperRefreshTest < ActionView::TestCase
       render_js: stat.source.render_js,
       language: stat.source.language,
       url: stat.webpage.url,
-      scrape_options: {
+      scrape_options: has_entries(
+        page_fetch: kind_of(Statements::PageFetch),
         json_post: stat.source.json_post?,
         use_phantomjs: stat.source.render_js,
         website: stat.source.website,
         website_id: stat.source.website_id,
         log_context: expected_log_context
-      },
+      ),
       trace: false
     ).returns(run_result)
     self.expects(:format_datatype).with(run_result, stat.source.property, stat.webpage).returns("formatted")
@@ -315,14 +317,15 @@ class StatementsHelperRefreshTest < ActionView::TestCase
       render_js: stat.source.render_js,
       language: stat.source.language,
       url: stat.webpage.url,
-      scrape_options: {
+      scrape_options: has_entries(
+        page_fetch: kind_of(Statements::PageFetch),
         force_scrape_every_hrs: "1",
         json_post: stat.source.json_post?,
         use_phantomjs: stat.source.render_js,
         website: stat.source.website,
         website_id: stat.source.website_id,
         log_context: expected_log_context
-      },
+      ),
       trace: false
     ).returns(run_result)
     self.expects(:format_datatype).with(run_result, stat.source.property, stat.webpage).returns("formatted")

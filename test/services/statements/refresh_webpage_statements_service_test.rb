@@ -10,7 +10,7 @@ module Statements
       end
 
       def refresh_statement_helper(stat, scrape_options)
-        @calls << { statement_id: stat.id, scrape_options: scrape_options }
+        @calls << { statement_id: stat.id, scrape_options: scrape_options.except(:page_fetch) }
       end
     end
 
@@ -116,73 +116,89 @@ module Statements
       end
     end
 
-    test "call updates existing statement cache through the real refresh helper" do
-      previous_mode = ENV["DISTILLATOR_FETCH_MODE"]
-      ENV["DISTILLATOR_FETCH_MODE"] = "internal"
-      Distillator::FetchCache.delete_all
+    {
+      "plain" => [false, false, false],
+      "rendered" => [true, true, true],
+      "mixed" => [false, true, true]
+    }.each do |label, (title_render_js, description_render_js, render_js)|
+      test "#{label} sources share one page fetch during forced refresh" do
+        previous_mode = ENV["DISTILLATOR_FETCH_MODE"]
+        ENV["DISTILLATOR_FETCH_MODE"] = "internal"
+        Distillator::FetchCache.delete_all
 
-      website = Website.create!(
-        name: "Service Refresh Fixture",
-        seedurl: "service-refresh-fixture",
-        graph_name: "https://fixtures.example/service-refresh",
-        default_language: "en",
-        distillator_mode: "active"
-      )
-      webpage = Webpage.create!(
-        website: website,
-        rdfs_class: rdfs_classes(:one),
-        url: "https://fixtures.example/service-refresh/event",
-        rdf_uri: "footlight:service-refresh-event",
-        language: "en"
-      )
-      source = Source.create!(
-        algorithm_value: "xpath=//h1/text()",
-        selected: true,
-        selected_by: "test",
-        language: "en",
-        render_js: false,
-        property: properties(:four),
-        website: website
-      )
-      statement = Statement.create!(
-        cache: "Old Service Title",
-        status: "initial",
-        status_origin: "test",
-        cache_refreshed: 1.day.ago,
-        cache_changed: 1.day.ago,
-        source: source,
-        webpage: webpage,
-        selected_individual: true
-      )
+        website = Website.create!(
+          name: "Service Refresh Fixture",
+          seedurl: "service-refresh-fixture",
+          graph_name: "https://fixtures.example/service-refresh",
+          default_language: "en",
+          distillator_mode: "active"
+        )
+        webpage = Webpage.create!(
+          website: website,
+          rdfs_class: rdfs_classes(:one),
+          url: "https://fixtures.example/service-refresh/event",
+          rdf_uri: "footlight:service-refresh-event",
+          language: "en"
+        )
+        source = Source.create!(
+          algorithm_value: "xpath=//h1/text()",
+          selected: true,
+          selected_by: "test",
+          language: "en",
+          render_js: title_render_js,
+          property: properties(:four),
+          website: website
+        )
+        description_source = website.sources.create!(
+          algorithm_value: "url=$url;xpath=//p/text()",
+          selected: true, language: "en", render_js: description_render_js, property: properties(:five)
+        )
+        statement = Statement.create!(
+          cache: "Old Service Title",
+          status: "initial",
+          status_origin: "test",
+          cache_refreshed: 1.day.ago,
+          cache_changed: 1.day.ago,
+          source: source,
+          webpage: webpage,
+          selected_individual: true
+        )
 
-      Distillator::FetchGuard.stubs(:check_url).returns(Distillator::FetchGuard::Result.new(allowed: true))
-      Distillator::FetchGuard.stubs(:check_response).returns(Distillator::FetchGuard::Result.new(allowed: true))
-      Distillator::NativeFetch.expects(:call).once.returns(
-        status: :ok,
-        body: "<html><body><h1>Service Refreshed Title</h1></body></html>",
-        raw_body: "<html><body><h1>Service Refreshed Title</h1></body></html>",
-        headers: { content_type: "text/html" },
-        final_url: webpage.url,
-        redirect_chain: [webpage.url],
-        wringer: { signals: {}, hints: [] },
-        http_code: 200
-      )
+        Distillator::FetchGuard.stubs(:check_url).returns(Distillator::FetchGuard::Result.new(allowed: true))
+        Distillator::FetchGuard.stubs(:check_response).returns(Distillator::FetchGuard::Result.new(allowed: true))
+        Distillator::NativeFetch.expects(:call).with(has_entries(url: webpage.url, render_js: render_js)).once.returns(
+          status: :ok,
+          body: "<html><body><h1>Service Refreshed Title</h1><p>Shared description</p></body></html>",
+          raw_body: "<html><body><h1>Service Refreshed Title</h1><p>Shared description</p></body></html>",
+          headers: { content_type: "text/html" },
+          final_url: webpage.url,
+          redirect_chain: [webpage.url],
+          wringer: { signals: {}, hints: [] },
+          http_code: 200
+        )
 
-      helper = Object.new
-      helper.extend(StatementsHelper)
-      helper.instance_variable_set(:@_statement_refresh_cookies, {})
-      helper.define_singleton_method(:cookies) { @_statement_refresh_cookies }
+        helper = Object.new
+        helper.extend(StatementsHelper)
+        helper.instance_variable_set(:@_statement_refresh_cookies, {})
+        helper.define_singleton_method(:cookies) { @_statement_refresh_cookies }
 
-      result = Statements::RefreshWebpageStatementsService.new(refresh_helper: helper).call(
-        webpage: webpage,
-        default_language: "en",
-        scrape_options: { force_scrape_every_hrs: "0" }
-      )
+        result = Statements::RefreshWebpageStatementsService.new(refresh_helper: helper).call(
+          webpage: webpage,
+          default_language: "en",
+          scrape_options: { force_scrape: true }
+        )
 
-      assert_equal [], result
-      assert_equal "Service Refreshed Title", statement.reload.cache
-    ensure
-      ENV["DISTILLATOR_FETCH_MODE"] = previous_mode
+        assert_equal [], result
+        assert_equal "Service Refreshed Title", statement.reload.cache
+        assert_equal "Shared description", webpage.statements.find_by!(source: description_source).cache
+        if label == "mixed"
+          single_refresh = helper.refresh_statement_helper(statement)
+          assert_empty single_refresh[:errors]
+          assert_equal "Service Refreshed Title", statement.reload.cache
+        end
+      ensure
+        ENV["DISTILLATOR_FETCH_MODE"] = previous_mode
+      end
     end
   end
 end

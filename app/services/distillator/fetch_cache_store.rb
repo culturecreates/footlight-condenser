@@ -158,7 +158,9 @@ module Distillator
     def fetch
       key = Distillator::WringerUrlKey.call(uri, include_fragment: include_fragment)
       cache = Distillator::FetchCache.find_by(uri_key: key.uri_key)
-      profile_mismatch = cache.present? && stored_body_profile(cache) != requested_body_profile(key)
+      stored_profile = stored_body_profile(cache)
+      requested_profile = requested_body_profile(key)
+      profile_mismatch = cache.present? && stored_profile != requested_profile
       decision = self.class.refresh_decision(
         cache: cache,
         force_scrape: force_scrape,
@@ -179,14 +181,15 @@ module Distillator
       cache ||= Distillator::FetchCache.new(uri_key: key.uri_key)
       cache.normalized_url ||= key.normalized_url
 
-      # A body from another serving path is not a last-good fallback for this request.
-      # Clear it before fetching so failures cannot return content from the old engine.
-      cache.assign_attributes(html: nil, body: nil, successful_refresh: nil) if profile_mismatch
-
+      options = scrape_options(key)
+      # Wringer also caches by URL, so refresh upstream when the rendering mode differs.
+      if stored_profile["render_js"] != requested_profile["render_js"] && (stored_profile.key?("render_js") || requested_profile["render_js"])
+        options[:force_scrape] = true
+      end
       fetch_result = Distillator::FetchService.fetch_result(
         url: key.normalized_url,
         render_js: rendered_fetch_for_key?(key),
-        scrape_options: scrape_options(key),
+        scrape_options: options,
         mode: mode.presence,
         website: website,
         website_id: website_id,
@@ -198,12 +201,13 @@ module Distillator
         log_context: log_context
       )
 
-      write_fetch_result(cache, key, fetch_result)
+      wrote_body = write_fetch_result(cache, key, fetch_result)
 
       build_result(
         cache,
         key,
         fetch_result: fetch_result,
+        use_cached_body: !profile_mismatch || wrote_body,
         cache_hit: false,
         cache_write: true,
         cache_reason: decision[:reason],
@@ -237,8 +241,8 @@ module Distillator
       :log_context
     )
 
-    def build_result(cache, key, fetch_result: nil, cache_hit:, cache_write:, cache_reason:, fetch_path:)
-      body = cache&.body.presence || cache&.html
+    def build_result(cache, key, fetch_result: nil, use_cached_body: true, cache_hit:, cache_write:, cache_reason:, fetch_path:)
+      body = cache&.body.presence || cache&.html if use_cached_body
       response_status =
         if body.present?
           :ok
@@ -256,7 +260,7 @@ module Distillator
       Result.new(
         status: response_status,
         body: response_body,
-        html: cache&.html,
+        html: use_cached_body ? cache&.html : nil,
         headers: (cache&.headers || {}).to_h,
         final_url: cache&.final_url,
         redirect_chain: Array(cache&.redirect_chain),
@@ -316,8 +320,10 @@ module Distillator
 
       cache.signals = annotate_storage_signals(cache.signals, cache: cache, abort_update: abort_update_policy?(fetch_result))
 
-      return cache.save! if abort_update_policy?(fetch_result)
-      return cache.save! unless content_successful_fetch?(signals: cache.signals || {}, http_code: http_code, raw_body: raw_body)
+      if abort_update_policy?(fetch_result) || !content_successful_fetch?(signals: cache.signals || {}, http_code: http_code, raw_body: raw_body)
+        cache.save!
+        return false
+      end
 
       html = escape_erb_tokens(raw_body.to_s)
       html = Distillator::HtmlAbsolutizer.call(html: html, base_url: final_url) if self.class.truthy?(absolute_src)
@@ -333,6 +339,7 @@ module Distillator
       end
       cache.signals = cache.signals.to_h.merge("body_profile" => requested_body_profile(key).merge("backend" => body_backend))
       cache.save!
+      true
     end
 
     def requested_body_profile(key)

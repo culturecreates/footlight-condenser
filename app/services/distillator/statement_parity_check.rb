@@ -29,11 +29,6 @@ module Distillator
           next { url: page.url, status: "inconclusive", reason: "paired_snapshot_missing" }
         end
         sources = source_lookup.call(page)
-        # A single HTML pair cannot establish parity for sources that require
-        # different rendered/unrendered responses. Do not conflate these inputs.
-        if sources.map { |source| source.render_js == true }.uniq.length > 1
-          next { url: page.url, status: "inconclusive", reason: "mixed_fetch_profiles" }
-        end
         interrupted = false
         comparison = begin
           comparator.new(website: website, webpage: page, legacy_html: legacy,

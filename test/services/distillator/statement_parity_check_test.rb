@@ -132,11 +132,16 @@ class Distillator::StatementParityCheckTest < ActiveSupport::TestCase
     assert_equal :failed, compare(left, right).status
   end
 
-  test "mixed rendered and plain sources cannot be certified from one snapshot pair" do
+  test "sources with different render flags compare values from the same snapshot pair" do
     @sources["Title"].update!(render_js: true)
-    result = compare(html, html)
-    assert_equal :pending, result.status
-    assert_equal "mixed_fetch_profiles", result.url_results.first[:reason]
+    result = compare(html, html, strict: true)
+    assert_equal :checked, result.status
+    assert_equal "paired_statements_match", result.url_results.first[:reason]
+    assert_equal 4, result.comparison_count
+
+    result = compare(html, html(date: "2027-02-02"), strict: true)
+    assert_equal :failed, result.status
+    assert_equal ["Dates"], result.critical_failures.map { |entry| entry[:property_label] }
   end
 
   test "strict comparison blocks price differences while standard comparison records a warning" do

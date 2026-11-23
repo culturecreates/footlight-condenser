@@ -259,7 +259,7 @@ module Distillator
 
       # Both sides must fetch now; cached snapshots are inspection-only.
       render_js = Statements::RefreshWebpageStatementsService.sources_for_webpage(representative_webpage,
-        default_language: website.default_language).any? { |source| source.selected? && source.render_js == true }
+        default_language: website.default_language).any?(&:render_js?)
       fetch_result = fetch_cache_store.fetch(
         uri: representative_webpage.url,
         render_js: render_js,

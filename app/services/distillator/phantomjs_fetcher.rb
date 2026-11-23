@@ -9,8 +9,6 @@ module Distillator
 
       if ENV["PHANTOMJS_API_KEY"].blank?
         logger.error("PHANTOMJS_API_KEY is not set for rendered fetch")
-        return direct_fallback_with_unavailable_renderer(url: url, iframe: iframe, agent: agent, logger: logger) if allow_direct_fallback?
-
         return renderer_unavailable_result(url: url, iframe: iframe)
       end
 
@@ -58,21 +56,20 @@ module Distillator
       iframe_extraction_failure(result, "phantomjs_iframe_malformed_json")
     end
 
-    def self.annotate(result, fallback: nil, iframe: false)
+    def self.annotate(result, iframe: false)
       payload = result.deep_dup
       payload[:wringer] = merge_wringer_metadata(
         payload[:wringer],
         signals: {
           renderer: "legacy_phantomjs",
-          renderer_unavailable: fallback.present?,
-          fetch_backend: fallback.present? ? "native" : "phantomjs",
+          renderer_unavailable: false,
+          fetch_backend: "phantomjs",
           request_method: "GET",
           use_phantomjs: true,
           phantomjs_iframe_extraction: iframe && payload.dig(:wringer, :signals, :phantomjs_iframe_extraction) != true ? false : payload.dig(:wringer, :signals, :phantomjs_iframe_extraction) == true
         },
-        hints: ["legacy_phantomjs", ("phantomjs_unavailable" if fallback.present?)].compact
+        hints: ["legacy_phantomjs"]
       )
-      payload[:wringer][:signals][:renderer_fallback] = fallback if fallback.present?
       payload
     end
 
@@ -120,24 +117,6 @@ module Distillator
         http_code: nil,
         raw_body: nil
       }
-    end
-
-    def self.direct_fallback_with_unavailable_renderer(url:, iframe:, agent:, logger:)
-      annotate(
-        Distillator::NativeFetch.call(
-          url: url,
-          render_js: false,
-          scrape_options: {},
-          agent: agent,
-          logger: logger
-        ),
-        fallback: "direct_url",
-        iframe: iframe
-      )
-    end
-
-    def self.allow_direct_fallback?
-      Distillator::BooleanParam.parse(ENV["DISTILLATOR_ALLOW_RENDERED_DIRECT_FALLBACK"])
     end
 
     def self.iframe_extraction_failure(result, hint)

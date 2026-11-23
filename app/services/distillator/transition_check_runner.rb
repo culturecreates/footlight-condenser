@@ -96,7 +96,7 @@ module Distillator
       @clock = clock || -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
       @started_at = monotonic_now
       @representative_result_cache = {}
-      @selected_sources = {}
+      @applicable_sources = {}
       @verify_active_path = verify_active_path
       @require_native_path = require_native_path || verify_active_path
     end
@@ -132,7 +132,7 @@ module Distillator
       @snapshot_file = nil
       @representative_url_results = nil
       @representative_result_cache.clear
-      @selected_sources.clear
+      @applicable_sources.clear
       @memory.record(run_id: transition_run.id, phase: "after_cleanup", enforce_limit: false)
     end
 
@@ -633,7 +633,7 @@ module Distillator
       cached = @representative_result_cache[webpage.url]
       return cached.merge(url: webpage.url, webpage_id: webpage.id) if cached.present?
 
-      render_js = selected_sources_for(webpage).any? { |source| source.render_js == true }
+      render_js = applicable_sources_for(webpage).any?(&:render_js?)
       if @verify_active_path
         resolution = FetchMode.rollout_resolution_object(website: website.reload)
         raise "Active serving path is not Condenser" unless website.distillator_mode == "active" && resolution.active_backend == :condenser
@@ -664,10 +664,14 @@ module Distillator
     end
 
     def selected_sources_for(webpage)
+      applicable_sources_for(webpage).select(&:selected?)
+    end
+
+    def applicable_sources_for(webpage)
       language = website.default_language
       key = [webpage.website_id, webpage.rdfs_class.name, webpage.language, language]
-      @selected_sources[key] ||= Statements::RefreshWebpageStatementsService.sources_for_webpage(webpage,
-        default_language: language).select(&:selected?)
+      @applicable_sources[key] ||= Statements::RefreshWebpageStatementsService.sources_for_webpage(webpage,
+        default_language: language)
     end
 
     def build_representative_url_result(webpage, fetch_result, comparison)
@@ -727,7 +731,8 @@ module Distillator
       {
         attempted_at: result.scrape_date || result.cache&.scrape_date, cache_hit: result.cache_hit,
         cloudflare: (cloudflare.merge(request_method: signals[:request_method]).compact if cloudflare.present?),
-        fetch_path: fetch_path, active_path_verification: @verify_active_path,
+        fetch_path: fetch_path, fetch_backend: signals[:fetch_backend], render_js: signals[:use_phantomjs],
+        active_path_verification: @verify_active_path,
         transport_success: result.transport_success?, content_success: result.content_success?,
         blocking_issue_key: result.blocking_issue_key,
         matched_rule: signals[:primary_issue_key],

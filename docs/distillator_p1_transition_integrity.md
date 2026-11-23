@@ -1,6 +1,6 @@
 # P1 transition integrity
 
-The transition batch now compares selected DSL source values against separate Wringer and Condenser HTML snapshots. It shares `MigrationComparator` with the diagnostic comparison page and never refreshes stored statements. Event Title, Dates and Location differences block activation; optional differences require review. Missing required sources, missing snapshots, mixed rendered/plain source profiles and unsupported nested-resource fetches remain inconclusive. Rendered sources request a rendered candidate snapshot; one snapshot pair cannot certify multiple fetch profiles. Array order is preserved, including date/location alignment. The export phase checks **serializer compatibility over the existing database**, not independent end-to-end exports.
+The transition batch compares selected DSL source values against separate Wringer and Condenser HTML snapshots. It shares `MigrationComparator` with the diagnostic comparison page and never refreshes stored statements. If any applicable source for a page requires JavaScript, both backends request a rendered page. Each backend's selected DSL runs share its snapshot. Event Title, Dates and Location differences block activation; optional differences require review. Missing required sources, missing snapshots and unsupported nested-resource fetches remain inconclusive. Array order is preserved, including date/location alignment. The export phase checks **serializer compatibility over the existing database**, not independent end-to-end exports.
 
 ## Run lifecycle
 

@@ -75,9 +75,9 @@ class Distillator::PhantomjsFetcherTest < ActiveSupport::TestCase
     assert_nil error.cause
   end
 
-  test "missing phantomjs api key returns renderer unavailable abort by default" do
+  test "missing phantomjs api key returns renderer unavailable even with the old direct fallback enabled" do
     ENV["PHANTOMJS_API_KEY"] = nil
-    ENV["DISTILLATOR_ALLOW_RENDERED_DIRECT_FALLBACK"] = nil
+    ENV["DISTILLATOR_ALLOW_RENDERED_DIRECT_FALLBACK"] = "true"
     Distillator::NativeFetch.expects(:call).never
 
     result = Distillator::PhantomjsFetcher.call(

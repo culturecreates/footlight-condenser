@@ -38,8 +38,10 @@ module Statements
     def call(webpage:, default_language: "en", scrape_options: {})
       error_list = []
       refresh_options = normalized_scrape_options(scrape_options)
+      sources = self.class.sources_for_webpage(webpage, default_language: default_language)
+      refresh_options[:page_fetch] = PageFetch.new(render_js: sources.any?(&:render_js?), scrape_options: refresh_options)
 
-      self.class.sources_for_webpage(webpage, default_language: default_language).each do |src|
+      sources.each do |src|
         stat = Statement.find_or_initialize_by(webpage_id: webpage.id, source_id: src.id)
         if stat.new_record?
           source_is_manual = src.algorithm_value.start_with?("manual=")

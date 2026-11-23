@@ -160,6 +160,35 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
     assert_equal "legacy", cache.signals.dig("body_profile", "backend")
   end
 
+  test "a failed switch to rendering retains the plain body for inspection and excludes it from extraction" do
+    cache = create_cache(scrape_date: 5.minutes.ago, successful_refresh: 5.minutes.ago)
+    old_body = cache.body
+    old_refresh = cache.successful_refresh
+    Distillator::FetchService.expects(:fetch_result).with(has_entries(
+      render_js: true, scrape_options: has_entries(force_scrape: true)
+    )).returns(abort_result(http_code: 500, raw_body: nil, headers: {},
+      signals: { transport_success: false, content_success: false }, hints: [], fetch_path: "legacy"))
+
+    result = Distillator::FetchCacheStore.fetch(uri: cache.normalized_url, render_js: true, mode: :legacy)
+
+    assert_equal :abort, result.status
+    refute result.content_success?
+    assert_nil result.html
+    assert_equal "abort_update", result.body.first
+    assert_equal old_body, cache.reload.body
+    assert_equal old_refresh, cache.successful_refresh
+    assert_equal false, cache.signals.dig("body_profile", "render_js")
+
+    Distillator::FetchService.expects(:fetch_result).with(has_entries(render_js: true))
+      .returns(success_result(body: "<html>Rendered</html>", fetch_path: "legacy"))
+
+    retry_result = Distillator::FetchCacheStore.fetch(uri: cache.normalized_url, render_js: true, mode: :legacy)
+
+    assert_equal "<html>Rendered</html>", retry_result.body
+    assert_equal cache.id, retry_result.cache.id
+    assert_equal true, cache.reload.signals.dig("body_profile", "render_js")
+  end
+
   test "force_scrape true refreshes even when cache exists" do
     cache = create_cache(scrape_date: 10.minutes.ago, successful_refresh: 10.minutes.ago, html: "<html>old</html>")
     Distillator::FetchService.expects(:fetch_result).returns(success_result(body: "<html><title>New</title></html>"))

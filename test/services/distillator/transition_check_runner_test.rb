@@ -106,7 +106,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal "checked", result.records.fetch(:export_diff).status
   end
 
-  test "fetch and statement comparison reuse selected sources within each class and language" do
+  test "fetch and statement comparison reuse the applicable sources within each class and language" do
     website = build_website
     page = website.webpages.sole
     same_profile = website.webpages.create!(url: "#{page.url}/other", language: "en", rdf_uri: "rdf:other", rdfs_class: page.rdfs_class)
@@ -117,7 +117,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     place_property = Property.create!(label: "Place fixture", rdfs_class: place.rdfs_class, value_datatype: "MyString", uri: "https://example.org/place")
     website.sources.create!(property: event_property, language: "", selected: true, render_js: false, algorithm_value: "manual=Event")
     website.sources.create!(property: event_property, language: "fr", selected: true, render_js: true, algorithm_value: "manual=Événement")
-    website.sources.create!(property: event_property, language: "en", selected: false, render_js: true, algorithm_value: "manual=Alternate")
+    website.sources.create!(property: event_property, language: "en", selected: false, render_js: false, algorithm_value: "manual=Alternate")
     website.sources.create!(property: place_property, language: "en", selected: true, render_js: true, algorithm_value: "manual=Place")
     cache = Distillator::FetchCache.find_by!(normalized_url: page.url)
     fetcher = fake_fetch_cache_store_for(website, cache)
@@ -169,11 +169,15 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
   end
 
   class FakeCacheCompare
+    attr_reader :calls
+
     def initialize(results_by_url)
       @results_by_url = results_by_url
+      @calls = []
     end
 
-    def call(uri:, **)
+    def call(uri:, **options)
+      @calls << options.merge(uri: uri)
       @results_by_url[uri]
     end
   end
@@ -739,17 +743,19 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_empty refresh_runner.calls
   end
 
-  test "rendered sources request a rendered candidate snapshot for paired extraction" do
+  test "one rendered source requests one rendered snapshot from each backend for all selected sources" do
     website = build_website
     create_selected_statement(website.webpages.first, status: "ok")
-    website.sources.update_all(render_js: true)
+    website.sources.first.update!(render_js: true)
     cache = Distillator::FetchCache.find_by!(normalized_url: website.webpages.first.url)
     store = fake_fetch_cache_store_for(website, cache)
+    comparison = fake_cache_compare_for(website)
     result = Distillator::TransitionCheckRunner.new(website: website,
-      fetch_cache_store: store, cache_compare: fake_cache_compare_for(website),
+      fetch_cache_store: store, cache_compare: comparison,
       export_service: FakeExportService.new(actual: '[{"@id":"event:1"}]', expected: '[{"@id":"event:1"}]'),
       transition_check_service: fake_transition_check_service(website: website, cache: cache)).call
-    assert_equal true, store.calls.first[:render_js]
+    assert_equal [true], store.calls.map { |call| call[:render_js] }
+    assert_equal [true], comparison.calls.map { |call| call[:render_js] }
     assert_equal "checked", result.records[:statement_delta].status
   end
 
