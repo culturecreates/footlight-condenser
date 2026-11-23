@@ -183,6 +183,7 @@ module Distillator
     def self.finalize_result(url:, result:, scrape_options:, logger:)
       payload = Distillator::FetchService.enrich_wringer_metadata(url: url, result: result)
       payload = annotate_request_metadata(payload, scrape_options: scrape_options)
+      payload = PhantomjsRedaction.new(url).fetch_result(payload)
       log_response(logger, payload)
       payload
     end
@@ -203,7 +204,7 @@ module Distillator
     def self.log_request(logger, url:, render_js:, scrape_options:)
       logger.info(
         event: "distillator.native_fetch.request",
-        url: url,
+        url: PhantomjsRedaction.new(url).call(url),
         render_js: Distillator::BooleanParam.parse(render_js),
         json_post: Distillator::FetchService.json_post?(scrape_options) == true
       )
@@ -224,7 +225,9 @@ module Distillator
       return nil unless ssl_retry_supported?(agent)
 
       set_ssl_verify_none(agent)
-      logger.warn(event: "distillator.native_fetch.ssl_retry", url: url, verify_mode: "VERIFY_NONE") if logger.respond_to?(:warn)
+      if logger.respond_to?(:warn)
+        logger.warn(event: "distillator.native_fetch.ssl_retry", url: PhantomjsRedaction.new(url).call(url), verify_mode: "VERIFY_NONE")
+      end
 
       raw_response = fetch_response(agent, url, scrape_options)
       result = build_success_or_http_failure(raw_response, agent, logger)

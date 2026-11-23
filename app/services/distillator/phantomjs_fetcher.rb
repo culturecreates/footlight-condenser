@@ -14,8 +14,9 @@ module Distillator
         return renderer_unavailable_result(url: url, iframe: iframe)
       end
 
+      renderer_url = request_url(url: url, iframe: iframe)
       result = Distillator::NativeFetch.call(
-        url: request_url(url: url, iframe: iframe),
+        url: renderer_url,
         render_js: false,
         scrape_options: {},
         agent: agent,
@@ -24,6 +25,13 @@ module Distillator
       result = extract_iframe_content(result) if iframe
       result[:final_url] = url if result[:final_url].blank? || result[:final_url].to_s.include?(PHANTOMJS_BASE_URL)
       annotate(result, iframe: iframe)
+    rescue StandardError => error
+      raise unless renderer_url
+
+      message = PhantomjsRedaction.new(renderer_url).call(error.message)
+      raise if message == error.message
+
+      raise error.exception(message), cause: nil
     end
 
     def self.request_url(url:, iframe:)
