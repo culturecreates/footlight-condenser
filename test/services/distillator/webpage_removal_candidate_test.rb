@@ -6,6 +6,7 @@ class Distillator::WebpageRemovalCandidateTest < ActiveSupport::TestCase
   end
 
   test "allows deletion when cache is a non retryable delete candidate with no newer success" do
+    allow_deletion_for_policy_test
     cache = Distillator::FetchCache.create!(
       uri_key: Distillator::WringerUrlKey.call("https://example.org/events").uri_key,
       normalized_url: "https://example.org/events",
@@ -13,7 +14,7 @@ class Distillator::WebpageRemovalCandidateTest < ActiveSupport::TestCase
       successful_refresh: 2.days.ago,
       http_response_code: 404,
       final_url: "https://example.org/events",
-      signals: { "primary_issue_key" => "redirect_to_listing", "redirect_type" => "normal", "network_status" => "ok" },
+      signals: { "primary_issue_key" => "redirect_to_listing", "primary_issue_delete" => true, "redirect_type" => "normal", "network_status" => "ok" },
       hints: ["redirect_to_listing"],
       primary_issue_key: "redirect_to_listing",
       delete_candidate: true
@@ -46,6 +47,7 @@ class Distillator::WebpageRemovalCandidateTest < ActiveSupport::TestCase
   end
 
   test "does not delete when a newer successful refresh exists after the failed scrape" do
+    allow_deletion_for_policy_test
     Distillator::FetchCache.create!(
       uri_key: Distillator::WringerUrlKey.call("https://example.org/events").uri_key,
       normalized_url: "https://example.org/events",
@@ -53,7 +55,7 @@ class Distillator::WebpageRemovalCandidateTest < ActiveSupport::TestCase
       successful_refresh: 1.day.ago,
       http_response_code: 404,
       final_url: "https://example.org/events",
-      signals: { "primary_issue_key" => "redirect_to_listing", "redirect_type" => "normal", "network_status" => "ok" },
+      signals: { "primary_issue_key" => "redirect_to_listing", "primary_issue_delete" => true, "redirect_type" => "normal", "network_status" => "ok" },
       hints: ["redirect_to_listing"],
       primary_issue_key: "redirect_to_listing",
       delete_candidate: true
@@ -84,6 +86,7 @@ class Distillator::WebpageRemovalCandidateTest < ActiveSupport::TestCase
   end
 
   test "does not delete when successful refresh is at same time as scrape date" do
+    allow_deletion_for_policy_test
     timestamp = Time.zone.now
     source_url = "https://example.org/source-page"
 
@@ -117,6 +120,7 @@ class Distillator::WebpageRemovalCandidateTest < ActiveSupport::TestCase
   end
 
   test "uses primary issue key from signals when materialized column is missing" do
+    allow_deletion_for_policy_test
     source_url = "https://example.org/source-page"
 
     cache = Distillator::FetchCache.create!(
@@ -145,4 +149,10 @@ class Distillator::WebpageRemovalCandidateTest < ActiveSupport::TestCase
     assert_equal :delete_candidate, result.reason
   end
 
+  private
+
+  def allow_deletion_for_policy_test
+    rule = ["redirect_to_listing", { "policy" => { "delete" => true, "retry" => false } }]
+    Distillator::WringerRules.stubs(:find).with("redirect_to_listing").returns(rule)
+  end
 end

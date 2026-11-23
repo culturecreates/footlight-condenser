@@ -581,6 +581,17 @@ class Distillator::CacheCompareTest < ActiveSupport::TestCase
     assert_includes result.dig(:summary, :blocking_regressions), :final_url
   end
 
+  test "different event destinations require review even when both detail pages have the same title" do
+    legacy = { final_url: "https://example.org/events/first-event/" }
+    native = { final_url: "https://example.org/events/other-event/" }
+    result = compare_snapshot_values(legacy: legacy, native: native)
+    assert_includes result.dig(:summary, :review_needed_diffs), :final_url
+    assert_equal false, result.dig(:summary, :promotable)
+
+    strict = compare_snapshot_values(legacy: legacy, native: native, policy: :strict)
+    assert_includes strict.dig(:summary, :blocking_regressions), :final_url
+  end
+
   private
 
   def compare_snapshot_values(legacy:, native:, policy: :operator)

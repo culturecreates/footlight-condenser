@@ -429,15 +429,14 @@ system_exceptions:
       signals:
         redirect_type: normal
       final_url_patterns:
-        - '/events$'
-        - '/evenements$'
-        - '/programmation$'
-        - '/$'
+        - &event_listing_url_pattern '\Ahttps?://[^/?#]+(?:/[^/?#]+)*/(?:events|evenements|programmation)/?(?:[?#].*)?\z'
+        - '\Ahttps?://[^/?#]+/?(?:[?#].*)?\z'
+        - '\Ahttps?://(?:www\.)?ovation\.ca/Search/Title/?(?:[?#].*)?\z'
     policy:
       action: abort_update
       retry: false
       cache: false
-      delete: true
+      delete: false
       error_code: redirect_to_listing
 
   redirect_to_listing_legacy_body:
@@ -457,14 +456,12 @@ system_exceptions:
         - "elementor-location-single"
         - "postid-"
       final_url_patterns:
-        - '/events/?$'
-        - '/evenements/?$'
-        - '/programmation/?$'
+        - *event_listing_url_pattern
     policy:
       action: abort_update
       retry: false
       cache: false
-      delete: true
+      delete: false
       error_code: redirect_to_listing
       
   # -------------------------

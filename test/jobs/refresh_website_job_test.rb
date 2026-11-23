@@ -16,7 +16,7 @@ class RefreshWebpageJobTest < ActiveJob::TestCase
     RefreshWebpageJob.perform_now(webpage.url)
   end
 
-  test "perform destroys webpage when latest distillator fetch cache is 404" do
+  test "perform destroys webpage when the removal policy authorizes it" do
     webpage = webpages(:six)
     Distillator::RefreshRunner.stubs(:call).returns([])
     Distillator::WebpageRemovalCandidate.stubs(:call).returns(
@@ -25,6 +25,21 @@ class RefreshWebpageJobTest < ActiveJob::TestCase
 
     assert_difference("Webpage.count", -1) do
       RefreshWebpageJob.perform_now(webpage.url)
+    end
+  end
+
+  test "old listing-redirect cache flags cannot authorize webpage deletion" do
+    webpage = webpages(:six)
+    key = Distillator::WringerUrlKey.call(webpage.url)
+    cache = Distillator::FetchCache.create!(uri_key: key.uri_key, normalized_url: key.normalized_url,
+      http_response_code: 200, final_url: "https://example.org/events/", scrape_date: Time.current)
+    Distillator::RefreshRunner.stubs(:call).returns([])
+
+    %w[redirect_to_listing redirect_to_listing_legacy_body].each do |issue|
+      cache.update_columns(primary_issue_key: issue, delete_candidate: true,
+        signals: { "primary_issue_key" => issue, "primary_issue_delete" => true })
+      assert_no_difference("Webpage.count") { RefreshWebpageJob.perform_now(webpage.id) }
+      assert Webpage.exists?(webpage.id)
     end
   end
 

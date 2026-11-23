@@ -284,6 +284,7 @@ class Distillator::FetchServiceTest < ActiveSupport::TestCase
     assert_equal true, result.dig(:wringer, :signals, :transport_success)
     assert_equal false, result.dig(:wringer, :signals, :content_success)
     assert_equal "redirect_to_listing", result.dig(:wringer, :signals, :blocking_issue_key)
+    assert_equal false, result.dig(:wringer, :signals, :primary_issue_delete)
     assert_equal "abort_update", result.dig(:wringer, :policy_action)
   end
 

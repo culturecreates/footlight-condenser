@@ -54,6 +54,30 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
     assert_equal false, cache.signals["use_phantomjs"]
   end
 
+  test "fresh native fetch keeps Chan Centre event detail HTML after a trailing-slash redirect" do
+    source = "https://chancentre.com/events/come-toward-the-fire-2026/"
+    destination = "https://chancentre.com/events/come-toward-the-fire-2026-day-of-knowledge-sharing/"
+    html = "<html><title>Come Toward the Fire</title><body>Day of Knowledge Sharing</body></html>"
+    cache = create_cache(uri: source, scrape_date: 1.hour.ago, successful_refresh: 1.day.ago, final_url: destination)
+    cache.update_columns(primary_issue_key: "redirect_to_listing", delete_candidate: true,
+      signals: { "primary_issue_key" => "redirect_to_listing", "primary_issue_delete" => true })
+    Resolv.stubs(:getaddresses).with("chancentre.com").returns(["93.184.216.34"])
+    agent = mock("native redirect fetch")
+    response = Struct.new(:code, :body, :uri, :response).new(200, html, URI(destination), { "Content-Type" => "text/html" })
+    agent.expects(:get).with(source).returns(response)
+    agent.stubs(:history).returns([Struct.new(:uri).new(URI(source))])
+
+    result = Distillator::FetchCacheStore.fetch(uri: source, mode: :internal, force_scrape: true, agent: agent)
+
+    assert_equal destination, result.final_url
+    assert_equal "normal", result.signals["redirect_type"]
+    assert result.content_success?
+    assert result.cache_write
+    assert_equal html, cache.reload.html
+    assert_nil cache.primary_issue_key
+    assert_equal false, cache.delete_candidate
+  end
+
   test "Legacy cached Co-motion integration content remains usable by ordinary DSL extraction" do
     url = "https://co-motion.ca/spectacles/2freres-origine/"
     body = Rails.root.join("test/fixtures/files/distillator_dsl/co_motion_ticketing_assets.html").read

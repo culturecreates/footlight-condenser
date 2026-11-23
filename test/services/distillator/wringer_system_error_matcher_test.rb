@@ -217,7 +217,7 @@ class Distillator::WringerSystemErrorMatcherTest < ActiveSupport::TestCase
     assert_equal "http_server_error", issue[:error_type]
   end
 
-  test "call prefers redirect delete issue over empty body when redirect signals match" do
+  test "call prefers a listing redirect over empty body without allowing deletion" do
     issue = Distillator::WringerSystemErrorMatcher.call(
       body: "",
       http_code: 200,
@@ -227,7 +227,36 @@ class Distillator::WringerSystemErrorMatcherTest < ActiveSupport::TestCase
     )
 
     assert_equal "redirect_to_listing", issue[:key]
-    assert_equal true, issue[:delete]
+    assert_equal false, issue[:delete]
+  end
+
+  test "trailing-slash event details and listing paths in query values are not listing redirects" do
+    %w[
+      https://chancentre.com/events/come-toward-the-fire-2026-day-of-knowledge-sharing/
+      https://www.culture3r.com/evenements/tommy-neron/
+      https://example.org/events/event/?return=/events/
+    ].each do |destination|
+      issue = match_for(body: '<html><div class="jet-listing-dynamic-field">Event details</div></html>',
+        http_code: 200, final_url: destination, signals: { redirect_type: "normal" })
+
+      assert_nil issue, destination
+    end
+  end
+
+  test "redirects to the home page and named listings still block" do
+    %w[https://example.org https://example.org/ https://example.org/events https://example.org/events/
+       https://example.org/fr/evenements/ https://example.org/programmation/?lang=fr].each do |destination|
+      issue = match_for(
+        body: "<html>listing</html>",
+        http_code: 200,
+        final_url: destination,
+        signals: { redirect_type: "normal" }
+      )
+
+      assert_equal "redirect_to_listing", issue[:error_type], destination
+      assert_equal "abort_update", issue[:action]
+      assert_equal false, issue[:delete]
+    end
   end
 
   test "detail page markers block redirect_to_listing legacy body classification" do
@@ -262,6 +291,7 @@ class Distillator::WringerSystemErrorMatcherTest < ActiveSupport::TestCase
     issue = match_for(body: body, http_code: 200, final_url: "https://tourismedeschenaux.ca/evenements")
 
     assert_equal "redirect_to_listing", issue[:error_type]
+    assert_equal false, issue[:delete]
     assert_equal "html", issue.dig(:match_details, :source)
     assert_equal "jet-listing-dynamic-field", issue.dig(:match_details, :pattern)
     assert_match "jet-listing-dynamic-field", issue.dig(:match_details, :snippet)
