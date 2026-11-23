@@ -33,5 +33,18 @@ module Distillator
       batch.stop_remaining!
       redirect_to distillator_transition_batch_path(batch), notice: "Queued sites stopped. The current site will finish validation or recovery."
     end
+
+    def diagnostics
+      batch = TransitionBatch.find(params[:id])
+      items = batch.site_transitions.includes(:pre_run, :post_run).order(:position).to_a
+      response.headers["Cache-Control"] = "no-store"
+      unless items.all?(&:terminal?)
+        return render json: { error: "The group is still running. Diagnostics are available when all sites have finished." }, status: :conflict
+      end
+
+      report = TransitionBatchDiagnostics.new(batch: batch, items: items).call
+      send_data JSON.pretty_generate(report), filename: "transition-group-#{batch.id}-diagnostics.json",
+        type: "application/json; charset=utf-8", disposition: "attachment"
+    end
   end
 end

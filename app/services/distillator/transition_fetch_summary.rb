@@ -28,7 +28,7 @@ module Distillator
       if row[:fetch_reason] == "transition_check_timeout_budget_exceeded"
         reason = row[:attempted_condenser_fetch] == false ? "Runtime budget reached before this URL was fetched." : "Runtime budget reached without a completed fetch result for this URL."
         return [{ url: row[:url], backend: "Transition check", reason: reason,
-          action: "Rerun the check with a smaller sample or a longer runtime budget.", http_code: nil }]
+          code: row[:fetch_reason], action: "Rerun the check with a smaller sample or a longer runtime budget.", http_code: nil }]
       end
       if row[:fetch_status] == "failed"
         code = row[:http_response_code]
@@ -43,6 +43,7 @@ module Distillator
         confirmed_challenge = row.dig(:condenser_fetch, :cloudflare, :cf_mitigated) == "challenge"
         challenge = confirmed_challenge || [row[:fetch_reason], reason].join(" ").match?(/captcha|cloudflare/i)
         issues << { url: row[:url], backend: "Condenser", reason: reason, http_code: code,
+          code: challenge ? "challenge" : (row[:fetch_reason].presence || "fetch_failed"),
           kind: challenge ? "challenge" : "fetch_failure",
           summary: challenge ? "Content was rejected as a Cloudflare/CAPTCHA challenge." : reason,
           action: confirmed_challenge ? "Share the recorded Cloudflare request details with site IT before rerunning the check." : action_for(code, [row[:fetch_reason], reason].join(" ")) }
@@ -52,6 +53,7 @@ module Distillator
         code = metadata[:upstream_http_code].presence || metadata[:response_http_code]
         reason = row[:legacy_lookup_error].presence || "Wringer snapshot unavailable: #{row[:legacy_lookup_status].to_s.humanize.downcase}."
         issues << { url: row[:url], backend: "Wringer", reason: reason, http_code: code,
+          code: code.to_i >= 400 ? "http_#{code}" : "wringer_#{row[:legacy_lookup_status]}",
           action: row[:legacy_lookup_status] == "missing_config" ? "Configure the Wringer endpoint, then rerun the check." : action_for(code, reason) }
       end
       issues

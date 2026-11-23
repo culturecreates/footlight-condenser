@@ -88,6 +88,73 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     end
   end
 
+  test "batch diagnostics are unavailable while any site is unfinished" do
+    post distillator_transition_batches_path, params: params_for([@one.id, @two.id])
+    batch = Distillator::TransitionBatch.last
+    get distillator_transition_batch_path(batch, format: :json)
+    assert_not_includes response.parsed_body.fetch("html"), "Export diagnostics"
+
+    get diagnostics_distillator_transition_batch_path(batch, format: :json)
+    assert_response :conflict
+    assert_includes response.parsed_body.fetch("error"), "still running"
+  end
+
+  test "completed group exports capped examples by site and error kind from its recorded runs" do
+    post distillator_transition_batches_path, params: params_for([@one.id, @two.id]).merge(check_profile: "light")
+    batch = Distillator::TransitionBatch.last
+    first, second = batch.site_transitions.order(:position).to_a
+    pre = diagnostic_run(@one)
+    post = diagnostic_run(@one, status: "failed", error_message: "The worker stopped before the transition check finished.")
+    other = diagnostic_run(@two)
+    unrelated = diagnostic_run(@one)
+    failure = ->(url, code) { { url: url, fetch_status: "failed", http_response_code: code, fetch_reason: "http_#{code}" } }
+    urls = (1..4).map { |i| "https://example.org/event-#{i}" }
+    rows = urls.map { |url| failure.call(url, 404) } + [failure.call(urls.first, 410)]
+    rows << { url: urls.last, fetch_status: "passed", legacy_lookup_status: "unreachable",
+      legacy_fetch: { upstream_http_code: 429 }, legacy_lookup_error: "Wringer scrape was rate limited" }
+    rows << { url: urls[2], fetch_status: "passed", legacy_lookup_status: "ok", comparison_status: "failed",
+      compare_summary: { blocking_regressions: ["final_url"] } }
+    diagnostic_evidence(pre, "fetch_parity", representative_url_results: rows)
+    diagnostic_evidence(unrelated, "fetch_parity", representative_url_results: [failure.call("https://example.org/unrelated", 500)])
+    diagnostic_evidence(other, "fetch_parity", representative_url_results: [failure.call(urls.first, 404)])
+    missing = { verdict: "MISSING_STATEMENT", core_field: true, legacy: nil, condenser: nil, property_label: "Location", source_id: 1945 }
+    diagnostic_evidence(pre, "statement_delta", statement_artifacts: urls.map { |url| missing.merge(webpage_url: url) })
+    diagnostic_evidence(pre, "export_diff", reason: "export_generation_failed",
+      error_class: "JsonldGenerator::EventSeriesConversionError", error_message: "Ambiguous venues")
+    historical_error = "Invalid URL: https://phantomjscloud.com/api/browser/v2/test-renderer-secret/?request=fixture"
+    first.update!(status: "attention", phase: "finished", pre_run: pre, post_run: post, completed_at: Time.current, reason: historical_error)
+    second.update!(status: "attention", phase: "finished", pre_run: other, completed_at: Time.current)
+
+    get distillator_transition_batch_path(batch, format: :json)
+    assert response.parsed_body.fetch("finished")
+    assert_includes response.parsed_body.fetch("html"), "Export diagnostics (JSON)"
+
+    assert_no_difference ["Distillator::TransitionRun.count", "Distillator::TransitionEvidence.count", "Distillator::RolloutEvent.count"] do
+      get diagnostics_distillator_transition_batch_path(batch, format: :json)
+    end
+    assert_response :success
+    assert_equal "application/json", response.media_type
+    assert_equal "no-store", response.headers["Cache-Control"]
+    assert_includes response.headers["Content-Disposition"], "transition-group-#{batch.id}-diagnostics.json"
+    assert_not_includes response.body, "test-renderer-secret"
+    assert_not_includes response.body, "unrelated"
+    report = response.parsed_body
+    assert_equal "light", report["check_profile"]
+    assert_equal({ "attention" => 2 }, report["status_counts"])
+    alpha, beta = report.fetch("sites")
+    issues = alpha.fetch("issues").index_by { |issue| issue["code"] }
+    assert_equal [pre.id, post.id], alpha.fetch("checks").pluck("run_id")
+    assert_equal 4, issues.fetch("http_404").fetch("recorded_occurrences")
+    assert_equal urls.first(2), issues.fetch("http_404").fetch("examples").pluck("url")
+    assert_equal 1, issues.fetch("http_410").fetch("examples").size
+    assert_equal ["Wringer"], issues.fetch("http_429").fetch("examples").pluck("backend")
+    assert_equal ["final_url"], issues.fetch("cache_comparison_failed").fetch("examples").first.fetch("fields")
+    assert_equal [1945, 1945], issues.fetch("shared_missing_required_field").fetch("examples").pluck("source_id")
+    assert_equal ["Ambiguous venues"], issues.fetch("export_generation_failed").fetch("examples").pluck("message")
+    assert_equal ["postcheck"], issues.fetch("run_failed").fetch("examples").pluck("phase")
+    assert_equal 1, beta.fetch("issues").first.fetch("recorded_occurrences")
+  end
+
   test "empty selection and forged excluded sites never queue a workflow" do
     [[], [@template.id], [@test_site.id], [@place.id]].each do |ids|
       assert_no_difference ["Distillator::TransitionBatch.count", "Distillator::SiteTransition.count", "Distillator::RolloutEvent.count"] do
@@ -201,6 +268,16 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
   end
 
   private
+
+  def diagnostic_run(website, status: "completed", error_message: nil)
+    website.transition_runs.create!(status: status, requested_at: 1.minute.ago, completed_at: Time.current,
+      configuration_digest: Distillator::TransitionFingerprint.call(website), error_message: error_message)
+  end
+
+  def diagnostic_evidence(run, kind, **details)
+    run.transition_evidences.create!(website: run.website, url: run.website.webpages.first.url, check_kind: kind,
+      status: "failed", checked_at: run.completed_at, details: details)
+  end
 
   def site(seed, schedule: 1, event: true)
     website = Website.create!(name: seed, seedurl: seed, graph_name: "https://example.org/#{seed}", default_language: "en", schedule_every_days: schedule, distillator_mode: "legacy")

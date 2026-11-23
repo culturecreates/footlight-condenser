@@ -34,7 +34,9 @@ Rails.application.routes.draw do
     get "shadow_report/:id", to: "shadow_reports#show", as: :shadow_report_site
     resources :transition_checks, only: [:create, :show]
     resources :transition_exclusions, only: [:create, :update]
-    resources :transition_batches, only: [:index, :create, :show, :update]
+    resources :transition_batches, only: [:index, :create, :show, :update] do
+      get :diagnostics, on: :member, defaults: { format: :json }
+    end
     resources :site_transitions, only: [:show] do
       patch :cancel, on: :member
     end
