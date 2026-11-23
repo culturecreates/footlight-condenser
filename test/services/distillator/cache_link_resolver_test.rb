@@ -71,6 +71,30 @@ class Distillator::CacheLinkResolverTest < ActiveSupport::TestCase
     payload = Distillator::CacheLinkResolver.call(url: "http://example.org/page#frag", include_fragment: true, mode: :internal)
 
     assert_includes payload[:distillator_cache_url], "term=http%3A%2F%2Fexample.org%2Fpage%23frag"
+    assert_equal({ "term" => "http%3A%2F%2Fexample.org%2Fpage%23frag" }, Rack::Utils.parse_query(URI.parse(payload[:legacy_cache_url]).query))
+  end
+
+  test "Wringer inspection links pass the encoded cache key as the term value" do
+    url = "https://diffusionsaguenay.art/evenement/simon-gouache-8/"
+    expected = "http://wringer.example/websites?term=https%253A%252F%252Fdiffusionsaguenay.art%252Fevenement%252Fsimon-gouache-8%252F"
+
+    shadow = Distillator::CacheLinkResolver.call(url: url, mode: :shadow)
+    assert_equal expected, shadow[:legacy_cache_url]
+    assert_equal expected, shadow[:active_cache_url]
+    assert_equal "/condenser/cache?term=https%3A%2F%2Fdiffusionsaguenay.art%2Fevenement%2Fsimon-gouache-8%2F", shadow[:distillator_cache_url]
+
+    active = Distillator::CacheLinkResolver.call(url: url, mode: :active)
+    assert_equal expected, active[:secondary_links].find { |link| link[:label] == "Inspect legacy Wringer" }[:url]
+  end
+
+  test "Wringer inspection keeps its legacy key semantics for URL-encoded paths and query values" do
+    url = "https://example.org/evenements/caf%C3%A9?lang=fr&category=arts%20vivants"
+    payload = Distillator::CacheLinkResolver.call(url: url, mode: :shadow)
+    term = Rack::Utils.parse_query(URI.parse(payload[:legacy_cache_url]).query).fetch("term")
+
+    assert_equal "https://example.org/evenements/café?lang=fr&category=arts vivants", CGI.unescape(term)
+    assert_equal term, payload[:legacy_uri_key]
+    assert_not_equal term, payload[:distillator_uri_key]
   end
 
   test "json_post keeps condenser as active cache path in active alias mode" do

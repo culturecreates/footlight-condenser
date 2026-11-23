@@ -14,6 +14,12 @@ module Distillator
       ).call
     end
 
+    def self.wringer_inspection_url(base_url:, uri_key:)
+      return if base_url.blank?
+
+      "#{base_url}/websites?#{ { term: uri_key }.to_query }"
+    end
+
     def initialize(url:, include_fragment: false, mode: nil, website: nil, website_id: nil, scrape_options: {})
       @url = url
       @include_fragment = include_fragment
@@ -25,8 +31,9 @@ module Distillator
 
     def call
       key = Distillator::WringerUrlKey.call(url, include_fragment: include_fragment)
+      legacy_key = Distillator::WringerUrlKey.legacy(url, include_fragment: include_fragment)
       resolution = current_resolution
-      legacy_url = wringer_base_url.present? ? "#{wringer_base_url}/websites?term=#{key.uri_key}" : nil
+      legacy_url = self.class.wringer_inspection_url(base_url: wringer_base_url, uri_key: legacy_key.uri_key)
       distillator_url = "/condenser/cache?term=#{CGI.escape(key.normalized_url)}"
       compare_url = "/condenser/cache/compare?uri=#{CGI.escape(url.to_s)}#{include_fragment_query}"
 
@@ -35,7 +42,7 @@ module Distillator
         rollout_mode: resolution.rollout_mode,
         active_backend: resolution.active_backend,
         source: resolution.source,
-        legacy_uri_key: key.uri_key,
+        legacy_uri_key: legacy_key.uri_key,
         distillator_uri_key: key.uri_key,
         legacy_cache_url: legacy_url,
         distillator_cache_url: distillator_url,

@@ -168,17 +168,16 @@ module StatementsHelper
     url = current[:url_after].presence || current[:url_before]
     return nil if url.blank?
 
-    encoded = CGI.escape(CGI.escape(url))
-    base = get_wringer_url_per_environment
+    cache_links = Distillator::CacheLinkResolver.call(
+      url: url,
+      website: website,
+      website_id: website_id || current[:website_id]
+    )
 
     {
-      wringer_search: "#{base}/websites?term=#{encoded}",
+      wringer_search: cache_links[:legacy_cache_url],
       raw_url: url,
-      active_cache: Distillator::CacheLinkResolver.call(
-        url: url,
-        website: website,
-        website_id: website_id || current[:website_id]
-      )
+      active_cache: cache_links
     }
   end
 

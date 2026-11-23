@@ -216,8 +216,8 @@ module ApplicationHelper
 
   def alternate_wringer_cache_link(base_url, url, include_fragment:)
     key = Distillator::WringerUrlKey.legacy(url, include_fragment: include_fragment)
-    query = { term: key.uri_key }.to_query
-    { label: "Inspect alternate Wringer cache", url: "#{base_url}/websites?#{query}" }
+    { label: "Inspect alternate Wringer cache",
+      url: Distillator::CacheLinkResolver.wringer_inspection_url(base_url: base_url, uri_key: key.uri_key) }
   rescue URI::InvalidURIError, Addressable::URI::InvalidURIError
     nil
   end

@@ -853,7 +853,8 @@ class StatementsHelperRefreshTest < ActionView::TestCase
       wringer: { signals: { network_status: "ok" } }
     )
 
-    assert_match "/websites?term=", links[:wringer_search]
+    assert_equal "https://wringer.example/websites?term=http%253A%252F%252Fexample.org%252Fpage", links[:wringer_search]
+    assert_equal links[:wringer_search], links.dig(:active_cache, :secondary_links, 0, :url)
     assert_equal "http://example.org/page", links[:raw_url]
     assert_equal "/condenser/cache?term=http%3A%2F%2Fexample.org%2Fpage", links.dig(:active_cache, :active_cache_url)
     assert_equal "Inspect legacy Wringer", links.dig(:active_cache, :secondary_links, 0, :label)
