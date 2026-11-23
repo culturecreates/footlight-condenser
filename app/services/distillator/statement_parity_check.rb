@@ -45,8 +45,9 @@ module Distillator
           else
             artifact[:verdict]
           end
+          unverified = MigrationComparator.shared_extraction_failure?(artifact) || MigrationComparator.reconciliation_failure?(artifact)
           artifact.merge(verdict: verdict, webpage_url: page.url, source: artifact[:property_label],
-            core_field: critical, severity: MigrationComparator.shared_extraction_failure?(artifact) ? "unverified" : ((critical || strict) ? "blocker" : "warning"))
+            core_field: critical, severity: unverified ? "unverified" : ((critical || strict) ? "blocker" : "warning"))
         end
         comparison_count += entries.length
         entries.each do |entry|
@@ -58,13 +59,11 @@ module Distillator
           end
         end
         required = page.rdfs_class.name == "Event" ? Webpage.publishable_required_property_labels : []
-        unsupported = entries.any? do |entry|
-          [entry[:legacy_error], entry[:condenser_error]].compact.any? do |error|
-            error.to_h["error_type"].to_s.include?("FetchUnsupported")
-          end
-        end
+        unsupported = entries.any? { |entry| unsupported_fetch?(entry) }
         if interrupted
           { url: page.url, status: "inconclusive", reason: "transition_check_timeout_budget_exceeded" }
+        elsif entries.any? { |entry| MigrationComparator.reconciliation_failure?(entry) }
+          { url: page.url, status: "inconclusive", reason: "reconciliation_inconclusive" }
         elsif entries.empty? || (required - entries.map { |entry| entry[:property_label] }).any? || unsupported
           { url: page.url, status: "inconclusive", reason: "paired_extraction_inconclusive" }
         elsif entries.any? { |entry| entry[:severity] == "blocker" && entry[:verdict] != MigrationComparator::MATCH }
@@ -84,7 +83,7 @@ module Distillator
     def self.summarize(rows:, artifacts:, comparison_count:, timings:, strict:)
       critical, optional = artifacts.reject do |entry|
         entry[:verdict] == MigrationComparator::MATCH || MigrationComparator.shared_extraction_failure?(entry) ||
-          [entry[:legacy_error], entry[:condenser_error]].compact.any? { |error| error.to_h["error_type"].to_s.include?("FetchUnsupported") }
+          unsupported_fetch?(entry) || MigrationComparator.reconciliation_failure?(entry)
       end
         .partition { |entry| entry[:severity] == "blocker" }
       state, reason = if rows.any? && rows.all? { |row| row[:status] == "blocked_by_fetch" }
@@ -93,6 +92,8 @@ module Distillator
         [:pending, "partial_fetch_failed_before_statement_refresh"]
       elsif rows.any? { |row| row[:reason] == "transition_check_timeout_budget_exceeded" }
         [:pending, "transition_check_timeout_budget_exceeded"]
+      elsif rows.any? { |row| row[:reason] == "reconciliation_inconclusive" }
+        [:pending, "reconciliation_inconclusive"]
       elsif rows.empty? || rows.any? { |row| row[:status] == "inconclusive" }
         [:pending, "paired_extraction_inconclusive"]
       elsif rows.any? { |row| row[:status] == "unverified" }
@@ -144,6 +145,14 @@ module Distillator
       compact
     end
 
-    private_class_method :accumulate_timing, :compact_artifact
+    def self.unsupported_fetch?(entry)
+      lookup_error_types(entry).any? { |type| type.include?("FetchUnsupported") }
+    end
+
+    def self.lookup_error_types(entry)
+      entry.values_at(:legacy_error, :condenser_error).compact.map { |error| error.to_h["error_type"].to_s }
+    end
+
+    private_class_method :accumulate_timing, :compact_artifact, :unsupported_fetch?, :lookup_error_types
   end
 end

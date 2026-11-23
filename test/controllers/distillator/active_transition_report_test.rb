@@ -252,7 +252,11 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     export = @completed.transition_evidences.find_by!(check_kind: "export_diff")
     export.update!(details: export.details.merge("performance" => {
       total_ms: 10000, phases_ms: { fetch: 1000, statements: 8000, export: 1000 },
-      reconciliation: { lookups: 90, http_requests: 12, cache_hits: 78, http_ms: 7000, errors: 0 },
+      reconciliation: { lookups: 92, http_requests: 12, cache_hits: 78, http_ms: 7000, errors: 2,
+        failure_reuses: 2, retried_lookups: 1, failed_http_ms: 3000,
+        error_classes: { "Net::ReadTimeout" => 1, "HTTPError" => 1 }, http_error_statuses: { "503" => 1 },
+        by_type: { "Place" => { http_requests: 12, http_ms: 7000, errors: 2, cache_hits: 78, failure_reuses: 2 } },
+        by_source: { "12" => { http_requests: 12, http_ms: 7000, errors: 2 } } },
       slowest_sources: [{ field: "Location", source_id: 12, executions: 18, extraction_ms: 100, formatting_ms: 7000 }]
     }))
     get distillator_shadow_report_site_path(@website, run_id: @completed.id)
@@ -260,6 +264,11 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     assert_select '#transition-performance:not([open]) summary', text: "Where time was spent"
     assert_select '#transition-performance', text: /12 HTTP requests/
     assert_select '#transition-performance', text: /78 reused responses/
+    assert_select '#transition-performance', text: /Failed requests took 3.0 seconds/
+    assert_select '#transition-performance', text: /Net::ReadTimeout \(1\)/
+    assert_select '#transition-performance', text: /503 \(1\)/
+    assert_select '#transition-performance caption', text: "Reconciliation by entity type"
+    assert_select '#transition-performance', text: /12 requests · 7.0s · 2 errors/
     assert_select '#transition-performance', text: /Location/
   end
 

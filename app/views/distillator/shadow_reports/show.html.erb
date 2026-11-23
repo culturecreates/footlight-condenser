@@ -27,11 +27,47 @@
         <%= reconciliation["cache_hits"] %> reused responses,
         <%= reconciliation["errors"] %> errors.
         HTTP time: <%= (reconciliation["http_ms"].to_f / 1000).round(2) %> seconds.</p>
-      <p class="cache-page-note">Responses are reused only within this check. Reconciliation HTTP time is included in formatting and statement time.</p>
+      <% if reconciliation.key?("failure_reuses") %>
+        <p>Failed requests took <%= (reconciliation["failed_http_ms"].to_f / 1000).round(2) %> seconds.
+          <%= reconciliation["failure_reuses"] %> failed lookups reused within a pair and
+          <%= reconciliation["retried_lookups"] %> new requests after an earlier failure.</p>
+      <% end %>
+      <% if reconciliation["error_classes"].present? %>
+        <p><strong>Reconciliation errors</strong>
+          <%= reconciliation["error_classes"].sort.map { |name, count| "#{name} (#{count})" }.join(", ") %></p>
+      <% end %>
+      <% if reconciliation["http_error_statuses"].present? %>
+        <p><strong>HTTP error statuses</strong>
+          <%= reconciliation["http_error_statuses"].sort.map { |code, count| "#{code} (#{count})" }.join(", ") %></p>
+      <% end %>
+      <% if reconciliation["by_type"].present? %>
+        <table class="cache-table">
+          <caption>Reconciliation by entity type</caption>
+          <thead><tr><th scope="col">Type</th><th scope="col">HTTP requests</th><th scope="col">HTTP time</th><th scope="col">Errors</th><th scope="col">Reused responses</th><th scope="col">Reused failures</th></tr></thead>
+          <tbody>
+            <% reconciliation["by_type"].sort_by { |name, metrics| [-metrics["http_ms"], name] }.each do |name, metrics| %>
+              <tr>
+                <th scope="row"><%= name %></th>
+                <td><%= metrics["http_requests"] %></td>
+                <td><%= (metrics["http_ms"].to_f / 1000).round(2) %>s</td>
+                <td><%= metrics["errors"] %></td>
+                <td><%= metrics["cache_hits"] %></td>
+                <td><%= metrics["failure_reuses"] %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% end %>
+      <p class="cache-page-note">Reconciliation HTTP time is included in formatting and statement time.
+        <% if reconciliation.key?("failure_reuses") %>
+          An HTTP request is one client call and may include a transport retry. Reuse and repeat counts are tracked per batch.
+        <% else %>
+          Responses are reused only within this check.
+        <% end %></p>
     <% end %>
     <% if performance["slowest_sources"].present? %>
       <table class="cache-table">
-        <thead><tr><th>Field / source</th><th>Executions</th><th>Extraction</th><th>Formatting</th></tr></thead>
+        <thead><tr><th>Field / source</th><th>Executions</th><th>Extraction</th><th>Formatting</th><% if reconciliation["by_source"].present? %><th>Reconciliation</th><% end %></tr></thead>
         <tbody>
           <% performance["slowest_sources"].each do |source| %>
             <tr>
@@ -39,6 +75,12 @@
               <td><%= source["executions"] %></td>
               <td><%= (source["extraction_ms"].to_f / 1000).round(2) %>s</td>
               <td><%= (source["formatting_ms"].to_f / 1000).round(2) %>s</td>
+              <% if reconciliation["by_source"].present? %>
+                <% lookup = reconciliation.dig("by_source", source["source_id"].to_s) %>
+                <td><% if lookup %>
+                  <%= lookup["http_requests"] %> requests · <%= (lookup["http_ms"].to_f / 1000).round(2) %>s · <%= pluralize(lookup["errors"], "error") %>
+                <% else %>—<% end %></td>
+              <% end %>
             </tr>
           <% end %>
         </tbody>

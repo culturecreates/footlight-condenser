@@ -71,6 +71,7 @@ module Distillator
     end
 
     def finding_label(entry)
+      return "Artsdata reconciliation incomplete" if MigrationComparator.reconciliation_failure?(entry)
       return "Shared extraction failure — parity unverified" if MigrationComparator.shared_extraction_failure?(entry)
       return "Extraction difference" if entry[:legacy_error].present? || entry[:condenser_error].present?
 
@@ -79,6 +80,7 @@ module Distillator
 
     def finding_state(entry)
       return :inconclusive if MigrationComparator.shared_extraction_failure?(entry)
+      return :inconclusive if MigrationComparator.reconciliation_failure?(entry)
       unsupported = [entry[:legacy_error], entry[:condenser_error]].compact.any? do |error|
         error.to_h.with_indifferent_access[:error_type].to_s.include?("FetchUnsupported")
       end

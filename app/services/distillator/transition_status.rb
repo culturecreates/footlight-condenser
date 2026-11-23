@@ -218,6 +218,7 @@ module Distillator
       return signal_status("statement_count_delta_acceptable") unless evidence.present?
       return :not_evaluated if fetch_prevented_statement_refresh?(evidence)
       return :inconclusive if partial_fetch_prevented_statement_refresh?(evidence)
+      return :inconclusive if incomplete_reconciliation?(evidence)
       return :inconclusive if no_selected_statements?(evidence)
       return :inconclusive if evidence.status == "pending" && shared_extraction_failure?(evidence)
       return :missing if evidence.status.to_s == "pending"
@@ -386,6 +387,7 @@ module Distillator
       return "Review the unknown comparison results, then rerun the transition batch check if needed." if cache_compare_unknown?
       return "Review the parity differences, then rerun the transition batch check if needed." if review_needed_difference?
       return "Review the optional statement refresh warnings before activating." if statements_status == :warning
+      return "Review the Artsdata reconciliation errors and retry the transition check." if incomplete_reconciliation?(statement_delta_evidence)
       return "Verify selected sources/statements for the sampled webpages." if statements_status == :inconclusive
       return "Fix the blocking check, then rerun the transition batch check." if blockers.any?
       return "Review the warning and rerun the transition batch check if needed." if warnings.any?
@@ -399,7 +401,7 @@ module Distillator
       return :not_evaluated if fetch_prevented_statement_refresh?(evidence)
       return :blocked_by_fetch if fetch_prevented_export_comparison?(evidence)
       return :inconclusive if partial_fetch_prevented_statement_refresh?(evidence) || partial_fetch_prevented_export_comparison?(evidence)
-      return :inconclusive if no_selected_statements?(evidence) || export_diff_not_available?(evidence)
+      return :inconclusive if no_selected_statements?(evidence) || export_diff_not_available?(evidence) || incomplete_reconciliation?(evidence)
       return :missing if evidence.status.to_s == "pending"
       return :warning if evidence.status.to_s == "warning"
       return :failed if evidence.status.to_s.in?(%w[failed blocked rejected])
@@ -560,9 +562,14 @@ module Distillator
     end
 
     def inconclusive_statement_reason
+      return "statements check is inconclusive because Artsdata reconciliation did not complete." if incomplete_reconciliation?(statement_delta_evidence)
       return "statements check is inconclusive due to shared extraction failures." if shared_extraction_failure?(statement_delta_evidence)
 
       "statements check is inconclusive."
+    end
+
+    def incomplete_reconciliation?(evidence)
+      evidence_reason(evidence) == "reconciliation_inconclusive"
     end
 
     def optional_statement_warning

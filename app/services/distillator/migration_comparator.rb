@@ -62,6 +62,13 @@ module Distillator
         !left["error_type"].match?(/FetchUnsupported|MissingComparisonHtml/)
     end
 
+    def self.reconciliation_failure?(entry)
+      data = entry.to_h.with_indifferent_access
+      data.values_at(:legacy_error, :condenser_error).compact.any? do |error|
+        error.to_h.with_indifferent_access[:error_type] == "LinkedDataLookupError"
+      end
+    end
+
     def initialize(
       website:,
       webpage:,
@@ -120,7 +127,11 @@ module Distillator
       artifacts = []
       @parsed_documents = {}
       resolved_sources.sort_by { |source| [source.property_id.to_i, source.id.to_i] }.each do |source|
-        artifacts << compare_source(source)
+        artifacts << if refresh_helper.respond_to?(:with_reconciliation_pair)
+          refresh_helper.with_reconciliation_pair(source) { compare_source(source) }
+        else
+          compare_source(source)
+        end
       end
 
       StatementComparison.new(

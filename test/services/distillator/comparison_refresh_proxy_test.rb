@@ -83,6 +83,10 @@ class Distillator::ComparisonRefreshProxyTest < ActiveSupport::TestCase
     HTTParty.expects(:get).with(@url, timeout: 10).times(3).returns(bad).then.returns({}).then.returns({ "result" => [] })
     2.times { assert_raises(RuntimeError) { @helper.reconciliation_response_for(@url) } }
     assert_equal({ "result" => [] }, @helper.reconciliation_response_for(@url))
+    counters = @helper.reconciliation_performance
+    assert_equal({ "503" => 1 }, counters["http_error_statuses"])
+    assert_equal 2, counters["retried_lookups"]
+    assert_equal 2, counters.dig("by_type", "Place", "errors")
   end
 
   test "paired extraction reuses venue and organization lookups across pages without changing values or stored statements" do
@@ -109,16 +113,47 @@ class Distillator::ComparisonRefreshProxyTest < ActiveSupport::TestCase
     assert_equal 797, @helper.reconciliation_performance["cache_hits"]
   end
 
-  test "a failed external lookup remains an extraction error and cannot establish parity" do
+  test "identical failures are reused within a source pair and a subsequent pair can recover" do
     site = websites(:one)
     page = site.webpages.first
     property = Property.create!(label: "Lookup probe", value_datatype: "xsd:anyURI", expected_class: "Place",
       uri: "https://example.org/lookup", rdfs_class: page.rdfs_class)
     source = site.sources.create!(property: property, selected: true, language: "en", algorithm_value: "xpath=//span/text()")
-    HTTParty.expects(:get).twice.raises(Net::ReadTimeout)
-    comparison = Distillator::MigrationComparator.new(website: site, webpage: page, sources: [source],
-      legacy_html: "<span>Unknown venue</span>", condenser_html: "<span>Unknown venue</span>", refresh_helper: @helper).compare_statements
+    HTTParty.expects(:get).with { |url, options| url.end_with?("&type=Place") && options == { timeout: 10 } }
+      .twice.raises(Net::ReadTimeout).then.returns({ "result" => [] })
+    compare = -> do
+      Distillator::MigrationComparator.new(website: site, webpage: page, sources: [source],
+        legacy_html: "<span>Unknown venue</span>", condenser_html: "<span>Unknown venue</span>", refresh_helper: @helper).compare_statements
+    end
+    comparison = compare.call
     assert_equal Distillator::MigrationComparator::SHARED_EXTRACTION_ERROR, comparison.verdict
     assert_equal "LinkedDataLookupError", comparison.artifacts.first[:legacy_error]["error_type"]
+    assert_equal "LinkedDataLookupError", comparison.artifacts.first[:condenser_error]["error_type"]
+    assert_equal Distillator::MigrationComparator::MATCH, compare.call.verdict
+    stats = @helper.reconciliation_performance
+    assert_equal [4, 2, 1, 1, 1], stats.values_at("lookups", "http_requests", "cache_hits", "failure_reuses", "retried_lookups")
+    assert_equal({ "Net::ReadTimeout" => 1 }, stats["error_classes"])
+    assert_equal 1, stats.dig("by_source", source.id.to_s, "failure_reuses")
+  end
+
+  test "a failed Person fallback cannot pass a paired Organization comparison" do
+    site = websites(:one)
+    page = site.webpages.first
+    property = Property.create!(label: "Organization probe", value_datatype: "xsd:anyURI", expected_class: "Organization",
+      uri: "https://example.org/organization-lookup", rdfs_class: page.rdfs_class)
+    source = site.sources.create!(property: property, selected: true, language: "en", algorithm_value: "xpath=//span/text()")
+    @helper.stubs(:search_condenser).returns({ data: [] })
+    HTTParty.expects(:get).with { |url, _| url.end_with?("&type=Organization") }.once.returns(
+      { "result" => [{ "name" => "Example Ensemble", "id" => "K1", "match" => true }] })
+    HTTParty.expects(:get).with { |url, _| url.end_with?("&type=Person") }.once.raises(Net::ReadTimeout)
+
+    comparison = Distillator::MigrationComparator.new(website: site, webpage: page, sources: [source],
+      legacy_html: "<span>Example Ensemble</span>", condenser_html: "<span>Example Ensemble</span>", refresh_helper: @helper).compare_statements
+
+    assert_equal Distillator::MigrationComparator::SHARED_EXTRACTION_ERROR, comparison.verdict
+    artifact = comparison.artifacts.sole
+    assert_equal ["comparison_reconciliation", "comparison_reconciliation"], artifact.values_at(:legacy_error, :condenser_error).pluck("source")
+    assert_equal 1, @helper.reconciliation_performance.dig("by_type", "Person", "http_requests")
+    assert_equal 3, @helper.reconciliation_performance.dig("by_type", "Person", "failure_reuses")
   end
 end

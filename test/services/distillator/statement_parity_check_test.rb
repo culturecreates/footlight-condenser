@@ -46,6 +46,25 @@ class Distillator::StatementParityCheckTest < ActiveSupport::TestCase
     assert_equal 1, result.artifacts.count { |entry| entry[:verdict] == "SHARED_EXTRACTION_ERROR" }
   end
 
+  test "a one-sided reconciliation error makes the check inconclusive while a verified difference still blocks" do
+    @sources["Price"].update!(algorithm_value: <<~DSL)
+      xpath=//span[@id='price']/text();
+      ruby=$array == ["30"] ? ["abort_update", {error: "Artsdata timed out", error_type: "LinkedDataLookupError"}] : $array
+    DSL
+    with_failure = html(price: "30")
+    [false, true].each do |strict|
+      result = compare(html, with_failure, strict: strict)
+      assert_equal :pending, result.status
+      assert_equal "reconciliation_inconclusive", result.reason
+      assert_equal "inconclusive", result.url_results.sole[:status]
+      assert_empty result.critical_failures
+      assert_empty result.optional_failures
+    end
+    result = compare(html(title: "Different"), with_failure, strict: true)
+    assert_equal :failed, result.status
+    assert_equal ["Title"], result.critical_failures.pluck(:property_label)
+  end
+
   test "standard and strict ignore an unselected alternative Dates source and its rendering profile" do
     @website.sources.create!(property: @sources["Dates"].property, language: "en", selected: false, render_js: true,
       algorithm_value: "ruby=raise 'Unselected Dates must not execute'")

@@ -369,6 +369,20 @@ class Distillator::TransitionStatusTest < ActiveSupport::TestCase
     assert_not_equal :ready, status.status
   end
 
+  test "incomplete reconciliation is recorded evidence that prevents activation" do
+    website = build_website("Reconciliation site", "reconciliation-site")
+    cache = build_cache(signals: { "transport_success" => true, "content_success" => true })
+    website.transition_evidences.create!(url: "https://example.org/event", check_kind: "statement_delta",
+      status: "pending", checked_at: Time.current, details: { reason: "reconciliation_inconclusive" })
+
+    isolate_transition_policy(website)
+    status = Distillator::TransitionStatus.call(website: website, cache: cache)
+
+    assert_equal :inconclusive, status.statements
+    assert_includes status.blockers, "Cannot activate yet: statements check is inconclusive because Artsdata reconciliation did not complete."
+    assert_not_equal :ready, status.status
+  end
+
   test "partial representative fetch failure keeps statements and export inconclusive" do
     website = build_website("Outside Feed", "outside-feed")
     cache = build_cache(signals: { "transport_success" => true, "content_success" => true })

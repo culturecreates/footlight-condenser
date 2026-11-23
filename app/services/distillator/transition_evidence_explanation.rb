@@ -103,6 +103,7 @@ module Distillator
     end
 
     def statement_headline
+      return "Artsdata reconciliation did not complete. Statement parity is unverified." if reason == "reconciliation_inconclusive"
       if reason == "shared_extraction_failure" || shared_statement_failures?
         return "The same local extraction errors occurred on both HTML inputs; statement parity is unverified."
       end
@@ -249,7 +250,9 @@ module Distillator
 
         state == :passed ? "No fetch action is needed right now." : "Fix the fetch/cache failure first, then rerun the transition batch check."
       when "statement_delta"
-        if reason == "shared_extraction_failure" || shared_statement_failures?
+        if reason == "reconciliation_inconclusive"
+          "Review the Artsdata reconciliation errors under Where time was spent, then retry the transition check."
+        elsif reason == "shared_extraction_failure" || shared_statement_failures?
           "Inspect the selected source algorithm and test one representative page per shared error variant. Matching local errors do not establish parity."
         elsif reason.in?(%w[critical_statement_parity_failed strict_statement_parity_failed])
           "Compare the affected page snapshots and their fetch times first. If either snapshot came from an older cache, run a new transition check to fetch both backends fresh. Investigate any remaining differences before activating."
