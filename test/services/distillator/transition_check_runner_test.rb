@@ -611,7 +611,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     create_selected_statement(second, status: "ok")
     create_selected_statement(third, status: "ok")
     refresh_runner = FakeRefreshRunner.new
-    clock_values = [0.0, 0.0, 17.5, 17.5, 17.5]
+    clock_values = [0.0, 0.0, 0.0, 17.5]
 
     result = Distillator::TransitionCheckRunner.new(
       website: website,
@@ -816,7 +816,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal :failed, Distillator::TransitionStatus.call(website: website).statements
   end
 
-  test "additional diagnostics and body drift do not block matching strict statements and export" do
+  test "a fresh Wringer retry and body drift do not block matching strict statements and export" do
     website = build_website
     page = website.webpages.first
     create_selected_statement(page, status: "ok")
@@ -824,8 +824,10 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     cache.update!(http_response_code: 200)
     endpoint = Distillator::WringerEndpoint::Result.new(legacy_lookup_base_url: "https://legacy.example")
     Distillator::WringerEndpoint.stubs(:current).returns(endpoint)
+    Distillator::FreshWringerSnapshot.any_instance.expects(:sleep).with(0.5)
     request = stub_request(:get, "https://legacy.example/websites/wring.json")
       .with(query: { uri: page.url, force_scrape: "true" })
+      .to_return(body: { html: cache.html, http_code: 503 }.to_json).then
       .to_return(body: { html: cache.html + '<!-- Different tracking markup -->', http_code: 200 }.to_json)
     result = Distillator::TransitionCheckRunner.call(website: website,
       check_options: { sample_mode: "all", strictness: "strict" },
@@ -837,9 +839,12 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal :ready, status.status
     assert_empty status.warnings
     assert_equal "shadow", website.reload.distillator_mode
-    assert_requested request, times: 1
+    assert_requested request, times: 2
     assert_equal "fresh_both", result.records[:fetch_parity].details["fetch_basis"]
-    assert result.records[:fetch_parity].details["representative_url_results"].first.dig("legacy_fetch", "force_scrape")
+    fetch = result.records[:fetch_parity].details["representative_url_results"].first.fetch("legacy_fetch")
+    assert fetch["force_scrape"]
+    assert fetch["recovered"]
+    assert_equal [503, 200], fetch["attempts"].pluck("upstream_http_code")
   end
 
   test "failed fresh Wringer scrape cannot compare its retained last good HTML" do
@@ -849,7 +854,8 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     cache = Distillator::FetchCache.find_by!(normalized_url: page.url)
     endpoint = Distillator::WringerEndpoint::Result.new(legacy_lookup_base_url: "https://legacy.example")
     Distillator::WringerEndpoint.stubs(:current).returns(endpoint)
-    stub_request(:get, "https://legacy.example/websites/wring.json")
+    Distillator::FreshWringerSnapshot.any_instance.stubs(:sleep)
+    request = stub_request(:get, "https://legacy.example/websites/wring.json")
       .with(query: { uri: page.url, force_scrape: "true" })
       .to_return(body: { html: cache.html, http_code: 503 }.to_json)
     native = fake_fetch_cache_store_for(website, cache)
@@ -858,11 +864,13 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
       export_service: FakeExportService.new(actual: '{}', expected: '{}'))
 
     assert_equal "legacy_lookup_unreachable", result.records[:fetch_parity].details["reason"]
+    assert_equal "attempt_limit", result.records[:fetch_parity].details["representative_url_results"].first.dig("legacy_fetch", "retry_stopped")
     assert_equal "pending", result.records[:statement_delta].status
     assert_empty result.records[:statement_delta].details["statement_artifacts"]
     assert_equal true, native.calls.first[:force_scrape]
     assert_equal false, native.calls.first[:render_js]
     assert_not Distillator::TransitionStatus.call(website: website).review_activation_eligible
+    assert_requested request, times: 3
     assert_not_requested :get, "https://legacy.example/websites.json"
   end
 

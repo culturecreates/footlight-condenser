@@ -51,6 +51,14 @@ report counts one source-availability finding. Activation still requires
 successful coverage of the in-scope pages. A reviewed exclusion remains an
 explicit, reversible decision.
 
+Transition fetches take one slot per source hostname across workers. The `www`
+alias shares that slot. Wringer retries transient timeouts, connection
+interruptions, and HTTP 429, 500, 502, 503 and 504 up to twice. Each retry forces a
+scrape. Backoff starts at 0.5 seconds and then 1 second, and honors a longer
+`Retry-After` up to 5 seconds within the check's time budget. A longer wait
+leaves the fetch incomplete. The report records recovered and incomplete retries
+with request timings and HTTP statuses. Cached fallback bodies remain invalid.
+
 Both workflow checks require a native Condenser fetch; comparing two Wringer
 fallbacks cannot qualify. Existing diagnostic/standalone check behavior is retained.
 Checks update fetch caches but never stored statements or event exports. A mode

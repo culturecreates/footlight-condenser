@@ -26,7 +26,7 @@ module Distillator
       successful_refresh
     ].freeze
 
-    def self.call(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil, wringer_endpoint: nil, comparison_policy: :operator, fresh_legacy: false, render_js: false)
+    def self.call(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil, wringer_endpoint: nil, comparison_policy: :operator, fresh_legacy: false, render_js: false, legacy_retry_budget: nil)
       new(
         uri: uri,
         include_fragment: include_fragment,
@@ -35,11 +35,12 @@ module Distillator
         wringer_endpoint: wringer_endpoint,
         comparison_policy: comparison_policy,
         fresh_legacy: fresh_legacy,
-        render_js: render_js
+        render_js: render_js,
+        legacy_retry_budget: legacy_retry_budget
       ).call
     end
 
-    def initialize(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil, wringer_endpoint: nil, comparison_policy: :operator, fresh_legacy: false, render_js: false)
+    def initialize(uri:, include_fragment: false, legacy_lookup: nil, condenser_result: nil, wringer_endpoint: nil, comparison_policy: :operator, fresh_legacy: false, render_js: false, legacy_retry_budget: nil)
       @uri = uri
       @include_fragment = include_fragment
       @legacy_lookup = legacy_lookup
@@ -48,6 +49,7 @@ module Distillator
       @comparison_policy = normalize_policy(comparison_policy)
       @fresh_legacy = fresh_legacy
       @render_js = render_js
+      @legacy_retry_budget = legacy_retry_budget
     end
 
     def call
@@ -101,7 +103,7 @@ module Distillator
     def fetch_legacy_cache(key)
       if @fresh_legacy
         return Distillator::FreshWringerSnapshot.call(uri: key.normalized_url, render_js: @render_js,
-          include_fragment: include_fragment, wringer_endpoint: wringer_endpoint)
+          include_fragment: include_fragment, wringer_endpoint: wringer_endpoint, retry_budget: @legacy_retry_budget)
       end
       if legacy_lookup
         payload = legacy_lookup.call(key.uri_key)

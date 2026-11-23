@@ -648,6 +648,14 @@ module Distillator
       cached = @representative_result_cache[webpage.url]
       return cached.merge(url: webpage.url, webpage_id: webpage.id) if cached.present?
 
+      result = TransitionFetchSlot.call(uri: webpage.url, wait_allowed: -> { !comparison_stop_requested? }) do |wait_ms|
+        fetch_page_pair(webpage, comparison_policy).merge(source_fetch_wait_ms: wait_ms)
+      end
+      @representative_result_cache[webpage.url] = result if result
+      result || timed_out_representative_url_result(webpage)
+    end
+
+    def fetch_page_pair(webpage, comparison_policy)
       render_js = applicable_sources_for(webpage).any?(&:render_js?)
       if @verify_active_path
         resolution = FetchMode.rollout_resolution_object(website: website.reload)
@@ -671,12 +679,11 @@ module Distillator
         condenser_result: fetch_result,
         comparison_policy: comparison_policy,
         fresh_legacy: true,
-        render_js: render_js
+        render_js: render_js,
+        legacy_retry_budget: method(:remaining_fetch_budget)
       )
 
-      built = build_representative_url_result(webpage, fetch_result, comparison)
-      @representative_result_cache[webpage.url] = built
-      built
+      build_representative_url_result(webpage, fetch_result, comparison)
     end
 
     def selected_sources_for(webpage)
@@ -918,10 +925,19 @@ module Distillator
     end
 
     def timeout_budget_exceeded?
-      return false unless budget_seconds.present?
+      remaining = remaining_time_budget
+      !remaining.nil? && remaining <= 0
+    end
 
-      elapsed = monotonic_now - @started_at
-      elapsed >= [budget_seconds.to_f - timeout_guard_seconds.to_f, 0].max
+    def remaining_fetch_budget
+      @cancellation_check&.call
+      remaining_time_budget
+    end
+
+    def remaining_time_budget
+      return unless budget_seconds.present?
+
+      [budget_seconds.to_f - timeout_guard_seconds.to_f - (monotonic_now - @started_at), 0].max
     end
 
     def budget_seconds

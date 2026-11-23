@@ -8,6 +8,7 @@
 
 <%= render "overview", operation: operation, fetches: fetches %>
 <%= render "exclusions" %>
+<%= render "wringer_retries", retries: fetches.wringer_retries %>
 <%= render "findings", operation: operation, fetches: fetches %>
 
 <% performance = @detail.transition_evidence_by_kind["export_diff"]&.details.to_h["performance"] %>

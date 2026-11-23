@@ -2,7 +2,7 @@ module Distillator
   # Read only the completed run's recorded evidence, never current cache health.
   class TransitionFetchSummary
     Result = Struct.new(:selected, :attempted, :condenser_succeeded, :wringer_available,
-      :paired, :compared, :fresh, :issues, keyword_init: true)
+      :paired, :compared, :fresh, :issues, :wringer_retries, keyword_init: true)
 
     def self.call(fetch_details:, statement_details:)
       fetch = fetch_details.to_h.with_indifferent_access
@@ -22,7 +22,15 @@ module Distillator
       issues = other.flat_map { |row| issues_for(row) } + shared_missing.map { |row| shared_source_issue(row) }
       Result.new(selected: selected.to_i, attempted: attempts, condenser_succeeded: native,
         wringer_available: legacy, paired: paired, compared: statements[:compared_webpage_count],
-        fresh: fresh, issues: issues)
+        fresh: fresh, issues: issues, wringer_retries: rows.filter_map { |row| wringer_retry(row) })
+    end
+
+    def self.wringer_retry(row)
+      fetch = row[:legacy_fetch].to_h.with_indifferent_access
+      attempts = Array(fetch[:attempts])
+      return if attempts.length < 2 && fetch[:retry_stopped].blank?
+
+      { url: row[:url], attempts: attempts, recovered: fetch[:recovered] == true, retry_stopped: fetch[:retry_stopped] }.compact
     end
 
     def self.shared_source_issue(row)
@@ -77,6 +85,6 @@ module Distillator
 
       "Retry the transition check; both backends will fetch fresh results again."
     end
-    private_class_method :issues_for, :shared_source_issue, :action_for
+    private_class_method :issues_for, :shared_source_issue, :action_for, :wringer_retry
   end
 end

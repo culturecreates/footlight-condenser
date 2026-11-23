@@ -248,6 +248,23 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     assert_redirected_to distillator_transition_check_path(run)
   end
 
+  test "reports recovered Wringer requests and their timings from the selected run" do
+    fetch = @completed.transition_evidences.find_by!(check_kind: "fetch_parity")
+    rows = fetch.details.fetch("representative_url_results")
+    rows.first["legacy_fetch"] = { "recovered" => true, "attempts" => [
+      { "response_http_code" => 429, "duration_ms" => 120, "backoff_seconds" => 2 },
+      { "response_http_code" => 200, "upstream_http_code" => 200, "duration_ms" => 900 }
+    ] }
+    fetch.update!(details: fetch.details.merge("representative_url_results" => rows))
+
+    get distillator_shadow_report_site_path(@website, run_id: @completed.id)
+
+    assert_response :success
+    assert_select "#transition-wringer-retries summary", text: "Wringer retries · 1 recovered · 0 incomplete"
+    assert_select "#transition-wringer-retries li", text: /Wringer HTTP 429 · 0.12s · 2s before retry/
+    assert_select "#transition-wringer-retries li", text: /Wringer HTTP 200 · Source HTTP 200 · 0.9s/
+  end
+
   test "performance details stay collapsed and belong to the selected completed run" do
     export = @completed.transition_evidences.find_by!(check_kind: "export_diff")
     export.update!(details: export.details.merge("performance" => {

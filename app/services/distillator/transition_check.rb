@@ -257,9 +257,13 @@ module Distillator
     end
 
     def fetch_attempt_for(representative_webpage)
-      return { attempted: false, result: nil, comparison: nil } unless run_fetch?
-      return { attempted: false, result: nil, comparison: nil } unless representative_webpage.present?
+      if run_fetch? && representative_webpage.present?
+        attempt = TransitionFetchSlot.call(uri: representative_webpage.url) { fetch_fresh_pair(representative_webpage) }
+      end
+      attempt || { attempted: false, result: nil, comparison: nil }
+    end
 
+    def fetch_fresh_pair(representative_webpage)
       # Both sides must fetch now; cached snapshots are inspection-only.
       render_js = Statements::RefreshWebpageStatementsService.sources_for_webpage(representative_webpage,
         default_language: website.default_language).any?(&:render_js?)
