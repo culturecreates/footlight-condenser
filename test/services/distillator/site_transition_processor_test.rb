@@ -32,6 +32,27 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
   end
   teardown { ActiveJob::Base.queue_adapter = @old_adapter }
 
+  test "a worker seeing the old schema leaves the queued group available for reconciliation" do
+    batch, item = request
+    Distillator::SiteTransition.stubs(:cancellation_schema_ready?).returns(false)
+    Distillator::SiteTransitionJob.expects(:perform_later).never
+
+    assert_no_difference ["Distillator::TransitionRun.count", "Distillator::RolloutEvent.count"] do
+      @processor.perform(item.id, phase: "queued")
+      batch.reconcile!
+    end
+
+    assert_equal "queued", item.reload.status
+    assert_nil item.started_at
+    assert_nil batch.reload.last_reconciled_at
+
+    Distillator::SiteTransition.unstub(:cancellation_schema_ready?)
+    Distillator::SiteTransitionJob.unstub(:perform_later)
+    Distillator::SiteTransitionJob.expects(:perform_later).with(item.id, phase: "queued").returns(true)
+    batch.reconcile!
+    assert batch.reload.last_reconciled_at
+  end
+
   test "Legacy moves through Shadow and Active with distinct pre and ordinary active checks" do
     batch, item = request
     assert_equal "legacy", @website.reload.distillator_mode

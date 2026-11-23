@@ -152,13 +152,16 @@ Redirects, one-sided failures, stale caches and arbitrary URLs do not qualify.
 These reviews change comparison scope only; they never delete events or convert
 shared extraction failures into passing evidence. A new check is required afterward.
 
-Deploy migrations through `20261114000300_add_transition_batch_reconciliation.rb`
-and run:
+Apply pending migrations, including
+`20261123000100_add_cancel_requested_at_to_distillator_site_transitions.rb`,
+before submitting groups or resuming the worker on a new release:
 
 ```sh
 heroku run rails db:migrate --app footlight-condenser-test
 ```
 
 The worker dyno must be running for workflow steps and delayed recovery guards.
+If a group already reached a terminal state before the migration, start a new
+group from Websites. The finished group's report remains available.
 Tests cover phase progression, failure, exceptions, recovery, manual intervention,
 idempotency, selection rules, progress polling and real active-path dispatch.

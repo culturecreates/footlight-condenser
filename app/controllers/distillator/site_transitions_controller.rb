@@ -13,6 +13,11 @@ module Distillator
     def cancel
       item = SiteTransition.find(params[:id])
       path = params[:from] == "batch" ? distillator_transition_batch_path(item.batch) : distillator_site_transition_path(item)
+      unless SiteTransition.cancellation_schema_ready?
+        return redirect_to path, alert: SiteTransition::SCHEMA_NOT_READY
+      end
+
+      item.reload unless item.has_attribute?(:cancel_requested_at)
       unless item.request_cancellation!
         return redirect_to path, alert: "Only a running site transition can be cancelled."
       end

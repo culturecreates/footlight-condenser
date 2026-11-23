@@ -13,6 +13,17 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
   end
   teardown { ActiveJob::Base.queue_adapter = @old_adapter }
 
+  test "creating a group before the cancellation migration explains the pending migration" do
+    Distillator::SiteTransition.stubs(:cancellation_schema_ready?).returns(false)
+
+    assert_no_difference ["Distillator::TransitionBatch.count", "Distillator::SiteTransition.count"] do
+      post distillator_transition_batches_path, params: params_for([@one.id, @two.id]).merge(check_profile: "light")
+    end
+
+    assert_redirected_to websites_path
+    assert_equal Distillator::SiteTransition::SCHEMA_NOT_READY, flash[:alert]
+  end
+
   test "culture wildcard selects matching event sites including unscheduled but excludes templates tests and entities" do
     get websites_path, params: { q: "culture*", graph_name: "https://example.org/culture", view: "all" }
     assert_response :success

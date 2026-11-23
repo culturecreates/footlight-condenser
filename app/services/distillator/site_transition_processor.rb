@@ -6,6 +6,11 @@ module Distillator
     end
 
     def perform(id, phase:)
+      unless SiteTransition.cancellation_schema_ready?
+        Rails.logger.warn(event: "distillator.site_transition.schema_not_ready", id: id, message: SiteTransition::SCHEMA_NOT_READY)
+        return
+      end
+
       item = SiteTransition.find(id)
       token = claim(item, phase)
       return unless token
@@ -38,6 +43,8 @@ module Distillator
     end
 
     def recover(item, reason:, token:)
+      return unless SiteTransition.cancellation_schema_ready?
+
       changed = owned(item, token) do |website|
         cancelled = item.cancel_requested_at?
         reason = TransitionRun::CANCELLED_MESSAGE if cancelled

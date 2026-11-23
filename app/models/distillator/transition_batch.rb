@@ -22,6 +22,8 @@ module Distillator
       if (existing = find_by(request_key: request_key))
         return reuse_request!(existing, ids, options)
       end
+      raise ArgumentError, SiteTransition::SCHEMA_NOT_READY unless SiteTransition.cancellation_schema_ready?
+
       created = false
       batch = transaction do
         websites = Website.where(id: ids).order(:id).lock.to_a
@@ -83,6 +85,8 @@ module Distillator
     end
 
     def reconcile!
+      return unless SiteTransition.cancellation_schema_ready?
+
       with_lock do
         return if last_reconciled_at && last_reconciled_at > 1.minute.ago
         item = site_transitions.where(status: "running").order(:position).first

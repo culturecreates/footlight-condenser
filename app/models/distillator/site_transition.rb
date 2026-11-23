@@ -2,6 +2,7 @@ module Distillator
   class SiteTransition < ApplicationRecord
     self.table_name = "distillator_site_transitions"
     TERMINAL = %w[passed attention cancelled recovery_failed].freeze
+    SCHEMA_NOT_READY = "The site transition database migration is pending. Apply it before running transitions.".freeze
     belongs_to :batch, class_name: "Distillator::TransitionBatch"
     belongs_to :website, optional: true
     belongs_to :pre_run, class_name: "Distillator::TransitionRun", optional: true
@@ -9,6 +10,14 @@ module Distillator
     scope :active, -> { where(status: %w[queued running]) }
     validates :status, inclusion: { in: %w[queued running] + TERMINAL }
     validates :phase, inclusion: { in: %w[queued precheck postcheck finished] }
+
+    def self.cancellation_schema_ready?
+      return true if column_names.include?("cancel_requested_at")
+
+      # A worker may have loaded the old schema before the migration ran.
+      reset_column_information
+      column_names.include?("cancel_requested_at")
+    end
 
     def terminal?
       status.in?(TERMINAL)

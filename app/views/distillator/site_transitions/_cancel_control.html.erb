@@ -1,4 +1,4 @@
-<% if item.status == "running" %>
+<% if item.status == "running" && item.has_attribute?(:cancel_requested_at) %>
   <% if item.cancel_requested_at? %>
     <p class="transition-secondary">Cancellation requested. The current operation may need to finish before the transition stops.</p>
   <% else %>
