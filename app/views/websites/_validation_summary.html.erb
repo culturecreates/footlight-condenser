@@ -19,6 +19,7 @@
       <small title="Distinct currently eligible pages covered by successful validations using matching page and extraction settings"><%= validation.covered %>/<%= validation.eligible %> covered (<%= number_to_percentage(100.0 * validation.covered / validation.eligible, precision: 0) %>)</small>
     <% end %>
     <% if validation.changed %><small>Configuration changed since pass</small><% end %>
+    <% if validation.milestone_blocker %><small><%= validation.milestone_blocker %></small><% end %>
   <% elsif @transition_eligible_ids.include?(website.id) || validation.last_validation || validation.audit.positive? %>
     <span>No validation pass</span>
   <% else %>—

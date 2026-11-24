@@ -14,7 +14,8 @@ module Distillator
     MIGRATED_THOROUGH_PASSES = 2 * READY_THOROUGH_PASSES
     Pass = Struct.new(:profile, :completed_at, :runs, :workflow, :site_check, keyword_init: true)
 
-    Summary = Struct.new(:light, :thorough, :audit, :last_pass, :last_validation, :changed, :covered, :eligible, :milestone, keyword_init: true) do
+    Summary = Struct.new(:light, :thorough, :audit, :last_pass, :last_validation, :changed, :covered, :eligible, :milestone,
+      :milestone_blocker, keyword_init: true) do
       def matches?(filter)
         case filter
         when "never_passed" then last_pass.nil?
@@ -82,7 +83,9 @@ module Distillator
         summary = Summary.new(light: counts.fetch("light", 0), thorough: counts.fetch("thorough", 0),
           audit: items.fetch(website.id, []).count { |row| row.batch.audit? && row.status == "passed" },
           last_pass: last, last_validation: validations.fetch(website.id, []).first)
-        summary.milestone = milestone(website, passed, inventories[website.id])
+        if website.distillator_mode == "active" && summary.thorough >= READY_THOROUGH_PASSES
+          summary.milestone, summary.milestone_blocker = milestone(website, passed, inventories[website.id])
+        end
         if last
           pages = eligible_pages.fetch(website.id, [])
           current_digest, configuration = TransitionFingerprint.for_validation_history(website, library_version: library_version)
@@ -118,16 +121,19 @@ module Distillator
     end
 
     def self.milestone(website, passes, inventory)
-      return unless website.distillator_mode == "active" && WebsiteIndexGroups.category(website) == :scheduled
-      return unless inventory&.dig(:status) == "confirmed_discovery" && inventory[:verified_list_refresh_at].present?
+      return [nil, "Set a refresh schedule for Ready"] unless WebsiteIndexGroups.category(website) == :scheduled
+      unless inventory&.dig(:status) == "confirmed_discovery" && inventory[:verified_list_refresh_at].present?
+        return [nil, "Verify ResourceLists for Ready"]
+      end
 
       refreshed_at = Time.iso8601(inventory.fetch(:verified_list_refresh_at))
       thorough_passes = passes.count do |pass|
         pass.profile == "thorough" && pass.runs.any? && pass.runs.all? { |run| verified_before_check?(run, refreshed_at) }
       end
-      return "migrated" if thorough_passes >= MIGRATED_THOROUGH_PASSES
+      return ["migrated", nil] if thorough_passes >= MIGRATED_THOROUGH_PASSES
+      return ["ready", nil] if thorough_passes >= READY_THOROUGH_PASSES
 
-      "ready" if thorough_passes >= READY_THOROUGH_PASSES
+      [nil, "#{thorough_passes}/#{READY_THOROUGH_PASSES} Thorough passes started with verified ResourceLists"]
     end
 
     def self.verified_before_check?(run, refreshed_at)

@@ -8,7 +8,7 @@ class AddWebpagesJob < ApplicationJob
   WEBPAGE_URL_LIST_LABEL = 'Webpage URL List'
   InvalidResourceListError = Class.new(StandardError)
 
-  def perform(webpage_id_or_url)
+  def perform(webpage_id_or_url, selected_only: false, refresh_new: true)
     webpages = Webpage.includes(:website)
     webpage = if webpage_id_or_url.is_a?(Integer)
       webpages.find_by(id: webpage_id_or_url)
@@ -23,6 +23,9 @@ class AddWebpagesJob < ApplicationJob
     return unless webpage
 
     statements = webpage.statements.includes(source: :property)
+    if selected_only
+      statements = statements.joins(:source).where(selected_individual: true, sources: { selected: true, website_id: webpage.website_id })
+    end
     statements_by_label = statements.group_by { |statement| statement.source.property.label }
     class_statements = statements_by_label.fetch(RDF_CLASS_LABEL, [])
     data_only, discovery = class_statements.partition { |statement| statement.cache.to_s.strip == DATA_ONLY_CLASS }
@@ -54,26 +57,25 @@ class AddWebpagesJob < ApplicationJob
     )
 
     rdfs_class = RdfsClass.find_by!(name: rdfs_class_name)
-    created_urls = []
+    created_pages = []
 
     ActiveRecord::Base.transaction do
       urls.each_with_index do |webpage_url, index|
         next if Webpage.exists?(url: webpage_url, website: webpage.website)
 
-        Webpage.create!(
+        created_pages << Webpage.create!(
           url: webpage_url,
           rdf_uri: rdf_uris[index],
           language: webpage.language,
           rdfs_class: rdfs_class,
           website: webpage.website
         )
-        created_urls << webpage_url
       end
     end
 
-    created_urls.each do |webpage_url|
-      RefreshWebpageJob.perform_later(webpage_url)
-    end
+    return created_pages.map(&:id) unless refresh_new
+
+    created_pages.map(&:url).each { |url| RefreshWebpageJob.perform_later(url) }
   end
 
   private

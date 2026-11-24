@@ -6,7 +6,9 @@
   <p><%= link_to @website.name, website_path(@website) %> · <%= @website.seedurl %></p>
   <p>Current mode: <strong><%= @website.distillator_mode.humanize %></strong> ·
     Production backend: <strong><%= website_rollout_backend_for(@website) %></strong></p>
-  <p class="cache-page-note">This comparison does not change the website's rollout mode or stored statements.</p>
+  <% if @run.refresh_discovery? %>
+    <p class="cache-page-note">Before comparing pages, this check refreshes ResourceLists and initializes newly discovered events.</p>
+  <% end %>
 
   <dl class="website-identity-list">
     <% recorded_rule = @run.transition_evidences.find_by(check_kind: "fetch_parity")&.details&.dig("selection_rule") if @run.status == "completed" %>

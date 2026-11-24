@@ -6,7 +6,7 @@
   <p>Current mode: <strong><%= @website.distillator_mode.humanize %></strong> ·
     Serving backend: <strong><%= website_rollout_backend_for(@website) %></strong></p>
 </header>
-<p class="transition-secondary">This report is read-only. Checks compare extracted values without updating stored statements.</p>
+<p class="transition-secondary">This report is read-only. Thorough validation prepares event discovery before comparing extracted values.</p>
 
 <% if @historical_run %>
   <p class="transition-history-notice" id="historical-transition-run"><strong>Historical comparison for run #<%= @report_run.id %>.</strong>

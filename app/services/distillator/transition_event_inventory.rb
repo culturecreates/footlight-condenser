@@ -20,13 +20,16 @@ module Distillator
       statement_scope(website_ids, "ResourceList").where(properties: { label: DISCOVERY_LABELS })
     end
 
+    def self.list_pages(websites)
+      Webpage.joins(:rdfs_class).where(website: websites, rdfs_classes: { name: "ResourceList" })
+    end
+
     def initialize(as_of:)
       @as_of = as_of
     end
 
     def for_websites(website_ids, events:)
-      pages = Webpage.joins(:rdfs_class).where(website_id: website_ids, rdfs_classes: { name: "ResourceList" }).order(:id)
-        .group_by(&:website_id)
+      pages = self.class.list_pages(website_ids).order(:id).group_by(&:website_id)
       results = website_ids.index_with { result("no_discovery_lists") }
       return results if pages.empty?
 
@@ -109,7 +112,7 @@ module Distillator
       end
 
       refreshed_at = timestamps.min
-      metadata = metadata.merge(refreshed_at: refreshed_at.iso8601, refresh_completed_at: timestamps.max.iso8601(6), count: url_keys.size)
+      metadata = metadata.merge(refreshed_at: refreshed_at.iso8601(6), refresh_completed_at: timestamps.max.iso8601(6), count: url_keys.size)
       if changed_at && refreshed_at < changed_at
         return metadata.merge(reason: "list_configuration_changed")
       end

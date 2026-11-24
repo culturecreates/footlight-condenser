@@ -186,6 +186,8 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
       run
     end
     batch.site_transitions.sole.update!(status: "passed", final_mode: "active", completed_at: Time.current, pre_run: pre, post_run: postcheck)
+    get websites_path
+    assert_select "#{row} small", text: "1/2 Thorough passes started with verified ResourceLists"
     get websites_path, params: { validation: "ready" }
     assert_select row, count: 0
 
@@ -209,6 +211,8 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     assert_select "#{row} a", text: "Thorough 5×"
 
     travel 49.hours do
+      get websites_path
+      assert_select "#{row} small", text: "Verify ResourceLists for Ready"
       get websites_path, params: { validation: "migrated" }
       assert_select row, count: 0
     end

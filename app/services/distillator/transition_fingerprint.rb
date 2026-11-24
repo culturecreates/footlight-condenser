@@ -17,9 +17,38 @@ module Distillator
       # Hash values as well as timestamps: older tables only store whole seconds.
       # Include insertions/deletions and the metadata used to interpret DSL values.
       # Cached-legacy comparisons cannot qualify under the fresh-on-both-sides policy.
-      inputs = ["fresh_both_page_fetch_v3_active_events", *inputs,
-        website.webpages.order(:id).pluck(*Webpage.column_names)]
-      exclusions = website.transition_exclusions.active.order(:id).pluck(:id, :url, :reason, :source_run_id, :created_at)
+      settings = ["fresh_both_page_fetch_v3_active_events", *inputs]
+      pages = website.webpages.order(:id).pluck(*Webpage.column_names)
+      recorded_digest(settings, pages, current_exclusions(website))
+    end
+
+    def self.after_discovery(website, expected_digest:, discovery:)
+      columns = Webpage.column_names
+      id_column = columns.index("id")
+      archive_column = columns.index("archive_date")
+      settings = ["fresh_both_page_fetch_v3_active_events", *configuration_inputs(website)]
+      pages = website.webpages.order(:id).pluck(*columns)
+      exclusions = current_exclusions(website)
+      added = discovery.added_page_ids.to_set
+      previous_dates = discovery.prior_archive_dates
+      previous_pages = pages.filter_map do |page|
+        id = page[id_column]
+        next if added.include?(id)
+        next page unless previous_dates.key?(id)
+
+        page.dup.tap { |row| row[archive_column] = previous_dates[id] }
+      end
+      return unless expected_digest == recorded_digest(settings, previous_pages, exclusions)
+
+      recorded_digest(settings, pages, exclusions)
+    end
+
+    def self.current_exclusions(website)
+      website.transition_exclusions.active.order(:id).pluck(:id, :url, :reason, :source_run_id, :created_at)
+    end
+
+    def self.recorded_digest(settings, pages, exclusions)
+      inputs = [*settings, pages]
       inputs << ["reviewed_transition_exclusions_v1", exclusions] if exclusions.any?
       digest(inputs)
     end
@@ -48,6 +77,6 @@ module Distillator
       Digest::SHA256.hexdigest(JSON.generate(values))
     end
 
-    private_class_method :full_digest, :configuration_inputs, :digest
+    private_class_method :full_digest, :current_exclusions, :recorded_digest, :configuration_inputs, :digest
   end
 end

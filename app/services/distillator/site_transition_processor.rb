@@ -104,12 +104,14 @@ module Distillator
               token = item.phase_token if run && (run.status == "queued" || run.resumable?)
               next
             end
-            unless EventSiteSelection.eligible_ids([website]).include?(website.id) && website.webpages.event_pages.exists?
+            can_discover = requested_phase == "queued" && item.batch.check_profile == "thorough" && !item.batch.audit? &&
+              TransitionEventInventory.list_pages(website.id).exists?
+            unless EventSiteSelection.eligible_ids([website]).include?(website.id) && (can_discover || website.webpages.event_pages.exists?)
               finish(item, website, "attention", "No eligible event pages are available, or this site is no longer an event site.")
               next
             end
             if requested_phase == "queued"
-              unless website.webpages.public_publishable_events.active.without_reviewed_transition_exclusions.exists?
+              unless can_discover || website.webpages.public_publishable_events.active.without_reviewed_transition_exclusions.exists?
                 finish(item, website, "attention", "No active publishable event pages with public URLs are available.")
                 next
               end

@@ -1,7 +1,7 @@
 module Distillator
   class TransitionRunProgress
     PHASE_EVIDENCE = { "fetch_parity" => "Fetch", "statement_delta" => "Statements", "export_diff" => "Export" }.freeze
-    PHASE_NAMES = { "selection" => "Selecting pages", "fetch" => "Fetch", "statements" => "Statements",
+    PHASE_NAMES = { "discovery" => "Refreshing ResourceLists", "selection" => "Selecting pages", "fetch" => "Fetch", "statements" => "Statements",
       "export" => "Export", "completed" => "Finalizing report" }.freeze
 
     def initialize(run, now: Time.current)

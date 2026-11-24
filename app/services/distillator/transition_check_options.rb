@@ -50,6 +50,10 @@ module Distillator
       @include_retired
     end
 
+    def refresh_discovery?
+      strict? && sample_mode.in?(%w[all count]) && !include_retired?
+    end
+
     def size_for(total, default:)
       requested = case sample_mode
                   when "all" then total

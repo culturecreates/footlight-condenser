@@ -219,7 +219,7 @@ class Distillator::ShadowReportsControllerTest < ActionDispatch::IntegrationTest
     get distillator_shadow_report_site_path(website)
 
     assert_response :success
-    assert_match "This report is read-only. Checks compare extracted values without updating stored statements.", @response.body
+    assert_match "This report is read-only.", @response.body
     assert_select ".transition-decision h2", count: 1
     assert_select ".transition-next-action", count: 1
     assert_match "Statement equivalence", @response.body

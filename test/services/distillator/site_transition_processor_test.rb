@@ -150,11 +150,13 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     assert_equal "ready", item.reload.phase_results.dig("precheck", "state")
     assert_equal "strict", item.pre_run.options.strictness
     assert_equal "all", item.pre_run.options.sample_mode
+    assert item.pre_run.refresh_discovery?
     assert_nil item.post_run
 
     @processor.perform(item.id, phase: "postcheck")
     assert_equal "attention", item.reload.status
     assert_equal item.pre_run.check_options, item.post_run.check_options
+    assert_not item.post_run.refresh_discovery?
     assert_equal %w[shadow active], @runner.calls.pluck(:mode)
     assert_equal [false, true], @runner.calls.pluck(:active_path)
     assert_equal %w[shadow active shadow], @website.rollout_events.order(:id).pluck(:to_mode)
@@ -201,6 +203,7 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     assert_equal "all", item.post_run.options.sample_mode
     assert item.post_run.options.strict?
     assert_not item.post_run.options.include_retired?
+    assert_not item.post_run.refresh_discovery?
     assert_equal "blocked", item.phase_results.dig("postcheck", "state")
     assert_equal "attention", item.status
     assert_equal "active", item.final_mode

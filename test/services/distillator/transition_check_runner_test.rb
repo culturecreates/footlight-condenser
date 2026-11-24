@@ -791,6 +791,79 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal "checked", result.records[:statement_delta].status
   end
 
+  test "Thorough refreshes and imports ResourceLists before selecting the event scope" do
+    website = build_website
+    existing = website.webpages.sole
+    mark_publishable(existing)
+    list, statements = travel_to(3.days.ago) { discovery_list_for(existing) }
+    new_url = "https://runner-site.example/discovered-event"
+    fresh_options = { force_scrape_every_hrs: 0 }
+    assert_equal "stale", Distillator::WebsiteInventoryFreshness.for_websites([website.id]).dig(website.id, :status)
+
+    Distillator::RefreshRunner.expects(:call).with do |args|
+      if args[:webpage].id == list.id
+        statements.fetch(AddWebpagesJob::WEBPAGE_URL_LIST_LABEL).update_columns(cache: [existing.url, new_url].to_json, cache_refreshed: Time.current)
+        statements.fetch(AddWebpagesJob::URI_LIST_LABEL).update_columns(cache: [existing.rdf_uri, "rdf:discovered"].to_json, cache_refreshed: Time.current)
+        args[:scrape_options] == fresh_options
+      else
+        false
+      end
+    end.once
+    Distillator::RefreshRunner.expects(:call).with do |args|
+      page = args[:webpage]
+      next false unless page.url == new_url && page.website_id == website.id && args[:scrape_options] == fresh_options
+
+      mark_publishable(page)
+      true
+    end.once
+
+    caches = [existing.url, new_url].index_with do |url|
+      cache = Distillator::FetchCache.find_by(normalized_url: url) ||
+        create_fetch_cache_for_url(url, signals: { transport_success: true, content_success: true })
+      fetch_result_for(cache: cache)
+    end
+    legacy = { legacy_cache: { html: "<html>ok</html>" }, legacy_lookup_status: "ok", summary: {}, missing: {} }
+    result = Distillator::TransitionCheckRunner.call(website: website, check_options: { sample_mode: "all", strictness: "strict" },
+      fetch_cache_store: FakeFetchCacheStore.new(caches), cache_compare: FakeCacheCompare.new(caches.keys.index_with { legacy }),
+      export_service: FakeExportService.new(actual: '{"@id":"event:1"}', expected: '{"@id":"event:1"}'))
+
+    assert_equal "completed", website.latest_transition_run.status
+    assert_equal "confirmed_discovery", website.latest_transition_run.progress["discovery_at_start"]
+    assert_equal [existing.url, new_url].sort, result.records[:fetch_parity].details["representative_webpages"].sort
+    assert_equal "confirmed_discovery", Distillator::WebsiteInventoryFreshness.for_websites([website.id]).dig(website.id, :status)
+  end
+
+  test "Thorough stops before comparison when a refresh leaves only old ResourceList statements" do
+    website = build_website
+    existing = website.webpages.sole
+    mark_publishable(existing)
+    list, = travel_to(1.hour.ago) { discovery_list_for(existing) }
+    Distillator::RefreshRunner.expects(:call).with { |args| args[:webpage].id == list.id }.once
+
+    error = assert_raises(Distillator::TransitionRun::ConfigurationChanged) do
+      Distillator::TransitionCheckRunner.call(website: website, check_options: { sample_mode: "all", strictness: "strict" })
+    end
+    assert_match "ResourceList ##{list.id} refresh was unverified", error.message
+    assert_equal "failed", website.latest_transition_run.status
+    assert_empty website.latest_transition_run.transition_evidences
+  end
+
+  test "discovery preparation cannot adopt an unrelated webpage edit" do
+    website = build_website
+    existing = website.webpages.sole
+    discovery_list_for(existing)
+    Distillator::TransitionDiscoveryRefresh.expects(:call).with do |args|
+      existing.update_column(:language, "fr")
+      args[:website].id == website.id
+    end.returns(Distillator::TransitionDiscoveryRefresh::Result.new(added_page_ids: [], prior_archive_dates: {}))
+
+    error = assert_raises(Distillator::TransitionRun::ConfigurationChanged) do
+      Distillator::TransitionCheckRunner.call(website: website, check_options: { sample_mode: "all", strictness: "strict" })
+    end
+    assert_match "configuration changed while refreshing ResourceLists", error.message
+    assert_empty website.latest_transition_run.transition_evidences
+  end
+
   test "all page strict run persists its scope in every phase and blocks optional differences without updating statements" do
     website = build_website
     first = website.webpages.first
@@ -917,6 +990,26 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
   end
 
   private
+
+  def discovery_list_for(event)
+    resource_list = RdfsClass.find_or_create_by!(name: "ResourceList")
+    list = event.website.webpages.create!(url: "#{event.url}/list", rdf_uri: "rdf:runner-list", rdfs_class: resource_list, language: "en")
+    values = {
+      AddWebpagesJob::RDF_CLASS_LABEL => "Event",
+      AddWebpagesJob::WEBPAGE_URL_LIST_LABEL => [event.url].to_json,
+      AddWebpagesJob::URI_LIST_LABEL => [event.rdf_uri].to_json
+    }
+    statements = values.to_h do |label, cache|
+      property = Property.create!(rdfs_class: resource_list, label: label, uri: "urn:runner-list:#{label.parameterize}")
+      manual = label == AddWebpagesJob::RDF_CLASS_LABEL
+      source = event.website.sources.create!(property: property, selected: true, algorithm_value: manual ? "manual=#{cache}" : "xpath=//a")
+      statement = list.statements.create!(source: source, cache: cache, status: "ok", selected_individual: true, manual: manual,
+        cache_refreshed: Time.current)
+      statement.update_column(:status, "ok")
+      [label, statement]
+    end
+    [list, statements]
+  end
 
   def build_website(with_webpage: true)
     website = Website.create!(

@@ -73,9 +73,14 @@ and for Active sites when Thorough is selected.
 
 ### Event eligibility and historical audits
 
-Use **Refresh lists and add webpages** from the website's batch jobs and let
-discovery and any newly queued event refreshes finish if new events need to be
-added before validation.
+Thorough validation refreshes event ResourceLists, imports discovered events,
+and runs the initial statement refresh before selecting eligible pages. The
+Shadow and Active phases of a workflow share this discovery preparation. A site
+check with Strict comparison runs the same preparation when set to All pages or
+when its fixed page count covers the current event inventory. If a configured
+list cannot be verified after refresh, the check
+stops and reports the reason. Sites that have no event ResourceLists can still
+run parity checks. Active and historical audits use the existing inventory.
 
 Light randomly samples 20% of active publishable event pages with public URLs
 (minimum 5, maximum 25, limited by availability). It favors pages attempted least
@@ -83,8 +88,8 @@ recently across the last 50 Light checks. A workflow records the seed and exact
 sample and reuses them for both the Shadow and Active phases. Thorough checks
 all eligible pages after reviewed exclusions. An event page is active when its archive
 date is absent or later than the check's start time. The Inventory freshness
-dashboard still compares current event URLs with ResourceLists. List
-freshness and membership do not determine transition eligibility.
+dashboard compares current event URLs with the refreshed ResourceLists. The
+page selection still uses publishability, archive dates, and reviewed exclusions.
 
 An event site with no eligible current events needs attention. Sites without
 Event pages or selected Event sources retain the standalone webpage diagnostics

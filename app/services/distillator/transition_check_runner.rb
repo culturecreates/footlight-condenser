@@ -133,6 +133,7 @@ module Distillator
 
     def perform_checks_with_snapshots
       @cancellation_check&.call
+      transition_run.prepare_discovery!(cancellation_check: @cancellation_check)
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       @phase_timings = {}
       transition_run&.record_progress!("selection")

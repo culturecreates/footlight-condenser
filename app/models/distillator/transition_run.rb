@@ -40,7 +40,9 @@ module Distillator
         end
         current&.update!(status: "failed", completed_at: Time.current, error_message: "Check expired. A new run was requested.")
         sample = workflow_item.pre_run&.event_sample_for_postcheck if requested_options.default? && workflow_item&.phase == "postcheck"
-        run = create!(website: website, requested_at: Time.current, progress: { "event_sample" => sample }.compact,
+        skip_discovery = workflow_item && (workflow_item.batch.audit? || (workflow_item.phase == "postcheck" && workflow_item.pre_run_id.present?))
+        run = create!(website: website, requested_at: Time.current,
+          progress: { "event_sample" => sample, "skip_discovery_refresh" => (true if skip_discovery) }.compact,
           configuration_digest: Distillator::TransitionFingerprint.call(website), check_options: requested_options.to_h)
         website.update_column(:transition_check_requested_at, run.requested_at) unless requested_options.include_retired?
         Request.new(run: run, created?: true)
@@ -85,6 +87,37 @@ module Distillator
         raise ConfigurationChanged, "Check stopped before discovery evidence was recorded." unless status == "running"
 
         update!(progress: progress.merge("discovery_at_start" => inventory.fetch(:status)))
+      end
+    end
+
+    def refresh_discovery?
+      check_options = options
+      return false unless check_options.refresh_discovery? && !progress["skip_discovery_refresh"]
+      return true if check_options.sample_mode == "all"
+
+      website.webpages.public_publishable_events.active.without_reviewed_transition_exclusions
+        .limit(check_options.sample_size + 1).count <= check_options.sample_size
+    end
+
+    def prepare_discovery!(cancellation_check:)
+      return if progress["discovery_prepared"] || !refresh_discovery?
+      return unless TransitionEventInventory.list_pages(website_id).exists?
+
+      unless configuration_digest == TransitionFingerprint.call(website)
+        raise ConfigurationChanged, "Check configuration changed before refreshing ResourceLists. Run a new check."
+      end
+      record_progress!("discovery")
+      discovery = TransitionDiscoveryRefresh.call(website: website, cancellation_check: cancellation_check)
+      website.with_lock do
+        with_lock do
+          cancellation_check&.call
+          digest = TransitionFingerprint.after_discovery(website, expected_digest: configuration_digest, discovery: discovery)
+          unless status == "running" && digest
+            raise ConfigurationChanged, "Check configuration changed while refreshing ResourceLists. Run a new check."
+          end
+
+          update!(configuration_digest: digest, started_at: Time.current, progress: progress.merge("discovery_prepared" => true))
+        end
       end
     end
 
