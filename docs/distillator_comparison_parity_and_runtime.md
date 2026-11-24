@@ -137,6 +137,18 @@ check.
 
 # Why tiny websites were slow
 
+Transition checks now compare locally formatted selected-source values. For
+linked-data fields, they compare the ordered terms that would go to
+reconciliation, using the same whitespace normalization as a lookup. Dates,
+durations, and built-in mappings still use the ordinary formatter. The report
+and group diagnostics identify the value stage. Artsdata availability is outside
+this check. DSL errors, required values, fresh fetches, and export verification
+still follow their existing rules.
+
+The benchmarks below describe the earlier transition path, which ran
+reconciliation during parity. The response cache is still available to
+diagnostics that compare reconciled values and to Databus replay.
+
 The uploaded staging logs for Petit Théâtre show:
 
 | Run | Scope | Total | Sum of native fetch durations |
@@ -174,10 +186,10 @@ in both cases. Real elapsed savings depend on external latency and site sources.
 At the old observed rate of roughly 22 seconds/page, 100 pages would take around
 37 minutes and 300 around 110 minutes: a linear projection, not a benchmark.
 
-# Boundaries and measurement
+# Boundaries and measurement in the earlier reconciliation path
 
-`ComparisonRefreshProxy` is created once per transition run and shared by its page
-comparators. Its cache holds parsed raw reconciliation responses keyed by the
+`ComparisonRefreshProxy` was created once per transition run and shared by its
+page comparators. Its cache holds parsed raw reconciliation responses keyed by the
 exact request URL, including query, type, endpoint and structured region
 constraints. Valid empty results are reused. Responses are copied; per-page
 filtering and self-link exclusion still run separately. A new run gets a new
@@ -194,15 +206,13 @@ differences are retained. The final run-publication gate still checks its lease
 and configuration digest. These checkpoints do not forcibly interrupt arbitrary
 Ruby DSL code inside a single step.
 
-Each source artifact now records separate extraction and formatting times for
-both sides. Export phase evidence holds a `performance` snapshot containing
-phase durations, reconciliation request/reuse/error counts, HTTP duration and the
-ten slowest sources. A single `distillator.transition.performance` log entry
-summarizes the run. The pinned report shows this under collapsed **Where time was
-spent**. Formatting and reconciliation timings overlap; they must not be added
-together as independent totals. No migration is needed.
+Each source artifact records separate extraction and formatting times for both
+sides. Export phase evidence holds a `performance` snapshot with phase durations
+and the ten slowest sources. A single `distillator.transition.performance` log
+entry summarizes the run. The pinned report shows this under **Where time was
+spent**. Older reports retain reconciliation request, reuse, error, and HTTP
+timings. Their HTTP timing is part of formatting time.
 
-After deployment, rerun Petit Théâtre with All + Strict, inspect the runtime
-breakdown and then assess a larger site. Check request counts and extraction time
-before adding concurrency; increasing worker load without removing duplicate
-requests would amplify calls to Artsdata and consume more database connections.
+Use the phase and source timings to diagnose slow checks. A new Le Patriote
+Thorough check can verify its Event type values and measure the effect of
+removing downstream reconciliation from parity.

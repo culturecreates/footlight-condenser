@@ -13,7 +13,7 @@
           <div class="transition-values">
             <% { "Wringer" => :legacy, "Condenser" => :condenser }.each do |label, side| %>
               <div><strong><%= label %></strong>
-                <span class="transition-secondary">HTML input · evaluated by the local Condenser DSL engine</span>
+                <span class="transition-secondary">HTML input · evaluated by the local Condenser DSL engine<%= " · before reconciliation" if @presentation.before_reconciliation? %></span>
                 <pre><%= shadow_report_recorded_value(entry, side) %></pre>
                 <% if entry["#{side}_error"].present? %><p class="transition-extraction-error"><strong>Extraction error:</strong> <%= entry["#{side}_error"].to_json %></p><% end %>
               </div>

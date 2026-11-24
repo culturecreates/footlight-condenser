@@ -15,7 +15,7 @@ class Distillator::TransitionReportLayoutTest < ActionDispatch::IntegrationTest
   end
 
   test "ready report has one decision three checks and closed supporting details" do
-    run = completed_run
+    run = completed_run(value_stage: "before_reconciliation")
     assert_no_difference ["Statement.count", "Distillator::TransitionRun.count", "Distillator::RolloutEvent.count"] do
       get distillator_shadow_report_site_path(@website)
     end
@@ -25,6 +25,7 @@ class Distillator::TransitionReportLayoutTest < ActionDispatch::IntegrationTest
     assert_select '.transition-check-results > li', count: 3
     assert_select '.transition-check-results .transition-result--passed', count: 3
     assert_select '[data-check="statement_delta"]', text: /Selected sources only, in Standard and Strict modes/
+    assert_select '[data-check="statement_delta"]', text: /Values are compared before Artsdata reconciliation/
     assert_select '[data-check="export_diff"]', text: /stored data in this environment; separate from fresh extraction coverage/
     assert_select '.transition-completed-context', text: /Completed transition run:\s*##{run.id}/
     assert_select '#transition-checked-scope:not([open]), #transition-report-audit:not([open]), #transition-url-diagnostics:not([open]), #transition-recorded-fetches:not([open])', count: 4
@@ -197,7 +198,7 @@ class Distillator::TransitionReportLayoutTest < ActionDispatch::IntegrationTest
 
   private
 
-  def completed_run(missing_wringer: false, findings: false)
+  def completed_run(missing_wringer: false, findings: false, value_stage: nil)
     run = Distillator::TransitionRun.request!(website: @website, options: { sample_mode: "all", strictness: "strict" }).run
     run.execute do
       scope = { representative_webpages: [@url, @other_url], representative_webpage_count: 2,
@@ -226,7 +227,8 @@ class Distillator::TransitionReportLayoutTest < ActionDispatch::IntegrationTest
       state = findings ? "failed" : missing_wringer ? "pending" : "checked"
       run.transition_evidences.create!(website: @website, url: @url, check_kind: "statement_delta", status: state,
         statement_count_delta_acceptable: state == "checked", checked_at: Time.current,
-        details: scope.merge(source: "paired_extraction", comparison_basis: "paired_dsl", reason: findings ? "strict_statement_parity_failed" : missing_wringer ? "partial_fetch_failed_before_statement_refresh" : "paired_statements_match",
+        details: scope.merge(source: "paired_extraction", comparison_basis: "paired_dsl", value_stage: value_stage,
+          reason: findings ? "strict_statement_parity_failed" : missing_wringer ? "partial_fetch_failed_before_statement_refresh" : "paired_statements_match",
           compared_webpage_count: missing_wringer ? 1 : 2, statement_artifacts: artifacts,
           statements_compared_count: artifacts.length, critical_statements_failed_count: findings ? 2 : 0,
           representative_url_statement_results: [

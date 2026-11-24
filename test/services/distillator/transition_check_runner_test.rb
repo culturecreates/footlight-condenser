@@ -246,6 +246,9 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     website = build_website(with_webpage: false)
     cache = create_cache(website, signals: { "transport_success" => true, "content_success" => true })
     create_selected_statement(website.webpages.first, status: "ok")
+    website.sources.joins(:property).find_by!(properties: { label: "Location" })
+      .property.update!(value_datatype: "xsd:anyURI", expected_class: "Place")
+    HTTParty.expects(:get).never
     export_json = '[{"@id":"event:1","name":"Title"}]'
 
     result = Distillator::TransitionCheckRunner.new(
@@ -266,7 +269,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     performance = result.records[:export_diff].details.fetch("performance")
     assert_equal %w[export fetch selection statements], performance.fetch("phases_ms").keys.sort
     assert_operator performance["total_ms"], :>=, 0
-    assert_equal 0, performance.dig("reconciliation", "http_requests")
+    refute performance.key?("reconciliation")
     assert performance["slowest_sources"].any?
     assert_equal cache.normalized_url, result.records[:fetch_parity].url
     assert_equal 0, result.records[:statement_delta].statement_delta
@@ -277,6 +280,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal ["https://runner-site.example/event"], result.records[:statement_delta].details["representative_webpages"]
     assert_equal 0, result.records[:statement_delta].details["statements_refreshed_count"]
     assert_equal "paired_dsl", result.records[:statement_delta].details["comparison_basis"]
+    assert_equal "before_reconciliation", result.records[:statement_delta].details["value_stage"]
     assert_operator result.records[:statement_delta].details["statements_compared_count"], :>, 0
     assert_empty result.records[:statement_delta].details["statement_artifacts"]
     refute_includes result.records[:fetch_parity].details["representative_url_results"].first.keys, "html_pair"

@@ -86,7 +86,7 @@ module Distillator
       end
       @statement_comparator = statement_comparator
       @website = website.is_a?(Website) ? website : Website.find(website)
-      @refresh_helper = refresh_helper
+      @refresh_helper = refresh_helper || StatementsHelper.build_refresh_proxy(cookies: {})
       @memory = memory
       @export_service = export_service
       @transition_check_service = transition_check_service
@@ -118,16 +118,7 @@ module Distillator
       ActiveRecord::Base.uncached do
         Tempfile.create("distillator-html", anonymous: true, binmode: true) do |file|
           @snapshot_file = file
-          if @refresh_helper
-            perform_checks_with_snapshots
-          else
-            Tempfile.create("distillator-reconciliation", anonymous: true, binmode: true) do |responses|
-              @refresh_helper = Distillator::ComparisonRefreshProxy.new(cookies: {}, response_file: responses)
-              perform_checks_with_snapshots
-            ensure
-              @refresh_helper = nil
-            end
-          end
+          perform_checks_with_snapshots
         end
       end
     ensure
@@ -204,7 +195,7 @@ module Distillator
         scope: scope,
         fetch: inputs.map { |row| serializable_representative_url_result(row).merge(cache: row[:cache]&.to_h) },
         rows: parity.url_results, artifacts: parity.artifacts, comparison_count: parity.comparison_count, timings: parity.timings,
-        phases_ms: @phase_timings, reconciliation: reconciliation_performance
+        phases_ms: @phase_timings
       })
       @memory.record(run_id: transition_run.id, phase: "checkpoint_saved", completed: offset + batch.length,
         total: webpages.length, profile: { html_snapshot_bytes: @snapshot_file.size }, enforce_limit: false)
@@ -225,7 +216,6 @@ module Distillator
       artifacts = []
       count = 0
       timings = {}
-      @checkpoint_reconciliation = {}
       checkpoints.reorder(nil).find_each(batch_size: 1) do |checkpoint|
         @cancellation_check&.call
         payload = checkpoint.payload
@@ -251,15 +241,14 @@ module Distillator
           %i[executions extraction_ms formatting_ms].each { |key| timing[key] += data.fetch(key.to_s) }
         end
         payload.fetch("phases_ms").each { |phase, time| @phase_timings[phase] = @phase_timings.fetch(phase, 0) + time }
-        @checkpoint_reconciliation = sum_metrics(@checkpoint_reconciliation, payload.fetch("reconciliation"))
       end
       parity = StatementParityCheck.summarize(rows: rows, artifacts: artifacts, comparison_count: count,
         timings: timings, strict: @check_options.strict?)
       @representative_url_results = inputs
-      finish_checks(check, webpages, inputs, started, parity: parity)
+      finish_checks(check, webpages, inputs, started, parity: parity, checkpointed: true)
     end
 
-    def finish_checks(transition_check, representative_webpages, representative_url_results, started, parity: nil)
+    def finish_checks(transition_check, representative_webpages, representative_url_results, started, parity: nil, checkpointed: false)
       @cancellation_check&.call
       records = {
         fetch_parity: record_fetch_check(transition_check, representative_url_results),
@@ -268,7 +257,9 @@ module Distillator
       }
       transition_run&.record_progress!("completed", completed: representative_webpages.length, total: representative_webpages.length)
       @memory.record(run_id: transition_run.id, phase: "finalizing")
-      performance = performance_snapshot(records, started)
+      elapsed = checkpointed ? Time.current - transition_run.started_at : Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+      performance = { total_ms: (elapsed * 1000).round(2), phases_ms: @phase_timings.dup,
+        slowest_sources: Array(records[:statement_delta].details["slowest_sources"]) }
       records[:export_diff].update!(details: records[:export_diff].details.merge("performance" => performance))
       Rails.logger.info(event: "distillator.transition.performance", website_id: website.id, run_id: transition_run&.id, performance: performance)
       Result.new(website: website, records: records)
@@ -286,7 +277,6 @@ module Distillator
         profile = { paired_dsl_ms: rows.sum { |row| row[:extraction_ms] }.round(2),
           formatting_ms: rows.sum { |row| row[:formatting_ms] }.round(2),
           source_executions: rows.sum { |row| row[:executions] } }
-        profile[:reconciliation] = refresh_helper.reconciliation_performance if refresh_helper.respond_to?(:reconciliation_performance)
       end
       @memory.record(run_id: transition_run.id, phase: phase, completed: completed, total: total,
         sample: sample, profile: profile)
@@ -301,24 +291,6 @@ module Distillator
     ensure
       elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round(2)
       @phase_timings[name] = (@phase_timings.fetch(name, 0) + elapsed_ms).round(2)
-    end
-
-    def performance_snapshot(records, started)
-      elapsed = @checkpoint_reconciliation ? Time.current - transition_run.started_at : Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
-      { total_ms: (elapsed * 1000).round(2),
-        phases_ms: @phase_timings.dup,
-        reconciliation: @checkpoint_reconciliation || reconciliation_performance,
-        slowest_sources: Array(records[:statement_delta].details["slowest_sources"]) }
-    end
-
-    def reconciliation_performance
-      refresh_helper.respond_to?(:reconciliation_performance) ? refresh_helper.reconciliation_performance : {}
-    end
-
-    def sum_metrics(totals, values)
-      totals.merge(values) do |_, left, right|
-        left.is_a?(Hash) ? sum_metrics(left, right) : left + right
-      end
     end
 
     def record_fetch_check(transition_check, representative_url_results)
@@ -356,7 +328,8 @@ module Distillator
         statement_delta: parity.critical_failures.length,
         statement_count_delta_acceptable: parity.status.in?(%i[checked warning]),
         details: scope_details(transition_check, representative_webpages).merge(
-          source: "paired_extraction", comparison_basis: "paired_dsl", reason: parity.reason,
+          source: "paired_extraction", comparison_basis: "paired_dsl", value_stage: StatementParityCheck::VALUE_STAGE,
+          reason: parity.reason,
           representative_url_statement_results: parity.url_results,
           statement_artifacts: parity.artifacts,
           statements_compared_count: parity.comparison_count, statements_refreshed_count: 0,

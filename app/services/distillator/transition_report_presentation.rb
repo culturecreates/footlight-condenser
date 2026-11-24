@@ -13,6 +13,10 @@ module Distillator
       detail.completed_transition_status
     end
 
+    def before_reconciliation?
+      detail.transition_evidence_by_kind["statement_delta"]&.details&.dig("value_stage") == StatementParityCheck::VALUE_STAGE
+    end
+
     def checks
       [
         { key: "fetch_parity", label: "Fresh fetch parity", state: fetch_state },

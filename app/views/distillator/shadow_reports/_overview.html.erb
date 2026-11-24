@@ -95,6 +95,9 @@
           <% elsif check[:key] == "statement_delta" %>
             <p class="transition-secondary">Selected sources only, in Standard and Strict modes.
               <% unless fetches.compared.nil? %>Pages compared: <%= fetches.compared %>/<%= fetches.selected %>.<% end %></p>
+            <% if @presentation.before_reconciliation? %>
+              <p class="transition-secondary">Values are compared before Artsdata reconciliation. Reconciliation health is outside this check.</p>
+            <% end %>
           <% elsif check[:key] == "export_diff" %>
             <p class="transition-secondary">Serializer compatibility using stored data in this environment; separate from fresh extraction coverage.</p>
           <% end %>

@@ -39,7 +39,8 @@ module Distillator
         evidence = records.fetch(run.id, []).uniq(&:check_kind).index_by(&:check_kind)
         issues.concat(run_issues(evidence, run).map { |issue| issue.merge(run_id: run.id, phase: phase) })
         item.phase_results.fetch(phase, {}).slice("state", "fetch", "statements", "export")
-          .merge(phase: phase, run_id: run.id, status: run.status, event_inventory: inventory_summary(evidence["fetch_parity"])).compact
+          .merge(phase: phase, run_id: run.id, status: run.status, event_inventory: inventory_summary(evidence["fetch_parity"]),
+            statement_value_stage: evidence["statement_delta"]&.details&.dig("value_stage")).compact
       end
       if item.status == "recovery_failed" || (item.status == "attention" && issues.empty?)
         issues << { kind: "workflow", code: item.status, message: message(item.reason) }

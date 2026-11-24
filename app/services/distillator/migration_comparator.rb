@@ -81,6 +81,7 @@ module Distillator
       refresh_helper: nil,
       source_resolver: Statements::RefreshWebpageStatementsService,
       export_service: ExportArtsdataService,
+      before_reconciliation: false,
       stop_requested: nil
     )
       @website = website
@@ -91,9 +92,14 @@ module Distillator
       @condenser_fetch = condenser_fetch
       @default_language = default_language || website.default_language
       @sources = sources
-      @refresh_helper = refresh_helper || Distillator::ComparisonRefreshProxy.new(cookies: {})
+      @refresh_helper = refresh_helper || if before_reconciliation
+        StatementsHelper.build_refresh_proxy(cookies: {})
+      else
+        Distillator::ComparisonRefreshProxy.new(cookies: {})
+      end
       @source_resolver = source_resolver
       @export_service = export_service
+      @before_reconciliation = before_reconciliation
       @stop_requested = stop_requested
     end
 
@@ -127,7 +133,7 @@ module Distillator
       artifacts = []
       @parsed_documents = {}
       resolved_sources.sort_by { |source| [source.property_id.to_i, source.id.to_i] }.each do |source|
-        artifacts << if refresh_helper.respond_to?(:with_reconciliation_pair)
+        artifacts << if !@before_reconciliation && refresh_helper.respond_to?(:with_reconciliation_pair)
           refresh_helper.with_reconciliation_pair(source) { compare_source(source) }
         else
           compare_source(source)
@@ -250,13 +256,23 @@ module Distillator
       end
       return { value: nil, error: raw.second.to_h, timing: timing } if abort_structure?(raw)
 
+      linked_data_input = false
       formatted = timed_stage(timing, :formatting_ms) do
         raise BudgetExceeded, "Comparison deadline reached" if @stop_requested&.call
-        refresh_helper.format_datatype(raw, source.property, webpage, statement_status: "initial")
+        if @before_reconciliation
+          refresh_helper.format_datatype(raw, source.property, webpage, statement_status: "initial") do |term|
+            linked_data_input = true
+            # Use the same whitespace normalization as search_everywhere.
+            # Preserve characters that could change the lookup result.
+            term.to_s.squish
+          end
+        else
+          refresh_helper.format_datatype(raw, source.property, webpage, statement_status: "initial")
+        end
       end
       return { value: nil, error: formatted.second.to_h, timing: timing } if abort_structure?(formatted)
 
-      normalized_value = normalize_statement_value(formatted)
+      normalized_value = linked_data_input ? formatted : normalize_statement_value(formatted)
       { value: blank_value?(normalized_value) ? nil : normalized_value, error: nil, timing: timing }
     rescue BudgetExceeded, TransitionRun::Cancelled
       raise
@@ -291,15 +307,11 @@ module Distillator
         return SHARED_EXTRACTION_ERROR
       end
       return PARSE_ERROR if legacy[:error].present? || condenser[:error].present?
-      return MATCH if normalized_statement_value_equal?(legacy[:value], condenser[:value])
+      return MATCH if legacy[:value] == condenser[:value]
       return MISSING_STATEMENT if blank_value?(condenser[:value]) && !blank_value?(legacy[:value])
       return EXTRA_STATEMENT if blank_value?(legacy[:value]) && !blank_value?(condenser[:value])
 
       DIFFERENT_VALUE
-    end
-
-    def normalized_statement_value_equal?(left, right)
-      normalize_statement_value(left) == normalize_statement_value(right)
     end
 
     def normalize_statement_value(value)

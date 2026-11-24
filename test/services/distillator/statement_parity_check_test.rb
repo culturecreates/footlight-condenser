@@ -46,7 +46,7 @@ class Distillator::StatementParityCheckTest < ActiveSupport::TestCase
     assert_equal 1, result.artifacts.count { |entry| entry[:verdict] == "SHARED_EXTRACTION_ERROR" }
   end
 
-  test "a one-sided reconciliation error makes the check inconclusive while a verified difference still blocks" do
+  test "a reconciliation error inside the DSL is inconclusive while a verified difference still blocks" do
     @sources["Price"].update!(algorithm_value: <<~DSL)
       xpath=//span[@id='price']/text();
       ruby=$array == ["30"] ? ["abort_update", {error: "Artsdata timed out", error_type: "LinkedDataLookupError"}] : $array
@@ -63,6 +63,34 @@ class Distillator::StatementParityCheckTest < ActiveSupport::TestCase
     result = compare(html(title: "Different"), with_failure, strict: true)
     assert_equal :failed, result.status
     assert_equal ["Title"], result.critical_failures.pluck(:property_label)
+  end
+
+  test "linked data terms are compared in order without reconciliation" do
+    @sources["Price"].property.update!(label: "Event type", value_datatype: "xsd:anyURI", expected_class: "EventType")
+    @sources["Price"].update!(algorithm_value: "xpath=//span[@class='event-type']/text()")
+    @helper.expects(:search_for_uri).never
+    left = html + "<span class='event-type'>Chanson</span><span class='event-type'>Conte et arts de la parole</span>"
+    equivalent = left.sub("Conte et arts", "Conte  et arts")
+    changed = left.sub("Chanson</span><span class='event-type'>Conte et arts de la parole",
+      "Conte et arts de la parole</span><span class='event-type'>Chanson")
+
+    matched = compare(left, equivalent, strict: true)
+    assert_equal :checked, matched.status
+    assert_equal ["Chanson", "Conte et arts de la parole"], matched.artifacts.find { |entry| entry[:property_label] == "Event type" }[:legacy]
+    failed = compare(left, changed, strict: true)
+    assert_equal :failed, failed.status
+    assert_equal ["Conte et arts de la parole", "Chanson"], failed.critical_failures.sole[:condenser]
+    assert_equal :warning, compare(left, changed).status
+  end
+
+  test "matching missing linked data still fails for a required field" do
+    @sources["Location"].property.update!(value_datatype: "xsd:anyURI", expected_class: "Place")
+    @helper.expects(:search_for_uri).never
+    blank_location = html.sub("Hall", "")
+
+    result = compare(blank_location, blank_location, strict: true)
+    assert_equal :failed, result.status
+    assert_equal "MISSING_STATEMENT", result.critical_failures.sole[:verdict]
   end
 
   test "standard and strict ignore an unselected alternative Dates source and its rendering profile" do

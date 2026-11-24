@@ -3,6 +3,7 @@ require "digest"
 module Distillator
   class StatementParityCheck
     DIAGNOSTIC_BYTES = 1024
+    VALUE_STAGE = "before_reconciliation".freeze
     Result = Struct.new(:status, :reason, :artifacts, :url_results, :critical_failures, :optional_failures,
       :comparison_count, :slowest_sources, :timings, keyword_init: true)
 
@@ -33,7 +34,7 @@ module Distillator
         comparison = begin
           comparator.new(website: website, webpage: page, legacy_html: legacy,
             condenser_html: condenser, sources: sources, refresh_helper: refresh_helper,
-            stop_requested: stop_requested).compare_statements
+            before_reconciliation: true, stop_requested: stop_requested).compare_statements
         rescue MigrationComparator::BudgetExceeded => error
           interrupted = true
           MigrationComparator::StatementComparison.new(artifacts: Array(error.artifacts))

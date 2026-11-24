@@ -803,7 +803,7 @@ module StatementsHelper
               scraped_data.each do |uri_string|
                 if uri_string.present? && !uri_string.include?("error:")# Do not try to link URIs with empty strings or errors
                   # TODO: Only reconcile location if original cache "based on:" text changed
-                  linked_data = search_for_uri(uri_string, property, webpage)
+                  linked_data = block_given? ? yield(uri_string) : search_for_uri(uri_string, property, webpage)
                   return linked_data if abort_update_structure?(linked_data)
 
                   data << linked_data
