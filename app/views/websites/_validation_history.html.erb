@@ -6,9 +6,10 @@
             aria: { current: (@validation_profile || "all") == profile ? "page" : nil } %>
     <% end %>
   </nav>
-  <% if @validation_workflows.empty? %>
-    <p>No workflows in this view.</p>
-  <% else %>
+  <% if @validation_workflows.empty? && @site_check_passes.empty? %>
+    <p>No validation passes or workflows in this view.</p>
+  <% end %>
+  <% if @validation_workflows.any? %>
     <div class="operator-table-scroll" role="region" aria-label="Validation workflows" tabindex="0">
       <table class="cache-table">
         <thead><tr><th scope="col">Date</th><th scope="col">Profile</th><th scope="col">Result</th><th scope="col">Shadow check</th><th scope="col">Active check</th><th scope="col">Serving mode</th></tr></thead>
@@ -28,5 +29,14 @@
         </tbody>
       </table>
     </div>
+  <% end %>
+  <% if @site_check_passes.any? %>
+    <h3>Passed site-screen checks</h3>
+    <ul>
+      <% @site_check_passes.each do |pass| %>
+        <li><%= link_to "#{pass.profile.humanize} · #{l(pass.completed_at.to_date, format: :long)} · Check ##{pass.site_check.id}",
+                        distillator_shadow_report_site_path(@website, run_id: pass.site_check.id) %></li>
+      <% end %>
+    </ul>
   <% end %>
 </details>

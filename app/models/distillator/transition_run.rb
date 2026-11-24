@@ -77,6 +77,17 @@ module Distillator
       end
     end
 
+    def record_discovery_at_start!(scope_at)
+      return if progress.key?("discovery_at_start")
+
+      inventory = WebsiteInventoryFreshness.for_websites([website_id], as_of: scope_at).fetch(website_id)
+      with_lock do
+        raise ConfigurationChanged, "Check stopped before discovery evidence was recorded." unless status == "running"
+
+        update!(progress: progress.merge("discovery_at_start" => inventory.fetch(:status)))
+      end
+    end
+
     def inventory_evidence_expired?
       return false unless status == "completed"
 

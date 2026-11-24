@@ -33,13 +33,20 @@
 
   <div class="harmonized-table-shell">
     <nav class="website-rollout-summary" aria-label="Website rollout filters">
-      <% all_params = @filters.except(:distillator_mode).merge(sort: @current_sort, direction: @current_direction).compact %>
-      <%= link_to "All modes: #{@rollout_counts.values.sum}", websites_path(all_params), class: "website-rollout-summary-item", aria: { current: @filters[:distillator_mode].blank? ? "page" : nil } %>
+      <% milestone_selected = @filters[:validation].in?(%w[ready migrated])
+         mode_filters = milestone_selected ? @filters.except(:validation) : @filters
+         all_params = mode_filters.except(:distillator_mode).merge(sort: @current_sort, direction: @current_direction).compact %>
+      <%= link_to "All modes: #{@rollout_counts.values.sum}", websites_path(all_params), class: "website-rollout-summary-item",
+            aria: { current: @filters[:distillator_mode].blank? && !milestone_selected ? "page" : nil } %>
       <% website_rollout_summary_items.each do |item| %>
         <% next if item[:mode].in?(%w[unknown invalid_on_staging]) && website_rollout_count(item[:mode], @rollout_counts).zero? && @filters[:distillator_mode] != item[:mode] %>
         <span class="website-rollout-summary-item">
-          <%= website_rollout_summary_link(mode: item.fetch(:mode), label: item.fetch(:label), rollout_counts: @rollout_counts, current_sort: @current_sort, current_direction: @current_direction, current_filters: @filters) %>
+          <%= website_rollout_summary_link(mode: item.fetch(:mode), label: item.fetch(:label), rollout_counts: @rollout_counts, current_sort: @current_sort, current_direction: @current_direction, current_filters: mode_filters) %>
         </span>
+      <% end %>
+      <% %w[ready migrated].each do |milestone| %>
+        <%= link_to milestone.humanize, websites_path(all_params.merge(validation: milestone)), class: "website-rollout-summary-item website-rollout-summary-link",
+              aria: { current: @filters[:validation] == milestone ? "page" : nil } %>
       <% end %>
     </nav>
 

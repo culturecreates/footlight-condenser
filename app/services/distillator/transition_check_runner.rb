@@ -141,6 +141,9 @@ module Distillator
       check_args[:check_options] = @check_options unless @check_options.default?
       check_args[:sample_run] = transition_run if @check_options.default?
       transition_check = timed_phase("selection") { transition_check_service.call(**check_args) }
+      if @check_options.strict? && !@check_options.include_retired? && inventory_details(transition_check)&.fetch(:status) == "active_event_scope"
+        transition_run.record_discovery_at_start!(check_args.fetch(:scope_at))
+      end
       representative_webpages = Array(transition_check.representative_webpages)
       if transition_run.resumable? && (representative_webpages.length > CHECKPOINT_BATCH_SIZE || transition_run.transition_checkpoints.exists?)
         return perform_checkpoint_batch(transition_check, representative_webpages, started)

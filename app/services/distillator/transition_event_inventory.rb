@@ -109,7 +109,7 @@ module Distillator
       end
 
       refreshed_at = timestamps.min
-      metadata = metadata.merge(refreshed_at: refreshed_at.iso8601, count: url_keys.size)
+      metadata = metadata.merge(refreshed_at: refreshed_at.iso8601, refresh_completed_at: timestamps.max.iso8601(6), count: url_keys.size)
       if changed_at && refreshed_at < changed_at
         return metadata.merge(reason: "list_configuration_changed")
       end

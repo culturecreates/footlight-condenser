@@ -10,6 +10,10 @@ module Distillator
       "latest_failed" => "Latest validation needs attention"
     }.freeze
 
+    READY_THOROUGH_PASSES = 2
+    MIGRATED_THOROUGH_PASSES = 2 * READY_THOROUGH_PASSES
+    Pass = Struct.new(:profile, :completed_at, :runs, :workflow, :site_check, keyword_init: true)
+
     Summary = Struct.new(:light, :thorough, :audit, :last_pass, :last_validation, :changed, :covered, :eligible, :milestone, keyword_init: true) do
       def matches?(filter)
         case filter
@@ -18,7 +22,9 @@ module Distillator
         when "thorough_passed" then thorough.positive?
         when "ready", "migrated" then milestone == filter
         when "changed_since_pass" then changed
-        when "latest_failed" then last_validation&.status.in?(%w[attention recovery_failed])
+        when "latest_failed"
+          last_validation&.status.in?(%w[attention recovery_failed]) &&
+            !(last_pass&.site_check && last_validation.completed_at && last_pass.completed_at > last_validation.completed_at)
         else true
         end
       end
@@ -29,11 +35,38 @@ module Distillator
         .order(Arel.sql("completed_at DESC NULLS LAST"), id: :desc)
     end
 
-    def self.for_websites(websites)
+    def self.site_check_passes(websites)
+      by_website = websites.index_by(&:id)
+      workflow_items = SiteTransition.where(website_id: by_website.keys)
+      checked_exports = TransitionEvidence.where(website_id: by_website.keys, check_kind: "export_diff",
+        status: "checked", export_diff_checked: true).select(:transition_run_id)
+      TransitionRun.current_checks.completed.where(website_id: by_website.keys).where.not(completed_at: nil)
+        .where(id: checked_exports)
+        .where.not(id: workflow_items.where.not(pre_run_id: nil).select(:pre_run_id))
+        .where.not(id: workflow_items.where.not(post_run_id: nil).select(:post_run_id))
+        .includes(:transition_evidences).order(completed_at: :desc, id: :desc).filter_map do |run|
+          profile = site_check_profile(run)
+          next unless profile
+
+          verdict = TransitionStatus.for_completed_run(website: by_website.fetch(run.website_id), run: run)
+          next unless verdict.status == :ready && [verdict.fetch, verdict.statements, verdict.export].all?(:passed)
+
+          Pass.new(profile: profile, completed_at: run.completed_at, runs: [run], site_check: run)
+        end
+    end
+
+    def self.for_websites(websites, inventories: {})
       items = workflows(websites.map(&:id)).where(status: SiteTransition::TERMINAL).to_a.group_by(&:website_id)
       validations = items.transform_values { |rows| rows.reject { |row| row.batch.audit? } }
-      passes = validations.transform_values { |rows| rows.select { |row| row.status == "passed" } }
-      run_ids = passes.values.flatten.flat_map { |row| [row.pre_run_id, row.post_run_id] }.compact
+      passes = validations.transform_values do |rows|
+        rows.select { |row| row.status == "passed" }.map do |row|
+          Pass.new(profile: row.batch.check_profile, completed_at: row.completed_at, runs: coverage_runs(row), workflow: row)
+        end
+      end
+      site_check_passes(websites).each do |pass|
+        (passes[pass.site_check.website_id] ||= []) << pass
+      end
+      run_ids = passes.values.flatten.flat_map { |pass| pass.runs.map(&:id) }
       evidence = TransitionEvidence.where(transition_run_id: run_ids, check_kind: "fetch_parity").latest_first.pluck(
         :transition_run_id, Arel.sql("details -> 'validation_coverage'"),
         Arel.sql("details -> 'representative_webpages'"), Arel.sql("details ->> 'fetch_basis'")
@@ -44,23 +77,22 @@ module Distillator
 
       websites.to_h do |website|
         passed = passes.fetch(website.id, [])
-        counts = passed.map { |row| row.batch.check_profile }.tally
-        last = passed.first
+        counts = passed.map(&:profile).tally
+        last = passed.max_by { |pass| pass.completed_at || Time.at(0) }
         summary = Summary.new(light: counts.fetch("light", 0), thorough: counts.fetch("thorough", 0),
           audit: items.fetch(website.id, []).count { |row| row.batch.audit? && row.status == "passed" },
           last_pass: last, last_validation: validations.fetch(website.id, []).first)
-        summary.milestone = milestone(website, summary.thorough)
+        summary.milestone = milestone(website, passed, inventories[website.id])
         if last
           pages = eligible_pages.fetch(website.id, [])
           current_digest, configuration = TransitionFingerprint.for_validation_history(website, library_version: library_version)
           page_digests = pages.to_h { |page| [page.id.to_s, TransitionFingerprint.event_page(page)] }
           summary.eligible = pages.size
-          summary.covered = passed.flat_map do |item|
-            runs = coverage_runs(item)
-            runs.map { |run| covered_pages(run, evidence, pages, page_digests, configuration, current_digest) }
+          summary.covered = passed.flat_map do |pass|
+            pass.runs.map { |run| covered_pages(run, evidence, pages, page_digests, configuration, current_digest) }
               .reduce(:&) || []
           end.uniq.size
-          if (run = last.post_run || last.pre_run)
+          if (run = last.runs.last || last.workflow&.post_run || last.workflow&.pre_run)
             recorded_configuration = evidence.dig(run.id, 0, "configuration")
             summary.changed = run.configuration_digest != current_digest ||
               (recorded_configuration.present? && recorded_configuration != configuration)
@@ -70,11 +102,41 @@ module Distillator
       end
     end
 
-    def self.milestone(website, thorough_passes)
-      return unless website.distillator_mode == "active" && WebsiteIndexGroups.category(website) == :scheduled
-      return unless thorough_passes.positive?
+    def self.site_check_profile(run)
+      fetch = run.transition_evidences.find { |row| row.check_kind == "fetch_parity" }
+      details = fetch&.details.to_h
+      return unless details["fetch_basis"] == "fresh_both" && details.dig("event_inventory", "status") == "active_event_scope"
 
-      thorough_passes >= 2 ? "migrated" : "ready"
+      checked = details["representative_webpage_count"].to_i
+      return unless checked.positive?
+
+      options = run.options
+      return "light" if options.default?
+      return unless options.strict? && options.sample_mode.in?(%w[all count])
+
+      "thorough" if checked == details["publishable_event_page_count"].to_i
+    end
+
+    def self.milestone(website, passes, inventory)
+      return unless website.distillator_mode == "active" && WebsiteIndexGroups.category(website) == :scheduled
+      return unless inventory&.dig(:status) == "confirmed_discovery" && inventory[:verified_list_refresh_at].present?
+
+      refreshed_at = Time.iso8601(inventory.fetch(:verified_list_refresh_at))
+      thorough_passes = passes.count do |pass|
+        pass.profile == "thorough" && pass.runs.any? && pass.runs.all? { |run| verified_before_check?(run, refreshed_at) }
+      end
+      return "migrated" if thorough_passes >= MIGRATED_THOROUGH_PASSES
+
+      "ready" if thorough_passes >= READY_THOROUGH_PASSES
+    end
+
+    def self.verified_before_check?(run, refreshed_at)
+      if run.progress.key?("discovery_at_start")
+        run.progress["discovery_at_start"] == "confirmed_discovery"
+      else
+        started_at = run.started_at || run.requested_at
+        refreshed_at <= started_at && refreshed_at >= started_at - TransitionEventInventory::MAX_LIST_AGE
+      end
     end
 
     def self.coverage_runs(item)
@@ -99,6 +161,6 @@ module Distillator
         []
       end
     end
-    private_class_method :milestone, :coverage_runs, :covered_pages
+    private_class_method :site_check_profile, :milestone, :verified_before_check?, :coverage_runs, :covered_pages
   end
 end

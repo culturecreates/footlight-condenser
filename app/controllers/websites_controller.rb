@@ -124,12 +124,17 @@ class WebsitesController < ApplicationController
     end
 
     @transition_eligible_ids = Distillator::EventSiteSelection.eligible_ids(@websites)
+    website_rows = @websites.to_a
+    if request.format.html? || @filters[:validation] || params[:inventory_freshness] == "true"
+      inventories = Distillator::WebsiteInventoryFreshness.for_websites(website_rows.map(&:id))
+      @inventory_freshness = inventories if request.format.html? || params[:inventory_freshness] == "true"
+    end
     if request.format.html? || @filters[:validation]
-      @validation_summaries = Distillator::WebsiteValidationHistory.for_websites(@websites.to_a)
+      @validation_summaries = Distillator::WebsiteValidationHistory.for_websites(website_rows, inventories: inventories)
       if @filters[:validation]
-        @websites = @websites.to_a.select do |site|
+        @websites = website_rows.select do |site|
           summary = @validation_summaries.fetch(site.id)
-          (@transition_eligible_ids.include?(site.id) || summary.last_validation) && summary.matches?(@filters[:validation])
+          (@transition_eligible_ids.include?(site.id) || summary.last_validation || summary.last_pass) && summary.matches?(@filters[:validation])
         end
         @transition_eligible_ids &= @websites.map(&:id)
       end
@@ -146,9 +151,6 @@ class WebsitesController < ApplicationController
     @statements_updated_24hr = Statement.joins(webpage: :website).where(cache_changed: [(Time.zone.now - 24.hours)..(Time.zone.now)]).group(:seedurl).count
     website_ids = Array(@websites).map(&:id)
     @webpage_summaries = Distillator::WebsiteWebpageSummary.for_websites(website_ids)
-    if request.format.html? || params[:inventory_freshness] == "true"
-      @inventory_freshness = Distillator::WebsiteInventoryFreshness.for_websites(website_ids)
-    end
     @flags = Statement.joins(webpage: :website).where(status: ["problem"], selected_individual: true, webpages: { rdfs_class_id: 1}).group(:seedurl).count
     @updated = Statement.joins(webpage: :website).where(status: "updated", selected_individual: true, webpages: { rdfs_class_id: 1}).group(:seedurl).count
 
@@ -194,6 +196,9 @@ class WebsitesController < ApplicationController
 
     @validation_workflows = Distillator::WebsiteValidationHistory.workflows([@website.id]).to_a
     @validation_profile = params[:validation_profile].presence_in(%w[all light thorough audit])
+    @site_check_passes = Distillator::WebsiteValidationHistory.site_check_passes([@website]).select do |pass|
+      @validation_profile.in?([nil, "all", pass.profile])
+    end
     if @validation_profile && @validation_profile != "all"
       @validation_workflows.select! do |item|
         (item.batch.audit? ? "audit" : item.batch.check_profile) == @validation_profile

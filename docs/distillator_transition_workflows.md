@@ -38,15 +38,21 @@ Thorough and submit to start a new validation. Website modes are checked again
 when submitting.
 
 The Websites dashboard counts each successful validation workflow once under
-its profile. Active audit passes have their own count. The validation filters
+its profile. A successful check run from a website also counts as Light if it
+used the default sample and Standard field comparison. It counts as Thorough
+if it used Strict field comparison and covered every eligible active event.
+The fetch, statement, and export checks must all pass. Active audit passes
+have their own count. The validation filters
 include sites with historical passes whose configuration has since changed or
 whose latest validation needs attention. Website details list workflow outcomes,
 serving modes, and links to each recorded phase.
 
-A passing Light workflow can put a site into Active serving mode. An Active,
-scheduled site earns **Ready** after one successful Thorough validation and
-**Migrated** after two. The Websites table highlights Ready rows in light
-green. Active audits are tracked separately.
+A passing validation workflow can put a site into Active serving mode.
+**Ready** requires an Active, scheduled site, currently verified ResourceLists,
+and two Thorough passes with verified lists at the start of the checks.
+**Migrated** applies the same conditions with four distinct Thorough passes.
+The Websites table highlights Ready rows in light green. Use the Ready and
+Migrated links to filter the table.
 
 Coverage is the number of distinct currently eligible pages checked in passing
 validations across both required phases. A page contributes while its recorded

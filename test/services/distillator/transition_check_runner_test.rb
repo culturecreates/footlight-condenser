@@ -814,6 +814,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
       fetch_cache_store: FakeFetchCacheStore.new(caches), cache_compare: FakeCacheCompare.new(legacy),
       export_service: FakeExportService.new(actual: '{"@id":"event:1"}', expected: '{"@id":"event:1"}'))
     assert_equal options.stringify_keys, website.latest_transition_run.check_options
+    assert_equal "no_discovery_lists", website.latest_transition_run.progress["discovery_at_start"]
     result.records.each_value { |record| assert_equal options.stringify_keys, record.details["check_options"] }
     statements = result.records[:statement_delta]
     assert_equal 2, statements.details["representative_webpage_count"]

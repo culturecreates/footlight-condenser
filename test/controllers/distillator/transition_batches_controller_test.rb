@@ -162,40 +162,63 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     end
   end
 
-  test "Ready and Migrated require both an Active site and a schedule" do
-    record_pass = ->(profile) do
-      batch = Distillator::TransitionBatch.request!(website_ids: [@two.id], request_key: SecureRandom.uuid, check_profile: profile)
-      batch.site_transitions.sole.update!(status: "passed", final_mode: "active", completed_at: Time.current)
-    end
+  test "site-screen passes count and migration milestones require verified discovery, scheduling, and Active mode" do
+    @two.update_columns(distillator_mode: "active", schedule_every_days: 1)
+    event = @two.webpages.sole
     row = "tr[data-website-id='#{@two.id}']"
+    light = complete_site_check(event, sample_mode: "default", strictness: "standard")
+    failed = complete_site_check(event, failed: true)
+    pre_refresh = complete_site_check(event)
 
-    record_pass.call("light")
-    @two.update_column(:distillator_mode, "active")
     get websites_path
-    assert_select "#{row} .rollout-badge-active", text: "Active"
+    assert_select "#{row} a", text: "Light 1×"
+    assert_select "#{row} a", text: "Thorough 1×"
     assert_select "#{row}[data-migration-state]", count: 0
+    assert_select ".website-rollout-summary a", text: "Ready"
+    assert_select ".website-rollout-summary a", text: "Migrated"
 
-    record_pass.call("thorough")
+    create_verified_resource_list(event)
+    batch = Distillator::TransitionBatch.request!(website_ids: [@two.id], request_key: SecureRandom.uuid)
+    pre, postcheck = Array.new(2) do
+      run = diagnostic_run(@two, check_options: batch.check_options)
+      run.update!(progress: { discovery_at_start: "confirmed_discovery" })
+      record_site_check_evidence(run, event)
+      run
+    end
+    batch.site_transitions.sole.update!(status: "passed", final_mode: "active", completed_at: Time.current, pre_run: pre, post_run: postcheck)
     get websites_path, params: { validation: "ready" }
     assert_select row, count: 0
 
-    @two.update_column(:schedule_every_days, 1)
+    partial = complete_site_check(event, sample_mode: "count", sample_size: 1, eligible: 2)
+    full = complete_site_check(event, sample_mode: "count", sample_size: 1)
     get websites_path, params: { validation: "ready" }
-    assert_select "#website-list-scheduled ~ .website-index-table-scroll #{row}[data-migration-state='ready'] .operator-status", text: "Ready"
+    assert_select ".website-rollout-summary a[aria-current='page']", text: "Ready"
+    assert_select "#{row}[data-migration-state='ready'] .operator-status", text: "Ready"
+    assert_select "#{row} a", text: "Thorough 3×"
 
-    record_pass.call("thorough")
+    get website_path(@two, validation_profile: "thorough")
+    assert_select "#website-validation-history a[href='#{distillator_shadow_report_site_path(@two, run_id: full.id)}']", text: /Check/
+    assert_select "#website-validation-history a[href='#{distillator_shadow_report_site_path(@two, run_id: pre_refresh.id)}']", text: /Check/
+    [light, failed, partial].each do |run|
+      assert_select "#website-validation-history a[href='#{distillator_shadow_report_site_path(@two, run_id: run.id)}']", count: 0
+    end
+
+    2.times { complete_site_check(event) }
     get websites_path, params: { validation: "migrated" }
-    assert_select "#website-list-scheduled ~ .website-index-table-scroll #{row}[data-migration-state='migrated'] .operator-status", text: "Migrated"
+    assert_select "#{row}[data-migration-state='migrated'] .operator-status", text: "Migrated"
+    assert_select "#{row} a", text: "Thorough 5×"
 
+    travel 49.hours do
+      get websites_path, params: { validation: "migrated" }
+      assert_select row, count: 0
+    end
     @two.update_column(:schedule_every_days, 0)
     get websites_path, params: { validation: "thorough_passed" }
-    assert_select "#{row} .rollout-badge-active", text: "Active"
     assert_select "#{row}[data-migration-state]", count: 0
 
-    @two.update_column(:schedule_every_days, 1)
-    @two.update_column(:distillator_mode, "shadow")
+    @two.update_columns(schedule_every_days: 1, distillator_mode: "shadow")
     get websites_path, params: { validation: "thorough_passed" }
-    assert_select "#{row} a", text: "Thorough 2×"
+    assert_select "#{row} a", text: "Thorough 5×"
     assert_select "#{row}[data-migration-state]", count: 0
   end
 
@@ -413,9 +436,48 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
 
   private
 
-  def diagnostic_run(website, status: "completed", error_message: nil)
+  def complete_site_check(event, failed: false, eligible: 1, **options)
+    options = { sample_mode: "all", strictness: "strict" }.merge(options)
+    post distillator_transition_checks_path, params: { website_id: event.website_id, check_options: options }
+    run = event.website.transition_runs.last
+    assert_redirected_to distillator_transition_check_path(run)
+    run.execute do
+      run.record_discovery_at_start!(run.started_at) if run.options.strict?
+      record_site_check_evidence(run, event, failed: failed, eligible: eligible)
+    end
+    run.reload
+  end
+
+  def record_site_check_evidence(run, event, failed: false, eligible: 1)
+    fetch_details = { fetch_basis: "fresh_both", event_inventory: { status: "active_event_scope" },
+      representative_webpage_count: 1, publishable_event_page_count: eligible, representative_webpages: [event.url] }
+    run.transition_evidences.create!(website: event.website, url: event.url, check_kind: "fetch_parity", status: "checked",
+      checked_at: run.completed_at || Time.current, details: fetch_details)
+    run.transition_evidences.create!(website: event.website, url: event.url, check_kind: "statement_delta",
+      status: failed ? "failed" : "checked", statement_count_delta_acceptable: !failed, checked_at: run.completed_at || Time.current)
+    run.transition_evidences.create!(website: event.website, url: event.url, check_kind: "export_diff",
+      status: "checked", export_diff_checked: true, checked_at: run.completed_at || Time.current)
+  end
+
+  def create_verified_resource_list(event)
+    list_class = RdfsClass.find_or_create_by!(name: "ResourceList")
+    page = event.website.webpages.create!(url: "#{event.url}/list", rdf_uri: "rdf:resource-list", rdfs_class: list_class)
+    {
+      AddWebpagesJob::RDF_CLASS_LABEL => "Event",
+      AddWebpagesJob::WEBPAGE_URL_LIST_LABEL => [event.url].to_json,
+      AddWebpagesJob::URI_LIST_LABEL => [event.rdf_uri].to_json
+    }.each do |label, cache|
+      property = Property.create!(rdfs_class: list_class, label: label, uri: "urn:inventory:#{label.parameterize}")
+      manual = label == AddWebpagesJob::RDF_CLASS_LABEL
+      source = event.website.sources.create!(property: property, selected: true, algorithm_value: manual ? "manual=#{cache}" : "xpath=//a")
+      page.statements.create!(source: source, cache: cache, status: "ok", selected_individual: true, manual: manual,
+        cache_refreshed: Time.current).update_column(:status, "ok")
+    end
+  end
+
+  def diagnostic_run(website, status: "completed", error_message: nil, check_options: {})
     website.transition_runs.create!(status: status, requested_at: 1.minute.ago, completed_at: Time.current,
-      configuration_digest: Distillator::TransitionFingerprint.call(website), error_message: error_message)
+      configuration_digest: Distillator::TransitionFingerprint.call(website), error_message: error_message, check_options: check_options)
   end
 
   def diagnostic_evidence(run, kind, **details)
