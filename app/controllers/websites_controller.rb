@@ -2,7 +2,7 @@ class WebsitesController < ApplicationController
   include FilterableIndex
   include SortableIndex
 
-  FILTER_KEYS = %i[q seed_filter default_language graph_name distillator_mode cohort view].freeze
+  FILTER_KEYS = %i[q seed_filter default_language graph_name distillator_mode cohort view validation retry_transition_batch_id].freeze
   INDEX_VIEWS = %w[all preferred].freeze
 
   before_action :set_website, only: [:show, :edit, :update, :destroy, :delete_all_statements, :activate_after_review, :activate_anyway, :preference]
@@ -42,6 +42,7 @@ class WebsitesController < ApplicationController
     cleaned[:distillator_mode] = helpers.normalize_website_rollout_filter(cleaned[:distillator_mode])
     cleaned[:cohort] = helpers.normalize_website_cohort_filter(cleaned[:cohort])
     cleaned[:view] = cleaned[:view].presence_in(INDEX_VIEWS)
+    cleaned[:validation] = cleaned[:validation].presence_in(Distillator::WebsiteValidationHistory::FILTERS.keys)
 
     canonical = cleaned.merge(
       sort: params[:sort],
@@ -61,6 +62,7 @@ class WebsitesController < ApplicationController
     normalized_raw["distillator_mode"] = helpers.normalize_website_rollout_filter(normalized_raw["distillator_mode"])
     normalized_raw["cohort"] = helpers.normalize_website_cohort_filter(normalized_raw["cohort"])
     normalized_raw["view"] = normalized_raw["view"].presence_in(INDEX_VIEWS)
+    normalized_raw["validation"] = normalized_raw["validation"].presence_in(Distillator::WebsiteValidationHistory::FILTERS.keys)
     normalized_raw.compact!
 
     invalid_rollout_filter = requested_rollout_mode.present? && cleaned[:distillator_mode].nil?
@@ -69,6 +71,11 @@ class WebsitesController < ApplicationController
     return redirect_to(websites_path(canonical)) if invalid_rollout_filter || invalid_cohort_filter || invalid_view || canonical != normalized_raw
 
     @filters = cleaned.compact
+    if @filters[:retry_transition_batch_id]
+      @retry_transition_batch = Distillator::TransitionBatch.find(@filters[:retry_transition_batch_id])
+      @retry_website_ids = @retry_transition_batch.retry_website_ids
+      @filters[:view] = "all"
+    end
     @default_website_view = request.format.html? ? (cookies.signed[:website_default_view].presence_in(INDEX_VIEWS) || "all") : "all"
     @website_index_view = @filters[:view] || @default_website_view
     # Keep an explicit All override through sorting when Preferred is the default.
@@ -79,6 +86,7 @@ class WebsitesController < ApplicationController
     @current_direction = params[:direction].presence
 
     @websites = Website.all
+    @websites = @websites.where(id: @retry_website_ids) if @retry_transition_batch
     @websites = @websites.where(preferred: true) if @website_index_view == "preferred"
 
     if @filters[:q]
@@ -115,8 +123,18 @@ class WebsitesController < ApplicationController
       @websites = @websites.to_a.select { |website| helpers.website_matches_cohort_filter?(website, @filters[:cohort]) }
     end
 
-    @rollout_counts = Website.group(:distillator_mode).count
     @transition_eligible_ids = Distillator::EventSiteSelection.eligible_ids(@websites)
+    if request.format.html? || @filters[:validation]
+      @validation_summaries = Distillator::WebsiteValidationHistory.for_websites(@websites.to_a)
+      if @filters[:validation]
+        @websites = @websites.to_a.select do |site|
+          summary = @validation_summaries.fetch(site.id)
+          (@transition_eligible_ids.include?(site.id) || summary.last_validation) && summary.matches?(@filters[:validation])
+        end
+        @transition_eligible_ids &= @websites.map(&:id)
+      end
+    end
+    @rollout_counts = Website.group(:distillator_mode).count
 
     @total_statements = Statement.all.count
     @statements_errors = Statement.where("cache LIKE ?", "%error%")
@@ -172,6 +190,19 @@ class WebsitesController < ApplicationController
   # GET /websites/1.json
   def show
     cookies[:seedurl] = @website.seedurl
+    return unless request.format.html?
+
+    @validation_workflows = Distillator::WebsiteValidationHistory.workflows([@website.id]).to_a
+    @validation_profile = params[:validation_profile].presence_in(%w[all light thorough audit])
+    if @validation_profile && @validation_profile != "all"
+      @validation_workflows.select! do |item|
+        (item.batch.audit? ? "audit" : item.batch.check_profile) == @validation_profile
+      end
+    end
+    runs = @validation_workflows.flat_map { |item| [item.pre_run_id, item.post_run_id] }.compact
+    @validation_page_counts = Distillator::TransitionEvidence.where(transition_run_id: runs, check_kind: "statement_delta")
+      .latest_first.pluck(:transition_run_id, Arel.sql("details ->> 'compared_webpage_count'"))
+      .each_with_object({}) { |(id, count), out| out[id] ||= count }
   end
 
   # GET /websites/new

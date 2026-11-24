@@ -57,6 +57,7 @@ module Distillator
       evidence_by_kind: nil,
       check_options: nil,
       scope_at: Time.current,
+      sample_run: nil,
       run_fetch: false,
       comparison_policy: :operator,
       fetch_cache_store: Distillator::FetchCacheStore,
@@ -66,7 +67,8 @@ module Distillator
       @cache = cache
       @evidence_by_kind = evidence_by_kind
       @check_options = Distillator::TransitionCheckOptions.coerce(check_options)
-      @scope_at = scope_at
+      @sample_run = sample_run if @check_options.default?
+      @scope_at = @sample_run&.event_sample ? Time.iso8601(@sample_run.event_sample.fetch("scope_at")) : scope_at
       @run_fetch = run_fetch == true
       @comparison_policy = normalize_comparison_policy(comparison_policy)
       @fetch_cache_store = fetch_cache_store
@@ -183,6 +185,10 @@ module Distillator
 
     def publishable_representative_webpages
       scope = publishable_event_scope
+      if @sample_run
+        return TransitionEventSample.select(run: @sample_run, scope: scope, size: publishable_sample_size, scope_at: @scope_at)
+      end
+
       order = @check_options.include_retired? ? :desc : :asc
       scope.order(archive_date: order, updated_at: :desc, id: :asc).limit(publishable_sample_size).to_a
     end
@@ -207,6 +213,7 @@ module Distillator
 
     def selection_rule
       rule = @check_options.selection_rule(event_site: event_scope?).dup
+      rule << " Randomized, favoring pages checked least recently." if @sample_run&.event_sample&.key?("seed")
       rule << " Reviewed URL exclusions apply before sampling." if excluded_records.any?
       rule
     end

@@ -9,13 +9,16 @@ module Distillator
     end
 
     def create
+      retry_of = TransitionBatch.find(params[:retry_transition_batch_id]) if params[:retry_transition_batch_id].present?
       batch = TransitionBatch.request!(website_ids: params[:website_ids], request_key: params[:request_key],
-        selection_context: params[:selection_context], check_profile: params.fetch(:check_profile, TransitionBatch::DEFAULT_CHECK_PROFILE),
-        workflow_action: params.fetch(:workflow_action, "validate"))
+        selection_context: retry_of ? "Retry of group ##{retry_of.id}" : params[:selection_context],
+        check_profile: params.fetch(:check_profile, TransitionBatch::DEFAULT_CHECK_PROFILE),
+        workflow_action: params.fetch(:workflow_action, "validate"), retry_of: retry_of)
       item = batch.site_transitions.order(:position).first
       redirect_to(batch.site_transitions.count == 1 ? distillator_site_transition_path(item) : distillator_transition_batch_path(batch))
     rescue ArgumentError, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => error
-      redirect_to websites_path, alert: error.message
+      redirect_to(retry_of ? websites_path(view: "all", retry_transition_batch_id: retry_of.id, anchor: "website-transition-batch") : websites_path,
+        alert: error.message)
     end
 
     def show

@@ -59,6 +59,15 @@ module Distillator::TransitionWorkflowsHelper
       distillator_shadow_report_site_path(item.website_id, run_id: run.id)
   end
 
+  def workflow_mode_history(item)
+    modes = [item.initial_mode]
+    if item.phase_results.dig("activation", "state") == "completed"
+      modes.concat(%w[shadow active])
+    end
+    modes << item.final_mode if item.final_mode
+    modes.chunk_while { |left, right| left == right }.map { |group| group.first.humanize }.join(" → ")
+  end
+
   def workflow_challenge_reported?(item)
     item.reason.to_s.split(" — ", 2).first.to_s.match?(/\b(?:system_cloudflare|cloudflare|system_captcha|captcha)\b/i)
   end

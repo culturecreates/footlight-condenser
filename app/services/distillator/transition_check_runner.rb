@@ -139,6 +139,7 @@ module Distillator
       @memory.record(run_id: transition_run.id, phase: "selection")
       check_args = { website: website, run_fetch: false, scope_at: transition_run.started_at || transition_run.requested_at }
       check_args[:check_options] = @check_options unless @check_options.default?
+      check_args[:sample_run] = transition_run if @check_options.default?
       transition_check = timed_phase("selection") { transition_check_service.call(**check_args) }
       representative_webpages = Array(transition_check.representative_webpages)
       if transition_run.resumable? && (representative_webpages.length > CHECKPOINT_BATCH_SIZE || transition_run.transition_checkpoints.exists?)
@@ -489,6 +490,13 @@ module Distillator
         representative_urls_checked: representative_url_results.any?
       ).compact
       details[:event_inventory] = inventory_details(transition_check)
+      details[:event_sample] = transition_run.event_sample if transition_run.event_sample
+      if details.dig(:event_inventory, :status) == "active_event_scope" && representative_webpages.any?
+        details[:validation_coverage] = {
+          configuration: TransitionFingerprint.configuration(website),
+          pages: representative_webpages.to_h { |page| [page.id.to_s, TransitionFingerprint.event_page(page)] }
+        }
+      end
 
       unless representative_webpages.present?
         return [:pending, details.merge(reason: "no_representative_webpages", representative_urls_checked: false)]

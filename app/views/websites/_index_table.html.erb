@@ -1,10 +1,11 @@
 <div class="website-index-table-scroll operator-table-scroll" tabindex="0" role="region" aria-label="Website overview">
   <table class="cache-table website-index-table">
-    <caption class="website-index-sr-only">Website modes, event page counts and publishability, statement activity, inventory freshness and last refresh. Open Details for all webpage types, settings and operations.</caption>
+    <caption class="website-index-sr-only">Website modes, validation history, event page counts and publishability, statement activity, inventory freshness and last refresh.</caption>
     <thead><tr>
       <th scope="col">Transition</th>
       <th scope="col"><%= website_index_sortable("name", "Website", group: group) %></th>
       <th scope="col">Mode</th>
+      <th scope="col" title="Successful validation workflows by profile">Validation</th>
       <th scope="col" class="website-index-number"><%= website_index_sortable("event_pages_count", "Event pages", group: group) %></th>
       <th scope="col" class="website-index-number" title="Publishable event pages divided by all event pages"><%= website_index_sortable("publishable_event_percentage", "% Publishable", group: group) %></th>
       <th scope="col" class="website-index-number"><%= website_index_sortable("statements_count", "Statements", group: group) %></th>
@@ -19,7 +20,7 @@
         <% event_count = pages[:by_class].fetch("Event") %>
         <tr class="website-index-row" data-website-id="<%= website.id %>">
           <td><% if @transition_eligible_ids.include?(website.id) %>
-            <%= check_box_tag "website_ids[]", website.id, false, id: "website-transition-#{website.id}", form: "website-transition-batch",
+            <%= check_box_tag "website_ids[]", website.id, @retry_website_ids&.include?(website.id), id: "website-transition-#{website.id}", form: "website-transition-batch",
               data: { transition_site: true, transition_mode: website.distillator_mode }, aria: { label: "Select for transition: #{website.name}" } %>
           <% else %>—<% end %></td>
           <th scope="row" class="website-index-name">
@@ -34,6 +35,7 @@
             </div>
           </th>
           <td title="<%= website_rollout_explanation(website) %>"><%= website_rollout_badge(website) %></td>
+          <td><%= render "validation_summary", website: website, validation: @validation_summaries.fetch(website.id) %></td>
           <td class="website-index-number"><%= link_to number_with_delimiter(event_count), website_webpages_filter_path(website, scope: "all", rdfs_class: "Event") %></td>
           <td class="website-index-number">
             <% if event_count.positive? %>
@@ -53,7 +55,7 @@
             <noscript><%= link_to "Details", website %></noscript>
           </td>
         </tr>
-        <tr id="website-details-<%= website.id %>" class="website-index-detail-row" hidden><td colspan="10">
+        <tr id="website-details-<%= website.id %>" class="website-index-detail-row" hidden><td colspan="11">
           <div class="website-index-detail-grid">
             <section aria-label="Website settings">
               <h2><%= website.name %></h2>

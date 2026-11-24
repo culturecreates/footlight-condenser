@@ -47,12 +47,15 @@
       <%= hidden_field_tag :sort, @current_sort if @current_sort.present? %>
       <%= hidden_field_tag :direction, @current_direction if @current_direction.present? %>
       <%= hidden_field_tag :view, @website_index_view if @filters[:view].present? %>
+      <%= hidden_field_tag :retry_transition_batch_id, @retry_transition_batch.id if @retry_transition_batch %>
       <div class="website-index-filter-row">
         <div class="website-index-search"><%= label_tag :q, "Find a website" %><%= text_field_tag :q, @filters[:q], placeholder: "Name or seedurl, e.g. culture*", autocomplete: "off" %></div>
         <div><%= label_tag :distillator_mode, "Mode" %><%= select_tag :distillator_mode, options_for_select(website_rollout_filter_form_options, @filters[:distillator_mode]) %></div>
         <div><%= label_tag :cohort, "Cohort" %><%= select_tag :cohort, options_for_select(website_cohort_filter_options, @filters[:cohort]) %></div>
+        <div><%= label_tag :validation, "Validation history" %><%= select_tag :validation, options_for_select(
+              [["All results", ""]] + Distillator::WebsiteValidationHistory::FILTERS.map { |value, label| [label, value] }, @filters[:validation]) %></div>
         <%= submit_tag "Apply filters" %>
-        <%= link_to "Reset filters", @filters[:view].present? ? websites_path(view: @website_index_view) : websites_path %>
+        <%= link_to "Reset filters", websites_path(@filters.slice(:view, :retry_transition_batch_id)) %>
       </div>
       <details class="website-index-advanced" <%= "open" if @filters.slice(:seed_filter, :default_language, :graph_name).present? %>>
         <summary class="operator-filter-heading">More filters and sorting</summary>
@@ -65,12 +68,19 @@
       </details>
     <% end %>
 
-    <%= render "shared/operator_active_filters", filters: @filters.except(:view),
-          labels: { q: "Website search", distillator_mode: "Mode", seed_filter: "Seedurl", default_language: "Language", graph_name: "Graph" } %>
+    <% visible_filters = @filters.except(:view, :retry_transition_batch_id)
+       visible_filters[:validation] = Distillator::WebsiteValidationHistory::FILTERS.fetch(@filters[:validation]) if @filters[:validation] %>
+    <%= render "shared/operator_active_filters", filters: visible_filters,
+          labels: { q: "Website search", distillator_mode: "Mode", seed_filter: "Seedurl", default_language: "Language", graph_name: "Graph", validation: "Validation" } %>
 
     <%= form_with url: distillator_transition_batches_path, method: :post, local: true, id: "website-transition-batch", class: "website-transition-selection" do %>
       <%= hidden_field_tag :request_key, SecureRandom.uuid %>
       <%= hidden_field_tag :selection_context, @filters.map { |key, value| "#{key}: #{value}" }.join(" · ") %>
+      <% if @retry_transition_batch %>
+        <%= hidden_field_tag :retry_transition_batch_id, @retry_transition_batch.id, id: nil %>
+        <p><strong>Retry of group #<%= @retry_transition_batch.id %></strong> · <%= link_to "Exit retry", websites_path(view: "all") %></p>
+        <p><%= @retry_website_ids.any? ? "The group’s non-Active event sites are preselected. Choose a check profile and start validation." : "No non-Active event sites are available for retry." %></p>
+      <% end %>
       <label hidden data-transition-master-label><input type="checkbox" data-transition-master> Select all <%= @transition_eligible_ids.length %> matching event sites (includes Unscheduled)</label>
       <span data-transition-selection-count aria-live="polite">Select sites using the Transition column.</span>
       <div>
@@ -78,13 +88,15 @@
         <%= select_tag :check_profile, options_for_select([
             ["Thorough (all active publishable events, Strict)", "thorough"],
             ["Light (sample active publishable events, Standard)", "light"]
-        ], Distillator::TransitionBatch::DEFAULT_CHECK_PROFILE) %>
+        ], @retry_transition_batch&.check_profile || Distillator::TransitionBatch::DEFAULT_CHECK_PROFILE) %>
       </div>
       <%= submit_tag "Validate and activate selected", data: { transition_submit: true } %>
-      <%= button_tag "Audit selected Active sites (Thorough)", name: "workflow_action", value: "audit", data: { transition_audit: true } %>
-      <p>Thorough validation moves Active sites to Shadow before checking. An audit keeps the current serving mode.</p>
+      <%= button_tag "Audit selected Active sites (Thorough)", name: "workflow_action", value: "audit", data: { transition_audit: true } unless @retry_transition_batch %>
+      <% unless @retry_transition_batch %>
+        <p>Thorough validation moves Active sites to Shadow before checking. An audit keeps the current serving mode.</p>
+      <% end %>
       <details><summary>How validation and audit work</summary>
-        <p>Both profiles can activate sites. Light samples 20% of active publishable event pages (minimum 5, maximum 25, limited by availability)
+        <p>Both profiles can activate sites. Light randomly samples 20% of active publishable event pages (minimum 5, maximum 25, limited by availability), favoring pages checked least recently,
           and uses Standard field comparison. Thorough checks all active publishable event pages with public URLs and uses Strict field comparison.</p>
         <p>Processes selected event sites one at a time. The Shadow check and the Active-path verification use the chosen profile.
           Failed verification returns the site to Shadow. Review-needed results stop for manual attention.</p>

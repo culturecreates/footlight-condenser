@@ -6,7 +6,12 @@
 <progress value="<%= finished %>" max="<%= [@items.length, 1].max %>" aria-label="Sites finished"></progress>
 <p class="transition-secondary"><%= workflow_estimate(@items) %></p>
 <% if finished == @items.length %>
-  <p><%= link_to "Export diagnostics (JSON)", diagnostics_distillator_transition_batch_path(@batch, format: :json), data: { turbo: false } %></p>
+  <p>
+    <% if @batch.retry_website_ids(@items.filter_map(&:website)).any? %>
+      <%= link_to "Retry non-Active sites", websites_path(view: "all", retry_transition_batch_id: @batch.id, anchor: "website-transition-batch"), class: "operator-editor__button" %>
+    <% end %>
+    <%= link_to "Export diagnostics (JSON)", diagnostics_distillator_transition_batch_path(@batch, format: :json), data: { turbo: false } %>
+  </p>
 <% end %>
 <% if @items.any? { |item| item.status == "queued" } %>
   <%= button_to "Stop remaining sites", distillator_transition_batch_path(@batch), method: :patch, id: "workflow-stop-remaining" %>

@@ -17,7 +17,7 @@ module Distillator
       errors.add(:check_options, "must be Thorough for an audit") if audit? && check_profile != "thorough"
     end
 
-    def self.request!(website_ids:, request_key:, selection_context: nil, check_profile: DEFAULT_CHECK_PROFILE, workflow_action: "validate")
+    def self.request!(website_ids:, request_key:, selection_context: nil, check_profile: DEFAULT_CHECK_PROFILE, workflow_action: "validate", retry_of: nil)
       raise ArgumentError, "Select at least one event site" unless website_ids.is_a?(Array) && website_ids.any?
       raise ArgumentError, "Choose validation or an Active audit." unless workflow_action.in?(%w[validate audit])
       check_profile = "thorough" if workflow_action == "audit"
@@ -35,6 +35,9 @@ module Distillator
         end
         unless websites.size == ids.size && EventSiteSelection.eligible_ids(websites).sort == ids
           raise ArgumentError, "Only event sites are eligible. Templates, tests and place/person sites are excluded."
+        end
+        if retry_of && (workflow_action != "validate" || (ids - retry_of.retry_website_ids(websites)).any?)
+          raise ArgumentError, "Retry includes only currently non-Active event sites from the completed group."
         end
         if workflow_action == "audit" && websites.any? { |website| website.distillator_mode != "active" }
           raise ArgumentError, "Select only Active event sites for an audit."
@@ -83,6 +86,14 @@ module Distillator
 
     def audit?
       workflow_action == "audit"
+    end
+
+    def retry_website_ids(websites = Website.where(id: site_transitions.select(:website_id)))
+      return [] unless site_transitions.exists? && !site_transitions.active.exists?
+
+      group_ids = site_transitions.pluck(:website_id)
+      candidates = websites.reject { |site| site.distillator_mode == "active" || !group_ids.include?(site.id) }
+      EventSiteSelection.eligible_ids(candidates)
     end
 
     def thorough_revalidation?

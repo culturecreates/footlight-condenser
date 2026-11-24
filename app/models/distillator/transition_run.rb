@@ -39,7 +39,8 @@ module Distillator
           next Request.new(run: current, created?: false)
         end
         current&.update!(status: "failed", completed_at: Time.current, error_message: "Check expired. A new run was requested.")
-        run = create!(website: website, requested_at: Time.current,
+        sample = workflow_item.pre_run&.event_sample_for_postcheck if requested_options.default? && workflow_item&.phase == "postcheck"
+        run = create!(website: website, requested_at: Time.current, progress: { "event_sample" => sample }.compact,
           configuration_digest: Distillator::TransitionFingerprint.call(website), check_options: requested_options.to_h)
         website.update_column(:transition_check_requested_at, run.requested_at) unless requested_options.include_retired?
         Request.new(run: run, created?: true)
@@ -48,6 +49,32 @@ module Distillator
 
     def options
       Distillator::TransitionCheckOptions.new(check_options)
+    end
+
+    def event_sample
+      progress["event_sample"]
+    end
+
+    def event_sample_for_postcheck
+      return event_sample if event_sample
+
+      # A precheck that completed before randomized sampling was deployed can
+      # still pass its recorded page selection to an in-flight workflow.
+      details = transition_evidences.find_by(check_kind: "fetch_parity")&.details
+      pages = Array(details&.dig("representative_url_results")).filter_map do |row|
+        row.slice("webpage_id", "url").transform_keys("webpage_id" => "id") if row["webpage_id"] && row["url"]
+      end
+      return if pages.empty?
+
+      { "scope_at" => (started_at || requested_at).iso8601(6), "pages" => pages }
+    end
+
+    def save_event_sample!(sample)
+      with_lock do
+        raise ConfigurationChanged, "Check stopped before sampling was recorded." unless status == "running"
+
+        update!(progress: progress.merge("event_sample" => sample))
+      end
     end
 
     def inventory_evidence_expired?
@@ -136,7 +163,7 @@ module Distillator
             update!(status: "running", started_at: started_at || Time.current,
               progress: progress.merge("execution_lock" => true, "resumable" => true, "batch_attempts" => attempts + 1))
           else
-            update!(status: "running", started_at: Time.current, progress: { execution_lock: true })
+            update!(status: "running", started_at: Time.current, progress: progress.merge("execution_lock" => true))
           end
           true
         end

@@ -32,6 +32,20 @@ effect. The rest of the group can proceed unless Stop remaining sites was also
 used. Already completed sites retain their result.
 Use **Recent transitions** on Websites to resume or revisit reports. This history
 is paginated, and entries for a single site link directly to its site report.
+Use **Retry non-Active sites** from a finished group report to open Websites
+with the group's currently non-Active event sites selected. Choose Light or
+Thorough and submit to start a new validation. Website modes are checked again
+when submitting.
+
+The Websites dashboard counts each successful validation workflow once under
+its profile. Active audit passes have their own count. The validation filters
+include sites with historical passes whose configuration has since changed or
+whose latest validation needs attention. Website details list workflow outcomes,
+serving modes, and links to each recorded phase.
+
+Coverage is the number of distinct currently eligible pages checked in passing
+validations across both required phases. A page contributes while its recorded
+page metadata and extraction configuration match the current configuration.
 
 The full validation workflow performs these steps for Legacy and Shadow sites,
 and for Active sites when Thorough is selected.
@@ -52,8 +66,11 @@ Use **Refresh lists and add webpages** from the website's batch jobs and let
 discovery and any newly queued event refreshes finish if new events need to be
 added before validation.
 
-Light samples active publishable event pages with public URLs. Thorough checks
-all of them after reviewed exclusions. An event page is active when its archive
+Light randomly samples 20% of active publishable event pages with public URLs
+(minimum 5, maximum 25, limited by availability). It favors pages attempted least
+recently across the last 50 Light checks. A workflow records the seed and exact
+sample and reuses them for both the Shadow and Active phases. Thorough checks
+all eligible pages after reviewed exclusions. An event page is active when its archive
 date is absent or later than the check's start time. The Inventory freshness
 dashboard still compares current event URLs with ResourceLists. List
 freshness and membership do not determine transition eligibility.

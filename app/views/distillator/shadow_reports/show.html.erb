@@ -164,6 +164,12 @@
     <% if shadow_report_scope_warning(@detail.checked_scope).present? %>
       <p><%= shadow_report_scope_warning(@detail.checked_scope) %></p>
     <% end %>
+    <% if (sample = @detail.checked_scope[:event_sample]) %>
+      <% if sample["seed"] %><p>Light sample seed: <%= sample["seed"] %></p><% end %>
+      <ol>
+        <% sample.fetch("pages").each do |page| %><li><%= webpage_url_link(page["url"]) %> · Webpage #<%= page["id"] %></li><% end %>
+      </ol>
+    <% end %>
   </details>
   <p><%= link_to "Website batch jobs", website_path(@website, anchor: "website-batch-jobs-transition") %> |
     <%= link_to "Inspect publishable event pages", website_publishable_event_pages_path(@website) %> |

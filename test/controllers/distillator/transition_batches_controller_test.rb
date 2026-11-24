@@ -88,6 +88,79 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     end
   end
 
+  test "a finished group retries its currently non-Active sites with a newly chosen profile" do
+    @other.update_column(:distillator_mode, "active")
+    post distillator_transition_batches_path, params: params_for([@one.id, @two.id, @other.id]).merge(check_profile: "light")
+    group = Distillator::TransitionBatch.last
+    group.site_transitions.update_all(status: "attention", completed_at: Time.current)
+    group.site_transitions.find_by!(website_id: @two.id).update!(status: "passed", final_mode: "active")
+    @two.update_column(:distillator_mode, "shadow") # Previously passed, but currently eligible to retry.
+    path = websites_path(view: "all", retry_transition_batch_id: group.id, anchor: "website-transition-batch")
+
+    get distillator_transition_batch_path(group, format: :json)
+    assert_includes response.parsed_body["html"], "Retry non-Active sites"
+    get distillator_transition_batch_path(group)
+    assert_select "a[href='#{path}']", text: "Retry non-Active sites"
+    assert_no_difference ["Distillator::TransitionBatch.count", "Distillator::TransitionRun.count"] do
+      get path
+    end
+    assert_response :success
+    checked = Nokogiri::HTML(response.body).css("input[data-transition-site][checked]").map { |input| input["value"].to_i }
+    assert_equal [@one.id, @two.id].sort, checked.sort
+    assert_select "input[data-transition-site]", count: 2
+    assert_select "#website-list-unscheduled[open]"
+    assert_select "#website-transition-batch select option[value=light][selected]"
+
+    @one.update_column(:distillator_mode, "active")
+    assert_no_difference "Distillator::TransitionBatch.count" do
+      post distillator_transition_batches_path, params: params_for(checked).merge(retry_transition_batch_id: group.id)
+    end
+    assert_redirected_to path
+    assert_match /currently non-Active/, flash[:alert]
+    post distillator_transition_batches_path, params: params_for([@two.id]).merge(
+      retry_transition_batch_id: group.id, check_profile: "thorough")
+    retry_batch = Distillator::TransitionBatch.last
+    assert_equal [@two.id], retry_batch.site_transitions.pluck(:website_id)
+    assert_equal "thorough", retry_batch.check_profile
+    assert_equal "Retry of group ##{group.id}", retry_batch.selection_context
+  end
+
+  test "the dashboard counts workflow passes once and keeps audits and latest failures visible" do
+    light = Distillator::TransitionBatch.request!(website_ids: [@one.id], request_key: SecureRandom.uuid, check_profile: "light")
+    passed = light.site_transitions.sole
+    pre = diagnostic_run(@one)
+    postcheck = diagnostic_run(@one)
+    diagnostic_evidence(pre, "statement_delta", compared_webpage_count: 5)
+    diagnostic_evidence(postcheck, "statement_delta", compared_webpage_count: 5)
+    passed.update!(status: "passed", final_mode: "active", completed_at: 3.minutes.ago, pre_run: pre, post_run: postcheck,
+      phase_results: { activation: { state: "completed" } })
+    @one.update_column(:distillator_mode, "active")
+    audit = Distillator::TransitionBatch.request!(website_ids: [@one.id], request_key: SecureRandom.uuid, workflow_action: "audit")
+    audit.site_transitions.sole.update!(status: "passed", final_mode: "active", completed_at: 2.minutes.ago)
+    failed = Distillator::TransitionBatch.request!(website_ids: [@one.id], request_key: SecureRandom.uuid)
+    failed.site_transitions.sole.update!(status: "attention", final_mode: "shadow", completed_at: 1.minute.ago)
+
+    %w[light_only latest_failed].each do |filter|
+      get websites_path, params: { validation: filter }
+      assert_response :success
+      assert_select "tr.website-index-row", count: 1
+      assert_select "tr[data-website-id='#{@one.id}'] .website-validation-summary" do
+        assert_select "a", text: "Light 1×"
+        assert_select "span", text: "Thorough 0×"
+        assert_select "a", text: "Active audit 1×"
+        assert_select "a", text: "Latest validation needs attention"
+      end
+    end
+
+    get website_path(@one, validation_profile: "light")
+    assert_response :success
+    assert_select "#website-validation-history tbody tr", count: 1 do
+      assert_select "td", text: /Light · Standard/
+      assert_select "td", text: /5 pages compared/, count: 2
+      assert_select "td", text: "Legacy → Shadow → Active"
+    end
+  end
+
   test "Active audit is a separate Thorough request and rejects groups containing Shadow sites" do
     @one.update_column(:distillator_mode, "active")
     request = params_for([@one.id]).merge(workflow_action: "audit", check_profile: "light")

@@ -138,6 +138,7 @@ module Distillator
           original_publishable_event_page_count: integer_detail(fetch_details, "original_publishable_event_page_count"),
           transition_exclusions: Array(fetch_details["transition_exclusions"]),
           event_inventory: fetch_details["event_inventory"].to_h,
+          event_sample: fetch_details["event_sample"],
           representative_webpages: representative_urls,
           selection_rule: statement_details["selection_rule"] || export_details["selection_rule"] || fetch_details["selection_rule"] || TransitionCheckOptions.new.selection_rule,
           selected_candidate_tier_count: (statement_details["selected_candidate_tier_count"] || export_details["selected_candidate_tier_count"] || fetch_details["selected_candidate_tier_count"]).to_i,

@@ -1,0 +1,32 @@
+<details id="website-validation-history" class="website-rollout-panel website-show-section" <%= "open" if @validation_profile %>>
+  <summary>Validation history</summary>
+  <nav aria-label="Validation history filters">
+    <% { "all" => "All", "light" => "Light", "thorough" => "Thorough", "audit" => "Active audits" }.each do |profile, label| %>
+      <%= link_to label, website_path(@website, validation_profile: profile, anchor: "website-validation-history"),
+            aria: { current: (@validation_profile || "all") == profile ? "page" : nil } %>
+    <% end %>
+  </nav>
+  <% if @validation_workflows.empty? %>
+    <p>No workflows in this view.</p>
+  <% else %>
+    <div class="operator-table-scroll" role="region" aria-label="Validation workflows" tabindex="0">
+      <table class="cache-table">
+        <thead><tr><th scope="col">Date</th><th scope="col">Profile</th><th scope="col">Result</th><th scope="col">Shadow check</th><th scope="col">Active check</th><th scope="col">Serving mode</th></tr></thead>
+        <tbody>
+          <% @validation_workflows.each do |item| %>
+            <tr>
+              <td><%= link_to l((item.completed_at || item.created_at).to_date, format: :long), distillator_site_transition_path(item) %></td>
+              <td><%= item.batch.audit? ? "Active audit · Thorough" : item.batch.check_profile&.humanize %> · <%= item.batch.check_options["strictness"].humanize %></td>
+              <td><%= workflow_state_badge(item.status) %></td>
+              <% %i[pre post].each do |phase| %>
+                <td><%= workflow_check_link(item, phase) %>
+                  <% if (count = @validation_page_counts[item.public_send("#{phase}_run_id")]) %> · <%= pluralize(count.to_i, "page") %> compared<% end %></td>
+              <% end %>
+              <td><%= workflow_mode_history(item) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</details>

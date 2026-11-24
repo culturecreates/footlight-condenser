@@ -1,6 +1,34 @@
 require "test_helper"
 
 class Distillator::TransitionCheckTest < ActiveSupport::TestCase
+  test "independent Light checks revisit fewer pages while preserving the saved sample" do
+    website = build_website("random-light-events")
+    pages = create_publishable_event_pages(website, 11)
+    pages.last.update_column(:archive_date, 1.day.ago)
+    SecureRandom.expects(:random_number).with(2**63).twice.returns(741, 992)
+
+    samples = 2.times.map do
+      run = Distillator::TransitionRun.request!(website: website).run
+      run.execute do
+        check = Distillator::TransitionCheck.call(website: website, sample_run: run)
+        picked = check.representative_webpages
+        assert_equal 5, picked.size
+        assert_equal picked.map(&:id), Distillator::TransitionCheck.call(website: website, sample_run: run).representative_webpages.map(&:id)
+        Distillator::TransitionEvidence::REPORT_CHECK_KINDS.each do |kind|
+          run.transition_evidences.create!(website: website, url: picked.first.url, check_kind: kind,
+            status: "checked", checked_at: Time.current, details: {
+              representative_url_results: picked.map { |page| { webpage_id: page.id, attempted_condenser_fetch: true } }
+            })
+        end
+      end
+      assert_equal "completed", run.reload.status
+      run.event_sample
+    end
+
+    assert_equal %w[741 992], samples.pluck("seed")
+    assert_equal pages.first(10).map(&:id).sort, samples.flat_map { |sample| sample.fetch("pages").pluck("id") }.sort
+  end
+
   test "blocked cache health makes promotable false" do
     website = build_website("blocked-transition-check")
     cache = build_cache(

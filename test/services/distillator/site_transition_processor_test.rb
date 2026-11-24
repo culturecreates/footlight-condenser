@@ -539,7 +539,8 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     runner.define_singleton_method(:call) do |**options|
       Distillator::TransitionCheckRunner.call(**options, fetch_cache_store: fetcher, cache_compare: comparer, export_service: exporter)
     end
-    _, item = request
+    batch = Distillator::TransitionBatch.request!(website_ids: [@website.id], request_key: SecureRandom.uuid, check_profile: "light")
+    item = batch.site_transitions.sole
     processor = Distillator::SiteTransitionProcessor.new(runner: runner)
     assert_no_difference "Statement.count" do
       processor.perform(item.id, phase: "queued")
@@ -549,8 +550,20 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     assert_equal ["internal", nil], calls.map { |call| call[:mode] }
     assert_equal [page.url, page.url], calls.pluck(:uri)
     assert calls.all? { |call| call[:force_scrape] }
-    assert_equal true, item.post_run.transition_evidences.find_by!(check_kind: "fetch_parity").details["active_path_verification"]
+    pre = item.pre_run.transition_evidences.find_by!(check_kind: "fetch_parity").details
+    post = item.post_run.transition_evidences.find_by!(check_kind: "fetch_parity").details
+    assert_equal true, post["active_path_verification"]
+    assert_equal pre.fetch("event_sample"), post.fetch("event_sample")
+    assert_match(/\A\d+\z/, pre.dig("event_sample", "seed"))
+    assert_equal [{ "id" => page.id, "url" => page.url }], pre.dig("event_sample", "pages")
+    summary = Distillator::WebsiteValidationHistory.for_websites([@website.reload]).fetch(@website.id)
+    assert_equal [1, 0, 1, 1], [summary.light, summary.thorough, summary.covered, summary.eligible]
     assert_equal "active", @website.reload.distillator_mode
+
+    page.update_column(:language, "fr")
+    updated_summary = Distillator::WebsiteValidationHistory.for_websites([@website]).fetch(@website.id)
+    assert_equal [1, 0, 0, 1], [updated_summary.light, updated_summary.thorough, updated_summary.covered, updated_summary.eligible]
+    assert updated_summary.changed
   end
 
   private

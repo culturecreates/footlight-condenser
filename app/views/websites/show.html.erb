@@ -59,6 +59,8 @@
   <p><%= website_transition_secondary_status_line(@website) %></p>
 </section>
 
+<%= render "validation_history" %>
+
 <section class="website-rollout-panel website-show-section">
   <h2><%= active ? "Active operation and rollback" : "Blocking reason / promote control" %></h2>
   <% primary_action = transition_contract[:primary_action] %>
