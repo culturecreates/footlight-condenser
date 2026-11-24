@@ -278,6 +278,44 @@ class SourcesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to source_url(Source.last)
   end
 
+  test "Event property options put the specified common IDs first in alphabetical order" do
+    event = rdfs_classes(:one)
+    title = event.properties.create!(id: 1, label: "Title")
+    dates = event.properties.create!(id: 13, label: "Dates")
+    location = event.properties.create!(id: 5, label: "Location")
+    extra = event.properties.create!(label: "Accessibility")
+    @source.update!(property: location)
+
+    [new_source_url, edit_source_url(@source)].each do |url|
+      get url
+      assert_response :success
+      assert_select "#source_property_id option" do |options|
+        assert_equal [dates.id, location.id, title.id, extra.id].map(&:to_s), options.first(4).map { |option| option["value"] }
+        other_options = options.drop(3)
+        assert_equal (event.properties.ids - [dates.id, location.id, title.id]).sort, other_options.map { |option| option["value"].to_i }.sort
+        labels = other_options.map { |option| option.text.downcase }
+        assert_equal labels.sort, labels
+      end
+    end
+    assert_select "#source_property_id option[value='#{location.id}'][selected]", text: "Location"
+
+    post sources_url, params: { source: { property_id: dates.id } }
+    assert_response 422
+    assert_select "#source_property_id option:first-child[value='#{dates.id}'][selected]", text: "Dates"
+  end
+
+  test "non-Event property options use a single alphabetical list" do
+    place = rdfs_classes(:place)
+    code = place.properties.create!(label: "access code")
+    country = place.properties.create!(id: 130, label: "Zip code")
+
+    get new_source_url, params: { rdfs_class_id: place.id }
+    assert_response :success
+    assert_select "#source_property_id option" do |options|
+      assert_equal [code.id, properties(:two).id, country.id], options.map { |option| option["value"].to_i }
+    end
+  end
+
   test "should show source" do
     assert_read_only_page_does_not_fetch
     @source.website.update!(distillator_mode: "active")

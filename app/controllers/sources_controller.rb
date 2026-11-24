@@ -1,6 +1,8 @@
 class SourcesController < ApplicationController
   include HarmonizedIndexParams
 
+  COMMON_EVENT_PROPERTY_IDS = [1, 3, 4, 5, 12, 13, 14, 52, 54, 55, 67, 75, 96, 97, 119, 130, 136].freeze
+
   before_action :set_source, only: [:show, :edit, :update, :destroy]
   skip_before_action :verify_authenticity_token
 
@@ -83,18 +85,12 @@ class SourcesController < ApplicationController
   # GET /sources/new[?rdfs_class_id=]
   def new
     @source = Source.new
-    @websites = Website.all
-    @properties = Property.all
-    @rdfs_class_id = params[:rdfs_class_id] || 1 #default to event class
-    @rdfs_class_name = RdfsClass.find(@rdfs_class_id).name
+    set_form_options
   end
 
   # GET /sources/1/edit
   def edit
-    @websites = Website.all
-    @properties = Property.all
-    @rdfs_class_id = @source.property.rdfs_class_id
-    @rdfs_class_name = @source.property.rdfs_class.name
+    set_form_options
   end
 
   # POST /sources
@@ -110,7 +106,10 @@ class SourcesController < ApplicationController
         format.html { redirect_to @source, notice: 'Source was successfully created.' }
         format.json { render :show, status: :created, location: @source }
       else
-        format.html { render :new }
+        format.html do
+          set_form_options
+          render :new, status: :unprocessable_entity
+        end
         format.json { render json: @source.errors, status: :unprocessable_entity }
       end
     end
@@ -143,7 +142,10 @@ class SourcesController < ApplicationController
         format.html { redirect_to @source, notice: 'Source was successfully updated.' }
         format.json { render :show, status: :ok, location: @source }
       else
-        format.html { render :edit }
+        format.html do
+          set_form_options
+          render :edit, status: :unprocessable_entity
+        end
         format.json { render json: @source.errors, status: :unprocessable_entity }
       end
     end
@@ -167,6 +169,18 @@ class SourcesController < ApplicationController
   # Use callbacks to share common setup or constraints between actions.
   def set_source
     @source = Source.find(params[:id])
+  end
+
+  def set_form_options
+    rdfs_class = @source.property&.rdfs_class
+    rdfs_class ||= RdfsClass.find(params[:rdfs_class_id]) if params[:rdfs_class_id].present?
+    rdfs_class ||= RdfsClass.find_by!(name: "Event")
+    @rdfs_class_name = rdfs_class.name
+    @websites = Website.all
+    common_ids = @rdfs_class_name == "Event" ? COMMON_EVENT_PROPERTY_IDS : []
+    @properties = rdfs_class.properties.sort_by do |property|
+      [common_ids.include?(property.id) ? 0 : 1, property.label.to_s.downcase, property.id]
+    end
   end
 
   # Never trust parameters from the scary internet, only allow the white list through.
