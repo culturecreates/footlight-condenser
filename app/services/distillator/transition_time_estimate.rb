@@ -6,14 +6,11 @@ module Distillator
 
     def self.for_sites(websites, check_options: nil, shadow_first: false)
       ids = websites.map(&:id)
-      ranked = TransitionRun.completed.where(website_id: ids).where.not(started_at: nil).where.not(completed_at: nil)
+      ranked = TransitionRun.current_checks.completed.where(website_id: ids).where.not(started_at: nil).where.not(completed_at: nil)
         .select("distillator_transition_runs.*, ROW_NUMBER() OVER (PARTITION BY website_id ORDER BY id DESC) AS timing_rank")
       runs = TransitionRun.from("(#{ranked.to_sql}) distillator_transition_runs").where("timing_rank <= 6")
         .includes(:transition_evidences).group_by(&:website_id)
-      counts = Webpage.publishable.where(website_id: ids).where(<<~SQL.squish).group(:website_id).count
-        NOT EXISTS (SELECT 1 FROM distillator_transition_exclusions e
-          WHERE e.website_id = webpages.website_id AND e.url = webpages.url AND e.revoked_at IS NULL)
-      SQL
+      counts = Webpage.public_publishable_events.active.without_reviewed_transition_exclusions.where(website_id: ids).group(:website_id).count
       websites.to_h do |website|
         estimate = nil
         durations = Array(runs[website.id]).filter_map do |run|

@@ -55,8 +55,11 @@ module Distillator
       return if inventory.blank?
 
       retired = Array(inventory["retired"])
-      inventory.slice("status", "valid_until").merge(
-        "past_events_omitted" => retired.size, "examples" => retired.first(EXAMPLES_PER_KIND))
+      summary = inventory.slice("status", "valid_until", "archived_publishable_count")
+      if inventory.key?("retired")
+        summary.merge!("past_events_omitted" => retired.size, "examples" => retired.first(EXAMPLES_PER_KIND))
+      end
+      summary
     end
 
     def run_issues(evidence, run)

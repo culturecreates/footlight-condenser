@@ -146,7 +146,7 @@ module Distillator
       @phase_timings = {}
       transition_run&.record_progress!("selection")
       @memory.record(run_id: transition_run.id, phase: "selection")
-      check_args = { website: website, run_fetch: false, scope_at: transition_run.requested_at }
+      check_args = { website: website, run_fetch: false, scope_at: transition_run.started_at || transition_run.requested_at }
       check_args[:check_options] = @check_options unless @check_options.default?
       transition_check = timed_phase("selection") { transition_check_service.call(**check_args) }
       representative_webpages = Array(transition_check.representative_webpages)

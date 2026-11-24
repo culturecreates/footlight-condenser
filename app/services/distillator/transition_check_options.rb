@@ -14,13 +14,13 @@ module Distillator
       raise ArgumentError, "Check options must be an object" unless values.is_a?(Hash)
       values = values.to_h.stringify_keys
       raise ArgumentError, "Unknown check options" if (values.keys - %w[sample_mode sample_size strictness include_retired]).any?
-      unless [nil, true, false].include?(values["include_retired"])
-        raise ArgumentError, "Include retired events must be true or false"
+      unless [nil, true, false, "true", "false"].include?(values["include_retired"])
+        raise ArgumentError, "Historical audit must be true or false"
       end
 
       @sample_mode = values["sample_mode"].presence || "default"
       @strictness = values["strictness"].presence || "standard"
-      @include_retired = values["include_retired"] == true
+      @include_retired = values["include_retired"].to_s == "true"
       raise ArgumentError, "Choose a valid event sample" unless SAMPLE_MODES.include?(sample_mode)
       raise ArgumentError, "Choose a valid field comparison policy" unless STRICTNESSES.include?(strictness)
       @sample_mode = sample_mode.dup.freeze
@@ -59,11 +59,21 @@ module Distillator
       [total, requested].min
     end
 
-    def selection_rule
+    def selection_rule(event_site: true)
+      pages = if include_retired?
+        "archived publishable event pages with public URLs"
+      elsif event_site
+        "active publishable event pages with public URLs"
+      else
+        "website pages"
+      end
       case sample_mode
-      when "all" then "All publishable event pages, or all website pages when none are publishable."
-      when "count" then "Up to #{sample_size} publishable event pages, or website pages when none are publishable."
-      else Distillator::TransitionCheck::SELECTION_RULE
+      when "all" then "All #{pages}."
+      when "count" then "Up to #{sample_size} #{pages}."
+      else
+        return "20% of #{pages}, minimum 5, capped at 25." if include_retired?
+
+        event_site ? TransitionCheck::SELECTION_RULE : "Up to 3 website pages."
       end
     end
 

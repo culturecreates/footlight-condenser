@@ -6,18 +6,19 @@ search. Select all applies to every eligible row in the filtered result, includi
 the collapsed Unscheduled category. It does not select Preferred checkboxes or
 sites outside the filtered page. Templates, tests and entity-only sites are
 excluded on the server as well as in the UI. Event pages or selected Event
-sources establish event-site eligibility; a workflow with no event pages stops
-for attention rather than certifying an unrelated listing.
+sources establish event-site eligibility. A workflow with no active publishable
+event pages with public URLs stops for attention before switching serving mode.
 
 **Validate and activate selected** uses **Light** for the default sample and
-Standard field comparison, or **Thorough** for all eligible pages and Strict
-field comparison. Thorough is the default and moves previously Active sites to
+Standard field comparison. **Thorough** checks all active publishable event pages
+with public URLs and uses Strict field comparison. Thorough is the default and moves previously Active sites to
 Shadow before the precheck. Light validation of an already Active site goes
 straight to Active verification and can return the site to Shadow on failure.
 **Audit selected Active sites (Thorough)** checks the Active path using all
-eligible pages and Strict field comparison. It reports failures for review
-while leaving the serving mode under operator control. Only Active event sites
-can enter an audit. Audits also include historical event pages.
+active publishable event pages with public URLs and Strict field comparison.
+It reports failures for review while leaving the serving mode under operator
+control. Only Active event sites
+can enter an Active-path audit.
 
 One selected
 site opens its own workflow report. More than one opens a group report with
@@ -45,24 +46,23 @@ and for Active sites when Thorough is selected.
    is Condenser and that every successful fetch actually uses its native path.
 5. Keep Active on success; otherwise return to Shadow and record recovery.
 
-### Prepare event inventory
+### Event eligibility and historical audits
 
 Use **Refresh lists and add webpages** from the website's batch jobs and let
-discovery and any newly queued event refreshes finish before validating. The
-transition itself reads the stored lists. The normal discovery and publishing
-schedule is independent of transition validation.
+discovery and any newly queued event refreshes finish if new events need to be
+added before validation.
 
-An activation check can omit a past event when its selected start and end
-values place its last occurrence before the check day, and every applicable
-ResourceList confirms its absence by both webpage URL and RDF URI. The selected
-URL and URI lists must be nonempty, aligned and refreshed in the last 48 hours,
-within ten minutes of each other. A modified, missing, stale or ambiguous list
-keeps the existing scope, as does a list with URLs still awaiting import.
-Matching a current list or having uncertain dates
-also keeps a page eligible. The report records the discovery evidence and each
-omitted URL. A changed or expired proof requires a new check before activation.
-An empty post-filter scope cannot pass. The export comparison still uses the
-stored data in the environment.
+Light samples active publishable event pages with public URLs. Thorough checks
+all of them after reviewed exclusions. An event page is active when its archive
+date is absent or later than the check's start time. The Inventory freshness
+dashboard still compares current event URLs with ResourceLists. List
+freshness and membership do not determine transition eligibility.
+
+An event site with no eligible current events needs attention. Sites without
+Event pages or selected Event sources retain the standalone webpage diagnostics
+check. Use **Audit archived events** on a website for a separate archived-only
+comparison. Its evidence is available in its own report and never used for
+activation. The export comparison uses stored data in the environment.
 
 Shared extraction failures are reported as inconclusive statements. When both
 backends record fresh source HTTP 404 or 410 responses for the same URL, the

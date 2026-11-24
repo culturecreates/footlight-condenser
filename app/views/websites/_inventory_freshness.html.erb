@@ -14,6 +14,6 @@ end %>
 <small title="Age of the last event webpage added, including imported or manually added events">
   New event <%= inventory[:new_event_age_days].nil? ? "—" : "#{inventory[:new_event_age_days]}d" %>
 </small>
-· <small title="Publishable URLs still selected for a Thorough transition that match neither URL nor RDF URI in verified ResourceLists">
+· <small title="Active publishable event URLs selected for a Thorough transition that match neither URL nor RDF URI in verified ResourceLists">
   <%= inventory[:selected_event_urls_missing].nil? ? "Outside lists unknown" : "#{inventory[:selected_event_urls_missing]} outside lists" %>
 </small>

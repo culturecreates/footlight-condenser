@@ -63,6 +63,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
 
   test "cancellation during a fetch stops before requesting the paired snapshot" do
     website = build_website
+    mark_publishable(website.webpages.sole)
     requested = false
     fetcher = Object.new
     fetcher.define_singleton_method(:fetch) do |**|
@@ -164,6 +165,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
 
   test "records current fetch error even when a last good body remains in the operational cache" do
     website = build_website
+    mark_publishable(website.webpages.sole)
     cache = Distillator::FetchCache.find_by!(normalized_url: website.webpages.first.url)
     cache.update!(signals: { "network_status" => "failed", "transport_success" => false, "content_success" => false })
     failure = Distillator::FetchCacheStore::Result.new(cache: cache, cache_hit: false, body: cache.html,
@@ -207,6 +209,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
 
   test "active verification uses website mode and rejects a legacy fallback despite HTTP success" do
     website = build_website
+    mark_publishable(website.webpages.sole)
     website.update_column(:distillator_mode, "active")
     cache = Distillator::FetchCache.find_by!(normalized_url: website.webpages.first.url)
     %w[native legacy].each do |path|
@@ -227,6 +230,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
 
   test "automated prechecks cannot certify two Wringer fallbacks as native parity" do
     website = build_website
+    mark_publishable(website.webpages.sole)
     cache = Distillator::FetchCache.find_by!(normalized_url: website.webpages.first.url)
     fetcher = FakeFetchCacheStore.new(cache.normalized_url => Distillator::FetchCacheStore::Result.new(
       cache: cache, cache_hit: false, body: cache.html, signals: { transport_success: true, content_success: true }, fetch_path: "legacy"))
@@ -689,6 +693,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
 
   test "rejected HTTP 200 content retains attempt flags and the actual bounded matcher evidence" do
     website = build_website
+    mark_publishable(website.webpages.sole)
     cache = Distillator::FetchCache.find_by!(normalized_url: website.webpages.first.url)
     failure = Distillator::FetchCacheStore::Result.new(cache: cache, cache_hit: false, body: nil, http_response_code: 200,
       headers: { "CF-Ray" => "1234abcdef567890-YYZ", "Set-Cookie" => "not recorded" },
@@ -789,6 +794,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     price = Property.create!(label: "Price", value_datatype: "MyString", uri: "https://example.org/strict-price", rdfs_class: rdfs_classes(:one))
     website.sources.create!(property: price, selected: true, language: "en", render_js: false, algorithm_value: "xpath=//span/text()")
     second = website.webpages.create!(url: "https://runner-site.example/other", language: "en", rdf_uri: "rdf:strict-other", rdfs_class: rdfs_classes(:one))
+    [first, second].each { |page| mark_publishable(page) }
     caches = website.webpages.map do |page|
       cache = Distillator::FetchCache.find_by(normalized_url: page.url) || create_fetch_cache_for_url(page.url, signals: { transport_success: true, content_success: true })
       cache.update!(html: "<html><span>30</span></html>", body: "<html><span>30</span></html>")
@@ -818,6 +824,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
 
   test "a fresh Wringer retry and body drift do not block matching strict statements and export" do
     website = build_website
+    mark_publishable(website.webpages.sole)
     page = website.webpages.first
     create_selected_statement(page, status: "ok")
     cache = Distillator::FetchCache.find_by!(normalized_url: page.url)
@@ -849,6 +856,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
 
   test "failed fresh Wringer scrape cannot compare its retained last good HTML" do
     website = build_website
+    mark_publishable(website.webpages.sole)
     page = website.webpages.first
     create_selected_statement(page, status: "ok")
     cache = Distillator::FetchCache.find_by!(normalized_url: page.url)
@@ -939,12 +947,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
   end
 
   def create_selected_statement(webpage, status:, property: properties(:four), cache: "Runner Title")
-    # Paired extraction needs required sources, independent of existing statements.
-    %w[Title Dates Location].each do |label|
-      next if webpage.website.sources.joins(:property).where(properties: { label: label }).exists?
-      definition = Property.create!(label: label, value_datatype: "MyString", uri: "https://example.org/#{label}", rdfs_class: rdfs_classes(:one))
-      webpage.website.sources.create!(property: definition, algorithm_value: "manual=Required #{label}", selected: true, language: "en", render_js: false)
-    end
+    ensure_required_sources(webpage)
     source = Source.create!(
       algorithm_value: "manual=Runner Title",
       selected: true,
@@ -971,6 +974,30 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
       cache_changed: 1.hour.ago
     )
     statement
+  end
+
+  def mark_publishable(page)
+    ensure_required_sources(page)
+    sources = page.website.sources.joins(:property).where(properties: { label: %w[Title Dates Location] })
+    sources.each do |source|
+      label = source.property.label
+      cache = label == "Dates" ? [1.month.from_now.iso8601].to_json : "Required #{label}"
+      statement = page.statements.find_or_initialize_by(source: source)
+      next if statement.persisted?
+
+      statement.assign_attributes(cache: cache, status: "ok")
+      statement.save!
+      statement.update_column(:status, "ok")
+    end
+  end
+
+  def ensure_required_sources(webpage)
+    # Paired extraction needs required sources, independent of existing statements.
+    %w[Title Dates Location].each do |label|
+      next if webpage.website.sources.joins(:property).where(properties: { label: label }).exists?
+      definition = Property.create!(label: label, value_datatype: "MyString", uri: "https://example.org/#{label}", rdfs_class: rdfs_classes(:one))
+      webpage.website.sources.create!(property: definition, algorithm_value: "manual=Required #{label}", selected: true, language: "en", render_js: false)
+    end
   end
 
   def fetch_result_for(cache:, transport_success: true, content_success: true, blocking_issue_key: nil)

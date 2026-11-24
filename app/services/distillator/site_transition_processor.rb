@@ -109,6 +109,11 @@ module Distillator
               next
             end
             if requested_phase == "queued"
+              unless website.webpages.public_publishable_events.active.without_reviewed_transition_exclusions.exists?
+                finish(item, website, "attention", "No active publishable event pages with public URLs are available.")
+                next
+              end
+
               if website.distillator_mode == "legacy" || item.batch.thorough_revalidation? && website.distillator_mode == "active"
                 result = @rollout.call(website: website, to_mode: "shadow", actor: item.actor, reason: "Start validation workflow ##{item.id}")
                 raise result.errors.join(", ") unless result.success?
@@ -122,8 +127,7 @@ module Distillator
             item.phase_started_at = Time.current
             item.deadline_at = Time.current + TransitionRun::LEASE + 2.minutes
             item.phase_token = token = SecureRandom.hex(16)
-            options = item.batch.audit? ? item.batch.check_options.merge("include_retired" => true) : item.batch.check_options
-            run = TransitionRun.request!(website: website, options: options, workflow_item: item).run
+            run = TransitionRun.request!(website: website, options: item.batch.check_options, workflow_item: item).run
             item.public_send("#{item.phase == 'postcheck' ? 'post' : 'pre'}_run=", run)
             item.save!
           end

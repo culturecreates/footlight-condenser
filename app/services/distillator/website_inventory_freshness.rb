@@ -14,9 +14,7 @@ module Distillator
 
       events = Webpage.event_pages.where(website_id: website_ids)
       latest_added = events.where(created_at: ..as_of).group(:website_id).maximum(:created_at)
-      reviewed = TransitionExclusion.active.where("distillator_transition_exclusions.website_id = webpages.website_id")
-        .where("distillator_transition_exclusions.url = webpages.url")
-      candidates = events.publishable.where.not(reviewed.arel.exists)
+      candidates = events.public_publishable_events.active(as_of).without_reviewed_transition_exclusions
       inventories = TransitionEventInventory.new(as_of: as_of).for_websites(website_ids, events: candidates)
 
       inventories.to_h do |website_id, inventory|

@@ -4,7 +4,7 @@ module Distillator
     MINIMUM_PUBLISHABLE_SAMPLE_SIZE = 5
     MAXIMUM_PUBLISHABLE_SAMPLE_SIZE = 25
     FALLBACK_REPRESENTATIVE_SAMPLE_SIZE = 3
-    SELECTION_RULE = "20% of publishable event pages, minimum 5, capped at 25, or all pages when fewer than 5 exist.".freeze
+    SELECTION_RULE = "20% of active publishable event pages with public URLs, minimum 5, capped at 25.".freeze
 
     def self.default_publishable_sample_size(count)
       [[(count * PUBLISHABLE_SAMPLE_PERCENT).ceil, MINIMUM_PUBLISHABLE_SAMPLE_SIZE].max, MAXIMUM_PUBLISHABLE_SAMPLE_SIZE].min
@@ -161,7 +161,7 @@ module Distillator
     end
 
     def representative_webpages
-      if original_publishable_event_page_count.positive?
+      if event_scope?
         publishable_representative_webpages
       else
         size = @check_options.size_for(generic_representative_scope.count, default: FALLBACK_REPRESENTATIVE_SAMPLE_SIZE)
@@ -178,22 +178,13 @@ module Distillator
     end
 
     def selected_candidate_tier_count
-      original_publishable_event_page_count.positive? ? publishable_event_page_count : generic_representative_scope.count
+      event_scope? ? publishable_event_page_count : generic_representative_scope.count
     end
 
     def publishable_representative_webpages
-      remaining = publishable_sample_size
-      pages = []
-
-      [future_publishable_event_scope, nil_archive_publishable_event_scope, past_publishable_event_scope].each do |scope|
-        break if remaining <= 0
-
-        selected = scope.limit(remaining).to_a
-        pages.concat(selected)
-        remaining -= selected.length
-      end
-
-      pages
+      scope = publishable_event_scope
+      order = @check_options.include_retired? ? :desc : :asc
+      scope.order(archive_date: order, updated_at: :desc, id: :asc).limit(publishable_sample_size).to_a
     end
 
     def publishable_sample_size
@@ -204,31 +195,38 @@ module Distillator
     end
 
     def publishable_event_scope
-      remaining = without_reviewed_urls(original_publishable_event_scope)
-      ids = event_inventory.retired.pluck(:webpage_id)
-      ids.empty? ? remaining : remaining.where.not(id: ids)
+      scoped_publishable_events.without_reviewed_transition_exclusions
     end
 
     def event_inventory
-      @event_inventory ||= if @check_options.include_retired? || original_publishable_event_page_count.zero?
-        status = @check_options.include_retired? ? "historical_audit" : "no_publishable_events"
-        TransitionEventInventory::Result.new(status: status, lists: [], retired: [])
-      else
-        TransitionEventInventory.new(as_of: @scope_at)
-          .for_websites([website.id], events: without_reviewed_urls(original_publishable_event_scope)).fetch(website.id)
-      end
+      return unless event_scope?
+
+      status = @check_options.include_retired? ? "historical_audit" : "active_event_scope"
+      TransitionEventInventory::Result.new(status: status, archived_publishable_count: original_publishable_event_scope.archived(@scope_at).count)
     end
 
     def selection_rule
-      rule = @check_options.selection_rule.dup
+      rule = @check_options.selection_rule(event_site: event_scope?).dup
       rule << " Reviewed URL exclusions apply before sampling." if excluded_records.any?
-      rule << " Verified past events absent from discovery were omitted." if event_inventory.retired.any?
-      rule << " Includes past events for the historical audit." if @check_options.include_retired?
       rule
     end
 
+    def event_scope?
+      return @event_scope if defined?(@event_scope)
+
+      @event_scope = @check_options.include_retired? || EventSiteSelection.event_content_ids([website.id]).include?(website.id)
+    end
+
+    def scoped_publishable_events
+      if @check_options.include_retired?
+        original_publishable_event_scope.archived(@scope_at)
+      else
+        original_publishable_event_scope.active(@scope_at)
+      end
+    end
+
     def original_publishable_event_scope
-      website.webpages.publishable.event_pages
+      website.webpages.public_publishable_events
     end
 
     def original_publishable_event_page_count
@@ -237,43 +235,13 @@ module Distillator
 
     def excluded_records
       @excluded_records ||= begin
-        scope = original_publishable_event_page_count.positive? ? original_publishable_event_scope : website.webpages
+        scope = event_scope? ? scoped_publishable_events : website.webpages
         website.transition_exclusions.active.where(url: scope.select(:url)).order(:id).to_a
       end
     end
 
-    def excluded_urls
-      excluded_records.map(&:url)
-    end
-
-    def without_reviewed_urls(scope)
-      return scope if excluded_urls.empty?
-
-      # NOT IN alone would also discard NULL URLs that were never reviewed.
-      scope.where.not(url: excluded_urls).or(scope.where(url: nil))
-    end
-
-    def future_publishable_event_scope
-      publishable_event_scope
-        .where("archive_date >= ?", @scope_at.beginning_of_day)
-        .reorder(archive_date: :asc, updated_at: :desc, id: :asc)
-    end
-
-    def past_publishable_event_scope
-      publishable_event_scope
-        .where.not(archive_date: nil)
-        .where("archive_date < ?", @scope_at.beginning_of_day)
-        .reorder(archive_date: :desc, updated_at: :desc, id: :asc)
-    end
-
-    def nil_archive_publishable_event_scope
-      publishable_event_scope
-        .where(archive_date: nil)
-        .reorder(updated_at: :desc, created_at: :desc, id: :asc)
-    end
-
     def generic_representative_scope
-      without_reviewed_urls(website.webpages).reorder(updated_at: :desc, created_at: :desc, id: :asc)
+      website.webpages.without_reviewed_transition_exclusions.reorder(updated_at: :desc, created_at: :desc, id: :asc)
     end
 
     def run_fetch?

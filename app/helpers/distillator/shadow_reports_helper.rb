@@ -331,12 +331,17 @@ module Distillator::ShadowReportsHelper
     check_options = Distillator::TransitionCheckOptions.coerce(scope[:check_options])
     publishable_count = scope[:publishable_event_page_count].to_i
     sampled_count = scope[:representative_webpage_count].to_i
+    inventory_scope = scope.dig(:event_inventory, "status")
+    event_scope = { "active_event_scope" => "active", "historical_audit" => "archived" }[inventory_scope]
+    event_scope = nil if inventory_scope == "historical_audit" && !scope[:event_inventory].key?("archived_publishable_count")
 
     compared = scope[:compared_webpage_count]
     if !compared.nil? && compared < sampled_count
       lines << "Compared #{compared} of #{sampled_count} selected pages. Condenser fetch attempts: #{scope[:fetch_attempted_webpage_count].nil? ? 'not recorded' : scope[:fetch_attempted_webpage_count]}."
     elsif publishable_count.positive?
-      lines << "Checked #{sampled_count} of #{publishable_count} publishable event pages."
+      lines << "Checked #{sampled_count} of #{publishable_count} #{[event_scope, 'publishable event pages'].compact.join(' ')}."
+    elsif event_scope
+      lines << "No #{event_scope} publishable event pages with public URLs were eligible."
     else
       lines << "Checked #{sampled_count} representative webpages because no publishable event pages were available."
     end

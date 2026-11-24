@@ -61,11 +61,11 @@ class Website < ApplicationRecord
   end
 
   def latest_transition_run
-    transition_runs.order(id: :desc).first
+    transition_runs.current_checks.order(id: :desc).first
   end
 
   def latest_completed_transition_run
-    transition_runs.completed.order(completed_at: :desc, id: :desc).first
+    transition_runs.current_checks.completed.order(completed_at: :desc, id: :desc).first
   end
 
   def latest_transition_evidence_checked_at
@@ -78,6 +78,7 @@ class Website < ApplicationRecord
 
   def transition_run_blocker(latest = latest_transition_run)
     return "Run a transition check to establish paired extraction evidence." unless latest
+    return "Historical audits are separate from activation checks." if latest.options.include_retired?
     return "Transition check is #{latest.status}. Wait for all phases to finish." if latest.status.in?(%w[queued running])
     return latest.error_message.presence || "Transition check failed. Run a new check." if latest.status == "failed"
     return Distillator::TransitionFingerprint::STALE_MESSAGE unless latest.configuration_digest == Distillator::TransitionFingerprint.call(self)

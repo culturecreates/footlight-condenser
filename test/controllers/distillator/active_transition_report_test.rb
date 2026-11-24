@@ -61,6 +61,29 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     assert_equal "active", @website.reload.distillator_mode
   end
 
+  test "a completed archived audit and its newer 404 leave current readiness evidence in place" do
+    archived = @website.webpages.create!(url: "https://petittheatre.example/past-event", language: "fr",
+      rdf_uri: "rdf:past-event", rdfs_class: rdfs_classes(:one), archive_date: 1.day.ago)
+    @completed.update_column(:configuration_digest, Distillator::TransitionFingerprint.call(@website))
+    run = Distillator::TransitionRun.request!(website: @website,
+      options: { sample_mode: "all", strictness: "strict", include_retired: true }).run
+    run.update!(status: "completed", started_at: Time.current, completed_at: Time.current)
+    run.transition_evidences.create!(website: @website, check_kind: "fetch_parity", status: "failed",
+      checked_at: Time.current, url: archived.url, details: { reason: "source_404" })
+    cache = Distillator::FetchCache.create!(uri_key: CGI.escape(archived.url), normalized_url: archived.url,
+      http_response_code: 404, scrape_date: Time.current, signals: { content_success: false }, health_status: "attempt_failed")
+
+    assert_equal @completed, @website.latest_transition_run
+    assert_equal @completed.id, @website.latest_transition_evidences_by_kind.fetch("fetch_parity").transition_run_id
+    status = Distillator::TransitionStatus.call(website: @website, cache: cache)
+    assert_equal :passed, status.fetch
+    assert_match(/separate from activation/, @website.transition_run_blocker(run))
+
+    get distillator_shadow_report_site_path(@website), params: { run_id: run.id }
+    assert_response :success
+    assert_select "#historical-transition-run", text: /Historical comparison for run ##{run.id}/
+  end
+
   test "paired counts healthy cache links and backend names are accurate without duplicate evidence" do
     get distillator_shadow_report_site_path(@website)
     assert_response :success
@@ -206,7 +229,7 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     run = Distillator::TransitionRun.request!(website: @website, options: { sample_mode: "all", strictness: "strict" }).run
     get distillator_shadow_report_site_path(@website)
     assert_response :success
-    assert_select '#latest-transition-check', text: /All publishable event pages/
+    assert_select '#latest-transition-check', text: /All active publishable event pages/
     assert_select '#latest-transition-check', text: /Strict: differences in any selected field block activation/
     assert_includes response.body, "Field comparison: Standard: core field differences block; other differences warn"
     assert_select 'strong', text: "Reviewed and accepted for this activation."

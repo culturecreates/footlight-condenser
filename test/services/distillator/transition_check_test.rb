@@ -79,6 +79,7 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
       signals: { "transport_success" => false, "content_success" => false, "empty_body" => true },
       health_status: "empty_body"
     )
+    create_publishable_statements_for(website.webpages.sole, start_at: 1.month.from_now.iso8601)
     fresh_cache = stale_cache.dup
     fresh_cache.assign_attributes(
       html: "<html>fresh</html>",
@@ -147,7 +148,7 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
     assert_equal comparison, result.comparison
   end
 
-  test "publishable representative webpages prefer nearest future then recently updated then recent past" do
+  test "active publishable pages prefer nearest archive date then recently updated pages without dates" do
     travel_to Time.zone.parse("2026-05-25 12:00:00")
     website = build_website("future-event-order")
     nearest_future = create_publishable_event_webpage(
@@ -182,7 +183,7 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
       updated_at: Time.zone.parse("2026-05-24 12:00:00"),
       start_at: "2026-06-21T20:00:00-04:00"
     )
-    recent_past = create_publishable_event_webpage(
+    create_publishable_event_webpage(
       website,
       suffix: "recent-past",
       url: "https://future-event-order.example/recent-past",
@@ -208,11 +209,11 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
     result = Distillator::TransitionCheck.call(website: website)
 
     assert_equal nearest_future, result.representative_webpage
-    assert_equal [nearest_future, later_future, newest_nil_archive, older_nil_archive, recent_past], result.representative_webpages
+    assert_equal [nearest_future, later_future, newest_nil_archive, older_nil_archive], result.representative_webpages
     assert_equal "https://future-event-order.example/nearest-future", result.representative_url
     assert_equal 7, result.candidate_webpage_count
-    assert_equal 6, result.publishable_event_page_count
-    assert_equal 6, result.selected_candidate_tier_count
+    assert_equal 4, result.publishable_event_page_count
+    assert_equal 4, result.selected_candidate_tier_count
     assert_equal Distillator::TransitionCheck::SELECTION_RULE, result.selection_rule
   end
 
@@ -241,7 +242,7 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
     end
   end
 
-  test "representative webpages fall back to generic webpages in deterministic recency order when no publishable event pages exist" do
+  test "representative webpages fall back to generic webpages in deterministic recency order for sites without Event content" do
     website = build_website("generic-page-fallback")
     newest_page = create_non_event_webpage(
       website,
@@ -267,24 +268,18 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
       url: "https://generic-page-fallback.example/fourth-page",
       updated_at: Time.zone.parse("2026-05-24 09:00:00")
     )
-    create_event_webpage(
-      website,
-      suffix: "unpublishable-event",
-      url: "https://generic-page-fallback.example/unpublishable-event",
-      archive_date: Time.zone.parse("2026-05-24 08:00:00"),
-      updated_at: Time.zone.parse("2026-05-24 08:00:00")
-    )
 
     result = Distillator::TransitionCheck.call(website: website)
 
     assert_equal newest_page, result.representative_webpage
     assert_equal 3, result.representative_webpages.count
-    assert_equal 5, result.candidate_webpage_count
+    assert_equal 4, result.candidate_webpage_count
     assert_equal 0, result.publishable_event_page_count
-    assert_equal 5, result.selected_candidate_tier_count
+    assert_equal 4, result.selected_candidate_tier_count
   end
 
   test "candidate webpage count reflects all transition candidates, not only the selected tier" do
+    travel_to Time.zone.parse("2026-05-25 12:00:00")
     website = build_website("candidate-count-honest")
     create_publishable_event_webpage(
       website,
@@ -323,10 +318,10 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
 
     result = Distillator::TransitionCheck.call(website: website)
 
-    assert_equal 5, result.representative_webpage_count
+    assert_equal 2, result.representative_webpage_count
     assert_equal 9, result.candidate_webpage_count
-    assert_equal 6, result.publishable_event_page_count
-    assert_equal 6, result.selected_candidate_tier_count
+    assert_equal 2, result.publishable_event_page_count
+    assert_equal 2, result.selected_candidate_tier_count
   end
 
   test "latest successful condenser fetch stays passed when legacy lookup is incomplete" do
@@ -462,63 +457,31 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
     end
   end
 
-  test "fresh discovery omits past events and keeps current and uncertain events in Thorough" do
+  test "Light and Thorough exclude archived public events independently of ResourceList membership" do
     travel_to Time.zone.parse("2026-11-23 13:00") do
-      website = build_website("inventory-scope")
-      current = inventory_event(website, "current", "2026-12-02T19:00:00-05:00")
-      retired = inventory_event(website, "retired", "2026-11-19")
-      moved = inventory_event(website, "moved", "2026-11-19")
-      listed = inventory_event(website, "listed", "2026-11-19")
-      ongoing = inventory_event(website, "ongoing", "2026-11-19")
-      invalid = inventory_event(website, "invalid", "2026-11-19")
-      invalid.statements.joins(source: :property).find_by!(properties: { label: "Dates" }).update_columns(cache: '["2026-11-19","unknown"]')
-      end_property = Property.create!(rdfs_class: rdfs_classes(:one), label: "Closing date", uri: "schema:endDate")
-      inventory_statement(ongoing, end_property, '["2026-11-23T21:00:00-05:00"]')
-      # A migrated URL may keep the same RDF URI even while the old URL has disappeared.
-      relocated_url = "https://inventory-scope.example/new-path"
-      create_event_webpage(website, suffix: "new-path", url: relocated_url, archive_date: nil)
-      inventory_list(website, [current.url, listed.url + "/", relocated_url], [current.rdf_uri, listed.rdf_uri, moved.rdf_uri])
+      website = build_website("active-event-scope")
+      current = inventory_event(website, "current", "2026-12-02")
+      archived = inventory_event(website, "vibration90-2026", "2026-11-19")
+      archived.update_columns(archive_date: Time.current)
+      internal = inventory_event(website, "internal", "2027-01-10")
+      internal.update_columns(url: "footlight:internal")
+      inventory_list(website, [archived.url], [archived.rdf_uri])
 
-      result = Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "all", strictness: "strict" })
+      [{}, { sample_mode: "all", strictness: "strict" }].each do |options|
+        result = Distillator::TransitionCheck.call(website: website, check_options: options)
+        assert_equal [current], result.representative_webpages
+        assert_equal 1, result.event_inventory.archived_publishable_count
+        assert_equal 2, result.original_publishable_event_page_count
+      end
 
-      assert_equal [retired.id], result.event_inventory.retired.pluck(:webpage_id)
-      assert_equal "confirmed_discovery", result.event_inventory.status
-      assert_equal [current, moved, listed, ongoing, invalid].map(&:id).sort, result.representative_webpages.map(&:id).sort
-      assert_equal 6, result.original_publishable_event_page_count
-      assert_equal 5, result.publishable_event_page_count
-      assert_equal 6, website.webpages.event_pages.publishable.count
-
-      another_site = build_website("inventory-other-website")
-      metrics = Distillator::WebsiteInventoryFreshness.for_websites([website.id, another_site.id])
-      assert_equal 2, result.event_inventory.selected_event_urls_missing
-      assert_equal 2, metrics.fetch(website.id).fetch(:selected_event_urls_missing)
-      assert_equal Time.current.utc.iso8601, metrics.fetch(website.id).fetch(:latest_list_refresh_at)
-      assert_equal 0, metrics.fetch(website.id).fetch(:new_event_age_days)
-      assert_nil metrics.fetch(another_site.id).fetch(:selected_event_urls_missing)
-      assert_nil metrics.fetch(another_site.id).fetch(:new_event_age_days)
-
-      run = publish_unavailable_source_run(website, url: invalid.url)
-      Distillator::TransitionExclusionReview.create!(website: website, run: run, url: invalid.url, reason: "Operator verified the source URL")
-      assert_equal 1, Distillator::WebsiteInventoryFreshness.for_websites([website.id]).fetch(website.id).fetch(:selected_event_urls_missing)
-
-      audit = Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "all", strictness: "strict", include_retired: true })
+      freshness = Distillator::WebsiteInventoryFreshness.for_websites([website.id]).fetch(website.id)
+      assert_equal 1, freshness[:selected_event_urls_missing]
+      audit = Distillator::TransitionCheck.call(website: website,
+        check_options: { sample_mode: "all", strictness: "strict", include_retired: true })
+      assert_equal [archived], audit.representative_webpages
       assert_equal "historical_audit", audit.event_inventory.status
-      assert_includes audit.representative_webpages, retired
+      assert_equal 3, website.webpages.event_pages.publishable.count
     end
-  end
-
-  test "an individual date override protects an absent event from automatic retirement" do
-    website = build_website("inventory-individual")
-    past = inventory_event(website, "past", "2025-01-10")
-    current = inventory_event(website, "current", "2027-01-10")
-    override = inventory_statement(past, properties(:six), '["2027-01-11"]')
-    override.source.update!(selected: false)
-    inventory_list(website, [current.url], [current.rdf_uri])
-
-    result = Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "all" })
-
-    assert_empty result.event_inventory.retired
-    assert_includes result.representative_webpages, past
   end
 
   test "dashboard freshness distinguishes a verified zero from an old ResourceList refresh" do
@@ -544,59 +507,19 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
     assert_nil freshness[:selected_event_urls_missing]
   end
 
-  test "an empty post-retirement event scope never falls back to unrelated webpages" do
-    website = build_website("inventory-empty")
-    past = inventory_event(website, "past", "2025-01-10")
-    current = create_event_webpage(website, suffix: "pending-review", url: "https://inventory-empty.example/pending-review", archive_date: nil)
-    inventory_list(website, [current.url], [current.rdf_uri])
+  test "an empty active publishable scope never falls back to archived or unrelated webpages" do
+    website = build_website("active-scope-empty")
+    archived = inventory_event(website, "archived", "2025-01-10")
+    archived.update_columns(archive_date: 1.day.ago)
+    create_event_webpage(website, suffix: "unpublishable", url: "https://active-scope-empty.example/unpublishable", archive_date: nil)
+    create_non_event_webpage(website, suffix: "about", url: "https://active-scope-empty.example/about", updated_at: Time.current)
 
     result = Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "all" })
 
-    assert_equal [past.id], result.event_inventory.retired.pluck(:webpage_id)
+    assert_equal 1, result.original_publishable_event_page_count
+    assert_equal 1, result.event_inventory.archived_publishable_count
     assert_empty result.representative_webpages
     assert_not result.promotable
-  end
-
-  test "stale partial and malformed discovery keep past pages in scope" do
-    website = build_website("inventory-incomplete")
-    past = inventory_event(website, "past", "2025-01-10")
-    current = inventory_event(website, "current", "2027-01-10")
-    _, url_list, uri_list = inventory_list(website, [current.url], [current.rdf_uri])
-    [49.hours.ago, 20.minutes.ago].each do |timestamp|
-      uri_list.update_columns(cache_refreshed: timestamp)
-      result = Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "all" })
-      assert_equal "discovery_unverified", result.event_inventory.status
-      assert_includes result.representative_webpages, past
-    end
-
-    uri_list.update_columns(cache_refreshed: Time.current)
-    url_list.update_columns(cache: "[]")
-    result = Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "all" })
-    assert_equal "discovery_unverified", result.event_inventory.status
-    assert_includes result.representative_webpages, past
-
-    url_list.update_columns(cache: '["https://inventory-incomplete.example/not-imported"]')
-    result = Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "all" })
-    assert_equal "discovery_pending_import", result.event_inventory.status
-    assert_includes result.representative_webpages, past
-  end
-
-  test "changing inventory inputs or aging out the retirement proof invalidates completed evidence" do
-    website = build_website("inventory-guard")
-    past = inventory_event(website, "past", "2025-01-10")
-    current = inventory_event(website, "current", "2027-01-10")
-    _, urls, = inventory_list(website, [current.url], [current.rdf_uri])
-    inventory = Distillator::TransitionCheck.call(website: website).event_inventory
-    run = publish_transition_fixture(website, defaults: {
-      "fetch_parity" => { details: { event_inventory: inventory.to_h.merge(valid_until: inventory.valid_until.iso8601) } }
-    })
-
-    assert_nil website.transition_run_blocker(run)
-    travel_to(inventory.valid_until + 1.second) do
-      assert_match(/ResourceList evidence.*expired/, website.transition_run_blocker(run))
-    end
-    urls.update_columns(cache: [current.url, past.url].to_json)
-    assert_equal Distillator::TransitionFingerprint::STALE_MESSAGE, website.transition_run_blocker(run)
   end
 
   private
@@ -694,31 +617,14 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
 
   def create_publishable_event_pages(website, count)
     count.times.map do |index|
-      archive_date, updated_at =
-        if index < 10
-          [
-            Time.zone.parse("2026-06-#{format('%02d', index + 1)} 12:00:00"),
-            Time.zone.parse("2026-05-24 10:#{format('%02d', index)}:00")
-          ]
-        elsif index < 20
-          [
-            nil,
-            Time.zone.parse("2026-05-23 10:#{format('%02d', index - 10)}:00")
-          ]
-        else
-          [
-            Time.zone.parse("2026-02-#{format('%02d', ((index - 20) % 28) + 1)} 12:00:00"),
-            Time.zone.parse("2026-05-22 10:#{format('%02d', index % 60)}:00")
-          ]
-        end
-
+      archive_date = (index + 1).days.from_now
       create_publishable_event_webpage(
         website,
         suffix: "publishable-#{index}",
         url: "https://#{website.seedurl}.example/publishable-#{index}",
         archive_date: archive_date,
-        updated_at: updated_at,
-        start_at: "2026-06-#{format('%02d', (index % 28) + 1)}T12:00:00-04:00"
+        updated_at: 1.hour.ago,
+        start_at: archive_date.iso8601
       )
     end
   end

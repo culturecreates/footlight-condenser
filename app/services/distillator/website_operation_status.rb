@@ -11,7 +11,8 @@ module Distillator
       @completed_run = if latest_run&.status == "completed"
         latest_run
       elsif latest_run
-        website.transition_runs.completed.where("id < ?", latest_run.id).order(completed_at: :desc, id: :desc).first
+        scope = latest_run.options.include_retired? ? website.transition_runs.historical_audits : website.transition_runs.current_checks
+        scope.completed.where("id < ?", latest_run.id).order(completed_at: :desc, id: :desc).first
       end
       @evidence_by_kind = completed_run ? completed_run.transition_evidences.index_by(&:check_kind) : {}
       @comparison = Distillator::TransitionStatus.call(website: website, cache: nil,

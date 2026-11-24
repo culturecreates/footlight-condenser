@@ -9,12 +9,19 @@ class Webpage < ApplicationRecord
   has_many :statements, dependent: :destroy
   scope :public_source_urls, -> { where(PUBLIC_SOURCE_URL_SQL) }
   scope :internal_uris, -> { where.not(id: public_source_urls.select(:id)) }
-  scope :active, -> { where("archive_date IS NULL OR archive_date > ?", Time.zone.now) }
+  scope :active, ->(at = Time.zone.now) { where("archive_date IS NULL OR archive_date > ?", at) }
+  scope :archived, ->(at = Time.zone.now) { where("archive_date <= ?", at) }
   scope :publishable, -> { where(id: publishable_relation.select(:id)) }
   scope :publishable_event_pages, -> { active.publishable }
   scope :not_publishable, -> { where.not(id: publishable.select(:id)) }
   scope :transition_candidates, -> { order(:archive_date, :id) }
   scope :event_pages, -> { joins(:rdfs_class).where(rdfs_classes: { name: "Event" }) }
+  scope :public_publishable_events, -> { event_pages.public_source_urls.publishable }
+  scope :without_reviewed_transition_exclusions, -> {
+    reviewed = Distillator::TransitionExclusion.active
+      .where("distillator_transition_exclusions.website_id = webpages.website_id AND distillator_transition_exclusions.url = webpages.url")
+    where.not(reviewed.arel.exists)
+  }
   validates :url, uniqueness: { scope: :website_id }
   validates :rdf_uri, presence: true
 

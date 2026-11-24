@@ -5,6 +5,7 @@ class Distillator::TransitionExclusionReviewTest < ActiveSupport::TestCase
     @website = Website.create!(name: "Exclusion pilot", seedurl: "exclusion-pilot", default_language: "en",
       graph_name: "https://example.org/exclusions", distillator_mode: "shadow")
     @page = @website.webpages.create!(url: "https://example.org/gone", rdf_uri: "rdf:gone", rdfs_class: rdfs_classes(:one), language: "en")
+    make_publishable(@page)
     @run = publish_unavailable_source_run(@website, url: @page.url)
   end
 
@@ -108,10 +109,11 @@ class Distillator::TransitionExclusionReviewTest < ActiveSupport::TestCase
     assert_equal 2, @website.transition_exclusions.count
   end
 
-  test "same URL on another website is unaffected and generic fallback honors exclusions" do
+  test "same URL on another website is unaffected by an exclusion" do
     exclude
     other = websites(:one)
     other_page = other.webpages.create!(url: @page.url, rdf_uri: "rdf:other-gone", rdfs_class: rdfs_classes(:one))
+    make_publishable(other_page)
     assert_includes Distillator::TransitionCheck.call(website: other, check_options: { sample_mode: "all" }).representative_webpages.map(&:id), other_page.id
     @page.update!(url: "https://example.org/moved")
     assert_equal [@page.id], Distillator::TransitionCheck.call(website: @website).representative_webpages.map(&:id)
@@ -123,10 +125,11 @@ class Distillator::TransitionExclusionReviewTest < ActiveSupport::TestCase
     end
   end
 
-  test "excluding one URL does not silently drop unreviewed null URLs" do
+  test "event checks require public URLs even when other URLs are reviewed" do
     blank = @website.webpages.create!(url: nil, rdf_uri: "rdf:null-url", rdfs_class: rdfs_classes(:one))
+    make_publishable(blank)
     exclude
-    assert_equal [blank.id], Distillator::TransitionCheck.call(website: @website).representative_webpages.map(&:id)
+    assert_empty Distillator::TransitionCheck.call(website: @website).representative_webpages
   end
 
   test "explicit website deletion destroys its reviews before their supporting runs" do
@@ -137,6 +140,14 @@ class Distillator::TransitionExclusionReviewTest < ActiveSupport::TestCase
   end
 
   private
+
+  def make_publishable(page)
+    { four: "Public event", location: '[["Salle","uri:place"]]', six: [1.month.from_now.iso8601].to_json }.each do |property, cache|
+      source = page.website.sources.create!(property: properties(property), language: "en", selected: true, algorithm_value: "manual=#{cache}")
+      statement = page.statements.create!(source: source, status: "ok", cache: cache)
+      statement.update_column(:status, "ok")
+    end
+  end
 
   def exclude(reason: "Source removed; verified manually")
     Distillator::TransitionExclusionReview.create!(website: @website, run: @run, url: @page.url, reason: reason)

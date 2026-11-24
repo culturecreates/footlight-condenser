@@ -200,10 +200,26 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     assert_nil item.reload.pre_run
     assert_equal "all", item.post_run.options.sample_mode
     assert item.post_run.options.strict?
+    assert_not item.post_run.options.include_retired?
     assert_equal "blocked", item.phase_results.dig("postcheck", "state")
     assert_equal "attention", item.status
     assert_equal "active", item.final_mode
     assert_equal "active", @website.reload.distillator_mode
+  end
+
+  test "an Active site with only archived publishable events stays Active" do
+    @website.update_column(:distillator_mode, "active")
+    @website.webpages.sole.update_column(:archive_date, 1.day.ago)
+    _, item = request
+
+    assert_no_difference ["Distillator::TransitionRun.count", "Distillator::RolloutEvent.count"] do
+      @processor.perform(item.id, phase: "queued")
+    end
+
+    assert_equal "attention", item.reload.status
+    assert_equal "active", @website.reload.distillator_mode
+    assert_includes item.reason, "No active publishable event pages"
+    assert_empty @runner.calls
   end
 
   test "an Active audit timeout records the failure without rolling back the website" do
@@ -494,12 +510,17 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
 
   test "full workflow uses real selected-source extraction and switches from forced precheck to ordinary Active dispatch" do
     page = @website.webpages.sole
+    @website.sources.destroy_all
+    archived = @website.webpages.create!(url: "https://example.org/vibration90-2026", language: "en", rdf_uri: "rdf:archived",
+      rdfs_class: rdfs_classes(:one), archive_date: 1.day.ago)
     { "Title" => "title", "Location" => "address", "Dates" => "time" }.each do |label, tag|
       property = Property.create!(label: label, uri: "https://example.org/property/#{label}", value_datatype: "MyString", rdfs_class: rdfs_classes(:one))
       source = @website.sources.create!(property: property, language: "en", selected: true, algorithm_value: "xpath=//#{tag}/text()")
       Statement.create!(webpage: page, source: source, cache: "2027-01-01", status: "ok")
+      Statement.create!(webpage: archived, source: source, cache: "2026-10-01", status: "ok")
     end
-    Statement.where(webpage: page).update_all(status: "ok")
+    Statement.where(webpage: [page, archived]).update_all(status: "ok")
+    assert @website.webpages.publishable.where(id: archived.id).exists?
     html = "<title>Event</title><address>Hall</address><time>2027-01-01</time>"
     cache = Distillator::FetchCache.create!(uri_key: CGI.escape(page.url), normalized_url: page.url, html: html, body: html,
       http_response_code: 200, scrape_date: Time.current, successful_refresh: Time.current, headers: {},
@@ -526,6 +547,7 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     end
     assert_equal "passed", item.reload.status, item.reason
     assert_equal ["internal", nil], calls.map { |call| call[:mode] }
+    assert_equal [page.url, page.url], calls.pluck(:uri)
     assert calls.all? { |call| call[:force_scrape] }
     assert_equal true, item.post_run.transition_evidences.find_by!(check_kind: "fetch_parity").details["active_path_verification"]
     assert_equal "active", @website.reload.distillator_mode
@@ -535,7 +557,12 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
 
   def create_site(seed)
     website = Website.create!(name: seed, seedurl: seed, graph_name: "https://example.org/#{seed}", default_language: "en", distillator_mode: "legacy")
-    website.webpages.create!(url: "https://example.org/#{seed}/event", rdf_uri: "rdf:#{seed}", rdfs_class: rdfs_classes(:one), language: "en")
+    page = website.webpages.create!(url: "https://example.org/#{seed}/event", rdf_uri: "rdf:#{seed}", rdfs_class: rdfs_classes(:one), language: "en")
+    { four: "Current event", location: '[["Salle","uri:place"]]', six: [1.month.from_now.iso8601].to_json }.each do |property, value|
+      source = website.sources.create!(property: properties(property), language: "en", selected: true, algorithm_value: "manual=#{value}")
+      statement = page.statements.create!(source: source, status: "ok", cache: value)
+      statement.update_column(:status, "ok")
+    end
     website
   end
 

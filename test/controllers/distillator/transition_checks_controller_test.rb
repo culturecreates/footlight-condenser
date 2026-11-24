@@ -54,6 +54,21 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
     assert_redirected_to distillator_transition_check_path(target.latest_transition_run)
   end
 
+  test "an archived audit queues separately from activation readiness" do
+    target = websites(:one)
+
+    post distillator_transition_checks_path, params: { website_id: target.id,
+      check_options: { sample_mode: "all", strictness: "strict", include_retired: "true" } }
+    run = target.transition_runs.historical_audits.sole
+    assert_redirected_to distillator_transition_check_path(run)
+    assert_nil target.latest_transition_run
+    assert_equal target.transition_check_requested_at, target.reload.transition_check_requested_at
+
+    post distillator_transition_checks_path, params: { website_id: target.id }
+    assert_redirected_to distillator_transition_check_path(run)
+    assert_includes flash[:alert], "different check options"
+  end
+
   test "enqueue failure marks the run failed and permits retry" do
     target = websites(:one)
     Distillator::TransitionCheckJob.stubs(:perform_later).returns(false)
@@ -155,7 +170,7 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
       assert_select '[data-run-failed][hidden]'
       assert_select '[data-transition-context]', count: 0
       assert_select '[data-operator-context-card]', count: 0
-      assert_includes response.body, "Up to 10 publishable event pages"
+      assert_includes response.body, "Up to 10 active publishable event pages"
       assert_includes response.body, "Strict: differences in any selected field block activation"
     end
     get distillator_transition_check_path(run, format: :json)

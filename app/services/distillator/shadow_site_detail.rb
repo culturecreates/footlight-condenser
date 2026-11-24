@@ -139,7 +139,7 @@ module Distillator
           transition_exclusions: Array(fetch_details["transition_exclusions"]),
           event_inventory: fetch_details["event_inventory"].to_h,
           representative_webpages: representative_urls,
-          selection_rule: statement_details["selection_rule"] || export_details["selection_rule"] || fetch_details["selection_rule"] || Distillator::TransitionCheck::SELECTION_RULE,
+          selection_rule: statement_details["selection_rule"] || export_details["selection_rule"] || fetch_details["selection_rule"] || TransitionCheckOptions.new.selection_rule,
           selected_candidate_tier_count: (statement_details["selected_candidate_tier_count"] || export_details["selected_candidate_tier_count"] || fetch_details["selected_candidate_tier_count"]).to_i,
           statements_refreshed_count: (statement_details["statements_refreshed_count"] || 0).to_i,
           statements_compared_count: integer_detail(statement_details, "statements_compared_count"),

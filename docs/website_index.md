@@ -86,7 +86,7 @@ The scheduling and staging rollout policies are unchanged.
 **Inventory freshness** uses the same local ResourceList evidence and retirement
 rules as transition checks. It shows the latest recorded paired list refresh,
 the calendar-day age of the most recently added event webpage, and how many
-publishable event URLs would still be selected for a Thorough check despite
+active publishable event URLs would still be selected for a Thorough check despite
 matching neither a URL nor an RDF URI in the current lists. The count is
 unavailable when list evidence is stale, incomplete, or awaiting import.
 Console reads the same values through `/websites.json?inventory_freshness=true`.

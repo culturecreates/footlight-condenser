@@ -2,16 +2,12 @@ require "json"
 require "time"
 
 module Distillator
-  # An unavailable or ambiguous discovery list cannot establish that an event
-  # was retired. Use the same site's selected discovery and date statements.
+  # Compare the site's transition candidates with verified discovery lists.
   class TransitionEventInventory
     MAX_LIST_AGE = 48.hours
     MAX_LIST_REFRESH_SKEW = 10.minutes
     DISCOVERY_LABELS = [AddWebpagesJob::RDF_CLASS_LABEL, AddWebpagesJob::URI_LIST_LABEL, AddWebpagesJob::WEBPAGE_URL_LIST_LABEL].freeze
-    DATE_LABELS = ["Dates", "End Date"].freeze
-    START_DATE_URIS = %w[schema:startDate http://schema.org/startDate https://schema.org/startDate].freeze
-    END_DATE_URIS = %w[schema:endDate http://schema.org/endDate https://schema.org/endDate].freeze
-    Result = Struct.new(:status, :lists, :retired, :valid_until, :selected_event_urls_missing, keyword_init: true)
+    Result = Struct.new(:status, :lists, :valid_until, :selected_event_urls_missing, :archived_publishable_count, keyword_init: true)
 
     def self.statement_scope(website_ids, class_name)
       Statement.joins(webpage: :rdfs_class, source: :property)
@@ -22,22 +18,6 @@ module Distillator
 
     def self.discovery_scope(website_ids)
       statement_scope(website_ids, "ResourceList").where(properties: { label: DISCOVERY_LABELS })
-    end
-
-    def self.dates_scope(website_ids)
-      scope = statement_scope(website_ids, "Event")
-      scope.where(properties: { label: DATE_LABELS }).or(scope.where(properties: { uri: START_DATE_URIS + END_DATE_URIS }))
-    end
-
-    def self.fingerprint_inputs(website)
-      return [] unless website.webpages.joins(:rdfs_class).where(rdfs_classes: { name: "ResourceList" }).exists?
-
-      lists = discovery_scope(website.id)
-      dates = dates_scope(website.id)
-      cache_digest = Arel.sql("md5(COALESCE(statements.cache, ''))")
-      fields = ["statements.id", "statements.webpage_id", "statements.source_id", "statements.status", cache_digest]
-      [lists.order("statements.id").pluck(*fields, "statements.selected_individual", "statements.cache_refreshed", "statements.manual"),
-        dates.order("statements.id").pluck(*fields)]
     end
 
     def initialize(as_of:)
@@ -68,27 +48,16 @@ module Distillator
       end
       return results if event_lists_by_site.empty?
 
-      missing_by_site = missing_event_rows(event_lists_by_site, events, results)
-      missing_ids = missing_by_site.values.flat_map { |rows| rows.map(&:first) }
-      date_rows = self.class.dates_scope(missing_by_site.keys)
-        .where(webpage_id: missing_ids).includes(source: :property).group_by(&:webpage_id)
-      missing_by_site.each do |website_id, rows|
-        inventory = results.fetch(website_id)
-        inventory.retired = rows.filter_map do |id, url|
-          ended_at = last_occurrence(date_rows.fetch(id, []))
-          { webpage_id: id, url: url, last_occurrence: ended_at.iso8601 } if ended_at && ended_at < @as_of.beginning_of_day
-        end
-        inventory.selected_event_urls_missing = rows.size - inventory.retired.size
-      end
+      record_missing_event_counts(event_lists_by_site, events, results)
       results
     end
 
     private
 
-    def missing_event_rows(event_lists_by_site, events, results)
+    def record_missing_event_counts(event_lists_by_site, events, results)
       registered = Webpage.event_pages.where(website_id: event_lists_by_site.keys).pluck(:website_id, :url).group_by(&:first)
-      candidates = events.where(website_id: event_lists_by_site.keys).pluck(:website_id, :id, :url, :rdf_uri).group_by(&:first)
-      event_lists_by_site.each_with_object({}) do |(website_id, lists), missing|
+      candidates = events.where(website_id: event_lists_by_site.keys).pluck(:website_id, :url, :rdf_uri).group_by(&:first)
+      event_lists_by_site.each do |website_id, lists|
         urls = lists.flat_map { |list| list[:url_keys] }.to_set
         imported = registered.fetch(website_id, []).filter_map { |_, url| public_url_key(url) }.to_set
         unless urls.subset?(imported)
@@ -96,15 +65,15 @@ module Distillator
           next
         end
         uris = lists.flat_map { |list| list[:rdf_uris] }.to_set
-        missing[website_id] = candidates.fetch(website_id, []).filter_map do |_, id, url, rdf_uri|
+        results.fetch(website_id).selected_event_urls_missing = candidates.fetch(website_id, []).count do |_, url, rdf_uri|
           key = public_url_key(url)
-          [id, url] if key && !urls.include?(key) && !uris.include?(rdf_uri)
+          key && !urls.include?(key) && !uris.include?(rdf_uri)
         end
       end
     end
 
-    def result(status, lists: [], retired: [], valid_until: nil)
-      Result.new(status: status, retired: retired, valid_until: valid_until,
+    def result(status, lists: [], valid_until: nil)
+      Result.new(status: status, valid_until: valid_until,
         lists: lists.map { |list| list.except(:url_keys, :rdf_uris, :valid_until) })
     end
 
@@ -169,43 +138,6 @@ module Distillator
       value = JSON.parse(cache.to_s)
       value if value.is_a?(Array) && value.all? { |entry| entry.is_a?(String) && entry.present? }
     rescue JSON::ParserError
-      nil
-    end
-
-    def last_occurrence(statements)
-      ends, starts = statements.partition do |statement|
-        property = statement.source.property
-        property.label == "End Date" || END_DATE_URIS.include?(property.uri)
-      end
-      start = starts.first if starts.one?
-      return unless start && Webpage::PUBLISHABLE_STATUSES.include?(start.status)
-
-      dates = event_times(start.cache)
-      return unless dates.present?
-
-      return if ends.size > 1
-      if (finish = ends.first)
-        return unless Webpage::PUBLISHABLE_STATUSES.include?(finish.status)
-
-        ending_dates = event_times(finish.cache)
-        return unless ending_dates
-
-        dates += ending_dates
-      end
-      dates.max
-    end
-
-    def event_times(value)
-      return if value.blank?
-
-      parsed = value.start_with?("[", '"') ? JSON.parse(value) : value
-      Array(parsed).map do |date|
-        return unless date.is_a?(String) && date.match?(/\A\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?\z/)
-
-        day = Date.iso8601(date[0, 10])
-        date.length == 10 ? day.in_time_zone.end_of_day : Time.zone.iso8601(date)
-      end
-    rescue JSON::ParserError, ArgumentError
       nil
     end
 

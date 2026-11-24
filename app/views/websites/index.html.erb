@@ -76,16 +76,16 @@
       <div>
         <%= label_tag :check_profile, "Check profile" %>
         <%= select_tag :check_profile, options_for_select([
-          ["Thorough (all eligible pages, Strict)", "thorough"],
-          ["Light (default sample, Standard)", "light"]
+            ["Thorough (all active publishable events, Strict)", "thorough"],
+            ["Light (sample active publishable events, Standard)", "light"]
         ], Distillator::TransitionBatch::DEFAULT_CHECK_PROFILE) %>
       </div>
       <%= submit_tag "Validate and activate selected", data: { transition_submit: true } %>
       <%= button_tag "Audit selected Active sites (Thorough)", name: "workflow_action", value: "audit", data: { transition_audit: true } %>
       <p>Thorough validation moves Active sites to Shadow before checking. An audit keeps the current serving mode.</p>
       <details><summary>How validation and audit work</summary>
-        <p>Both profiles can activate sites. Light samples 20% of publishable event pages (minimum 5, maximum 25, limited by availability)
-          and uses Standard field comparison. Thorough uses all eligible pages and Strict field comparison.</p>
+        <p>Both profiles can activate sites. Light samples 20% of active publishable event pages (minimum 5, maximum 25, limited by availability)
+          and uses Standard field comparison. Thorough checks all active publishable event pages with public URLs and uses Strict field comparison.</p>
         <p>Processes selected event sites one at a time. The Shadow check and the Active-path verification use the chosen profile.
           Failed verification returns the site to Shadow. Review-needed results stop for manual attention.</p>
         <p>Active audit always uses Thorough and reports findings without changing the serving mode. Select only Active sites for an audit.</p>

@@ -9,7 +9,8 @@
   <p class="cache-page-note">This comparison does not change the website's rollout mode or stored statements.</p>
 
   <dl class="website-identity-list">
-    <dt>Event sample</dt><dd><%= @run.options.selection_rule %></dd>
+    <% recorded_rule = @run.transition_evidences.find_by(check_kind: "fetch_parity")&.details&.dig("selection_rule") if @run.status == "completed" %>
+    <dt>Event sample</dt><dd><%= recorded_rule || @run.options.selection_rule %></dd>
     <dt>Field comparison</dt><dd><%= @run.options.field_policy_label %></dd>
     <dt>Requested</dt><dd><%= @run.requested_at %></dd>
   </dl>

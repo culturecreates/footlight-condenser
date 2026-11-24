@@ -20,6 +20,8 @@ module Distillator
     validate :valid_check_options
     scope :active, -> { where(status: %w[queued running]) }
     scope :completed, -> { where(status: "completed") }
+    scope :historical_audits, -> { where("check_options ->> 'include_retired' = 'true'") }
+    scope :current_checks, -> { where("check_options ->> 'include_retired' IS DISTINCT FROM 'true'") }
     scope :guarded_running, -> { where(status: "running").where("progress ->> 'execution_lock' = 'true'") }
 
     def self.request!(website:, options: {}, workflow_item: nil)
@@ -39,7 +41,7 @@ module Distillator
         current&.update!(status: "failed", completed_at: Time.current, error_message: "Check expired. A new run was requested.")
         run = create!(website: website, requested_at: Time.current,
           configuration_digest: Distillator::TransitionFingerprint.call(website), check_options: requested_options.to_h)
-        website.update_column(:transition_check_requested_at, run.requested_at)
+        website.update_column(:transition_check_requested_at, run.requested_at) unless requested_options.include_retired?
         Request.new(run: run, created?: true)
       end
     end

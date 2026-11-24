@@ -164,6 +164,10 @@ module Distillator
     def blockers
       reasons = []
       reasons << run_blocker if run_blocker.present?
+      evidence = fetch_parity_evidence
+      if evidence&.details&.dig("event_inventory", "status") == "active_event_scope" && evidence.detail_reason == "no_representative_webpages"
+        reasons << "No active publishable event pages with public URLs are available."
+      end
       reasons << fetch_failure_blocker if fetch_status == :failed
       reasons << "Cannot activate yet: fetch check is stale." if fetch_status == :stale && lavitrine_pipeline?
       reasons << "Cannot activate yet: statements check failed." if statements_status == :failed
@@ -201,7 +205,8 @@ module Distillator
 
     def fetch_status
       evidence = fetch_parity_evidence
-      if evidence.present? && cache.present? && cache.scrape_date.present? && cache.scrape_date > evidence.checked_at && fetch_failed?
+      if evidence.present? && cache.present? && cache.scrape_date.present? && cache.scrape_date > evidence.checked_at &&
+          fetch_failed? && !archived_event_fetch?
         return :failed
       end
       return fetch_status_from_evidence(evidence) if evidence.present?
@@ -210,6 +215,15 @@ module Distillator
       return :stale if fetch_evidence_stale?
 
       :passed
+    end
+
+    def archived_event_fetch?
+      return false unless website && cache.normalized_url.present?
+
+      url = cache.normalized_url
+      aliases = [url, url.end_with?("/") ? url.delete_suffix("/") : "#{url}/"]
+      matching = website.webpages.event_pages.where(url: aliases)
+      matching.archived(now).exists? && !matching.active(now).exists?
     end
 
     def statements_status

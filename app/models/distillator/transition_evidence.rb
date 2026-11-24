@@ -28,7 +28,7 @@ module Distillator
     def self.latest_for_website_ids(website_ids)
       return {} if Array(website_ids).blank?
 
-      run_ids = Distillator::TransitionRun.completed.where(website_id: Array(website_ids))
+      run_ids = Distillator::TransitionRun.current_checks.completed.where(website_id: Array(website_ids))
         .select("DISTINCT ON (website_id) id").order(Arel.sql("website_id, completed_at DESC, id DESC"))
       rows = where(transition_run_id: run_ids).order(checked_at: :desc, id: :desc)
       rows.each_with_object(Hash.new { |hash, key| hash[key] = {} }) do |row, grouped|

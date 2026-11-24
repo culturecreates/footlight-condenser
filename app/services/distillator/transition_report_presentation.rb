@@ -106,7 +106,8 @@ module Distillator
     def no_eligible_pages?
       scope = detail.checked_scope
       scope[:representative_webpage_count].to_i.zero? &&
-        (scope[:transition_exclusions].present? || scope.dig(:event_inventory, "retired").present?)
+        (scope[:transition_exclusions].present? || scope.dig(:event_inventory, "retired").present? ||
+          scope.dig(:event_inventory, "status") == "active_event_scope")
     end
 
     def decision_title

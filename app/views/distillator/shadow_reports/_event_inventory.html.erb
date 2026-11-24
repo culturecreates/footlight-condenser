@@ -11,7 +11,13 @@
     <% when "confirmed_discovery" %>
       <p>Past events were eligible for omission when neither their URL nor their RDF URI appeared in any verified event list.</p>
     <% when "historical_audit" %>
-      <p>This audit includes historical event pages.</p>
+      <% if inventory.key?("archived_publishable_count") %>
+        <p><%= pluralize(inventory["archived_publishable_count"], "archived publishable event page") %> at the time of the audit.</p>
+      <% else %>
+        <p>This audit included historical event pages.</p>
+      <% end %>
+    <% when "active_event_scope" %>
+      <p><%= pluralize(inventory["archived_publishable_count"], "archived publishable event page") %> outside the activation scope.</p>
     <% when "no_publishable_events" %>
       <p>No publishable event pages were available to reconcile with discovery.</p>
     <% else %>

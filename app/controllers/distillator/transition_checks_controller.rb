@@ -32,7 +32,8 @@ module Distillator
       redirect_to distillator_transition_check_path(request.run), notice: "Transition check ##{request.run.id} queued."
     rescue Distillator::TransitionRun::OptionsConflict => error
       flash.delete(:notice)
-      redirect_to distillator_transition_check_path(website.latest_transition_run), alert: error.message
+      run = website.transition_runs.active.order(id: :desc).first || website.transition_runs.order(id: :desc).first
+      redirect_to distillator_transition_check_path(run), alert: error.message
     rescue ArgumentError => error
       flash.delete(:notice)
       redirect_to transition_check_return_path(website), alert: error.message

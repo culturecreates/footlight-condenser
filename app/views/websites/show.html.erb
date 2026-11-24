@@ -106,7 +106,7 @@
           <%= label_tag "check_options_sample_mode", "Event sample" %>
           <%= select_tag "check_options[sample_mode]", options_for_select([
             ["Default sample (20%, minimum 5, maximum 25)", "default"],
-            ["Fixed number of pages", "count"], ["All publishable event pages", "all"]
+            ["Fixed number of pages", "count"], ["All active publishable event pages", "all"]
           ], check_options.sample_mode) %>
           <%= label_tag "check_options_sample_size", "Page count (Fixed number of pages only)" %>
           <%= number_field_tag "check_options[sample_size]", check_options.sample_size || 25,
@@ -119,10 +119,17 @@
             ["Strict: differences in any selected field block", "strict"]
           ], check_options.strictness) %>
         </p>
-        <p class="cache-page-note">Both modes compare all selected sources. Fixed count applies only to a fixed sample.
-          If no publishable events exist, the check uses other website pages. Larger checks take longer.</p>
+        <p class="cache-page-note">Event sites are checked on active publishable event pages with public URLs.
+          Sites without Event pages or selected Event sources can check other website pages.</p>
         <%= submit_tag "Run transition batch check", class: "website-transition-button" %>
       </fieldset>
+    <% end %>
+    <% if @website.webpages.event_pages.archived.exists? %>
+      <%= button_to "Audit archived events", website_transition_batch_check_path, method: :post,
+        params: { website_id: @website.id, check_options: { sample_mode: "all", strictness: "strict", include_retired: true } } %>
+      <% if (historical_run = @website.transition_runs.historical_audits.order(id: :desc).first) %>
+        <p><%= link_to "View latest historical audit", distillator_transition_check_path(historical_run) %></p>
+      <% end %>
     <% end %>
     <p><%= website_transition_evidence_freshness_text(@website) %></p>
     <% if latest_run %>
