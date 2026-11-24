@@ -37,62 +37,31 @@ class StatementsHelperRefreshTest < ActionView::TestCase
     ENV["DISTILLATOR_FETCH_MODE"] = @old_fetch_mode
   end
 
-  # statement set to manual
-  test "should not refresh when manual and ok" do
-    stat = statements(:one)
-    stat.manual = true
-    stat.status = "ok"
-    expected = stat.cache_refreshed
-    refresh_statement_helper(stat)
-    assert_equal expected, stat.cache_refreshed, "Cache refresh dates should NOT have changed"
-  end
-  
-  test "should not refresh when set to manual and status is updated" do
-    stat = statements(:one)
-    stat.manual = true
-    stat.status = "updated"
-    expected = stat.cache_refreshed
-    refresh_statement_helper(stat)
-    assert_equal expected, stat.cache_refreshed, "Cache refresh dates should NOT have changed"
+  Statement::STATUSES.each_key do |status|
+    test "a manual override is protected with status #{status}" do
+      stat = statements(:one)
+      stat.assign_attributes(manual: true, status: status)
+      cache = stat.cache
+      refreshed_at = stat.cache_refreshed
+      self.expects(:run_dsl).never
+
+      result = refresh_statement_helper(stat)
+
+      assert_includes result[:errors], "Manual override is protected. Clear Manual to resume source refreshes."
+      assert_equal cache, stat.cache
+      assert_equal refreshed_at, stat.cache_refreshed
+    end
   end
 
-  test "should NOT refresh when manual and problem (meaning flagged)" do
+  test "clearing manual releases an override without changing its review status first" do
     stat = statements(:one)
-    stat.manual = true
-    stat.status = "problem"
-    expected = stat.cache_refreshed
+    stat.assign_attributes(manual: false, status: "ok")
     self.stubs(:trace_enabled_for_request?).returns(false)
-    self.stubs(:run_dsl).returns(["fresh data"])
-    self.stubs(:format_datatype).returns("formatted")
-    self.stubs(:save_record?).returns(true)
-    refresh_statement_helper(stat)
-    assert_not_equal expected, stat.cache_refreshed
-  end
+    self.expects(:run_dsl).returns(["source value"])
+    self.stubs(:format_datatype).returns("source value")
 
-  test "should refresh when manual and initial" do
-    stat = statements(:one)
-    stat.manual = true
-    stat.status = "initial"
-    expected = stat.cache_refreshed
-    self.stubs(:trace_enabled_for_request?).returns(false)
-    self.stubs(:run_dsl).returns(["fresh data"])
-    self.stubs(:format_datatype).returns("formatted")
-    self.stubs(:save_record?).returns(true)
-    refresh_statement_helper(stat)
-    assert_not_equal expected, stat.cache_refreshed, "Cache refresh dates should have changed"
-  end
-
-  test "should refresh when manual and missing (required property)" do
-    stat = statements(:one)
-    stat.manual = true
-    stat.status = "missing"
-    expected = stat.cache_refreshed
-    self.stubs(:trace_enabled_for_request?).returns(false)
-    self.stubs(:run_dsl).returns(["fresh data"])
-    self.stubs(:format_datatype).returns("formatted")
-    self.stubs(:save_record?).returns(true)
-    refresh_statement_helper(stat)
-    assert_not_equal expected, stat.cache_refreshed, "Cache refresh dates should have changed"
+    assert refresh_statement_helper(stat)[:saved]
+    assert_equal "source value", stat.reload.cache
   end
 
   test "refresh_statement_helper preserves full non-trace run_dsl result" do

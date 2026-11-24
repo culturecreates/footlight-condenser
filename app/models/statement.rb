@@ -4,6 +4,8 @@ class Statement < ApplicationRecord
 
   scope :selected_for_transition, -> { where(selected_individual: true) }
 
+  MANUAL_REFRESH_BLOCKED = "Manual override is protected. Clear Manual to resume source refreshes.".freeze
+
   STATUSES = {
     initial: 'Initial',
     missing: 'Missing',

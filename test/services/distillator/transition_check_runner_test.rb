@@ -797,6 +797,11 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     mark_publishable(existing)
     owner = build_website(with_webpage: false)
     list, statements = travel_to(3.days.ago) { discovery_list_for(existing, owner: owner) }
+    class_statement = statements.fetch(AddWebpagesJob::RDF_CLASS_LABEL)
+    class_statement.update_columns(status: "initial", cache_refreshed: nil)
+    equivalent_source = class_statement.source.dup
+    equivalent_source.save!
+    list.statements.create!(source: equivalent_source, manual: true, selected_individual: true, cache: "Event", status: "updated")
     new_url = "https://runner-site.example/discovered-event"
     fresh_options = { force_scrape: true, force_scrape_every_hrs: 0 }
     assert_equal "stale", Distillator::WebsiteInventoryFreshness.for_websites([website.id]).dig(website.id, :status)
@@ -831,6 +836,8 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal "completed", website.latest_transition_run.status
     assert_equal "confirmed_discovery", website.latest_transition_run.progress["discovery_at_start"]
     assert_equal [list.id.to_s], website.latest_transition_run.progress.dig("discovery_refresh", "lists").keys
+    assert_equal [{ "webpage_id" => list.id, "warning" => "duplicate_discovery_class_declarations" }],
+      result.records[:fetch_parity].details.dig("event_inventory", "warnings")
     assert_empty owner.webpages.event_pages
     assert_equal [existing.url, new_url].sort, result.records[:fetch_parity].details["representative_webpages"].sort
     assert_equal "confirmed_discovery", Distillator::WebsiteInventoryFreshness.for_websites([website.id]).dig(website.id, :status)

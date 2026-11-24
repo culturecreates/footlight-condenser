@@ -38,7 +38,7 @@ For a ResourceList used only as a preprocessing input, add a selected **RDF Clas
 
 Only enroll read/derive DSL: database transactions cannot undo external side effects from arbitrary Ruby, and retries can repeat such side effects.
 
-Manual reviewed statements are protected. A skipped manual statement is not reported as a successful recomputation.
+The **Manual override** flag protects a statement at every review status. Clear the flag to resume source-managed refreshes. A DSL literal such as `manual=Event` is a source value. It does not set an override on a newly created statement. A skipped override never advances the last successful refresh.
 
 ## Automatic execution
 

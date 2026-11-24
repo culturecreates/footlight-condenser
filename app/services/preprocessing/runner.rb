@@ -33,7 +33,7 @@ module Preprocessing
             statement.lock!
             statement.reload
             raise RefreshFailed, policy.identity_error(statement) if policy.identity_error(statement)
-            raise RefreshFailed, "Manual reviewed statement was skipped; no recomputation occurred" if statement.manual && %w[ok updated].include?(statement.status)
+            raise RefreshFailed, Statement::MANUAL_REFRESH_BLOCKED if statement.manual?
             result = helper.refresh_statement_helper(statement)
             errors = Array(result[:errors]) + statement.errors.full_messages
             raise RefreshFailed, errors.first(3).join("; ") if errors.any?

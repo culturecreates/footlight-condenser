@@ -14,8 +14,10 @@ module Distillator
     def self.discovery_scope(list_ids)
       Statement.joins(:webpage, source: :property)
         .where(webpage_id: list_ids, properties: { label: DISCOVERY_LABELS })
-        .where("sources.website_id = webpages.website_id")
-        .where("statements.selected_individual = TRUE OR sources.selected = TRUE")
+        .where(<<~SQL.squish, AddWebpagesJob::RDF_CLASS_LABEL)
+          properties.label = ? OR (sources.website_id = webpages.website_id AND
+            (statements.selected_individual = TRUE OR sources.selected = TRUE))
+        SQL
     end
 
     def self.list_pages(website_ids)
@@ -111,20 +113,23 @@ module Distillator
     def inventory_for(page, selected, class_names)
       metadata = { webpage_id: page.id, website_id: page.website_id, url: page.url, status: "unverified" }
       by_label = selected.group_by { |statement| statement.source.property.label }
-      target = only_statement(by_label, AddWebpagesJob::RDF_CLASS_LABEL)
-      return metadata.merge(reason: "invalid_discovery_class") unless current_statement?(target)
-      target_class = target.cache.to_s.strip
-      if target_class != "Event"
-        # A fixed data-only/non-event list has no say in event inventory.
-        if target.manual? && (target_class == AddWebpagesJob::DATA_ONLY_CLASS || class_names.include?(target_class))
-          return metadata.merge(status: "other_class")
-        end
-        return metadata.merge(reason: "invalid_discovery_class")
-      end
+      discovery = ResourceLists::DiscoveryClass.resolve(by_label.fetch(AddWebpagesJob::RDF_CLASS_LABEL, []),
+        website_id: page.website_id, class_names: class_names)
+      return metadata.merge(reason: discovery.reason) if discovery.reason
+
+      metadata[:warning] = discovery.warning if discovery.warning
+      return metadata.merge(status: "other_class") unless discovery.class_name == "Event"
 
       url_list = only_statement(by_label, AddWebpagesJob::WEBPAGE_URL_LIST_LABEL)
       uri_list = only_statement(by_label, AddWebpagesJob::URI_LIST_LABEL)
-      return metadata.merge(reason: "ambiguous_list") unless [url_list, uri_list].all? { |statement| current_statement?(statement) && !statement.manual? }
+      payloads = [url_list, uri_list]
+      return metadata.merge(reason: "ambiguous_list") if payloads.any?(&:nil?)
+      return metadata.merge(reason: "manual_discovery_list_override") if payloads.any?(&:manual?)
+      if payloads.any? { |statement| statement.source.algorithm_value.to_s.strip.start_with?("manual=") }
+        return metadata.merge(reason: "fixed_discovery_list_payload")
+      end
+      return metadata.merge(reason: "unreviewed_discovery_list") if payloads.any?(&:is_initial?)
+      return metadata.merge(reason: "ambiguous_list") unless payloads.all? { |statement| current_statement?(statement) }
 
       urls = string_array(url_list.cache)
       url_keys = urls&.map { |url| public_url_key(url) }
@@ -133,7 +138,7 @@ module Distillator
         return metadata.merge(reason: "invalid_or_empty_list")
       end
 
-      timestamps = [target, url_list, uri_list].reject(&:manual?).map(&:cache_refreshed)
+      timestamps = [discovery.extracted_statement, url_list, uri_list].compact.map(&:cache_refreshed)
       changed_at = [page.created_at, page.updated_at].compact.max
       unless timestamps.all? { |stamp| stamp && stamp <= @as_of } &&
           timestamps.max - timestamps.min <= MAX_LIST_REFRESH_SKEW
@@ -162,7 +167,6 @@ module Distillator
     def current_statement?(statement)
       return false unless statement && Webpage::PUBLISHABLE_STATUSES.include?(statement.status) && statement.cache.present?
       return false unless statement.selected_individual? && statement.source.selected?
-      return statement.source.algorithm_value.to_s.strip == "manual=#{statement.cache.to_s.strip}" if statement.manual?
 
       stamp = statement.cache_refreshed
       stamp && [statement.source.updated_at, statement.source.property.updated_at].compact.all? { |changed| stamp >= changed }

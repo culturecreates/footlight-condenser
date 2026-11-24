@@ -44,17 +44,16 @@ module Statements
       sources.each do |src|
         stat = Statement.find_or_initialize_by(webpage_id: webpage.id, source_id: src.id)
         if stat.new_record?
-          source_is_manual = src.algorithm_value.start_with?("manual=")
-          stat.manual = source_is_manual
+          # A DSL manual= literal belongs to its source and does not lock the statement.
           stat.selected_individual = src.selected
           stat.status = "initial"
           stat.status_origin = "condenser_create"
         end
 
-        next if stat.manual && %w[ok updated].include?(stat.status)
+        next if stat.manual?
 
-        @refresh_helper.refresh_statement_helper(stat, refresh_options.dup)
-        stat.update(status: "updated") if src.auto_review && stat.status == "initial"
+        result = @refresh_helper.refresh_statement_helper(stat, refresh_options.dup)
+        stat.update(status: "updated") if src.auto_review && stat.is_initial? && result[:saved]
         error_list << { "Property id #{src.property_id}" => stat.errors.messages } if stat.errors.any?
       end
 

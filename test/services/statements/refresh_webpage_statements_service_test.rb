@@ -11,6 +11,7 @@ module Statements
 
       def refresh_statement_helper(stat, scrape_options)
         @calls << { statement_id: stat.id, scrape_options: scrape_options.except(:page_fetch) }
+        { saved: false }
       end
     end
 
@@ -50,6 +51,82 @@ module Statements
       assert matching_call, "expected existing statement #{statement.id} to be refreshed"
       assert_equal({ force_scrape_every_hrs: "1" }, matching_call[:scrape_options])
       assert_equal statement.id, Statement.find_by!(webpage_id: webpage.id, source_id: statement.source_id).id
+    end
+
+    test "three ResourceList refreshes import changed URLs with review status intact" do
+      website = websites(:one)
+      resource_list = RdfsClass.create!(name: "ResourceList")
+      webpage = website.webpages.create!(url: "https://fixtures.example/calendar", rdf_uri: "adr:refresh-calendar",
+        rdfs_class: resource_list, language: "en")
+      algorithms = {
+        AddWebpagesJob::RDF_CLASS_LABEL => "manual=Event",
+        AddWebpagesJob::URI_LIST_LABEL => "xpath=//li/@data-uri",
+        AddWebpagesJob::WEBPAGE_URL_LIST_LABEL => "xpath=//li/@data-url"
+      }
+      sources = algorithms.to_h do |label, algorithm|
+        property = Property.create!(rdfs_class: resource_list, label: label, uri: "urn:refresh:#{label.parameterize}")
+        [label, website.sources.create!(property: property, language: "en", selected: true, algorithm_value: algorithm)]
+      end
+
+      fixed = webpage.statements.create!(source: sources.fetch(AddWebpagesJob::RDF_CLASS_LABEL), manual: true,
+        selected_individual: true, cache: "Event", status: "initial", status_origin: "condenser_refresh")
+      fixed_before = fixed.reload.attributes
+      helper = Object.new.extend(StatementsHelper)
+      helper.stubs(:trace_enabled_for_request?).returns(false)
+      service = Statements::RefreshWebpageStatementsService.new(refresh_helper: helper)
+
+      first_refresh = 1.second.from_now.change(usec: 0)
+      3.times do |index|
+        travel_to first_refresh + index.hours do
+          url = "https://fixtures.example/event/#{index}"
+          uri = "adr:scheduled-event-#{index}"
+          helper.expects(:run_dsl).with(has_entries(algorithm: algorithms.fetch(AddWebpagesJob::URI_LIST_LABEL))).returns([[uri].to_json])
+          helper.expects(:run_dsl).with(has_entries(algorithm: algorithms.fetch(AddWebpagesJob::WEBPAGE_URL_LIST_LABEL))).returns([[url].to_json])
+
+          assert_empty service.call(webpage: webpage, default_language: "en", scrape_options: { force_scrape: true })
+          assert_difference("Webpage.count", 1) { AddWebpagesJob.perform_now(webpage.id, refresh_new: false) }
+          assert_equal uri, website.webpages.find_by!(url: url).rdf_uri
+          [AddWebpagesJob::URI_LIST_LABEL, AddWebpagesJob::WEBPAGE_URL_LIST_LABEL].each do |label|
+            refreshed = webpage.statements.find_by!(source: sources.fetch(label))
+            assert_equal "updated", refreshed.status
+            assert_equal Time.current, refreshed.cache_refreshed
+            assert_not refreshed.manual?
+          end
+        end
+      end
+      assert_equal fixed_before, fixed.reload.attributes
+    end
+
+    test "new fixed source values follow source edits without setting a manual override" do
+      website = websites(:one)
+      resource_list = RdfsClass.create!(name: "ResourceList")
+      webpage = website.webpages.create!(url: "https://fixtures.example/fixed", rdf_uri: "adr:fixed-calendar",
+        rdfs_class: resource_list, language: "en")
+      property = Property.create!(rdfs_class: resource_list, label: AddWebpagesJob::RDF_CLASS_LABEL, uri: "urn:refresh:fixed")
+      source = website.sources.create!(property: property, language: "en", selected: true, algorithm_value: "manual=Event")
+      service = Statements::RefreshWebpageStatementsService.new
+
+      assert_empty service.call(webpage: webpage, default_language: "en")
+      value = webpage.statements.find_by!(source: source)
+      assert_equal "Event", value.cache
+      assert_not value.manual?
+      source.update!(algorithm_value: "manual=None")
+
+      assert_empty service.call(webpage: webpage, default_language: "en")
+      assert_equal "None", value.reload.cache
+    end
+
+    test "a failed source refresh does not auto-review an initial statement" do
+      webpage = webpages(:culture3r_refresh_fixture)
+      statement = statements(:culture3r_refresh_statement)
+      statement.source.update!(auto_review: true)
+      statement.update_columns(status: "initial")
+      helper = DummyRefreshHelper.new
+
+      Statements::RefreshWebpageStatementsService.new(refresh_helper: helper).call(webpage: webpage, default_language: "en")
+
+      assert_includes helper.calls.map { |call| call[:statement_id] }, statement.id
+      assert_equal "initial", statement.reload.status
     end
 
     %w[legacy shadow active].each do |mode|

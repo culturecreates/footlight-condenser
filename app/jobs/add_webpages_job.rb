@@ -2,8 +2,8 @@
 class AddWebpagesJob < ApplicationJob
   queue_as :default
 
-  RDF_CLASS_LABEL = 'RDF Class'
-  DATA_ONLY_CLASS = 'None'
+  RDF_CLASS_LABEL = ResourceLists::DiscoveryClass::LABEL
+  DATA_ONLY_CLASS = ResourceLists::DiscoveryClass::DATA_ONLY
   URI_LIST_LABEL = 'URI List'
   WEBPAGE_URL_LIST_LABEL = 'Webpage URL List'
   InvalidResourceListError = Class.new(StandardError)
@@ -22,22 +22,27 @@ class AddWebpagesJob < ApplicationJob
     end
     return unless webpage
 
+    class_statements = webpage.statements.joins(source: :property).where(properties: { label: RDF_CLASS_LABEL })
+      .includes(source: :property)
+    discovery = ResourceLists::DiscoveryClass.resolve(class_statements, website_id: webpage.website_id, class_names: RdfsClass.pluck(:name))
+    if discovery.reason
+      raise_invalid_resource_list!(webpage: webpage, error: discovery.reason, field: RDF_CLASS_LABEL)
+    end
+    if discovery.warning
+      logger.warn(event: "resource_list.configuration_warning", reason: discovery.warning,
+        webpage_id: webpage.id, website_id: webpage.website_id)
+    end
+    if discovery.class_name == DATA_ONLY_CLASS
+      logger.info(event: "resource_list.discovery_skipped", reason: "data_only", webpage_id: webpage.id, website_id: webpage.website_id)
+      return
+    end
+
+    rdfs_class_name = discovery.class_name
     statements = webpage.statements.includes(source: :property)
     if selected_only
       statements = statements.joins(:source).where(selected_individual: true, sources: { selected: true, website_id: webpage.website_id })
     end
     statements_by_label = statements.group_by { |statement| statement.source.property.label }
-    class_statements = statements_by_label.fetch(RDF_CLASS_LABEL, [])
-    data_only, discovery = class_statements.partition { |statement| statement.cache.to_s.strip == DATA_ONLY_CLASS }
-    if data_only.any?(&:selected_individual?)
-      logger.info(event: "resource_list.discovery_skipped", reason: "data_only", webpage_id: webpage.id, website_id: webpage.website_id)
-      return
-    end
-
-    rdfs_class_name = discovery.last&.cache.to_s.strip
-    if rdfs_class_name.blank?
-      raise_invalid_resource_list!(webpage: webpage, error: "#{RDF_CLASS_LABEL} is blank", field: RDF_CLASS_LABEL)
-    end
 
     rdf_uris = parse_json_array!(
       statements_by_label[URI_LIST_LABEL]&.last&.cache,

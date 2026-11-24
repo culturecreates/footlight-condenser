@@ -57,12 +57,12 @@ class PreprocessingRunnerTest < ActiveJob::TestCase
     assert_equal "old value", @target.reload.cache
   end
 
-  test "manual reviewed values stay protected and are not reported as recomputed" do
-    @target.update_columns(manual: true, status: "ok")
+  test "manual overrides are protected even while awaiting review" do
+    @target.update_columns(manual: true, status: "initial")
     run = queued_preprocessing_run
     Preprocessing::Runner.call(@policy.id, run.id)
     assert_equal "failed", run.reload.status
-    assert_includes run.error, "Manual reviewed"
+    assert_includes run.error, Statement::MANUAL_REFRESH_BLOCKED
     assert_equal "old value", @target.reload.cache
   end
 

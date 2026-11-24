@@ -93,6 +93,11 @@ its destination under **Event discovery target** on the ResourceList webpage's
 edit screen. Data-only lists supply DSL inputs. Existing active publishable
 events remain in scope even when absent from the refreshed lists.
 
+A selected fixed `RDF Class` declaration such as `manual=Event` can be
+`initial` if its cached class matches its source. Equivalent fixed declarations
+produce a warning. Conflicting classes block discovery. The URI and Webpage URL
+Lists still require approved values and a fresh paired refresh.
+
 The Shadow and Active phases of a workflow share this discovery preparation. A site
 check with Strict comparison runs the same preparation when set to All pages or
 when its fixed page count covers the current event inventory. If a configured

@@ -238,7 +238,7 @@ module StatementsHelper
   # @param scrape_options [Hash]  Optional scraping options (e.g., { force_scrape_every_hrs: 24 }).
   #
   # This method:
-  #  * Prevents refresh of manual statements when they are already marked OK/updated.
+  #  * Protects manual overrides independently of review status.
   #  * Detects whether DSL trace is enabled via cookies[:dsl_trace].
   #  * Calls `run_dsl` with the correct parameters to execute the algorithm.
   #  * Normalizes trace data when trace is enabled (`@dsl_trace` is set).
@@ -276,9 +276,8 @@ module StatementsHelper
       }
     end
 
-    # Disallow refresh if manual and already OK/updated
-    if stat.manual && %w[ok updated].include?(stat.status)
-      message = "No update unless status is 'initial', 'problem', or 'missing'."
+    if stat.manual?
+      message = Statement::MANUAL_REFRESH_BLOCKED
       stat.errors.add(:base, message)
       error_messages << message
       return build_result.call

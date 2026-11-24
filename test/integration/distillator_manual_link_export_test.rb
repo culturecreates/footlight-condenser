@@ -44,7 +44,7 @@ class DistillatorManualLinkExportTest < ActionDispatch::IntegrationTest
     assert_includes export, "manual-link-org"
 
     result = ApplicationController.helpers.refresh_statement_helper(performer_statement)
-    assert_includes result[:errors].join(" "), "No update unless status is 'initial', 'problem', or 'missing'."
+    assert_includes result[:errors].join(" "), "Manual override is protected. Clear Manual to resume source refreshes."
     assert_equal "[\"Manually added\",\"Organization\",[\"Venue Org\",\"footlight:manual-link-org\"]]", performer_statement.reload.cache
 
     performer_statement.update!(

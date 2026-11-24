@@ -49,10 +49,12 @@ module Distillator
         raise TransitionRun::ConfigurationChanged, "#{finished.unpublishable_urls_count} active events from ResourceLists lack publishable statements after refresh. Review those events and retry."
       end
 
+      warnings = finished_lists.filter_map { |list| list.slice(:webpage_id, :warning) if list[:warning] }
       proof = {
         definition: definition, lists: list_versions(finished_lists),
         refresh_completed_at: finished_lists.pluck(:refresh_completed_at).max
       }
+      proof[:warnings] = warnings if warnings.any?
       Result.new(added_page_ids: added_page_ids, prior_archive_dates: prior_archive_dates, proof: proof)
     rescue AddWebpagesJob::InvalidResourceListError => error
       raise TransitionRun::ConfigurationChanged, "#{error.message}. Review the ResourceLists and retry."

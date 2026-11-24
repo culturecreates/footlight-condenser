@@ -20,6 +20,9 @@
       <% if inventory["refresh_completed_at"] %>
         <p><%= pluralize(inventory["refreshed_list_count"], "event ResourceList") %> refreshed and imported before selection · <%= shadow_report_timestamp(inventory["refresh_completed_at"]) %>.</p>
       <% end %>
+      <% Array(inventory["warnings"]).each do |warning| %>
+        <p>ResourceList #<%= warning["webpage_id"] %> · <%= warning["warning"].humanize %></p>
+      <% end %>
       <p><%= pluralize(inventory["archived_publishable_count"], "archived publishable event page") %> outside the activation scope.</p>
     <% when "no_publishable_events" %>
       <p>No publishable event pages were available to reconcile with discovery.</p>
