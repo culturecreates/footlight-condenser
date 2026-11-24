@@ -17,3 +17,7 @@ end %>
 · <small title="Active publishable event URLs selected for a Thorough transition that match neither URL nor RDF URI in verified ResourceLists">
   <%= inventory[:selected_event_urls_missing].nil? ? "Outside lists unknown" : "#{inventory[:selected_event_urls_missing]} outside lists" %>
 </small>
+
+<% if inventory[:unpublishable_urls_count].to_i.positive? %>
+  <br><small><%= pluralize(inventory[:unpublishable_urls_count], "listed event") %> missing publishable statements</small>
+<% end %>

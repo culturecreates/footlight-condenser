@@ -91,6 +91,11 @@ class Website < ApplicationRecord
     Distillator::TransitionRun.request!(website: self).run
   end
 
+  # These are the persisted prerequisites the refresh scheduler can act on.
+  def refresh_scheduled?
+    schedule_every_days.to_i.positive? && schedule_time.present? && last_refresh.present?
+  end
+
   def monitoring_excluded?
     seedurl.to_s.match?(/(^[0-9]|test|rlist|footlight)/i)
   end

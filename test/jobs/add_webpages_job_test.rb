@@ -28,6 +28,21 @@ class AddWebpagesJobTest < ActiveJob::TestCase
     assert Webpage.exists?(url: "https://example.org/events/2", website: @resource_list_page.website)
   end
 
+  test "scheduled discovery imports a linked Event ResourceList into its target website" do
+    owner = @resource_list_page.website
+    target = Website.create!(name: "Event target", seedurl: "target", graph_name: "https://example.org/target", default_language: "en")
+    @resource_list_page.update!(rdfs_class: RdfsClass.find_or_create_by!(name: "ResourceList"), discovery_target_website: target)
+    assert_no_enqueued_jobs(only: RefreshWebpageJob) { BatchJobsController.new.check_for_new_webpages_jobs(owner.seedurl) }
+    assert_enqueued_with(job: RefreshWebpageJob, args: [@resource_list_page.id, "resource_list"]) do
+      BatchJobsController.new.check_for_new_webpages_jobs(target.seedurl)
+    end
+
+    assert_difference("Webpage.count", 2) { AddWebpagesJob.perform_now(@resource_list_page.id) }
+    assert_empty owner.webpages.where(url: "https://example.org/events/1")
+    created = target.webpages.find_by!(url: "https://example.org/events/1")
+    assert_enqueued_with(job: RefreshWebpageJob, args: [created.id])
+  end
+
   test "mismatched uri and url counts creates none and raises" do
     @url_list_statement.update!(cache: '["https://example.org/events/1"]')
 

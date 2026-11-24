@@ -4,7 +4,7 @@
     <thead><tr>
       <th scope="col">Transition</th>
       <th scope="col"><%= website_index_sortable("name", "Website", group: group) %></th>
-      <th scope="col">Mode</th>
+      <th scope="col">State</th>
       <th scope="col" title="Successful validation workflows by profile">Validation</th>
       <th scope="col" class="website-index-number"><%= website_index_sortable("event_pages_count", "Event pages", group: group) %></th>
       <th scope="col" class="website-index-number" title="Publishable event pages divided by all event pages"><%= website_index_sortable("publishable_event_percentage", "% Publishable", group: group) %></th>
@@ -19,7 +19,8 @@
         <% pages = @webpage_summaries.fetch(website.id, Distillator::WebsiteWebpageSummary.empty_summary) %>
         <% event_count = pages[:by_class].fetch("Event") %>
         <% validation = @validation_summaries.fetch(website.id) %>
-        <%= tag.tr(class: "website-index-row", data: { website_id: website.id, migration_state: validation.milestone }) do %>
+        <% state = validation.milestone || website.distillator_mode %>
+        <%= tag.tr(class: "website-index-row", data: { website_id: website.id, migration_state: state }) do %>
           <td><% if @transition_eligible_ids.include?(website.id) %>
             <%= check_box_tag "website_ids[]", website.id, @retry_website_ids&.include?(website.id), id: "website-transition-#{website.id}", form: "website-transition-batch",
               data: { transition_site: true, transition_mode: website.distillator_mode }, aria: { label: "Select for transition: #{website.name}" } %>
@@ -35,7 +36,7 @@
               <%= link_to website.name.presence || website.seedurl, website, title: website.seedurl %>
             </div>
           </th>
-          <td title="<%= website_rollout_explanation(website) %>"><%= website_rollout_badge(website) %></td>
+          <td title="<%= website_rollout_explanation(website) %>"><span class="website-state-badge"><%= state.humanize %></span></td>
           <td><%= render "validation_summary", website: website, validation: validation %></td>
           <td class="website-index-number"><%= link_to number_with_delimiter(event_count), website_webpages_filter_path(website, scope: "all", rdfs_class: "Event") %></td>
           <td class="website-index-number">

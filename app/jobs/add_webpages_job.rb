@@ -8,7 +8,7 @@ class AddWebpagesJob < ApplicationJob
   WEBPAGE_URL_LIST_LABEL = 'Webpage URL List'
   InvalidResourceListError = Class.new(StandardError)
 
-  def perform(webpage_id_or_url, selected_only: false, refresh_new: true)
+  def perform(webpage_id_or_url, selected_only: false, refresh_new: true, expected_discovery: nil)
     webpages = Webpage.includes(:website)
     webpage = if webpage_id_or_url.is_a?(Integer)
       webpages.find_by(id: webpage_id_or_url)
@@ -58,24 +58,33 @@ class AddWebpagesJob < ApplicationJob
 
     rdfs_class = RdfsClass.find_by!(name: rdfs_class_name)
     created_pages = []
+    linked = false
 
-    ActiveRecord::Base.transaction do
+    Webpage.transaction do
+      webpage = Webpage.lock.find(webpage.id)
+      linked = rdfs_class_name == "Event" && webpage.discovery_target_website_id.present?
+      target = linked ? webpage.discovery_target_website : webpage.website
+      if expected_discovery && (rdfs_class_name != "Event" || target.id != expected_discovery.fetch(:website_id) ||
+          expected_discovery.fetch(:contents_digest) != Distillator::TransitionEventInventory.list_digest(urls, rdf_uris))
+        raise InvalidResourceListError, "ResourceList destination or contents changed during discovery"
+      end
+
       urls.each_with_index do |webpage_url, index|
-        next if Webpage.exists?(url: webpage_url, website: webpage.website)
+        next if Webpage.exists?(url: webpage_url, website: target)
 
         created_pages << Webpage.create!(
           url: webpage_url,
           rdf_uri: rdf_uris[index],
           language: webpage.language,
           rdfs_class: rdfs_class,
-          website: webpage.website
+          website: target
         )
       end
     end
 
     return created_pages.map(&:id) unless refresh_new
 
-    created_pages.map(&:url).each { |url| RefreshWebpageJob.perform_later(url) }
+    created_pages.each { |page| RefreshWebpageJob.perform_later(linked ? page.id : page.url) }
   end
 
   private

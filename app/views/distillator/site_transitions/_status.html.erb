@@ -21,7 +21,7 @@
     <li><strong>Thorough Active audit:</strong> <%= workflow_check_link(@item, :post) %></li>
   <% else %>
     <li><strong>Pre-activation comparison:</strong> <%= workflow_check_link(@item, :pre) %></li>
-    <li><strong>Activation:</strong> <%= @item.phase_results.dig("activation", "state")&.humanize || (@item.initial_mode == "active" && !@item.batch.thorough_revalidation? ? "Already Active" : "Not performed") %></li>
+    <li><strong>Activation:</strong> <%= @item.phase_results.dig("activation", "state")&.humanize || (@item.initial_mode == "active" && (!@item.batch.thorough_revalidation? || @item.phase_results["retained_active"]) ? "Already Active" : "Not performed") %></li>
     <li><strong>Ordinary Active path and fresh comparison:</strong> <%= workflow_check_link(@item, :post) %></li>
     <% if (recovery = @item.phase_results["recovery"]) %><li><strong>Recovery:</strong> <%= recovery["state"].humanize %> · <%= recovery["mode"]&.humanize %></li><% end %>
   <% end %>

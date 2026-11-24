@@ -48,9 +48,8 @@ class BatchJobsController < ApplicationController
 
 
   def check_for_new_webpages_jobs(seedurl)
-    # Get resource_list URIs
-    rdfs_class =  RdfsClass.where(name: "ResourceList").first
-    resource_list_webpages = Webpage.includes(:website).where(websites: { seedurl: seedurl}, rdfs_class: rdfs_class)
+    website_ids = Website.where(seedurl: seedurl).select(:id)
+    resource_list_webpages = Distillator::TransitionEventInventory.list_pages(website_ids)
     # Refresh the statements for each resource_list Webpages
     resource_list_webpages.each do |wp|
       RefreshWebpageJob.perform_later(wp.id, "resource_list") # passing 'resource_list' will call AddWebpagesJob after

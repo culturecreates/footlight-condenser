@@ -1,6 +1,6 @@
 module Distillator
   class TransitionDiscoveryRefresh
-    Result = Struct.new(:added_page_ids, :prior_archive_dates, keyword_init: true)
+    Result = Struct.new(:added_page_ids, :prior_archive_dates, :proof, keyword_init: true)
 
     def self.call(website:, cancellation_check: nil)
       before = inventory(website)
@@ -8,12 +8,17 @@ module Distillator
       return Result.new(added_page_ids: [], prior_archive_dates: {}) if event_lists.empty?
 
       started_at = Time.current.floor(6)
-      website.webpages.where(id: event_lists.pluck(:webpage_id)).order(:id).each do |page|
+      definition = TransitionEventInventory.definition_digest(website.id)
+      TransitionEventInventory.list_pages(website.id).where(id: event_lists.pluck(:webpage_id)).order(:id).each do |page|
         cancellation_check&.call
         refresh(page)
       end
 
       verified_lists = inventory(website).lists.reject { |list| list[:status] == "other_class" }
+      unless event_lists.pluck(:webpage_id) == verified_lists.pluck(:webpage_id) &&
+          definition == TransitionEventInventory.definition_digest(website.id)
+        raise TransitionRun::ConfigurationChanged, "ResourceList configuration changed during discovery. Run a new check."
+      end
       verified_lists.each do |list|
         unless list[:status] == "event" && Time.iso8601(list.fetch(:refreshed_at)) >= started_at
           reason = list[:reason].presence || "no fresh statement values were saved"
@@ -23,9 +28,10 @@ module Distillator
 
       added_page_ids = verified_lists.flat_map do |list|
         cancellation_check&.call
-        AddWebpagesJob.perform_now(list.fetch(:webpage_id), selected_only: true, refresh_new: false)
+        AddWebpagesJob.perform_now(list.fetch(:webpage_id), selected_only: true, refresh_new: false,
+          expected_discovery: { website_id: website.id, contents_digest: list.fetch(:contents_digest) })
       end
-      to_initialize = website.webpages.where(id: added_page_ids | uninitialized_listed_pages(website, verified_lists))
+      to_initialize = website.webpages.where(id: added_page_ids | incomplete_listed_pages(website, verified_lists))
         .reorder(:id)
       # Statement refresh can update archive dates on every language of an event.
       prior_archive_dates = website.webpages.where(rdf_uri: to_initialize.reorder(nil).select(:rdf_uri)).pluck(:id, :archive_date).to_h
@@ -34,30 +40,52 @@ module Distillator
         refresh(page)
       end
 
-      if verified_lists.any? && inventory(website).status != "confirmed_discovery"
+      finished = inventory(website)
+      finished_lists = finished.lists.select { |list| list[:status] == "event" }
+      unless finished.status == "confirmed_discovery" && list_versions(finished_lists) == list_versions(verified_lists)
         raise TransitionRun::ConfigurationChanged, "ResourceList import could not be verified. Review the lists and retry."
       end
+      if finished.unpublishable_urls_count.to_i.positive?
+        raise TransitionRun::ConfigurationChanged, "#{finished.unpublishable_urls_count} active events from ResourceLists lack publishable statements after refresh. Review those events and retry."
+      end
 
-      Result.new(added_page_ids: added_page_ids, prior_archive_dates: prior_archive_dates)
+      proof = {
+        definition: definition, lists: list_versions(finished_lists),
+        refresh_completed_at: finished_lists.pluck(:refresh_completed_at).max
+      }
+      Result.new(added_page_ids: added_page_ids, prior_archive_dates: prior_archive_dates, proof: proof)
+    rescue AddWebpagesJob::InvalidResourceListError => error
+      raise TransitionRun::ConfigurationChanged, "#{error.message}. Review the ResourceLists and retry."
     end
 
-    def self.uninitialized_listed_pages(website, lists)
-      urls = TransitionEventInventory.discovery_scope([website.id])
-        .where(webpage_id: lists.pluck(:webpage_id), properties: { label: AddWebpagesJob::WEBPAGE_URL_LIST_LABEL })
+    def self.verify(website, proof, as_of:)
+      current = inventory(website, as_of: as_of)
+      lists = current.lists.select { |list| list[:status] == "event" }
+      current.status == "confirmed_discovery" && current.unpublishable_urls_count.to_i.zero? &&
+        proof["definition"] == TransitionEventInventory.definition_digest(website.id) &&
+        proof["lists"] == list_versions(lists)
+    end
+
+    def self.list_versions(lists)
+      lists.to_h { |list| [list.fetch(:webpage_id).to_s, list.fetch(:contents_digest)] }
+    end
+
+    def self.incomplete_listed_pages(website, lists)
+      urls = TransitionEventInventory.discovery_scope(lists.pluck(:webpage_id))
+        .where(properties: { label: AddWebpagesJob::WEBPAGE_URL_LIST_LABEL })
         .where(selected_individual: true, sources: { selected: true }).pluck(:cache).flat_map { |cache| JSON.parse(cache) }
-      website.webpages.event_pages.where(url: urls).where.missing(:statements).ids
+      website.webpages.event_pages.active.without_reviewed_transition_exclusions.where(url: urls).not_publishable.ids
     end
 
-    def self.inventory(website)
-      now = Time.current
-      candidates = website.webpages.public_publishable_events.active(now).without_reviewed_transition_exclusions
-      TransitionEventInventory.new(as_of: now).for_websites([website.id], events: candidates).fetch(website.id)
+    def self.inventory(website, as_of: Time.current)
+      candidates = website.webpages.public_publishable_events.active(as_of).without_reviewed_transition_exclusions
+      TransitionEventInventory.new(as_of: as_of).for_websites([website.id], events: candidates).fetch(website.id)
     end
 
     def self.refresh(page)
-      RefreshRunner.call(webpage: page, refresh_helper: ApplicationController.helpers, scrape_options: { force_scrape_every_hrs: 0 })
+      RefreshRunner.call(webpage: page, refresh_helper: ApplicationController.helpers, scrape_options: { force_scrape: true, force_scrape_every_hrs: 0 })
     end
 
-    private_class_method :uninitialized_listed_pages, :inventory, :refresh
+    private_class_method :list_versions, :incomplete_listed_pages, :inventory, :refresh
   end
 end

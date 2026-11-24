@@ -126,6 +126,24 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     refute item.post_run.options.strict?
   end
 
+  test "an interrupted Migrated workflow keeps serving through Condenser" do
+    @website.update!(distillator_mode: "active")
+    summary = Distillator::WebsiteValidationHistory::Summary.new(milestone: "migrated")
+    Distillator::WebsiteValidationHistory.stubs(:for_websites).returns({ @website.id => summary })
+    @runner.callback = ->(*) { raise "Worker interrupted" }
+    _, item = request
+
+    assert_no_difference "Distillator::RolloutEvent.count" do
+      @processor.perform(item.id, phase: "queued")
+    end
+
+    assert_equal "attention", item.reload.status
+    assert_nil item.pre_run
+    assert_equal "failed", item.post_run.status
+    assert_equal "not_needed", item.phase_results.dig("recovery", "state")
+    assert_equal "active", @website.reload.distillator_mode
+  end
+
   test "failed active verification returns to Shadow and preserves both reports" do
     _, item = request
     @runner.post_failure = true

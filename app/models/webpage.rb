@@ -5,6 +5,8 @@ class Webpage < ApplicationRecord
 
   belongs_to :rdfs_class
   belongs_to :website
+  belongs_to :discovery_target_website, class_name: "Website", optional: true
+  validate :validate_discovery_target
   belongs_to :jsonld_output, optional: true
   has_many :statements, dependent: :destroy
   scope :public_source_urls, -> { where(PUBLIC_SOURCE_URL_SQL) }
@@ -31,6 +33,13 @@ class Webpage < ApplicationRecord
   after_initialize :init
 
   before_save :prevent_distant_archive_dates
+
+  def validate_discovery_target
+    return if discovery_target_website_id.nil?
+    return if rdfs_class&.name == "ResourceList" && discovery_target_website && discovery_target_website_id != website_id
+
+    errors.add(:discovery_target_website, "must be another website and can only be set on a ResourceList")
+  end
 
   def init
     self.archive_date ||= Time.zone.now.next_year

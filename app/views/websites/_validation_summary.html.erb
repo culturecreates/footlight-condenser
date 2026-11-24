@@ -1,10 +1,4 @@
 <div class="website-validation-summary">
-  <% if validation.milestone %>
-    <div>
-      <% required = validation.milestone == "migrated" ? Distillator::WebsiteValidationHistory::MIGRATED_THOROUGH_PASSES : Distillator::WebsiteValidationHistory::READY_THOROUGH_PASSES %>
-      <span class="operator-status operator-status--passed" title="<%= required %> Thorough passes with verified ResourceLists · Active and scheduled"><%= validation.milestone.humanize %></span>
-    </div>
-  <% end %>
   <% if validation.last_pass %>
     <% { "light" => validation.light, "thorough" => validation.thorough }.each do |profile, count| %>
       <% label = "#{profile.humanize} #{count}×" %>
@@ -20,7 +14,7 @@
     <% end %>
     <% if validation.changed %><small>Configuration changed since pass</small><% end %>
     <% if validation.milestone_blocker %><small><%= validation.milestone_blocker %></small><% end %>
-  <% elsif @transition_eligible_ids.include?(website.id) || validation.last_validation || validation.audit.positive? %>
+  <% elsif @transition_eligible_ids.include?(website.id) || validation.last_validation || validation.attention || validation.audit.positive? %>
     <span>No validation pass</span>
   <% else %>—
   <% end %>
@@ -28,6 +22,8 @@
     <small><%= link_to "Active audit #{validation.audit}×", website_path(website, validation_profile: "audit", anchor: "website-validation-history") %></small>
   <% end %>
   <% if validation.matches?("latest_failed") %>
-    <small><%= link_to "Latest validation needs attention", distillator_site_transition_path(validation.last_validation) %></small>
+    <% attention = validation.attention
+       report = attention.is_a?(Distillator::TransitionRun) ? distillator_transition_check_path(attention) : distillator_site_transition_path(attention) %>
+    <small><%= link_to "Latest validation needs attention", report %></small>
   <% end %>
 </div>

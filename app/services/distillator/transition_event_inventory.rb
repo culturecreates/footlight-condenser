@@ -1,3 +1,4 @@
+require "digest"
 require "json"
 require "time"
 
@@ -7,21 +8,36 @@ module Distillator
     MAX_LIST_AGE = 48.hours
     MAX_LIST_REFRESH_SKEW = 10.minutes
     DISCOVERY_LABELS = [AddWebpagesJob::RDF_CLASS_LABEL, AddWebpagesJob::URI_LIST_LABEL, AddWebpagesJob::WEBPAGE_URL_LIST_LABEL].freeze
-    Result = Struct.new(:status, :lists, :valid_until, :selected_event_urls_missing, :archived_publishable_count, keyword_init: true)
+    Result = Struct.new(:status, :lists, :valid_until, :selected_event_urls_missing, :archived_publishable_count,
+      :pending_import, :unpublishable_urls_count, keyword_init: true)
 
-    def self.statement_scope(website_ids, class_name)
-      Statement.joins(webpage: :rdfs_class, source: :property)
-        .where(webpages: { website_id: website_ids }, rdfs_classes: { name: class_name })
+    def self.discovery_scope(list_ids)
+      Statement.joins(:webpage, source: :property)
+        .where(webpage_id: list_ids, properties: { label: DISCOVERY_LABELS })
         .where("sources.website_id = webpages.website_id")
         .where("statements.selected_individual = TRUE OR sources.selected = TRUE")
     end
 
-    def self.discovery_scope(website_ids)
-      statement_scope(website_ids, "ResourceList").where(properties: { label: DISCOVERY_LABELS })
+    def self.list_pages(website_ids)
+      lists = Webpage.joins(:rdfs_class).where(rdfs_classes: { name: "ResourceList" })
+      lists.where(discovery_target_website_id: website_ids)
+        .or(lists.where(discovery_target_website_id: nil, website_id: website_ids))
     end
 
-    def self.list_pages(websites)
-      Webpage.joins(:rdfs_class).where(website: websites, rdfs_classes: { name: "ResourceList" })
+    def self.definition_digest(website_id)
+      lists = list_pages(website_id).order(:id).pluck(:id, :url, :language, :rdf_uri, :website_id, :discovery_target_website_id)
+      owner_ids = lists.map { |row| row[4] }
+      owners = Website.where(id: owner_ids).order(:id).pluck(:id, :seedurl, :default_language)
+      sources = Source.joins(property: :rdfs_class)
+        .where(website_id: owner_ids, rdfs_classes: { name: "ResourceList" })
+        .order(:id).pluck(*Source.column_names.map { |column| Source.arel_table[column] })
+      properties = Property.where(id: sources.map { |row| row[Source.column_names.index("property_id")] })
+        .order(:id).pluck(*Property.column_names)
+      Digest::SHA256.hexdigest(JSON.generate([lists, owners, sources, properties]))
+    end
+
+    def self.list_digest(urls, rdf_uris)
+      Digest::SHA256.hexdigest(JSON.generate(urls.zip(rdf_uris).uniq.sort_by(&:to_json)))
     end
 
     def initialize(as_of:)
@@ -29,46 +45,58 @@ module Distillator
     end
 
     def for_websites(website_ids, events:)
-      pages = self.class.list_pages(website_ids).order(:id).group_by(&:website_id)
+      pages = self.class.list_pages(website_ids).order(:id).group_by { |page| page.discovery_target_website_id || page.website_id }
       results = website_ids.index_with { result("no_discovery_lists") }
       return results if pages.empty?
 
-      selected = self.class.discovery_scope(pages.keys).includes(source: :property).group_by(&:webpage_id)
+      selected = self.class.discovery_scope(pages.values.flatten.map(&:id)).includes(source: :property).group_by(&:webpage_id)
       class_names = RdfsClass.pluck(:name).to_set
-      event_lists_by_site = {}
+      inventories = {}
       pages.each do |website_id, lists|
         evidence = lists.map { |page| inventory_for(page, selected.fetch(page.id, []), class_names) }
+        inventories[website_id] = evidence.select { |list| list[:url_keys] }
         event_lists = evidence.select { |list| list[:status] == "event" }
         status = if evidence.any? { |list| list[:status] == "unverified" }
           "discovery_unverified"
         elsif event_lists.empty?
           "no_event_discovery"
         else
-          event_lists_by_site[website_id] = event_lists
           "confirmed_discovery"
         end
         results[website_id] = result(status, lists: evidence, valid_until: event_lists.map { |list| list[:valid_until] }.min)
       end
-      return results if event_lists_by_site.empty?
-
-      record_missing_event_counts(event_lists_by_site, events, results)
+      inventories.reject! { |_, lists| lists.empty? }
+      record_missing_event_counts(inventories, events, results) if inventories.any?
       results
     end
 
     private
 
-    def record_missing_event_counts(event_lists_by_site, events, results)
-      registered = Webpage.event_pages.where(website_id: event_lists_by_site.keys).pluck(:website_id, :url).group_by(&:first)
-      candidates = events.where(website_id: event_lists_by_site.keys).pluck(:website_id, :url, :rdf_uri).group_by(&:first)
-      event_lists_by_site.each do |website_id, lists|
+    def record_missing_event_counts(inventories, events, results)
+      registered = Webpage.event_pages.where(website_id: inventories.keys)
+      urls_by_site = registered.pluck(:website_id, :url).group_by(&:first)
+      active_pages = registered.active(@as_of).without_reviewed_transition_exclusions.public_source_urls
+        .pluck(:website_id, :id, :url).group_by(&:first)
+      candidates = events.where(website_id: inventories.keys)
+        .pluck(:website_id, :id, :url, :rdf_uri).group_by(&:first)
+      inventories.each do |website_id, lists|
+        inventory = results.fetch(website_id)
         urls = lists.flat_map { |list| list[:url_keys] }.to_set
-        imported = registered.fetch(website_id, []).filter_map { |_, url| public_url_key(url) }.to_set
-        unless urls.subset?(imported)
-          results.fetch(website_id).status = "discovery_pending_import"
+        imported = urls_by_site.fetch(website_id, []).filter_map { |_, url| public_url_key(url) }.to_set
+        inventory.pending_import = !urls.subset?(imported)
+        rows = candidates.fetch(website_id, [])
+        eligible_ids = rows.map { |_, id, _, _| id }.to_set
+        inventory.unpublishable_urls_count = active_pages.fetch(website_id, []).count do |_, id, url|
+          !eligible_ids.include?(id) && urls.include?(public_url_key(url))
+        end
+
+        next unless inventory.status == "confirmed_discovery"
+        if inventory.pending_import
+          inventory.status = "discovery_pending_import"
           next
         end
         uris = lists.flat_map { |list| list[:rdf_uris] }.to_set
-        results.fetch(website_id).selected_event_urls_missing = candidates.fetch(website_id, []).count do |_, url, rdf_uri|
+        inventory.selected_event_urls_missing = rows.count do |_, _, url, rdf_uri|
           key = public_url_key(url)
           key && !urls.include?(key) && !uris.include?(rdf_uri)
         end
@@ -81,7 +109,7 @@ module Distillator
     end
 
     def inventory_for(page, selected, class_names)
-      metadata = { webpage_id: page.id, url: page.url, status: "unverified" }
+      metadata = { webpage_id: page.id, website_id: page.website_id, url: page.url, status: "unverified" }
       by_label = selected.group_by { |statement| statement.source.property.label }
       target = only_statement(by_label, AddWebpagesJob::RDF_CLASS_LABEL)
       return metadata.merge(reason: "invalid_discovery_class") unless current_statement?(target)
@@ -98,7 +126,8 @@ module Distillator
       uri_list = only_statement(by_label, AddWebpagesJob::URI_LIST_LABEL)
       return metadata.merge(reason: "ambiguous_list") unless [url_list, uri_list].all? { |statement| current_statement?(statement) && !statement.manual? }
 
-      url_keys = string_array(url_list.cache)&.map { |url| public_url_key(url) }
+      urls = string_array(url_list.cache)
+      url_keys = urls&.map { |url| public_url_key(url) }
       rdf_uris = string_array(uri_list.cache)
       unless url_keys.present? && rdf_uris.present? && url_keys.size == rdf_uris.size && url_keys.none?(&:nil?)
         return metadata.merge(reason: "invalid_or_empty_list")
@@ -116,11 +145,13 @@ module Distillator
       if changed_at && refreshed_at < changed_at
         return metadata.merge(reason: "list_configuration_changed")
       end
+      metadata = metadata.merge(url_keys: url_keys, rdf_uris: rdf_uris,
+        contents_digest: self.class.list_digest(urls, rdf_uris))
       if refreshed_at < @as_of - MAX_LIST_AGE
         return metadata.merge(reason: "stale_list")
       end
 
-      metadata.merge(status: "event", url_keys: url_keys, rdf_uris: rdf_uris, valid_until: refreshed_at + MAX_LIST_AGE)
+      metadata.merge(status: "event", valid_until: refreshed_at + MAX_LIST_AGE)
     end
 
     def only_statement(by_label, label)

@@ -186,7 +186,7 @@ class WebpagesController < ApplicationController
 
   # Never trust parameters from the scary internet, only allow the white list through.
   def webpage_params
-    params.require(:webpage).permit(:url, :language, :rdf_uri, :rdfs_class_id, :jsonld_output_id, :website_id, :archive_date)
+    params.require(:webpage).permit(:url, :language, :rdf_uri, :rdfs_class_id, :jsonld_output_id, :website_id, :archive_date, :discovery_target_website_id)
   end
 
   def webpage_api_params

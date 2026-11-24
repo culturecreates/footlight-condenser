@@ -494,7 +494,10 @@ module Distillator
         representative_urls_checked: representative_url_results.any?
       ).compact
       details[:event_inventory] = inventory_details(transition_check)
-      details[:event_sample] = transition_run.event_sample if transition_run.event_sample
+      if (proof = transition_run&.progress&.dig("discovery_refresh"))
+        details[:event_inventory]&.merge!(refresh_completed_at: proof["refresh_completed_at"], refreshed_list_count: proof.fetch("lists").size)
+      end
+      details[:event_sample] = transition_run.event_sample if transition_run&.event_sample
       if details.dig(:event_inventory, :status) == "active_event_scope" && representative_webpages.any?
         details[:validation_coverage] = {
           configuration: TransitionFingerprint.configuration(website),

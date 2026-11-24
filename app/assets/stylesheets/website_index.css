@@ -29,7 +29,35 @@
 .website-index-table th, .website-index-table td { padding: .5rem .65rem; vertical-align: middle; white-space: nowrap; }
 .website-index-table thead { background: var(--operator-surface-raised); }
 .website-index-table tbody .website-index-row:nth-child(4n+3) { background: var(--operator-surface-muted); }
-.website-index-table tbody .website-index-row[data-migration-state="ready"] { background: var(--operator-success-bg); }
+/* State colors are shared by the table and rollout filters. */
+.website-index [data-migration-state="legacy"]   { --state-tint: #f3f4f6; --state-accent: #9ca3af; --state-ink: #374151; }
+.website-index [data-migration-state="shadow"]   { --state-tint: #eff6ff; --state-accent: #3b82f6; --state-ink: #1e40af; }
+.website-index [data-migration-state="active"]   { --state-tint: #fff7ed; --state-accent: #f59e0b; --state-ink: #92400e; }
+.website-index [data-migration-state="ready"]    { --state-tint: #ecfdf5; --state-accent: #10b981; --state-ink: #065f46; }
+.website-index [data-migration-state="migrated"] { --state-tint: #f5f3ff; --state-accent: #8b5cf6; --state-ink: #5b21b6; }
+:root:is([data-theme="dark"], [data-theme="kolada"]) .website-index [data-migration-state="legacy"]   { --state-tint: #20232b; --state-ink: #d1d5db; }
+:root:is([data-theme="dark"], [data-theme="kolada"]) .website-index [data-migration-state="shadow"]   { --state-tint: #192337; --state-ink: #bfdbfe; }
+:root:is([data-theme="dark"], [data-theme="kolada"]) .website-index [data-migration-state="active"]   { --state-tint: #2b2118; --state-ink: #fcd49c; }
+:root:is([data-theme="dark"], [data-theme="kolada"]) .website-index [data-migration-state="ready"]    { --state-tint: #132921; --state-ink: #a7f3d0; }
+:root:is([data-theme="dark"], [data-theme="kolada"]) .website-index [data-migration-state="migrated"] { --state-tint: #241e38; --state-ink: #ddd6fe; }
+.website-index-table tbody .website-index-row[data-migration-state] { background: var(--state-tint, var(--operator-surface)); }
+.website-index-table tbody .website-index-row:hover {
+  background: color-mix(in srgb, var(--state-tint, var(--operator-surface)) 92%, var(--state-accent, var(--operator-primary)));
+}
+.website-index-row > td:first-child { box-shadow: inset 4px 0 var(--state-accent, transparent); }
+.website-index-row:has(input[data-transition-site]:checked) > :is(td, th) {
+  border-block: 1px solid var(--operator-ink);
+}
+.website-state-badge,
+.website-rollout-summary [data-migration-state] {
+  color: var(--state-ink, var(--operator-ink));
+  background: color-mix(in srgb, var(--state-tint, var(--operator-surface)) 88%, var(--state-accent, var(--operator-line)));
+  border-radius: 1rem;
+  padding: .24rem .6rem;
+}
+.website-rollout-summary [data-migration-state] > a { color: inherit; }
+.website-state-badge { display: inline-block; font-size: .85rem; }
+:is([data-migration-state="ready"], [data-migration-state="migrated"]) .website-state-badge { font-weight: 700; }
 .website-index-table .website-index-name { text-align: left; font-weight: 500; }
 .website-index-table .website-index-number { text-align: right; font-variant-numeric: tabular-nums; }
 .website-index-activity { font-variant-numeric: tabular-nums; text-align: right; }

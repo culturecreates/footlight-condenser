@@ -795,9 +795,10 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     website = build_website
     existing = website.webpages.sole
     mark_publishable(existing)
-    list, statements = travel_to(3.days.ago) { discovery_list_for(existing) }
+    owner = build_website(with_webpage: false)
+    list, statements = travel_to(3.days.ago) { discovery_list_for(existing, owner: owner) }
     new_url = "https://runner-site.example/discovered-event"
-    fresh_options = { force_scrape_every_hrs: 0 }
+    fresh_options = { force_scrape: true, force_scrape_every_hrs: 0 }
     assert_equal "stale", Distillator::WebsiteInventoryFreshness.for_websites([website.id]).dig(website.id, :status)
 
     Distillator::RefreshRunner.expects(:call).with do |args|
@@ -829,8 +830,35 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
 
     assert_equal "completed", website.latest_transition_run.status
     assert_equal "confirmed_discovery", website.latest_transition_run.progress["discovery_at_start"]
+    assert_equal [list.id.to_s], website.latest_transition_run.progress.dig("discovery_refresh", "lists").keys
+    assert_empty owner.webpages.event_pages
     assert_equal [existing.url, new_url].sort, result.records[:fetch_parity].details["representative_webpages"].sort
     assert_equal "confirmed_discovery", Distillator::WebsiteInventoryFreshness.for_websites([website.id]).dig(website.id, :status)
+  end
+
+  test "Thorough blocks when an event found in ResourceLists still lacks required statements" do
+    website = build_website
+    existing = website.webpages.sole
+    mark_publishable(existing)
+    list, statements = discovery_list_for(existing)
+    new_url = "https://runner-site.example/uninitialized"
+
+    Distillator::RefreshRunner.expects(:call).with do |args|
+      next false unless args[:webpage].id == list.id
+
+      statements.fetch(AddWebpagesJob::WEBPAGE_URL_LIST_LABEL).update_columns(cache: [existing.url, new_url].to_json, cache_refreshed: Time.current)
+      statements.fetch(AddWebpagesJob::URI_LIST_LABEL).update_columns(cache: [existing.rdf_uri, "rdf:uninitialized"].to_json, cache_refreshed: Time.current)
+      true
+    end.once
+    Distillator::RefreshRunner.expects(:call).with { |args| args[:webpage].url == new_url }.once
+
+    error = assert_raises(Distillator::TransitionRun::ConfigurationChanged) do
+      Distillator::TransitionCheckRunner.call(website: website, check_options: { sample_mode: "all", strictness: "strict" })
+    end
+    assert_match "lack publishable statements after refresh", error.message
+    assert_equal "failed", website.latest_transition_run.status
+    assert website.webpages.exists?(url: new_url)
+    assert_empty website.latest_transition_run.transition_evidences
   end
 
   test "Thorough stops before comparison when a refresh leaves only old ResourceList statements" do
@@ -991,9 +1019,10 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
 
   private
 
-  def discovery_list_for(event)
+  def discovery_list_for(event, owner: event.website)
     resource_list = RdfsClass.find_or_create_by!(name: "ResourceList")
-    list = event.website.webpages.create!(url: "#{event.url}/list", rdf_uri: "rdf:runner-list", rdfs_class: resource_list, language: "en")
+    list = owner.webpages.create!(url: "#{event.url}/list", rdf_uri: "rdf:runner-list", rdfs_class: resource_list, language: "en",
+      discovery_target_website: event.website == owner ? nil : event.website)
     values = {
       AddWebpagesJob::RDF_CLASS_LABEL => "Event",
       AddWebpagesJob::WEBPAGE_URL_LIST_LABEL => [event.url].to_json,
@@ -1002,7 +1031,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     statements = values.to_h do |label, cache|
       property = Property.create!(rdfs_class: resource_list, label: label, uri: "urn:runner-list:#{label.parameterize}")
       manual = label == AddWebpagesJob::RDF_CLASS_LABEL
-      source = event.website.sources.create!(property: property, selected: true, algorithm_value: manual ? "manual=#{cache}" : "xpath=//a")
+      source = owner.sources.create!(property: property, selected: true, algorithm_value: manual ? "manual=#{cache}" : "xpath=//a")
       statement = list.statements.create!(source: source, cache: cache, status: "ok", selected_individual: true, manual: manual,
         cache_refreshed: Time.current)
       statement.update_column(:status, "ok")

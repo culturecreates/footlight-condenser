@@ -40,13 +40,13 @@
             aria: { current: @filters[:distillator_mode].blank? && !milestone_selected ? "page" : nil } %>
       <% website_rollout_summary_items.each do |item| %>
         <% next if item[:mode].in?(%w[unknown invalid_on_staging]) && website_rollout_count(item[:mode], @rollout_counts).zero? && @filters[:distillator_mode] != item[:mode] %>
-        <span class="website-rollout-summary-item">
+        <span class="website-rollout-summary-item" data-migration-state="<%= item[:mode] %>">
           <%= website_rollout_summary_link(mode: item.fetch(:mode), label: item.fetch(:label), rollout_counts: @rollout_counts, current_sort: @current_sort, current_direction: @current_direction, current_filters: mode_filters) %>
         </span>
       <% end %>
       <% %w[ready migrated].each do |milestone| %>
         <%= link_to milestone.humanize, websites_path(all_params.merge(validation: milestone)), class: "website-rollout-summary-item website-rollout-summary-link",
-              aria: { current: @filters[:validation] == milestone ? "page" : nil } %>
+              data: { migration_state: milestone }, aria: { current: @filters[:validation] == milestone ? "page" : nil } %>
       <% end %>
     </nav>
 
@@ -100,7 +100,7 @@
       <%= submit_tag "Validate and activate selected", data: { transition_submit: true } %>
       <%= button_tag "Audit selected Active sites (Thorough)", name: "workflow_action", value: "audit", data: { transition_audit: true } unless @retry_transition_batch %>
       <% unless @retry_transition_batch %>
-        <p>Thorough validation moves Active sites to Shadow before checking. An audit keeps the current serving mode.</p>
+        <p>Thorough validation moves Active sites to Shadow before checking. Migrated sites and Active audits keep their serving mode.</p>
       <% end %>
       <details><summary>How validation and audit work</summary>
         <p>Both profiles can activate sites. Light randomly samples 20% of active publishable event pages (minimum 5, maximum 25, limited by availability), favoring pages checked least recently,

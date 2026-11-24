@@ -134,7 +134,7 @@ class WebsitesController < ApplicationController
       if @filters[:validation]
         @websites = website_rows.select do |site|
           summary = @validation_summaries.fetch(site.id)
-          (@transition_eligible_ids.include?(site.id) || summary.last_validation || summary.last_pass) && summary.matches?(@filters[:validation])
+          (@transition_eligible_ids.include?(site.id) || summary.last_validation || summary.last_pass || summary.attention) && summary.matches?(@filters[:validation])
         end
         @transition_eligible_ids &= @websites.map(&:id)
       end

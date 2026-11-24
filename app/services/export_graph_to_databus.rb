@@ -46,12 +46,9 @@ class ExportGraphToDatabus
   def self.check_schedule(root_url)
     websites = Website.all
     websites.each do |website|
-      # ensure there is a schedule
-      next unless schedule_every_days = website.schedule_every_days 
-      next unless schedule_every_days.to_i > 0
-
-      # ensure that website has been crawled atleast once
-      next unless last_refresh = website.last_refresh
+      next unless website.refresh_scheduled?
+      schedule_every_days = website.schedule_every_days
+      last_refresh = website.last_refresh
 
       # ensure that the number of days has passed
       days_past = Time.zone.now.at_beginning_of_day - last_refresh.at_beginning_of_day

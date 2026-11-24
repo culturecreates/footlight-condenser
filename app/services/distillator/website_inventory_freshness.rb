@@ -31,6 +31,8 @@ module Distillator
           verified_list_refresh_at: inventory.lists.filter_map { |list| list[:refresh_completed_at] if list[:status] == "event" }
             .map { |stamp| Time.iso8601(stamp) }.max&.utc&.iso8601(6),
           new_event_age_days: last_added && (as_of.to_date - last_added.to_date).to_i,
+          pending_import: inventory.pending_import,
+          unpublishable_urls_count: inventory.unpublishable_urls_count,
           selected_event_urls_missing: inventory.selected_event_urls_missing
         }]
       end

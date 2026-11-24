@@ -41,8 +41,10 @@ module Distillator
         current&.update!(status: "failed", completed_at: Time.current, error_message: "Check expired. A new run was requested.")
         sample = workflow_item.pre_run&.event_sample_for_postcheck if requested_options.default? && workflow_item&.phase == "postcheck"
         skip_discovery = workflow_item && (workflow_item.batch.audit? || (workflow_item.phase == "postcheck" && workflow_item.pre_run_id.present?))
+        discovery_refresh = workflow_item.pre_run&.progress&.dig("discovery_refresh") if workflow_item&.phase == "postcheck"
         run = create!(website: website, requested_at: Time.current,
-          progress: { "event_sample" => sample, "skip_discovery_refresh" => (true if skip_discovery) }.compact,
+          progress: { "event_sample" => sample, "skip_discovery_refresh" => (true if skip_discovery),
+            "discovery_refresh" => discovery_refresh }.compact,
           configuration_digest: Distillator::TransitionFingerprint.call(website), check_options: requested_options.to_h)
         website.update_column(:transition_check_requested_at, run.requested_at) unless requested_options.include_retired?
         Request.new(run: run, created?: true)
@@ -82,11 +84,17 @@ module Distillator
     def record_discovery_at_start!(scope_at)
       return if progress.key?("discovery_at_start")
 
+      proof = progress["discovery_refresh"]
+      if proof && !TransitionDiscoveryRefresh.verify(website, proof, as_of: scope_at)
+        raise ConfigurationChanged, "ResourceList evidence changed since discovery preparation. Run a new check."
+      end
+
       inventory = WebsiteInventoryFreshness.for_websites([website_id], as_of: scope_at).fetch(website_id)
       with_lock do
         raise ConfigurationChanged, "Check stopped before discovery evidence was recorded." unless status == "running"
 
-        update!(progress: progress.merge("discovery_at_start" => inventory.fetch(:status)))
+        update!(progress: progress.merge("discovery_at_start" => inventory.fetch(:status),
+          "validation_configuration" => TransitionFingerprint.configuration(website)))
       end
     end
 
@@ -116,7 +124,8 @@ module Distillator
             raise ConfigurationChanged, "Check configuration changed while refreshing ResourceLists. Run a new check."
           end
 
-          update!(configuration_digest: digest, started_at: Time.current, progress: progress.merge("discovery_prepared" => true))
+          update!(configuration_digest: digest, started_at: Time.current,
+            progress: progress.merge("discovery_prepared" => true, "discovery_refresh" => discovery.proof))
         end
       end
     end
@@ -223,6 +232,11 @@ module Distillator
           unless status == "running" && requested_at > Time.current - LEASE &&
               configuration_digest == Distillator::TransitionFingerprint.call(website)
             raise ConfigurationChanged, "Check expired or source configuration changed. Run a new check."
+          end
+          if (proof = progress["discovery_refresh"]) &&
+              (progress["validation_configuration"] != TransitionFingerprint.configuration(website) ||
+               !TransitionDiscoveryRefresh.verify(website, proof, as_of: Time.current))
+            raise ConfigurationChanged, "ResourceList or extraction configuration changed during the check. Run a new check."
           end
           kinds = transition_evidences.distinct.pluck(:check_kind)
           unless (Distillator::TransitionEvidence::REPORT_CHECK_KINDS - kinds).empty?

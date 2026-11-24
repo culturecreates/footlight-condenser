@@ -18,12 +18,12 @@ module Distillator
       # Include insertions/deletions and the metadata used to interpret DSL values.
       # Cached-legacy comparisons cannot qualify under the fresh-on-both-sides policy.
       settings = ["fresh_both_page_fetch_v3_active_events", *inputs]
-      pages = website.webpages.order(:id).pluck(*Webpage.column_names)
+      pages = website.webpages.order(:id).pluck(*page_columns)
       recorded_digest(settings, pages, current_exclusions(website))
     end
 
     def self.after_discovery(website, expected_digest:, discovery:)
-      columns = Webpage.column_names
+      columns = page_columns
       id_column = columns.index("id")
       archive_column = columns.index("archive_date")
       settings = ["fresh_both_page_fetch_v3_active_events", *configuration_inputs(website)]
@@ -41,6 +41,10 @@ module Distillator
       return unless expected_digest == recorded_digest(settings, previous_pages, exclusions)
 
       recorded_digest(settings, pages, exclusions)
+    end
+
+    def self.page_columns
+      Webpage.column_names - ["discovery_target_website_id"]
     end
 
     def self.current_exclusions(website)
@@ -67,16 +71,20 @@ module Distillator
     end
 
     def self.configuration_inputs(website)
-      [["dsl_contract", Dsl::Core::AlgorithmRunner::CONTRACT_VERSION], website.attributes.slice("seedurl", "default_language", "graph_name"),
+      inputs = [["dsl_contract", Dsl::Core::AlgorithmRunner::CONTRACT_VERSION], website.attributes.slice("seedurl", "default_language", "graph_name"),
         website.sources.order(:id).pluck(*Source.column_names),
         Property.where(id: website.sources.select(:property_id)).order(:id).pluck(*Property.column_names),
         RdfsClass.order(:id).pluck(:id, :name)]
+      if Webpage.where(discovery_target_website_id: website.id).exists?
+        inputs << ["linked_discovery", TransitionEventInventory.definition_digest(website.id)]
+      end
+      inputs
     end
 
     def self.digest(values)
       Digest::SHA256.hexdigest(JSON.generate(values))
     end
 
-    private_class_method :full_digest, :current_exclusions, :recorded_digest, :configuration_inputs, :digest
+    private_class_method :full_digest, :page_columns, :current_exclusions, :recorded_digest, :configuration_inputs, :digest
   end
 end

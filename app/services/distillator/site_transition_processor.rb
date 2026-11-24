@@ -46,7 +46,7 @@ module Distillator
           run.transition_checkpoints.delete_all if cancelled
           item.phase_results = item.phase_results.merge(item.phase => comparison_result(run, website).merge(reason: reason)) unless item.phase_results.key?(item.phase)
         end
-        if website.distillator_mode == "active" && !item.batch.audit?
+        if website.distillator_mode == "active" && !item.batch.audit? && !item.phase_results["retained_active"]
           result = @rollout.call(website: website, to_mode: "shadow", actor: item.actor, reason: "Automatic recovery: #{reason}")
           unless result.success? && website.reload.distillator_mode == "shadow"
             finish(item, website, "recovery_failed", "Recovery failed: #{result.errors.join(', ')}. Original issue: #{reason}")
@@ -116,7 +116,12 @@ module Distillator
                 next
               end
 
-              if website.distillator_mode == "legacy" || item.batch.thorough_revalidation? && website.distillator_mode == "active"
+              if website.distillator_mode == "active" && !item.batch.audit? && migrated?(website)
+                item.phase_results = item.phase_results.merge("retained_active" => true)
+              end
+
+              if website.distillator_mode == "legacy" ||
+                  (item.batch.thorough_revalidation? && website.distillator_mode == "active" && !item.phase_results["retained_active"])
                 result = @rollout.call(website: website, to_mode: "shadow", actor: item.actor, reason: "Start validation workflow ##{item.id}")
                 raise result.errors.join(", ") unless result.success?
               end
@@ -137,6 +142,11 @@ module Distillator
       end
       item.batch.enqueue_next! if item.terminal?
       token
+    end
+
+    def migrated?(website)
+      inventories = WebsiteInventoryFreshness.for_websites([website.id])
+      WebsiteValidationHistory.for_websites([website], inventories: inventories).fetch(website.id).milestone == "migrated"
     end
 
     def finish_phase(item, token, run)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_23_000200) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_24_000100) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -385,6 +385,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_23_000200) do
     t.datetime "updated_at", precision: nil, null: false
     t.datetime "archive_date", precision: nil
     t.bigint "jsonld_output_id"
+    t.bigint "discovery_target_website_id"
+    t.index ["discovery_target_website_id"], name: "index_webpages_on_discovery_target_website_id"
     t.index ["jsonld_output_id"], name: "index_webpages_on_jsonld_output_id"
     t.index ["rdfs_class_id"], name: "index_webpages_on_rdfs_class_id"
     t.index ["url", "website_id"], name: "index_webpages_on_url_and_website_id", unique: true
@@ -434,4 +436,5 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_23_000200) do
   add_foreign_key "webpages", "jsonld_outputs"
   add_foreign_key "webpages", "rdfs_classes"
   add_foreign_key "webpages", "websites"
+  add_foreign_key "webpages", "websites", column: "discovery_target_website_id"
 end

@@ -11,9 +11,12 @@ event pages with public URLs stops for attention before switching serving mode.
 
 **Validate and activate selected** uses **Light** for the default sample and
 Standard field comparison. **Thorough** checks all active publishable event pages
-with public URLs and uses Strict field comparison. Thorough is the default and moves previously Active sites to
-Shadow before the precheck. Light validation of an already Active site goes
-straight to Active verification and can return the site to Shadow on failure.
+with public URLs and uses Strict field comparison. Thorough is the default and
+moves previously Active sites to Shadow before the precheck. Light validation
+of an already Active site goes straight to Active verification and can return
+the site to Shadow on failure. A recheck of a site that currently qualifies as
+Migrated runs on the Active path and records failures for attention while
+Condenser continues serving.
 **Audit selected Active sites (Thorough)** checks the Active path using all
 active publishable event pages with public URLs and Strict field comparison.
 It reports failures for review while leaving the serving mode under operator
@@ -47,12 +50,21 @@ include sites with historical passes whose configuration has since changed or
 whose latest validation needs attention. Website details list workflow outcomes,
 serving modes, and links to each recorded phase.
 
-A passing validation workflow can put a site into Active serving mode.
-**Ready** requires an Active, scheduled site, currently verified ResourceLists,
-and two Thorough passes with verified lists at the start of the checks.
-**Migrated** applies the same conditions with four distinct Thorough passes.
-The Websites table highlights Ready rows in light green. Use the Ready and
-Migrated links to filter the table.
+A passing Light or stronger validation can put a site into Active serving mode.
+**Ready** requires Active mode and one qualifying Thorough pass. A qualifying
+pass records forced ResourceList refresh and verified import before selection,
+covers every eligible event with fresh fetch, Strict statements and export
+checks, and still covers the current eligible pages and extraction
+configuration. **Migrated** requires two independent qualifying Thorough passes
+and a refresh schedule the scheduler can use (positive interval, time of day,
+and prior refresh). Both phases of one workflow count as one pass.
+
+Inventory freshness appears separately. Time since the last list refresh does
+not remove Ready or Migrated on its own. Newly discovered events awaiting
+import, listed active events missing required statements, and changes affecting
+current coverage require new evidence. Earlier passes remain visible. The
+State column and filter chips use grey for Legacy, blue for Shadow, amber for
+Active, green for Ready, and purple for Migrated.
 
 Coverage is the number of distinct currently eligible pages checked in passing
 validations across both required phases. A page contributes while its recorded
@@ -74,8 +86,14 @@ and for Active sites when Thorough is selected.
 ### Event eligibility and historical audits
 
 Thorough validation refreshes event ResourceLists, imports discovered events,
-and runs the initial statement refresh before selecting eligible pages. The
-Shadow and Active phases of a workflow share this discovery preparation. A site
+and refreshes listed active events with missing required statements before
+selecting eligible pages. These preparation writes use the usual statement
+refresh and webpage import paths. A list hosted on a different website can name
+its destination under **Event discovery target** on the ResourceList webpage's
+edit screen. Data-only lists supply DSL inputs. Existing active publishable
+events remain in scope even when absent from the refreshed lists.
+
+The Shadow and Active phases of a workflow share this discovery preparation. A site
 check with Strict comparison runs the same preparation when set to All pages or
 when its fixed page count covers the current event inventory. If a configured
 list cannot be verified after refresh, the check
