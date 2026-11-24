@@ -71,9 +71,10 @@ module Distillator
     end
 
     def self.milestone(website, thorough_passes)
-      return unless website.distillator_mode == "active" && thorough_passes.positive?
+      return unless website.distillator_mode == "active" && WebsiteIndexGroups.category(website) == :scheduled
+      return unless thorough_passes.positive?
 
-      thorough_passes >= 2 && WebsiteIndexGroups.category(website) == :scheduled ? "migrated" : "ready"
+      thorough_passes >= 2 ? "migrated" : "ready"
     end
 
     def self.coverage_runs(item)
