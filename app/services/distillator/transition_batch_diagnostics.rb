@@ -39,7 +39,7 @@ module Distillator
         evidence = records.fetch(run.id, []).uniq(&:check_kind).index_by(&:check_kind)
         issues.concat(run_issues(evidence, run).map { |issue| issue.merge(run_id: run.id, phase: phase) })
         item.phase_results.fetch(phase, {}).slice("state", "fetch", "statements", "export")
-          .merge(phase: phase, run_id: run.id, status: run.status)
+          .merge(phase: phase, run_id: run.id, status: run.status, event_inventory: inventory_summary(evidence["fetch_parity"])).compact
       end
       if item.status == "recovery_failed" || (item.status == "attention" && issues.empty?)
         issues << { kind: "workflow", code: item.status, message: message(item.reason) }
@@ -48,6 +48,15 @@ module Distillator
       { website_id: item.website_id, name: item.website_name, seedurl: item.seedurl, workflow_id: item.id,
         status: item.status, initial_mode: item.initial_mode, final_mode: item.final_mode, final_backend: item.final_backend,
         reason: message(item.reason), checks: checks, issues: grouped_issues(issues) }.compact
+    end
+
+    def inventory_summary(record)
+      inventory = record&.details&.dig("event_inventory")
+      return if inventory.blank?
+
+      retired = Array(inventory["retired"])
+      inventory.slice("status", "valid_until").merge(
+        "past_events_omitted" => retired.size, "examples" => retired.first(EXAMPLES_PER_KIND))
     end
 
     def run_issues(evidence, run)

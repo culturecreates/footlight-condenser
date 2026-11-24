@@ -122,7 +122,8 @@ module Distillator
             item.phase_started_at = Time.current
             item.deadline_at = Time.current + TransitionRun::LEASE + 2.minutes
             item.phase_token = token = SecureRandom.hex(16)
-            run = TransitionRun.request!(website: website, options: item.batch.check_options, workflow_item: item).run
+            options = item.batch.audit? ? item.batch.check_options.merge("include_retired" => true) : item.batch.check_options
+            run = TransitionRun.request!(website: website, options: options, workflow_item: item).run
             item.public_send("#{item.phase == 'postcheck' ? 'post' : 'pre'}_run=", run)
             item.save!
           end
@@ -140,8 +141,7 @@ module Distillator
         next unless item.phase_started_at && item.current_run&.id == run.id
 
         raise "This site is no longer eligible for event-site migration" unless EventSiteSelection.eligible_ids([website]).include?(website.id)
-        unless website.latest_transition_run&.id == run.id && run.status == "completed" &&
-            run.configuration_digest == TransitionFingerprint.call(website)
+        unless website.latest_transition_run&.id == run.id && website.transition_run_blocker(run).nil?
           raise "The check was superseded or configuration changed. Run a new workflow."
         end
         status = TransitionStatus.for_completed_run(website: website, run: run)

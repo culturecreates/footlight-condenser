@@ -17,7 +17,7 @@ straight to Active verification and can return the site to Shadow on failure.
 **Audit selected Active sites (Thorough)** checks the Active path using all
 eligible pages and Strict field comparison. It reports failures for review
 while leaving the serving mode under operator control. Only Active event sites
-can enter an audit.
+can enter an audit. Audits also include historical event pages.
 
 One selected
 site opens its own workflow report. More than one opens a group report with
@@ -44,6 +44,25 @@ and for Active sites when Thorough is selected.
    without a forced execution-mode override. Verify the resolved serving backend
    is Condenser and that every successful fetch actually uses its native path.
 5. Keep Active on success; otherwise return to Shadow and record recovery.
+
+### Prepare event inventory
+
+Use **Refresh lists and add webpages** from the website's batch jobs and let
+discovery and any newly queued event refreshes finish before validating. The
+transition itself reads the stored lists. The normal discovery and publishing
+schedule is independent of transition validation.
+
+An activation check can omit a past event when its selected start and end
+values place its last occurrence before the check day, and every applicable
+ResourceList confirms its absence by both webpage URL and RDF URI. The selected
+URL and URI lists must be nonempty, aligned and refreshed in the last 48 hours,
+within ten minutes of each other. A modified, missing, stale or ambiguous list
+keeps the existing scope, as does a list with URLs still awaiting import.
+Matching a current list or having uncertain dates
+also keeps a page eligible. The report records the discovery evidence and each
+omitted URL. A changed or expired proof requires a new check before activation.
+An empty post-filter scope cannot pass. The export comparison still uses the
+stored data in the environment.
 
 Shared extraction failures are reported as inconclusive statements. When both
 backends record fresh source HTTP 404 or 410 responses for the same URL, the

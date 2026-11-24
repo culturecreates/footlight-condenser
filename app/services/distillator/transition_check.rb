@@ -34,6 +34,7 @@ module Distillator
       :publishable_event_page_count,
       :original_publishable_event_page_count,
       :transition_exclusions,
+      :event_inventory,
       :selected_candidate_tier_count,
       :selection_rule,
       :attempted_condenser_fetch,
@@ -55,6 +56,7 @@ module Distillator
       cache: nil,
       evidence_by_kind: nil,
       check_options: nil,
+      scope_at: Time.current,
       run_fetch: false,
       comparison_policy: :operator,
       fetch_cache_store: Distillator::FetchCacheStore,
@@ -64,6 +66,7 @@ module Distillator
       @cache = cache
       @evidence_by_kind = evidence_by_kind
       @check_options = Distillator::TransitionCheckOptions.coerce(check_options)
+      @scope_at = scope_at
       @run_fetch = run_fetch == true
       @comparison_policy = normalize_comparison_policy(comparison_policy)
       @fetch_cache_store = fetch_cache_store
@@ -99,8 +102,9 @@ module Distillator
         publishable_event_page_count: publishable_event_page_count,
         original_publishable_event_page_count: original_publishable_event_page_count,
         transition_exclusions: excluded_records.map(&:snapshot),
+        event_inventory: event_inventory,
         selected_candidate_tier_count: selected_candidate_tier_count,
-        selection_rule: @check_options.selection_rule + (excluded_records.any? ? " Reviewed URL exclusions apply before sampling." : ""),
+        selection_rule: selection_rule,
         attempted_condenser_fetch: fetch_attempt[:attempted],
         condenser_fetch_result: fetch_attempt[:result],
         comparison: fetch_attempt[:comparison],
@@ -200,7 +204,26 @@ module Distillator
     end
 
     def publishable_event_scope
-      without_reviewed_urls(original_publishable_event_scope)
+      remaining = without_reviewed_urls(original_publishable_event_scope)
+      ids = event_inventory.retired.pluck(:webpage_id)
+      ids.empty? ? remaining : remaining.where.not(id: ids)
+    end
+
+    def event_inventory
+      @event_inventory ||= if @check_options.include_retired? || original_publishable_event_page_count.zero?
+        status = @check_options.include_retired? ? "historical_audit" : "no_publishable_events"
+        TransitionEventInventory::Result.new(status: status, lists: [], retired: [])
+      else
+        TransitionEventInventory.new(website: website, as_of: @scope_at).call(without_reviewed_urls(original_publishable_event_scope))
+      end
+    end
+
+    def selection_rule
+      rule = @check_options.selection_rule.dup
+      rule << " Reviewed URL exclusions apply before sampling." if excluded_records.any?
+      rule << " Verified past events absent from discovery were omitted." if event_inventory.retired.any?
+      rule << " Includes past events for the historical audit." if @check_options.include_retired?
+      rule
     end
 
     def original_publishable_event_scope
@@ -231,14 +254,14 @@ module Distillator
 
     def future_publishable_event_scope
       publishable_event_scope
-        .where("archive_date >= ?", Time.current.beginning_of_day)
+        .where("archive_date >= ?", @scope_at.beginning_of_day)
         .reorder(archive_date: :asc, updated_at: :desc, id: :asc)
     end
 
     def past_publishable_event_scope
       publishable_event_scope
         .where.not(archive_date: nil)
-        .where("archive_date < ?", Time.current.beginning_of_day)
+        .where("archive_date < ?", @scope_at.beginning_of_day)
         .reorder(archive_date: :desc, updated_at: :desc, id: :asc)
     end
 

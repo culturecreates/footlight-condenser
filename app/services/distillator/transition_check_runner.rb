@@ -146,7 +146,7 @@ module Distillator
       @phase_timings = {}
       transition_run&.record_progress!("selection")
       @memory.record(run_id: transition_run.id, phase: "selection")
-      check_args = { website: website, run_fetch: false }
+      check_args = { website: website, run_fetch: false, scope_at: transition_run.requested_at }
       check_args[:check_options] = @check_options unless @check_options.default?
       transition_check = timed_phase("selection") { transition_check_service.call(**check_args) }
       representative_webpages = Array(transition_check.representative_webpages)
@@ -169,7 +169,7 @@ module Distillator
       scope = Digest::SHA256.hexdigest(JSON.generate([
         ENV["HEROKU_RELEASE_VERSION"] || ENV["SOURCE_VERSION"] || Digest::SHA256.file(__FILE__).hexdigest,
         transition_run.configuration_digest, website.distillator_mode, @verify_active_path, @require_native_path,
-        check.comparison_policy, webpages.map { |page| [page.id, page.url] },
+        check.comparison_policy, webpages.map { |page| [page.id, page.url] }, inventory_details(check),
         DslLibraryEntry.order(:id).pluck(:name, :body, :revision, :aliases),
         WringerEndpoint.current.legacy_lookup_base_url
       ]))
@@ -515,6 +515,7 @@ module Distillator
         affected_url_count: representative_affected_url_count(representative_url_results),
         representative_urls_checked: representative_url_results.any?
       ).compact
+      details[:event_inventory] = inventory_details(transition_check)
 
       unless representative_webpages.present?
         return [:pending, details.merge(reason: "no_representative_webpages", representative_urls_checked: false)]
@@ -642,6 +643,12 @@ module Distillator
         fetch_attempted_webpage_count: Array(@representative_url_results).count { |row| row[:attempted_condenser_fetch] },
         sample_small: transition_check.selected_candidate_tier_count.to_i > representative_webpages.count
       }
+    end
+
+    def inventory_details(check)
+      return unless check.respond_to?(:event_inventory) && (inventory = check.event_inventory)
+
+      inventory.to_h.merge(valid_until: inventory.valid_until&.iso8601).compact
     end
 
     def representative_url_result_for(webpage, comparison_policy)

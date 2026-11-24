@@ -13,10 +13,14 @@ module Distillator
     def initialize(values = {})
       raise ArgumentError, "Check options must be an object" unless values.is_a?(Hash)
       values = values.to_h.stringify_keys
-      raise ArgumentError, "Unknown check options" if (values.keys - %w[sample_mode sample_size strictness]).any?
+      raise ArgumentError, "Unknown check options" if (values.keys - %w[sample_mode sample_size strictness include_retired]).any?
+      unless [nil, true, false].include?(values["include_retired"])
+        raise ArgumentError, "Include retired events must be true or false"
+      end
 
       @sample_mode = values["sample_mode"].presence || "default"
       @strictness = values["strictness"].presence || "standard"
+      @include_retired = values["include_retired"] == true
       raise ArgumentError, "Choose a valid event sample" unless SAMPLE_MODES.include?(sample_mode)
       raise ArgumentError, "Choose a valid field comparison policy" unless STRICTNESSES.include?(strictness)
       @sample_mode = sample_mode.dup.freeze
@@ -39,7 +43,11 @@ module Distillator
     end
 
     def default?
-      sample_mode == "default" && !strict?
+      sample_mode == "default" && !strict? && !include_retired?
+    end
+
+    def include_retired?
+      @include_retired
     end
 
     def size_for(total, default:)
@@ -66,6 +74,7 @@ module Distillator
     def to_h
       { "sample_mode" => sample_mode, "strictness" => strictness }.tap do |values|
         values["sample_size"] = sample_size if sample_mode == "count"
+        values["include_retired"] = true if include_retired?
       end
     end
   end

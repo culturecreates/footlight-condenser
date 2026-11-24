@@ -462,7 +462,137 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
     end
   end
 
+  test "fresh discovery omits past events and keeps current and uncertain events in Thorough" do
+    travel_to Time.zone.parse("2026-11-23 13:00") do
+      website = build_website("inventory-scope")
+      current = inventory_event(website, "current", "2026-12-02T19:00:00-05:00")
+      retired = inventory_event(website, "retired", "2026-11-19")
+      moved = inventory_event(website, "moved", "2026-11-19")
+      listed = inventory_event(website, "listed", "2026-11-19")
+      ongoing = inventory_event(website, "ongoing", "2026-11-19")
+      invalid = inventory_event(website, "invalid", "2026-11-19")
+      invalid.statements.joins(source: :property).find_by!(properties: { label: "Dates" }).update_columns(cache: '["2026-11-19","unknown"]')
+      end_property = Property.create!(rdfs_class: rdfs_classes(:one), label: "Closing date", uri: "schema:endDate")
+      inventory_statement(ongoing, end_property, '["2026-11-23T21:00:00-05:00"]')
+      # A migrated URL may keep the same RDF URI even while the old URL has disappeared.
+      relocated_url = "https://inventory-scope.example/new-path"
+      create_event_webpage(website, suffix: "new-path", url: relocated_url, archive_date: nil)
+      inventory_list(website, [current.url, listed.url + "/", relocated_url], [current.rdf_uri, listed.rdf_uri, moved.rdf_uri])
+
+      result = Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "all", strictness: "strict" })
+
+      assert_equal [retired.id], result.event_inventory.retired.pluck(:webpage_id)
+      assert_equal "confirmed_discovery", result.event_inventory.status
+      assert_equal [current, moved, listed, ongoing, invalid].map(&:id).sort, result.representative_webpages.map(&:id).sort
+      assert_equal 6, result.original_publishable_event_page_count
+      assert_equal 5, result.publishable_event_page_count
+      assert_equal 6, website.webpages.event_pages.publishable.count
+
+      audit = Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "all", strictness: "strict", include_retired: true })
+      assert_equal "historical_audit", audit.event_inventory.status
+      assert_includes audit.representative_webpages, retired
+    end
+  end
+
+  test "an individual date override protects an absent event from automatic retirement" do
+    website = build_website("inventory-individual")
+    past = inventory_event(website, "past", "2025-01-10")
+    current = inventory_event(website, "current", "2027-01-10")
+    override = inventory_statement(past, properties(:six), '["2027-01-11"]')
+    override.source.update!(selected: false)
+    inventory_list(website, [current.url], [current.rdf_uri])
+
+    result = Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "all" })
+
+    assert_empty result.event_inventory.retired
+    assert_includes result.representative_webpages, past
+  end
+
+  test "an empty post-retirement event scope never falls back to unrelated webpages" do
+    website = build_website("inventory-empty")
+    past = inventory_event(website, "past", "2025-01-10")
+    current = create_event_webpage(website, suffix: "pending-review", url: "https://inventory-empty.example/pending-review", archive_date: nil)
+    inventory_list(website, [current.url], [current.rdf_uri])
+
+    result = Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "all" })
+
+    assert_equal [past.id], result.event_inventory.retired.pluck(:webpage_id)
+    assert_empty result.representative_webpages
+    assert_not result.promotable
+  end
+
+  test "stale partial and malformed discovery keep past pages in scope" do
+    website = build_website("inventory-incomplete")
+    past = inventory_event(website, "past", "2025-01-10")
+    current = inventory_event(website, "current", "2027-01-10")
+    _, url_list, uri_list = inventory_list(website, [current.url], [current.rdf_uri])
+    [49.hours.ago, 20.minutes.ago].each do |timestamp|
+      uri_list.update_columns(cache_refreshed: timestamp)
+      result = Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "all" })
+      assert_equal "discovery_unverified", result.event_inventory.status
+      assert_includes result.representative_webpages, past
+    end
+
+    uri_list.update_columns(cache_refreshed: Time.current)
+    url_list.update_columns(cache: "[]")
+    result = Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "all" })
+    assert_equal "discovery_unverified", result.event_inventory.status
+    assert_includes result.representative_webpages, past
+
+    url_list.update_columns(cache: '["https://inventory-incomplete.example/not-imported"]')
+    result = Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "all" })
+    assert_equal "discovery_pending_import", result.event_inventory.status
+    assert_includes result.representative_webpages, past
+  end
+
+  test "changing inventory inputs or aging out the retirement proof invalidates completed evidence" do
+    website = build_website("inventory-guard")
+    past = inventory_event(website, "past", "2025-01-10")
+    current = inventory_event(website, "current", "2027-01-10")
+    _, urls, = inventory_list(website, [current.url], [current.rdf_uri])
+    inventory = Distillator::TransitionCheck.call(website: website).event_inventory
+    run = publish_transition_fixture(website, defaults: {
+      "fetch_parity" => { details: { event_inventory: inventory.to_h.merge(valid_until: inventory.valid_until.iso8601) } }
+    })
+
+    assert_nil website.transition_run_blocker(run)
+    travel_to(inventory.valid_until + 1.second) do
+      assert_match(/ResourceList evidence.*expired/, website.transition_run_blocker(run))
+    end
+    urls.update_columns(cache: [current.url, past.url].to_json)
+    assert_equal Distillator::TransitionFingerprint::STALE_MESSAGE, website.transition_run_blocker(run)
+  end
+
   private
+
+  def inventory_event(website, suffix, start_at)
+    page = create_publishable_event_webpage(website, suffix: suffix, url: "https://#{website.seedurl}.example/#{suffix}",
+      archive_date: 1.year.from_now, updated_at: 1.hour.ago, start_at: start_at)
+    page.statements.update_all(selected_individual: true)
+    page
+  end
+
+  def inventory_list(website, urls, uris)
+    rdfs_class = RdfsClass.find_or_create_by!(name: "ResourceList")
+    page = website.webpages.create!(url: "https://#{website.seedurl}.example/calendar", rdf_uri: "rdf:calendar", language: "en", rdfs_class: rdfs_class)
+    {
+      AddWebpagesJob::RDF_CLASS_LABEL => "Event",
+      AddWebpagesJob::WEBPAGE_URL_LIST_LABEL => urls.to_json,
+      AddWebpagesJob::URI_LIST_LABEL => uris.to_json
+    }.map do |label, cache|
+      property = Property.create!(rdfs_class: rdfs_class, label: label, uri: "urn:inventory:#{label.parameterize}")
+      inventory_statement(page, property, cache, manual: label == AddWebpagesJob::RDF_CLASS_LABEL)
+    end
+  end
+
+  def inventory_statement(page, property, cache, manual: false)
+    source = Source.create!(website: page.website, property: property, language: "en", selected: true,
+      algorithm_value: manual ? "manual=#{cache}" : "xpath=//date")
+    statement = Statement.create!(webpage: page, source: source, cache: cache, status: "ok",
+      selected_individual: true, manual: manual, cache_refreshed: Time.current)
+    statement.update_columns(status: "ok")
+    statement
+  end
 
   def build_website(seedurl)
     Website.create!(

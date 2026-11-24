@@ -15,6 +15,8 @@ module Distillator
         website.webpages.order(:id).pluck(*Webpage.column_names)]
       exclusions = website.transition_exclusions.active.order(:id).pluck(:id, :url, :reason, :source_run_id, :created_at)
       inputs << ["reviewed_transition_exclusions_v1", exclusions] if exclusions.any?
+      inventory = TransitionEventInventory.fingerprint_inputs(website)
+      inputs << ["event_inventory_v1", inventory] if inventory.any?
       Digest::SHA256.hexdigest(JSON.generate(inputs))
     end
   end

@@ -153,6 +153,7 @@
   <summary>Checked scope</summary>
   <% scope_lines = shadow_report_scope_lines(@detail.checked_scope) %>
   <p><%= scope_lines.first %></p>
+  <%= render "event_inventory", inventory: @detail.checked_scope[:event_inventory] %>
   <details>
     <summary>Sampling and comparison details</summary>
     <ul>

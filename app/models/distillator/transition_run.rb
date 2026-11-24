@@ -48,6 +48,19 @@ module Distillator
       Distillator::TransitionCheckOptions.new(check_options)
     end
 
+    def inventory_evidence_expired?
+      return false unless status == "completed"
+
+      evidence = transition_evidences.find_by(check_kind: "fetch_parity")
+      inventory = evidence&.details&.dig("event_inventory")
+      return false if inventory.blank? || inventory["retired"].blank?
+
+      expires = inventory["valid_until"]
+      expires.blank? || Time.current >= Time.iso8601(expires)
+    rescue ArgumentError
+      true
+    end
+
     def record_progress!(phase, completed: nil, total: nil)
       update = {
         phase: phase, completed: completed, total: total, updated_at: Time.current.iso8601(6)

@@ -81,6 +81,7 @@ class Website < ApplicationRecord
     return "Transition check is #{latest.status}. Wait for all phases to finish." if latest.status.in?(%w[queued running])
     return latest.error_message.presence || "Transition check failed. Run a new check." if latest.status == "failed"
     return Distillator::TransitionFingerprint::STALE_MESSAGE unless latest.configuration_digest == Distillator::TransitionFingerprint.call(self)
+    return "The ResourceList evidence used to omit past events has expired. Refresh the lists and run a new check." if latest.inventory_evidence_expired?
 
     nil
   end

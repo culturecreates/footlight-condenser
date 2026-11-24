@@ -1,0 +1,43 @@
+<% if inventory.present? %>
+  <% retired = Array(inventory["retired"]) %>
+  <% lists = Array(inventory["lists"]) %>
+  <details id="transition-event-inventory">
+    <summary>Event inventory<%= " · #{pluralize(retired.size, 'past event')} omitted" if retired.any? %></summary>
+    <% case inventory["status"] %>
+    <% when "discovery_unverified" %>
+      <p>Discovery evidence is incomplete. Past events remain in scope. Refresh the ResourceLists before checking again.</p>
+    <% when "discovery_pending_import" %>
+      <p>Some discovery URLs have yet to be added to this website. Past events remain in scope.</p>
+    <% when "confirmed_discovery" %>
+      <p>Past events were eligible for omission when neither their URL nor their RDF URI appeared in any verified event list.</p>
+    <% when "historical_audit" %>
+      <p>This audit includes historical event pages.</p>
+    <% when "no_publishable_events" %>
+      <p>No publishable event pages were available to reconcile with discovery.</p>
+    <% else %>
+      <p>No event discovery lists were available. Past events remain in scope.</p>
+    <% end %>
+    <% if lists.any? %>
+      <ul>
+        <% lists.each do |list| %>
+          <li>
+            <%= external_website_link(list["url"], max: 110) if list["url"].present? %>
+            <% if list["status"] == "event" %>
+              · <%= pluralize(list["count"], "URL") %> · <%= shadow_report_timestamp(list["refreshed_at"]) %>
+            <% else %>
+              · <%= (list["reason"] || list["status"]).humanize %>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
+    <% if retired.any? %>
+      <ul>
+        <% retired.each do |page| %>
+          <li><%= external_website_link(page["url"], max: 110) %> · Last occurrence <%= shadow_report_timestamp(page["last_occurrence"]) %></li>
+        <% end %>
+      </ul>
+      <p>Discovery evidence expires <%= shadow_report_timestamp(inventory["valid_until"]) %>.</p>
+    <% end %>
+  </details>
+<% end %>

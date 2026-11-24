@@ -265,6 +265,23 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     assert_select "#transition-wringer-retries li", text: /Wringer HTTP 200 · Source HTTP 200 · 0.9s/
   end
 
+  test "shows the recorded resource list and omitted event on a completed check" do
+    fetch = @completed.transition_evidences.find_by!(check_kind: "fetch_parity")
+    previous_url = "https://petittheatre.example/past"
+    calendar_url = "https://petittheatre.example/calendar"
+    fetch.update!(details: fetch.details.merge("event_inventory" => {
+      status: "confirmed_discovery", lists: [{ url: calendar_url, status: "event", count: 1, refreshed_at: 1.hour.ago.iso8601 }],
+      retired: [{ url: previous_url, last_occurrence: 1.week.ago.iso8601 }], valid_until: 1.day.from_now.iso8601
+    }))
+
+    get distillator_shadow_report_site_path(@website, run_id: @completed.id)
+
+    assert_response :success
+    assert_select "#transition-event-inventory summary", text: "Event inventory · 1 past event omitted"
+    assert_select "#transition-event-inventory a[href=?]", previous_url
+    assert_select "#transition-event-inventory a[href=?]", calendar_url
+  end
+
   test "performance details stay collapsed and belong to the selected completed run" do
     export = @completed.transition_evidences.find_by!(check_kind: "export_diff")
     export.update!(details: export.details.merge("performance" => {

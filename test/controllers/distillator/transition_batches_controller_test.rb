@@ -142,7 +142,9 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
       legacy_fetch: { upstream_http_code: 429 }, legacy_lookup_error: "Wringer scrape was rate limited" }
     rows << { url: urls[2], fetch_status: "passed", legacy_lookup_status: "ok", comparison_status: "failed",
       compare_summary: { blocking_regressions: ["final_url"] } }
-    diagnostic_evidence(pre, "fetch_parity", representative_url_results: rows)
+    retired = (1..3).map { |i| { url: "https://example.org/past-#{i}", last_occurrence: 1.week.ago.iso8601 } }
+    diagnostic_evidence(pre, "fetch_parity", representative_url_results: rows,
+      event_inventory: { status: "confirmed_discovery", retired: retired })
     diagnostic_evidence(unrelated, "fetch_parity", representative_url_results: [failure.call("https://example.org/unrelated", 500)])
     diagnostic_evidence(other, "fetch_parity", representative_url_results: [failure.call(urls.first, 404)])
     missing = { verdict: "MISSING_STATEMENT", core_field: true, legacy: nil, condenser: nil, property_label: "Location", source_id: 1945 }
@@ -172,6 +174,9 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     alpha, beta = report.fetch("sites")
     issues = alpha.fetch("issues").index_by { |issue| issue["code"] }
     assert_equal [pre.id, post.id], alpha.fetch("checks").pluck("run_id")
+    inventory = alpha.fetch("checks").first.fetch("event_inventory")
+    assert_equal 3, inventory.fetch("past_events_omitted")
+    assert_equal retired.first(2).pluck(:url), inventory.fetch("examples").pluck("url")
     assert_equal 4, issues.fetch("http_404").fetch("recorded_occurrences")
     assert_equal urls.first(2), issues.fetch("http_404").fetch("examples").pluck("url")
     assert_equal 1, issues.fetch("http_410").fetch("examples").size
