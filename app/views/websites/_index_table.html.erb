@@ -1,12 +1,12 @@
 <div class="website-index-table-scroll operator-table-scroll" tabindex="0" role="region" aria-label="Website overview">
   <table class="cache-table website-index-table">
-    <caption class="website-index-sr-only">Website modes, page counts, statement activity, inventory freshness and last refresh. Open Details for settings and operations.</caption>
+    <caption class="website-index-sr-only">Website modes, event page counts and publishability, statement activity, inventory freshness and last refresh. Open Details for all webpage types, settings and operations.</caption>
     <thead><tr>
       <th scope="col">Transition</th>
       <th scope="col"><%= website_index_sortable("name", "Website", group: group) %></th>
       <th scope="col">Mode</th>
-      <th scope="col" class="website-index-number"><%= website_index_sortable("webpages_count", "Pages", group: group) %></th>
-      <th scope="col" class="website-index-number" title="Publishable pages across all resource classes, not only upcoming events">Publishable</th>
+      <th scope="col" class="website-index-number"><%= website_index_sortable("event_pages_count", "Event pages", group: group) %></th>
+      <th scope="col" class="website-index-number" title="Publishable event pages divided by all event pages"><%= website_index_sortable("publishable_event_percentage", "% Publishable", group: group) %></th>
       <th scope="col" class="website-index-number"><%= website_index_sortable("statements_count", "Statements", group: group) %></th>
       <th scope="col" title="Statements refreshed / statements changed in the last 24 hours"><%= website_index_sortable("refreshed_24h", "Refreshed", group: group) %> / <%= website_index_sortable("updated_24h", "Changed", group: group) %> (24h)</th>
       <th scope="col">Inventory freshness</th>
@@ -16,6 +16,7 @@
     <tbody>
       <% websites.each do |website| %>
         <% pages = @webpage_summaries.fetch(website.id, Distillator::WebsiteWebpageSummary.empty_summary) %>
+        <% event_count = pages[:by_class].fetch("Event") %>
         <tr class="website-index-row" data-website-id="<%= website.id %>">
           <td><% if @transition_eligible_ids.include?(website.id) %>
             <%= check_box_tag "website_ids[]", website.id, false, id: "website-transition-#{website.id}", form: "website-transition-batch",
@@ -33,8 +34,15 @@
             </div>
           </th>
           <td title="<%= website_rollout_explanation(website) %>"><%= website_rollout_badge(website) %></td>
-          <td class="website-index-number"><%= link_to number_with_delimiter(pages[:total]), website_webpages_filter_path(website) %></td>
-          <td class="website-index-number"><%= link_to number_with_delimiter(pages[:publishable]), website_webpages_filter_path(website, publishable: true) %></td>
+          <td class="website-index-number"><%= link_to number_with_delimiter(event_count), website_webpages_filter_path(website, scope: "all", rdfs_class: "Event") %></td>
+          <td class="website-index-number">
+            <% if event_count.positive? %>
+              <%= link_to number_to_percentage(pages[:publishable_event_percentage], precision: 1, strip_insignificant_zeros: true),
+                website_publishable_event_pages_path(website), title: "#{pages[:publishable]} of #{event_count} event pages publishable" %>
+            <% else %>
+              <span title="No event pages">—</span>
+            <% end %>
+          </td>
           <td class="website-index-number"><%= link_to number_with_delimiter(@statements_grouped[website.seedurl] || 0), statements_path(seedurl: website.seedurl) %></td>
           <td class="website-index-activity"><%= number_with_delimiter(@statements_refreshed_24hr[website.seedurl] || 0) %> / <%= number_with_delimiter(@statements_updated_24hr[website.seedurl] || 0) %></td>
           <td><%= render "inventory_freshness", inventory: @inventory_freshness.fetch(website.id) %></td>

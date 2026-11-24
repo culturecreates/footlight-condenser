@@ -281,6 +281,10 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get websites_url, params: { q: "Typed dashboard website" }
 
     assert_response :success
+    assert_select "thead a[href*='sort=event_pages_count']", text: /Event pages/
+    assert_select "thead a[href*='sort=publishable_event_percentage']", text: /% Publishable/
+    assert_select "tr.website-index-row a[href=?]", webpages_path(seedurl: website.seedurl, scope: "all", rdfs_class: "Event"), text: "2"
+    assert_select "tr.website-index-row a[href=?]", webpages_path(seedurl: website.seedurl, scope: "all", publishable: true), text: "50%"
     assert_includes @response.body, "7 total"
     assert_includes @response.body, "4 public"
     assert_includes @response.body, "3 internal"
@@ -295,6 +299,38 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_match %r{/webpages\?(seedurl=#{website.seedurl}&amp;url_kind=public|url_kind=public&amp;seedurl=#{website.seedurl})}, @response.body
     assert_match %r{/webpages\?(seedurl=#{website.seedurl}&amp;rdfs_class=Event|rdfs_class=Event&amp;seedurl=#{website.seedurl})}, @response.body
     assert_match %r{/webpages\?(seedurl=#{website.seedurl}&amp;publishable=true|publishable=true&amp;seedurl=#{website.seedurl})}, @response.body
+
+    get websites_url(format: :json), params: { q: "Typed dashboard website" }
+    assert_response :success
+    assert_equal({ "webpages" => 7, "event_pages" => 2, "publishable_event_pages" => 1, "publishable_event_percentage" => 50.0 },
+      response.parsed_body.sole.slice("webpages", "event_pages", "publishable_event_pages", "publishable_event_percentage"))
+  end
+
+  test "event count and publishable percentage sort on Event pages with undefined percentages last" do
+    person_only, blocked, ready = %w[people blocked ready].map do |kind|
+      Website.create!(name: "Event metric #{kind}", seedurl: "event-metric-#{kind}", default_language: "en",
+        graph_name: "https://example.org/event-metric-#{kind}", preferred: true)
+    end
+    3.times do |i|
+      person_only.webpages.create!(url: "https://example.org/people/#{i}", rdf_uri: "rdf:people:#{i}", rdfs_class: rdfs_classes(:person), language: "en")
+    end
+    2.times do |i|
+      blocked.webpages.create!(url: "https://example.org/blocked/#{i}", rdf_uri: "rdf:blocked:#{i}", rdfs_class: rdfs_classes(:one), language: "en")
+    end
+    page = ready.webpages.create!(url: "https://example.org/ready", rdf_uri: "rdf:ready", rdfs_class: rdfs_classes(:one), language: "en")
+    create_publishable_statements_for(page)
+
+    [["event_pages_count", "asc", [person_only, ready, blocked]],
+     ["event_pages_count", "desc", [blocked, ready, person_only]],
+     ["publishable_event_percentage", "asc", [blocked, ready, person_only]],
+     ["publishable_event_percentage", "desc", [ready, blocked, person_only]]].each do |sort, direction, expected|
+      get websites_url, params: { q: "Event metric", view: "preferred", sort: sort, direction: direction }
+      assert_response :success
+      rows = Nokogiri::HTML(response.body).css("tr.website-index-row")
+      assert_equal expected.map(&:id), rows.map { |row| row["data-website-id"].to_i }
+      assert_select "tr.website-index-row[data-website-id='#{person_only.id}'] span[title='No event pages']", text: "—"
+      assert_select "tr.website-index-row[data-website-id='#{blocked.id}'] a[title='0 of 2 event pages publishable']", text: "0%"
+    end
   end
 
   test "should get new" do

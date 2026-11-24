@@ -75,8 +75,11 @@ before the result is grouped. Empty searches retain reset and sorting controls.
 `*` supports wildcard searches such as `culture*`; ordinary text remains a
 contains search. SQL wildcard characters are escaped unless expressed with `*`.
 
-All resource types count toward Pages and Publishable. Publishable is not a
-count of upcoming events. The detailed breakdown retains its scoped links.
+**Event pages** counts stored webpages of class Event. **% Publishable** divides
+publishable event pages by all event pages, including archived pages in both
+counts. A site with no event pages shows a dash for the percentage. Both columns
+sort numerically and link to their matching webpage filters. The Details row
+contains counts and links for all resource types.
 Summary statement totals are explicitly global; mode counts remain global too.
 The scheduling and staging rollout policies are unchanged.
 

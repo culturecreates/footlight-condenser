@@ -22,7 +22,8 @@ module Distillator
         internal_uris: 0,
         by_class: CLASS_BUCKETS.index_with { 0 }.merge("Other" => 0),
         publishable: 0,
-        not_publishable: 0
+        not_publishable: 0,
+        publishable_event_percentage: nil
       }
     end
 
@@ -66,6 +67,8 @@ module Distillator
 
       summaries.each_value do |summary|
         summary[:not_publishable] = summary[:total] - summary[:publishable]
+        event_count = summary[:by_class].fetch("Event")
+        summary[:publishable_event_percentage] = summary[:publishable] * 100.0 / event_count if event_count.positive?
       end
     end
 

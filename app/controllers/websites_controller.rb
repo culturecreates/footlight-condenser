@@ -320,7 +320,7 @@ class WebsitesController < ApplicationController
     allowed_columns = %w[
       name seedurl default_language schedule_every_days
       schedule_time last_refresh graph_name
-      webpages_count statements_count refreshed_24h updated_24h
+      webpages_count event_pages_count publishable_event_percentage statements_count refreshed_24h updated_24h
     ]
     normalized_sort_param(params[:sort], allowed: allowed_columns, default: "name")
   end
@@ -330,17 +330,23 @@ class WebsitesController < ApplicationController
   end
 
   def computed_sort?
-    %w[webpages_count statements_count refreshed_24h updated_24h].include?(sort_column)
+    %w[webpages_count event_pages_count publishable_event_percentage statements_count refreshed_24h updated_24h].include?(sort_column)
   end
 
   def sort_in_memory(relation)
     direction = sort_direction == "desc" ? -1 : 1
+    column = sort_column
 
     relation.to_a.sort_by do |website|
+      pages = @webpage_summaries.fetch(website.id) { Distillator::WebsiteWebpageSummary.empty_summary }
       value =
-        case sort_column
+        case column
         when "webpages_count"
-          @webpage_summaries.fetch(website.id, Distillator::WebsiteWebpageSummary.empty_summary)[:total]
+          pages[:total]
+        when "event_pages_count"
+          pages[:by_class].fetch("Event")
+        when "publishable_event_percentage"
+          pages[:publishable_event_percentage]
         when "statements_count"
           @statements_grouped[website.seedurl] || 0
         when "refreshed_24h"
@@ -351,7 +357,7 @@ class WebsitesController < ApplicationController
           0
         end
 
-      direction == 1 ? value : -value
+      value.nil? ? [1, 0] : [0, direction * value]
     end
   end
 

@@ -35,11 +35,13 @@ class Distillator::WebsiteWebpageSummaryTest < ActiveSupport::TestCase
     assert_equal 1, summaries.fetch(website_a.id)[:by_class]["WebPage"]
     assert_equal 2, summaries.fetch(website_a.id)[:by_class]["Other"]
     assert_equal 1, summaries.fetch(website_a.id)[:publishable]
+    assert_equal 50.0, summaries.fetch(website_a.id)[:publishable_event_percentage]
     assert_equal 7, summaries.fetch(website_a.id)[:not_publishable]
 
     assert_equal 1, summaries.fetch(website_b.id)[:total]
     assert_equal 0, summaries.fetch(website_b.id)[:by_class]["Event"]
     assert_equal 0, summaries.fetch(website_b.id)[:publishable]
+    assert_nil summaries.fetch(website_b.id)[:publishable_event_percentage]
     assert_equal 1, summaries.fetch(website_b.id)[:not_publishable]
   end
 
