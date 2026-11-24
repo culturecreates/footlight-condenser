@@ -150,6 +150,7 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
         assert_select "a", text: "Active audit 1×"
         assert_select "a", text: "Latest validation needs attention"
       end
+      assert_select "tr[data-migration-state]", count: 0
     end
 
     get website_path(@one, validation_profile: "light")
@@ -159,6 +160,38 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
       assert_select "td", text: /5 pages compared/, count: 2
       assert_select "td", text: "Legacy → Shadow → Active"
     end
+  end
+
+  test "migration milestones distinguish Active, Ready, and scheduled Migrated sites" do
+    record_pass = ->(profile) do
+      batch = Distillator::TransitionBatch.request!(website_ids: [@two.id], request_key: SecureRandom.uuid, check_profile: profile)
+      batch.site_transitions.sole.update!(status: "passed", final_mode: "active", completed_at: Time.current)
+    end
+    row = "tr[data-website-id='#{@two.id}']"
+
+    record_pass.call("light")
+    @two.update_column(:distillator_mode, "active")
+    get websites_path
+    assert_select "#{row} .rollout-badge-active", text: "Active"
+    assert_select "#{row}[data-migration-state]", count: 0
+
+    record_pass.call("thorough")
+    get websites_path, params: { validation: "ready" }
+    assert_select "#{row}[data-migration-state='ready'] .operator-status", text: "Ready"
+
+    record_pass.call("thorough")
+    get websites_path, params: { validation: "ready" }
+    assert_select "#{row}[data-migration-state='ready'] .operator-status", text: "Ready"
+    assert_select "#{row} a", text: "Thorough 2×"
+
+    @two.update_column(:schedule_every_days, 1)
+    get websites_path, params: { validation: "migrated" }
+    assert_select "#website-list-scheduled ~ .website-index-table-scroll #{row}[data-migration-state='migrated'] .operator-status", text: "Migrated"
+
+    @two.update_column(:distillator_mode, "shadow")
+    get websites_path, params: { validation: "thorough_passed" }
+    assert_select "#{row} a", text: "Thorough 2×"
+    assert_select "#{row}[data-migration-state]", count: 0
   end
 
   test "Active audit is a separate Thorough request and rejects groups containing Shadow sites" do

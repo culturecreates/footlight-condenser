@@ -29,6 +29,7 @@
 .website-index-table th, .website-index-table td { padding: .5rem .65rem; vertical-align: middle; white-space: nowrap; }
 .website-index-table thead { background: var(--operator-surface-raised); }
 .website-index-table tbody .website-index-row:nth-child(4n+3) { background: var(--operator-surface-muted); }
+.website-index-table tbody .website-index-row[data-migration-state="ready"] { background: var(--operator-success-bg); }
 .website-index-table .website-index-name { text-align: left; font-weight: 500; }
 .website-index-table .website-index-number { text-align: right; font-variant-numeric: tabular-nums; }
 .website-index-activity { font-variant-numeric: tabular-nums; text-align: right; }

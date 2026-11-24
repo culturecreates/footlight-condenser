@@ -4,16 +4,19 @@ module Distillator
       "never_passed" => "Never passed validation",
       "light_only" => "Passed Light only",
       "thorough_passed" => "Passed Thorough",
+      "ready" => "Ready",
+      "migrated" => "Migrated",
       "changed_since_pass" => "Configuration changed since last pass",
       "latest_failed" => "Latest validation needs attention"
     }.freeze
 
-    Summary = Struct.new(:light, :thorough, :audit, :last_pass, :last_validation, :changed, :covered, :eligible, keyword_init: true) do
+    Summary = Struct.new(:light, :thorough, :audit, :last_pass, :last_validation, :changed, :covered, :eligible, :milestone, keyword_init: true) do
       def matches?(filter)
         case filter
         when "never_passed" then last_pass.nil?
         when "light_only" then light.positive? && thorough.zero?
         when "thorough_passed" then thorough.positive?
+        when "ready", "migrated" then milestone == filter
         when "changed_since_pass" then changed
         when "latest_failed" then last_validation&.status.in?(%w[attention recovery_failed])
         else true
@@ -46,6 +49,7 @@ module Distillator
         summary = Summary.new(light: counts.fetch("light", 0), thorough: counts.fetch("thorough", 0),
           audit: items.fetch(website.id, []).count { |row| row.batch.audit? && row.status == "passed" },
           last_pass: last, last_validation: validations.fetch(website.id, []).first)
+        summary.milestone = milestone(website, summary.thorough)
         if last
           pages = eligible_pages.fetch(website.id, [])
           current_digest, configuration = TransitionFingerprint.for_validation_history(website, library_version: library_version)
@@ -64,6 +68,12 @@ module Distillator
         end
         [website.id, summary]
       end
+    end
+
+    def self.milestone(website, thorough_passes)
+      return unless website.distillator_mode == "active" && thorough_passes.positive?
+
+      thorough_passes >= 2 && WebsiteIndexGroups.category(website) == :scheduled ? "migrated" : "ready"
     end
 
     def self.coverage_runs(item)
@@ -88,6 +98,6 @@ module Distillator
         []
       end
     end
-    private_class_method :coverage_runs, :covered_pages
+    private_class_method :milestone, :coverage_runs, :covered_pages
   end
 end

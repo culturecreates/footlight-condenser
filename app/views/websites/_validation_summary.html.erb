@@ -1,4 +1,9 @@
 <div class="website-validation-summary">
+  <% if validation.milestone %>
+    <div>
+      <span class="operator-status operator-status--passed" title="<%= validation.milestone == 'migrated' ? 'Two Thorough validations passed and the site is scheduled' : 'Thorough validation passed' %>"><%= validation.milestone.humanize %></span>
+    </div>
+  <% end %>
   <% if validation.last_pass %>
     <% { "light" => validation.light, "thorough" => validation.thorough }.each do |profile, count| %>
       <% label = "#{profile.humanize} #{count}×" %>

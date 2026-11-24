@@ -43,6 +43,11 @@ include sites with historical passes whose configuration has since changed or
 whose latest validation needs attention. Website details list workflow outcomes,
 serving modes, and links to each recorded phase.
 
+A passing Light workflow can put a site into Active serving mode. An Active
+site earns **Ready** after one successful Thorough validation and **Migrated**
+after two successful Thorough validations once it is scheduled. In the Websites
+table, Ready rows have a green background. Active audits are tracked separately.
+
 Coverage is the number of distinct currently eligible pages checked in passing
 validations across both required phases. A page contributes while its recorded
 page metadata and extraction configuration match the current configuration.
