@@ -488,6 +488,19 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
       assert_equal 5, result.publishable_event_page_count
       assert_equal 6, website.webpages.event_pages.publishable.count
 
+      another_site = build_website("inventory-other-website")
+      metrics = Distillator::WebsiteInventoryFreshness.for_websites([website.id, another_site.id])
+      assert_equal 2, result.event_inventory.selected_event_urls_missing
+      assert_equal 2, metrics.fetch(website.id).fetch(:selected_event_urls_missing)
+      assert_equal Time.current.utc.iso8601, metrics.fetch(website.id).fetch(:latest_list_refresh_at)
+      assert_equal 0, metrics.fetch(website.id).fetch(:new_event_age_days)
+      assert_nil metrics.fetch(another_site.id).fetch(:selected_event_urls_missing)
+      assert_nil metrics.fetch(another_site.id).fetch(:new_event_age_days)
+
+      run = publish_unavailable_source_run(website, url: invalid.url)
+      Distillator::TransitionExclusionReview.create!(website: website, run: run, url: invalid.url, reason: "Operator verified the source URL")
+      assert_equal 1, Distillator::WebsiteInventoryFreshness.for_websites([website.id]).fetch(website.id).fetch(:selected_event_urls_missing)
+
       audit = Distillator::TransitionCheck.call(website: website, check_options: { sample_mode: "all", strictness: "strict", include_retired: true })
       assert_equal "historical_audit", audit.event_inventory.status
       assert_includes audit.representative_webpages, retired
@@ -506,6 +519,29 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
 
     assert_empty result.event_inventory.retired
     assert_includes result.representative_webpages, past
+  end
+
+  test "dashboard freshness distinguishes a verified zero from an old ResourceList refresh" do
+    website = build_website("inventory-freshness-age")
+    other = build_website("inventory-freshness-fresh")
+    refresh_at = Time.zone.parse("2026-11-21 09:00")
+    travel_to(refresh_at) do
+      [website, other].each do |site|
+        page = inventory_event(site, "current", "2027-01-10")
+        inventory_list(site, [page.url], [page.rdf_uri])
+      end
+    end
+
+    as_of = refresh_at + 47.hours
+    freshness = Distillator::WebsiteInventoryFreshness.for_websites([website.id, other.id], as_of: as_of)
+    assert_equal "confirmed_discovery", freshness[website.id][:status]
+    assert_equal 0, freshness[website.id][:selected_event_urls_missing]
+    assert_equal 2, freshness[website.id][:new_event_age_days]
+
+    freshness = Distillator::WebsiteInventoryFreshness.for_websites([website.id], as_of: refresh_at + 49.hours).fetch(website.id)
+    assert_equal "stale", freshness[:status]
+    assert_equal refresh_at.utc.iso8601, freshness[:latest_list_refresh_at]
+    assert_nil freshness[:selected_event_urls_missing]
   end
 
   test "an empty post-retirement event scope never falls back to unrelated webpages" do

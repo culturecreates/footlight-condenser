@@ -8,4 +8,5 @@ json.array! @websites do |website|
   json.webpages @webpage_summaries.fetch(website.id, Distillator::WebsiteWebpageSummary.empty_summary)[:total]
   json.flags @flags[website[:seedurl]]
   json.updates @updated[website[:seedurl]]
+  json.inventory_freshness @inventory_freshness.fetch(website.id) if @inventory_freshness
 end

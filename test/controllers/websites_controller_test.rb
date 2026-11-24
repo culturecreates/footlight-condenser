@@ -1,6 +1,23 @@
 require 'test_helper'
 
 class WebsitesControllerTest < ActionDispatch::IntegrationTest
+  test "inventory freshness is present on the Websites dashboard and opt-in JSON" do
+    get websites_url
+    assert_response :success
+    assert_select "th", text: "Inventory freshness"
+    assert_select "[data-inventory-status]", text: "No event lists"
+
+    get websites_url(format: :json)
+    assert_response :success
+    assert_not response.parsed_body.first.key?("inventory_freshness")
+
+    get websites_url(format: :json, inventory_freshness: "true")
+    assert_response :success
+    inventory = response.parsed_body.first.fetch("inventory_freshness")
+    assert_includes ["No event lists", "Unverified"], inventory["label"]
+    assert_nil inventory["selected_event_urls_missing"]
+  end
+
   setup do
     @website = websites(:one)
     @old_fetch_mode = ENV["DISTILLATOR_FETCH_MODE"]
@@ -144,7 +161,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     Nokogiri::HTML(@response.body).css('.website-index-table').each do |table|
-      assert_equal 9, table.css('thead th').length
+      assert_equal 10, table.css('thead th').length
     end
     assert_select '.website-index-row', count: Website.count
     assert_select 'tr.website-index-detail-row[hidden]', count: Website.count

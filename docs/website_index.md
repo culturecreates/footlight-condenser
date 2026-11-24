@@ -1,8 +1,8 @@
 # Website overview
 
-The overview uses nine columns and the full available browser width. Rows keep
-names, counts, mode, 24-hour statement activity and last refresh on one line;
-smaller viewports can scroll the table horizontally. Sources are directly
+The overview uses the full browser width. Rows show names, counts, mode,
+24-hour statement activity, inventory freshness and the website refresh time.
+Smaller viewports can scroll the table horizontally. Sources are directly
 accessible. Details opens a separate inline row for identity, schedule, graph,
 page breakdown, cache, export and settings links. No per-website transition
 readiness calculation or remote fetch is performed to build the overview.
@@ -79,6 +79,14 @@ All resource types count toward Pages and Publishable. Publishable is not a
 count of upcoming events. The detailed breakdown retains its scoped links.
 Summary statement totals are explicitly global; mode counts remain global too.
 The scheduling and staging rollout policies are unchanged.
+
+**Inventory freshness** uses the same local ResourceList evidence and retirement
+rules as transition checks. It shows the latest recorded paired list refresh,
+the calendar-day age of the most recently added event webpage, and how many
+publishable event URLs would still be selected for a Thorough check despite
+matching neither a URL nor an RDF URI in the current lists. The count is
+unavailable when list evidence is stale, incomplete, or awaiting import.
+Console reads the same values through `/websites.json?inventory_freshness=true`.
 
 ## Automated transition selection
 

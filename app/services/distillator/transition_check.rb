@@ -214,7 +214,8 @@ module Distillator
         status = @check_options.include_retired? ? "historical_audit" : "no_publishable_events"
         TransitionEventInventory::Result.new(status: status, lists: [], retired: [])
       else
-        TransitionEventInventory.new(website: website, as_of: @scope_at).call(without_reviewed_urls(original_publishable_event_scope))
+        TransitionEventInventory.new(as_of: @scope_at)
+          .for_websites([website.id], events: without_reviewed_urls(original_publishable_event_scope)).fetch(website.id)
       end
     end
 
