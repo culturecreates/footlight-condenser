@@ -1649,6 +1649,14 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_select '#active-operation h2', text: "Active on Condenser"
     assert_select '#active-operation', text: /Activated after review.*Reviewed live event titles/m
     assert_select '#website-transition h2', text: "Latest comparison"
+    assert_select "#active-operation #website-confirm-migrate", count: 0
+    assert_no_difference "Distillator::RolloutEvent.count" do
+      post confirm_cutover_website_path(website), params: { completed_at: Time.current.iso8601, operator: "Operator", evidence: "Import report" }
+    end
+    assert_response :see_other
+    assert_equal "A passing Thorough check is required before you can confirm migration.", flash[:alert]
+    assert_equal snapshot, website.rollout_events.last.readiness_snapshot
+    get website_url(website)
     assert_select '#website-transition strong', text: "Reviewed and accepted for this activation."
     assert_select '#active-operation strong', text: "Awaiting active refresh"
     assert_select 'h2', text: "Blocking reason / promote control", count: 0

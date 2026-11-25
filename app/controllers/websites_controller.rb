@@ -5,7 +5,7 @@ class WebsitesController < ApplicationController
   FILTER_KEYS = %i[q seed_filter default_language graph_name distillator_mode cohort view validation retry_transition_batch_id].freeze
   INDEX_VIEWS = %w[all preferred].freeze
 
-  before_action :set_website, only: [:show, :edit, :update, :destroy, :delete_all_statements, :activate_after_review, :activate_anyway, :preference]
+  before_action :set_website, only: [:show, :edit, :update, :destroy, :delete_all_statements, :activate_after_review, :activate_anyway, :confirm_cutover, :preference]
 
   def test_api
     @websites = Website.all.order(:name)
@@ -199,6 +199,7 @@ class WebsitesController < ApplicationController
     cookies[:seedurl] = @website.seedurl
     return unless request.format.html?
 
+    @validation_summary = website_validation_summary if @website.distillator_mode == "active"
     @migration_baselines = Distillator::MigrationBaseline.where(website: @website).latest_first.includes(:validation_run).to_a
     @validation_workflows = Distillator::WebsiteValidationHistory.workflows([@website.id]).to_a
     @validation_profile = params[:validation_profile].presence_in(%w[all light thorough audit])
@@ -308,6 +309,32 @@ class WebsitesController < ApplicationController
     end
   end
 
+  def confirm_cutover
+    if @website.distillator_mode != "active"
+      return redirect_to website_path(@website, anchor: "active-operation"), status: :see_other,
+        alert: "This website must be Active before you can confirm migration."
+    end
+
+    @website.with_lock do
+      validation = website_validation_summary
+      if validation.cutover
+        redirect_to website_path(@website, anchor: "active-operation"), status: :see_other, notice: "Migration is already recorded."
+      elsif validation.confirmable_cutover?
+        fields = params.permit(:completed_at, :operator, :evidence)
+        Distillator::VerifiedCutover.confirm!(website: @website,
+          completed_at: Time.zone.iso8601(fields[:completed_at].to_s), actor: fields[:operator].to_s.strip,
+          evidence: fields[:evidence].to_s.strip)
+        redirect_to website_path(@website, anchor: "active-operation"), status: :see_other, notice: "Migration confirmed."
+      else
+        redirect_to website_path(@website, anchor: "active-operation"), status: :see_other,
+          alert: "A passing Thorough check is required before you can confirm migration."
+      end
+    end
+  rescue ArgumentError => error
+    message = error.message == "invalid date" ? "Enter the date and time of the Artsdata handoff." : error.message
+    redirect_to website_path(@website, anchor: "active-operation"), status: :see_other, alert: message
+  end
+
   # DELETE /websites/1
   # DELETE /websites/1.json
   def destroy
@@ -414,6 +441,11 @@ class WebsitesController < ApplicationController
     else
       head :no_content
     end
+  end
+
+  def website_validation_summary
+    inventories = Distillator::WebsiteInventoryFreshness.for_websites([@website.id])
+    Distillator::WebsiteValidationHistory.for_websites([@website], inventories: inventories).fetch(@website.id)
   end
 
   def rollout_actor

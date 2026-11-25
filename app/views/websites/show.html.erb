@@ -1,10 +1,17 @@
+<% milestone = @validation_summary&.milestone %>
+<% compact_transition = milestone.in?(%w[ready migrated]) %>
+
 <section class="website-show-section">
   <h1>
     <%= @website.name %>
     <% if website_cohort_badge(@website).present? %>
       <span class="rollout-inline"><%= website_cohort_badge(@website) %></span>
     <% end %>
-    <span class="rollout-inline"><%= website_rollout_badge(@website) %></span>
+    <% if milestone %>
+      <span class="rollout-inline website-state-badge" data-migration-state="<%= milestone %>"><%= milestone.humanize %></span>
+    <% else %>
+      <span class="rollout-inline"><%= website_rollout_badge(@website) %></span>
+    <% end %>
   </h1>
 
   <dl class="website-identity-list">
@@ -24,6 +31,14 @@
 <% if active %>
   <section class="website-rollout-panel website-show-section" id="active-operation">
     <h2>Active on Condenser</h2>
+    <% if (cutover = @validation_summary.cutover) %>
+      <p><strong>Migration confirmed</strong>
+        <% if cutover.event %> · <%= l(cutover.completed_at.in_time_zone, format: :short) %><% end %>
+        · <%= link_to "Rollout history", "#website-rollout-history" %>
+      </p>
+    <% elsif @validation_summary.confirmable_cutover? %>
+      <%= render "confirm_cutover", website: @website %>
+    <% end %>
     <% if operation.activation %>
       <p><strong><%= Distillator::WebsiteOperationStatus.event_label(operation.activation) %></strong>
         · <%= operation.activation.created_at.strftime("%Y-%m-%d %H:%M %Z") %></p>
@@ -53,16 +68,24 @@
   </section>
 <% end %>
 
-<section id="website-transition" class="website-rollout-panel website-show-section">
-  <h2><%= active ? "Latest comparison" : "Transition verdict" %></h2>
+<%= content_tag(compact_transition ? :details : :section, id: "website-transition", class: "website-rollout-panel website-show-section") do %>
+  <% if compact_transition %>
+    <summary>Latest comparison</summary>
+  <% else %>
+    <h2><%= active ? "Latest comparison" : "Transition verdict" %></h2>
+  <% end %>
   <p><strong><%= website_transition_verdict_line(@website) %></strong></p>
   <p><%= website_transition_secondary_status_line(@website) %></p>
-</section>
+<% end %>
 
 <%= render "validation_history" %>
 
-<section id="website-rollout-history" class="website-rollout-panel website-show-section">
-  <h2><%= active ? "Active operation and rollback" : "Blocking reason / promote control" %></h2>
+<%= content_tag(compact_transition ? :details : :section, id: "website-transition-controls", class: "website-rollout-panel website-show-section") do %>
+  <% if compact_transition %>
+    <summary>Active operation and rollback</summary>
+  <% else %>
+    <h2><%= active ? "Active operation and rollback" : "Blocking reason / promote control" %></h2>
+  <% end %>
   <% primary_action = transition_contract[:primary_action] %>
   <% if active %>
     <details>
@@ -139,7 +162,7 @@
       <p><%= link_to "View run ##{latest_run.id} status", distillator_transition_check_path(latest_run) %></p>
     <% end %>
   </section>
-</section>
+<% end %>
 
 <% transition_contract[:secondary_actions].select { |action| action[:emergency] }.each do |action| %>
   <details class="website-transition-override website-show-section" id="website-emergency-override">
@@ -177,7 +200,7 @@
   </ul>
 </section>
 
-<section class="website-rollout-panel website-show-section">
+<section id="website-rollout-history" class="website-rollout-panel website-show-section">
   <h2>Recent rollout events</h2>
   <%= render "websites/rollout_history", events: @website.rollout_events.order(created_at: :desc, id: :desc).limit(5) %>
 

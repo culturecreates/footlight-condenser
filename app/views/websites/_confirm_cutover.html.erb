@@ -1,0 +1,19 @@
+<details class="website-transition-override" id="website-confirm-migrate">
+  <summary>Confirm Migrate</summary>
+  <p>Confirm after Artsdata has successfully received this website’s Condenser export.</p>
+  <%= form_with url: confirm_cutover_website_path(website), method: :post, local: true, class: "website-transition-override-form" do |form| %>
+    <div>
+      <%= form.label :completed_at, "Handoff date and time (#{Time.zone.name})" %>
+      <%= form.datetime_local_field :completed_at, required: true %>
+    </div>
+    <div>
+      <%= form.label :operator, "Confirmed by" %>
+      <%= form.text_field :operator, required: true %>
+    </div>
+    <div>
+      <%= form.label :evidence, "Artsdata import report or reference" %>
+      <%= form.text_field :evidence, required: true %>
+    </div>
+    <%= form.submit "Confirm Migrate", class: "website-transition-button" %>
+  <% end %>
+</details>

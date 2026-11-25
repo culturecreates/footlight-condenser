@@ -185,6 +185,13 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     assert_select "#{row}[data-migration-state='ready'] .website-state-badge", text: "Ready"
     assert_select "#{row} a", text: "Thorough 2×"
 
+    get website_path(@two)
+    assert_select "h1 .website-state-badge", text: "Ready"
+    assert_select "#active-operation #website-confirm-migrate summary", text: "Confirm Migrate"
+    assert_select "details#website-transition:not([open]) > summary", text: "Latest comparison"
+    assert_select "details#website-transition-controls:not([open]) > summary", text: "Active operation and rollback"
+    assert_select "#website-transition-controls #website-batch-jobs-transition .website-transition-check-form"
+
     get website_path(@two, validation_profile: "thorough")
     [full, old_pass].each do |run|
       assert_select "#website-validation-history a[href='#{distillator_shadow_report_site_path(@two, run_id: run.id)}']", text: /Check/
@@ -238,14 +245,34 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
 
     cutover_at = Time.current
     @two.sources.find_by!(property: properties(:four)).update!(algorithm_value: "manual=Changed since cutover")
-    assert_difference "Distillator::MigrationBaseline.count", 1 do
-      assert_difference "Distillator::RolloutEvent.count", 1 do
+    get website_path(@two)
+    assert_select "#active-operation #website-confirm-migrate form[action='#{confirm_cutover_website_path(@two)}']"
+    assert_select "details#website-transition", count: 0
+
+    assert_no_difference "Distillator::RolloutEvent.count" do
+      post confirm_cutover_website_path(@two), params: { completed_at: "invalid", operator: "operator", evidence: "Production handoff" }
+    end
+    assert_equal "Enter the date and time of the Artsdata handoff.", flash[:alert]
+
+    confirmation = { completed_at: cutover_at.iso8601(6), operator: "operator", evidence: "Production handoff for Vieux Noranda" }
+    assert_no_difference "Distillator::TransitionRun.count" do
+      assert_difference ["Distillator::MigrationBaseline.count", "Distillator::RolloutEvent.count"], 1 do
         2.times do
-          Distillator::VerifiedCutover.confirm!(website: @two, completed_at: cutover_at, actor: "operator",
-            evidence: "Production handoff for Vieux Noranda")
+          post confirm_cutover_website_path(@two), params: confirmation
+          assert_response :see_other
         end
       end
     end
+    assert_equal "Migration is already recorded.", flash[:notice]
+    assert_equal "active", @two.reload.distillator_mode
+    assert_equal confirmation[:evidence], @two.rollout_events.last.reason
+
+    follow_redirect!
+    assert_select "h1 .website-state-badge", text: "Migrated"
+    assert_select "#active-operation", text: /Migration confirmed/
+    assert_select "#active-operation #website-confirm-migrate", count: 0
+    assert_select "#website-rollout-history", text: /Production handoff for Vieux Noranda/
+    assert_select "details#website-transition-controls:not([open])"
     assert_no_difference "Distillator::MigrationBaseline.count" do
       get websites_path, params: { validation: "migrated" }
     end

@@ -120,8 +120,12 @@ production, an operator can record the completed handoff in the site's rollout
 history. A validation workflow can move a site to Active and establish Ready.
 The production handoff is a separate action.
 
-Record an already completed handoff using the actual timestamp and a reference
-to the deployment or handoff record:
+On the website page, open **Confirm Migrate** under **Active on Condenser**
+after Artsdata has successfully received the export. Enter the original date,
+the operator and an import report or reference. Active sites with historical
+Thorough passes can use the same control to record a past handoff.
+
+Operators can also record a completed handoff from the command line:
 
 ```sh
 WEBSITE_ID=123 CUTOVER_AT='2026-11-25T14:30:00-05:00' \

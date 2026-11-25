@@ -15,6 +15,7 @@ Rails.application.routes.draw do
     member do
       patch :preference
       post :activate_after_review
+      post :confirm_cutover
       post :activate_anyway
     end
     collection do

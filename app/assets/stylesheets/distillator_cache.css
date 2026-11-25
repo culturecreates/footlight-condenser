@@ -413,6 +413,12 @@
   color: var(--operator-ink);
 }
 
+details#website-transition > summary,
+details#website-transition-controls > summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
 .website-transition-override p,
 .website-transition-override-form {
   margin: 0;
@@ -425,7 +431,7 @@
   font-weight: 600;
 }
 
-.website-transition-override-form input[type="text"] {
+.website-transition-override-form input:is([type="text"], [type="datetime-local"]) {
   width: 100%;
   max-width: 28rem;
   margin-bottom: 0.6rem;

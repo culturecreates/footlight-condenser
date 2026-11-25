@@ -15,6 +15,10 @@ module Distillator
 
     Summary = Struct.new(:light, :thorough, :audit, :last_pass, :last_validation, :changed, :covered, :eligible, :milestone,
       :milestone_blocker, :attention, :cutover, :cutover_snapshot, :migration_baseline, :migration_candidate, keyword_init: true) do
+      def confirmable_cutover?
+        cutover.nil? && thorough.positive?
+      end
+
       def matches?(filter)
         case filter
         when "never_passed" then last_pass.nil?
