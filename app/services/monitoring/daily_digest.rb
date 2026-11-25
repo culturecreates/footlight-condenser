@@ -4,6 +4,7 @@ module Monitoring
 
     def self.call
       Preprocessing::Monitor.call
+      Monitoring::ResourceListAudit.call
       setting = MonitoringSetting.current
       setting.with_lock do
         today = Time.current.in_time_zone(TIME_ZONE).to_date

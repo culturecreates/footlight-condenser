@@ -8,7 +8,7 @@ class AddWebpagesJob < ApplicationJob
   WEBPAGE_URL_LIST_LABEL = 'Webpage URL List'
   InvalidResourceListError = Class.new(StandardError)
 
-  def perform(webpage_id_or_url, selected_only: false, refresh_new: true, expected_discovery: nil)
+  def perform(webpage_id_or_url, selected_only: false, refresh_new: true, expected_discovery: nil, monitoring_observation: nil)
     webpages = Webpage.includes(:website)
     webpage = if webpage_id_or_url.is_a?(Integer)
       webpages.find_by(id: webpage_id_or_url)
@@ -87,9 +87,19 @@ class AddWebpagesJob < ApplicationJob
       end
     end
 
+    if monitoring_observation
+      digest = Distillator::TransitionEventInventory.list_digest(urls, rdf_uris) if rdfs_class_name == "Event"
+      Monitoring::ResourceListRefresh.imported(webpage, monitoring_observation, contents_digest: digest)
+    end
     return created_pages.map(&:id) unless refresh_new
 
     created_pages.each { |page| RefreshWebpageJob.perform_later(linked ? page.id : page.url) }
+  rescue StandardError => error
+    if monitoring_observation
+      Monitoring::ResourceListRefresh.failed(webpage, scheduled_at: Time.iso8601(monitoring_observation.fetch(:scheduled_at)),
+        phase: :import, error: error)
+    end
+    raise
   end
 
   private

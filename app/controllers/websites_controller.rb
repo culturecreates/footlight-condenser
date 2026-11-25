@@ -150,6 +150,10 @@ class WebsitesController < ApplicationController
     @statements_refreshed_24hr = Statement.joins(webpage: :website).where(cache_refreshed: [(Time.zone.now - 24.hours)..(Time.zone.now)]).group(:seedurl).count
     @statements_updated_24hr = Statement.joins(webpage: :website).where(cache_changed: [(Time.zone.now - 24.hours)..(Time.zone.now)]).group(:seedurl).count
     website_ids = Array(@websites).map(&:id)
+    if request.format.html?
+      @missed_event_counts = MonitoringIssue.open_issues.where(kind: "possible_missed_event",
+        seedurl: Website.where(id: website_ids).select(:seedurl)).group(:seedurl).count
+    end
     @webpage_summaries = Distillator::WebsiteWebpageSummary.for_websites(website_ids)
     @flags = Statement.joins(webpage: :website).where(status: ["problem"], selected_individual: true, webpages: { rdfs_class_id: 1}).group(:seedurl).count
     @updated = Statement.joins(webpage: :website).where(status: "updated", selected_individual: true, webpages: { rdfs_class_id: 1}).group(:seedurl).count

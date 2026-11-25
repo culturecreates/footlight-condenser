@@ -41,6 +41,18 @@ class MonitoringDailyDigestTest < ActiveSupport::TestCase
     assert_nil @setting.reload.last_digest_on
   end
 
+  test "a monitored ResourceList issue without a source appears in the existing digest" do
+    page = webpages(:six)
+    Monitoring::ResourceListIssue.observe("resource_list_refresh", website: page.website, page: page, at: Time.current,
+      message: "Scheduled ResourceList refresh is overdue.", evidence: { last_verified_refresh_at: 1.day.ago })
+
+    assert_equal :sent, Monitoring::DailyDigest.call
+    body = ActionMailer::Base.deliveries.sole.body.decoded
+    assert_includes body, "ResourceList refresh"
+    assert_includes body, "Scheduled ResourceList refresh is overdue."
+    assert_includes body, "Last verified ResourceList refresh"
+  end
+
   test "failed delivery retains issues and permits retry" do
     delivery = mock("mail delivery")
     delivery.expects(:deliver_now).raises(Net::SMTPFatalError, "delivery failed")

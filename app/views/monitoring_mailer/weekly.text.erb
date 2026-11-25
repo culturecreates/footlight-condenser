@@ -14,12 +14,8 @@ Sites needing attention:
 <% end %>
 
 <% @issues.each do |issue| %>
-<%= issue.website_name.presence || issue.seedurl %> (<%= issue.seedurl %>)
-<%= issue.kind.humanize %> · <%= issue.property_name %> · Source #<%= issue.source_id %><% if issue.statement_id %> · Statement #<%= issue.statement_id %><% end %>
-<%= issue.message %>
-Page: <%= issue.url %>
-First seen: <%= issue.first_seen_at %> · Last seen: <%= issue.last_seen_at %> · Occurrences: <%= issue.occurrences %>
+<%= render "issue", issue: issue %>
 
 <% end %>
 <% end %>
-Includes blocked fetches on monitored sites, flagged DSL errors, and enabled preprocessing monitoring policies. This email does not establish that every site or refresh job has been checked.
+Includes blocked fetches on monitored sites, flagged DSL errors, enabled preprocessing monitoring policies, and ResourceList findings. This email does not establish that every site or refresh job has been checked.

@@ -47,12 +47,19 @@ class BatchJobsController < ApplicationController
   ####################
 
 
-  def check_for_new_webpages_jobs(seedurl)
+  def check_for_new_webpages_jobs(seedurl, scheduled: false)
     website_ids = Website.where(seedurl: seedurl).select(:id)
     resource_list_webpages = Distillator::TransitionEventInventory.list_pages(website_ids)
+    resource_list_webpages = resource_list_webpages.includes(:website, :discovery_target_website) if scheduled
     # Refresh the statements for each resource_list Webpages
     resource_list_webpages.each do |wp|
-      RefreshWebpageJob.perform_later(wp.id, "resource_list") # passing 'resource_list' will call AddWebpagesJob after
+      if scheduled && Monitoring::ResourceListRefresh.target_for(wp).monitorable?
+        scheduled_at = Time.current.floor(6)
+        Monitoring::ResourceListRefresh.scheduled(wp, at: scheduled_at)
+        RefreshWebpageJob.perform_later(wp.id, "resource_list", scheduled_at.iso8601(6))
+      else
+        RefreshWebpageJob.perform_later(wp.id, "resource_list")
+      end
     end
   end
 

@@ -14,11 +14,17 @@
       <p class="monitoring-message"><%= link_webpage_urls(issue.message) %></p>
       <% if external_http_url?(issue.url) %><p><%= webpage_url_link(issue.url) %></p><% end %>
       <dl>
+        <% if (verified = issue.evidence["last_verified_refresh_at"]) %>
+          <dt>Last verified ResourceList refresh</dt><dd><%= time_tag Time.zone.iso8601(verified), format: "%b %-d, %Y %H:%M:%S %Z" %></dd>
+        <% end %>
         <dt>First seen</dt><dd><%= time_tag issue.first_seen_at, format: "%b %-d, %Y %H:%M:%S %Z" %></dd>
         <% if issue.resolved_at? %>
           <dt>Resolved</dt><dd><%= time_tag issue.resolved_at, format: "%b %-d, %Y %H:%M:%S %Z" %></dd>
         <% end %>
       </dl>
+      <% if issue.evidence["example_urls"].present? %>
+        <ul><% issue.evidence["example_urls"].each do |url| %><li><%= webpage_url_link(url) %></li><% end %></ul>
+      <% end %>
       <% if secondary.any? %>
         <div class="operator-editor__actions">
           <% secondary.each do |label, path| %><%= link_to label, path %><% end %>

@@ -72,6 +72,11 @@ module Distillator
       results
     end
 
+    def snapshot_for(page)
+      statements = self.class.discovery_scope([page.id]).includes(source: :property)
+      inventory_for(page, statements, RdfsClass.pluck(:name).to_set)
+    end
+
     private
 
     def record_missing_event_counts(inventories, events, results)
@@ -107,7 +112,7 @@ module Distillator
 
     def result(status, lists: [], valid_until: nil)
       Result.new(status: status, valid_until: valid_until,
-        lists: lists.map { |list| list.except(:url_keys, :rdf_uris, :valid_until) })
+        lists: lists.map { |list| list.except(:urls, :url_keys, :rdf_uris, :valid_until) })
     end
 
     def inventory_for(page, selected, class_names)
@@ -150,7 +155,7 @@ module Distillator
       if changed_at && refreshed_at < changed_at
         return metadata.merge(reason: "list_configuration_changed")
       end
-      metadata = metadata.merge(url_keys: url_keys, rdf_uris: rdf_uris,
+      metadata = metadata.merge(urls: urls, url_keys: url_keys, rdf_uris: rdf_uris,
         contents_digest: self.class.list_digest(urls, rdf_uris))
       if refreshed_at < @as_of - MAX_LIST_AGE
         return metadata.merge(reason: "stale_list")

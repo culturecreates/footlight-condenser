@@ -1,6 +1,6 @@
 <div class="website-index-table-scroll operator-table-scroll" tabindex="0" role="region" aria-label="Website overview">
   <table class="cache-table website-index-table">
-    <caption class="website-index-sr-only">Website modes, validation history, event page counts and publishability, statement activity, inventory freshness and last refresh.</caption>
+    <caption class="website-index-sr-only">Website modes, validation history, event page counts and publishability, statement activity, inventory freshness and the last queued scheduled run.</caption>
     <thead><tr>
       <th scope="col">Transition</th>
       <th scope="col"><%= website_index_sortable("name", "Website", group: group) %></th>
@@ -11,7 +11,7 @@
       <th scope="col" class="website-index-number"><%= website_index_sortable("statements_count", "Statements", group: group) %></th>
       <th scope="col" title="Statements refreshed / statements changed in the last 24 hours"><%= website_index_sortable("refreshed_24h", "Refreshed", group: group) %> / <%= website_index_sortable("updated_24h", "Changed", group: group) %> (24h)</th>
       <th scope="col">Inventory freshness</th>
-      <th scope="col"><%= website_index_sortable("last_refresh", "Last refresh", group: group) %></th>
+      <th scope="col"><%= website_index_sortable("last_refresh", "Last scheduled run", group: group) %></th>
       <th scope="col"><span class="website-index-sr-only">Actions</span></th>
     </tr></thead>
     <tbody>
@@ -49,7 +49,13 @@
           </td>
           <td class="website-index-number"><%= link_to number_with_delimiter(@statements_grouped[website.seedurl] || 0), statements_path(seedurl: website.seedurl) %></td>
           <td class="website-index-activity"><%= number_with_delimiter(@statements_refreshed_24hr[website.seedurl] || 0) %> / <%= number_with_delimiter(@statements_updated_24hr[website.seedurl] || 0) %></td>
-          <td><%= render "inventory_freshness", inventory: @inventory_freshness.fetch(website.id) %></td>
+          <td>
+            <%= render "inventory_freshness", inventory: @inventory_freshness.fetch(website.id) %>
+            <% if (missed = @missed_event_counts[website.seedurl]) %>
+              <div><%= link_to pluralize(missed, "possible missed event"), monitoring_path(seedurl: website.seedurl),
+                    class: "operator-status operator-status--review" %></div>
+            <% end %>
+          </td>
           <td><%= website_index_refresh_time(website) %></td>
           <td class="website-index-actions">
             <%= link_to "Sources", website_sources_index_path(website) %>

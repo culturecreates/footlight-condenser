@@ -1,0 +1,8 @@
+<%= issue.website_name.presence || issue.seedurl %> (<%= issue.seedurl %>)
+<%= [issue.category_label, issue.property_name, ("Source ##{issue.source_id}" if issue.source_id), ("Statement ##{issue.statement_id}" if issue.statement_id)].compact.join(" · ") %>
+<%= issue.message %>
+Page: <%= issue.url %>
+<% if (verified = issue.evidence["last_verified_refresh_at"]) %>
+Last verified ResourceList refresh: <%= Time.zone.iso8601(verified) %>
+<% end %>
+First seen: <%= issue.first_seen_at %> · Last seen: <%= issue.last_seen_at %> · Occurrences: <%= issue.occurrences %>

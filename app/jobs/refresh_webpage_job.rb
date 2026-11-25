@@ -3,16 +3,21 @@ class RefreshWebpageJob < ApplicationJob
   queue_as :default
 
   after_perform do |job|
-    if job.arguments.last == "resource_list"
-      # Use the resource_list to add new webpages
-      AddWebpagesJob.perform_later(job.arguments.first)
+    if job.arguments[1] == "resource_list"
+      if @resource_list_observation
+        AddWebpagesJob.perform_later(job.arguments.first, monitoring_observation: @resource_list_observation)
+      else
+        AddWebpagesJob.perform_later(job.arguments.first)
+      end
     end
   end
 
-  def perform(webpage_id_or_url, options = nil)
+  def perform(webpage_id_or_url, options = nil, schedule_stamp = nil)
     scope = Webpage.includes(:website)
     webpages = webpage_id_or_url.is_a?(Integer) ? scope.where(id: webpage_id_or_url) : scope.where(url: webpage_id_or_url)
+    scheduled_at = Time.iso8601(schedule_stamp) if schedule_stamp
     webpages.each do |webpage|
+      started_at = Time.current.floor(6)
       Distillator::RefreshRunner.call(
         webpage: webpage,
         refresh_helper: ApplicationController.helpers,
@@ -25,7 +30,12 @@ class RefreshWebpageJob < ApplicationJob
       )
       if removal_candidate.delete?
         webpage.destroy
+      elsif scheduled_at
+        @resource_list_observation = Monitoring::ResourceListRefresh.refreshed(webpage, scheduled_at: scheduled_at, started_at: started_at)
       end
+    rescue StandardError => error
+      Monitoring::ResourceListRefresh.failed(webpage, scheduled_at: scheduled_at, phase: :refresh, error: error) if scheduled_at
+      raise
     end
   end
   

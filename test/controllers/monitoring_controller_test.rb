@@ -56,6 +56,23 @@ class MonitoringControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, JSON.parse(response.body)["issues"].size
   end
 
+  test "confirmed missed dates link from Websites and show the event and verified list refresh" do
+    page = webpages(:six)
+    site = page.website
+    Monitoring::ResourceListIssue.observe("possible_missed_event", website: site, page: page, at: Time.current,
+      message: "Recorded archive date November 1. Observed date January 15.",
+      evidence: { last_verified_refresh_at: Time.current, observed_date: Time.zone.local(2027, 1, 15) })
+
+    get websites_path, params: { q: site.seedurl }
+    assert_response :success
+    assert_select "a[href='#{monitoring_path(seedurl: site.seedurl)}']", text: "1 possible missed event"
+    get monitoring_path, params: { seedurl: site.seedurl }
+    assert_response :success
+    assert_select ".monitoring-table td strong", text: "Possible missed upcoming event"
+    assert_select ".monitoring-table a[href='#{webpage_path(page)}']", text: "Inspect webpage"
+    assert_select ".monitoring-table dt", text: "Last verified ResourceList refresh"
+  end
+
   test "pagination caps results at 100" do
     attrs = MonitoringIssue.first.attributes.except("id", "created_at", "updated_at")
     100.times { |i| MonitoringIssue.create!(attrs.merge("fingerprint" => "extra-#{i}")) }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_24_000100) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_25_000100) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -247,7 +247,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_24_000100) do
     t.string "seedurl", null: false
     t.string "website_name"
     t.text "url"
-    t.bigint "source_id", null: false
+    t.bigint "source_id"
     t.bigint "statement_id"
     t.string "property_name"
     t.text "message", null: false
@@ -259,7 +259,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_24_000100) do
     t.datetime "updated_at", null: false
     t.string "kind", default: "dsl_error", null: false
     t.bigint "preprocessing_policy_id"
+    t.bigint "webpage_id"
+    t.jsonb "evidence", default: {}, null: false
     t.index ["fingerprint"], name: "index_monitoring_issues_on_fingerprint", unique: true
+    t.index ["kind", "webpage_id"], name: "index_monitoring_issues_on_kind_and_webpage_id"
     t.index ["last_seen_at"], name: "index_monitoring_issues_on_last_seen_at"
     t.index ["preprocessing_policy_id", "kind"], name: "index_monitoring_issues_on_preprocessing_policy_id_and_kind"
     t.index ["seedurl", "resolved_at"], name: "index_monitoring_issues_on_seedurl_and_resolved_at"
@@ -331,6 +334,24 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_24_000100) do
     t.string "name"
     t.datetime "created_at", precision: nil, null: false
     t.datetime "updated_at", precision: nil, null: false
+  end
+
+  create_table "resource_list_monitoring_states", force: :cascade do |t|
+    t.bigint "webpage_id", null: false
+    t.bigint "website_id", null: false
+    t.datetime "scheduled_at"
+    t.datetime "verified_at"
+    t.datetime "probed_at"
+    t.datetime "completed_at"
+    t.string "contents_digest"
+    t.jsonb "listed_urls", default: [], null: false
+    t.jsonb "absent_archived_urls", default: [], null: false
+    t.jsonb "pending_probe_urls", default: [], null: false
+    t.integer "reappearances", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["webpage_id"], name: "index_resource_list_monitoring_states_on_webpage_id", unique: true
+    t.index ["website_id"], name: "index_resource_list_monitoring_states_on_website_id"
   end
 
   create_table "search_exceptions", force: :cascade do |t|
@@ -428,6 +449,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_24_000100) do
   add_foreign_key "dsl_library_versions", "dsl_library_entries"
   add_foreign_key "preprocessing_runs", "preprocessing_policies"
   add_foreign_key "properties", "rdfs_classes"
+  add_foreign_key "resource_list_monitoring_states", "webpages", on_delete: :cascade
+  add_foreign_key "resource_list_monitoring_states", "websites", on_delete: :cascade
   add_foreign_key "search_exceptions", "rdfs_classes"
   add_foreign_key "sources", "properties"
   add_foreign_key "sources", "websites"
