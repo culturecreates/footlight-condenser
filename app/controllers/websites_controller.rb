@@ -126,7 +126,8 @@ class WebsitesController < ApplicationController
     @transition_eligible_ids = Distillator::EventSiteSelection.eligible_ids(@websites)
     website_rows = @websites.to_a
     if request.format.html? || @filters[:validation] || params[:inventory_freshness] == "true"
-      inventories = Distillator::WebsiteInventoryFreshness.for_websites(website_rows.map(&:id))
+      @inventory_data_as_of = Time.current
+      inventories = Distillator::WebsiteInventoryFreshness.for_websites(website_rows.map(&:id), as_of: @inventory_data_as_of)
       @inventory_freshness = inventories if request.format.html? || params[:inventory_freshness] == "true"
     end
     if request.format.html? || @filters[:validation]

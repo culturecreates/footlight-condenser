@@ -12,5 +12,8 @@ json.array! @websites do |website|
   json.publishable_event_percentage pages[:publishable_event_percentage]
   json.flags @flags[website[:seedurl]]
   json.updates @updated[website[:seedurl]]
-  json.inventory_freshness @inventory_freshness.fetch(website.id) if @inventory_freshness
+  if @inventory_freshness
+    json.inventory_freshness @inventory_freshness.fetch(website.id)
+    json.data_as_of @inventory_data_as_of.iso8601
+  end
 end

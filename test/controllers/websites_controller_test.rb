@@ -10,9 +10,11 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     get websites_url(format: :json)
     assert_response :success
     assert_not response.parsed_body.first.key?("inventory_freshness")
+    assert_not response.parsed_body.first.key?("data_as_of")
 
     get websites_url(format: :json, inventory_freshness: "true")
     assert_response :success
+    assert_in_delta Time.current.to_i, Time.iso8601(response.parsed_body.first.fetch("data_as_of")).to_i, 10
     inventory = response.parsed_body.first.fetch("inventory_freshness")
     assert_includes ["No event lists", "Unverified"], inventory["label"]
     assert_nil inventory["selected_event_urls_missing"]

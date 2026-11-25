@@ -1,8 +1,9 @@
 # app/controllers/dashboard_metrics_controller.rb
 class DashboardMetricsController < ApplicationController
+  CACHE_KEY = "dashboard_metrics:v2"
 
   def index
-    results = Rails.cache.fetch("dashboard_metrics", expires_in: 10.minutes) do
+    results = Rails.cache.fetch(CACHE_KEY, expires_in: 10.minutes) do
       compute_all_metrics
     end
 
@@ -10,14 +11,14 @@ class DashboardMetricsController < ApplicationController
   end
 
   def broken
-    results = Rails.cache.fetch("dashboard_metrics", expires_in: 10.minutes) do
+    results = Rails.cache.fetch(CACHE_KEY, expires_in: 10.minutes) do
       compute_all_metrics
     end
 
     broken = results.select do |_seedurl, m|
       m[:new_webpages_7d].zero? &&
         m[:statements_updated_24hr].zero? &&
-        m[:event_horizon_days].negative?
+        m[:event_horizon_days]&.negative?
     end
 
     render json: broken
@@ -26,11 +27,11 @@ class DashboardMetricsController < ApplicationController
   private
 
   def compute_all_metrics
-    websites = Website.where(monitorable: true).pluck(:id, :seedurl)
-
-    seedurls = websites.map { |(_, seedurl)| seedurl }
-
-    website_ids = websites.to_h { |id, seedurl| [seedurl, id] }
+    as_of = Time.current
+    websites = Website.where(monitorable: true)
+      .select(:id, :seedurl, :schedule_every_days, :schedule_time, :last_refresh).to_a
+    days_overdue = Monitoring::ResourceListAudit.days_overdue_by_website(websites, as_of: as_of)
+    timestamp = as_of.iso8601
 
     # ----------------------------
     # total webpages
@@ -62,7 +63,7 @@ class DashboardMetricsController < ApplicationController
       Webpage.joins(:website)
              .where(websites: { monitorable: true })
              .where(rdfs_class_id: 1)
-             .where("webpages.created_at >= ?", 7.days.ago)
+             .where("webpages.created_at >= ?", as_of - 7.days)
              .group("websites.seedurl")
              .count
 
@@ -89,7 +90,7 @@ class DashboardMetricsController < ApplicationController
     # ----------------------------
 
     max_archive_dates =
-      Webpage.joins(:website)
+      Webpage.event_pages.joins(:website)
              .where(websites: { monitorable: true })
              .group("websites.seedurl")
              .maximum(:archive_date)
@@ -111,7 +112,7 @@ class DashboardMetricsController < ApplicationController
     refreshed_24h =
       Statement.joins(webpage: :website)
                .where(websites: { monitorable: true })
-               .where("statements.cache_refreshed >= ?", 24.hours.ago)
+               .where("statements.cache_refreshed >= ?", as_of - 24.hours)
                .group("websites.seedurl")
                .count
 
@@ -122,7 +123,7 @@ class DashboardMetricsController < ApplicationController
     updated_24h =
       Statement.joins(webpage: :website)
                .where(websites: { monitorable: true })
-               .where("statements.cache_changed >= ?", 24.hours.ago)
+               .where("statements.cache_changed >= ?", as_of - 24.hours)
                .group("websites.seedurl")
                .count
 
@@ -140,7 +141,8 @@ class DashboardMetricsController < ApplicationController
     # build result
     # ----------------------------
 
-    seedurls.index_with do |seedurl|
+    websites.index_by(&:seedurl).transform_values do |website|
+      seedurl = website.seedurl
       total_webpages = event_webpages[seedurl] || 0
       publishable = publishable_webpages[seedurl] || 0
 
@@ -153,15 +155,12 @@ class DashboardMetricsController < ApplicationController
 
       archive = max_archive_dates[seedurl]
 
-      horizon_days =
-        if archive
-          (archive.to_date - Time.zone.today).to_i
-        else
-          0
-        end
+      horizon_days = (archive.to_date - as_of.to_date).to_i if archive
 
       {
-        website_id: website_ids[seedurl],
+        website_id: website.id,
+        data_as_of: timestamp,
+        days_overdue: days_overdue[website.id],
         total_webpages: total_webpages,
         publishable_ratio: publishable_ratio,
         statements_grouped: statements_grouped[seedurl] || 0,
