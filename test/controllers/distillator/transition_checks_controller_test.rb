@@ -197,6 +197,23 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
     assert_empty ActiveJob::Base.queue_adapter.enqueued_jobs
   end
 
+  test "a failed discovery check exposes resource and field details in HTML and JSON" do
+    page = webpages(:one)
+    run = Distillator::TransitionRun.request!(website: page.website).run
+    blocker = { rdf_uri: page.rdf_uri, webpages: [{ webpage_id: page.id, url: page.url }],
+      fields: [{ field: "Dates", reasons: ["Dates needs review"] }] }
+    run.fail!("The event resource needs review.", discovery_blockers: [blocker])
+
+    get distillator_transition_check_path(run)
+    assert_response :success
+    assert_select "#discovery-publishability li", text: "Dates · Dates needs review"
+    assert_select "#discovery-publishability a[href=?]", webpage_path(page), text: page.url
+    get distillator_transition_check_path(run, format: :json)
+    assert_response :success
+    assert_equal "failed", response.parsed_body["status"]
+    assert_equal [blocker.deep_stringify_keys], response.parsed_body.fetch("discovery_blockers")
+  end
+
   test "transition reports follow the actual scheduled, queued and busy Sidekiq jobs" do
     target = websites(:two)
     run = Distillator::TransitionRun.request!(website: target).run

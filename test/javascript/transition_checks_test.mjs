@@ -92,6 +92,15 @@ for (const status of ["failed", "expired"]) {
   });
 }
 
+test("discovery failure exposes the affected resources link without submitting another check", async () => {
+  const h = harness([response(payload("failed", { discovery_blockers: [{ rdf_uri: "rdf:event" }] }))]);
+  await setImmediate();
+  assert.equal(h.element("failed").hidden, false);
+  assert.equal(h.element("discovery-details").hidden, false);
+  assert.deepEqual(h.navigation, []);
+  assert.ok(h.requests.every(({ options }) => !options.method));
+});
+
 test("reloading the same status URL resumes observing the same run without submitting a job", async () => {
   const first = harness([response(payload("running"))]);
   await setImmediate();

@@ -80,6 +80,8 @@ export function followTransitionRun(panel, {
         `Recorded phases: ${data.phases_recorded.join(", ")}.` : "";
       panel.querySelector("[data-run-completed]").hidden = data.status !== "completed";
       panel.querySelector("[data-run-failed]").hidden = !["failed", "expired"].includes(data.status);
+      const discoveryDetails = panel.querySelector("[data-run-discovery-details]");
+      if (discoveryDetails) discoveryDetails.hidden = !data.discovery_blockers?.length;
       panel.dataset.status = data.status;
       const terminal = !["queued", "running"].includes(data.status);
       panel.setAttribute("aria-busy", String(!terminal));

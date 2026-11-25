@@ -30,9 +30,31 @@
   <div data-run-completed <%= "hidden" unless @run_status[:status] == "completed" %>>
     <%= link_to "Open completed report for run ##{@run.id}", @report_path %>
   </div>
+  <% if @run_status[:discovery_blockers].present? %>
+    <details id="discovery-publishability" open>
+      <summary>Affected event resources (<%= @run_status[:discovery_blockers].size %>)</summary>
+      <ul>
+        <% @run_status[:discovery_blockers].each do |event| %>
+          <li>
+            <strong><%= event["rdf_uri"].presence || "Event without an RDF URI" %></strong>
+            <% event["webpages"].each do |page| %>
+              <div><%= link_to page["url"], webpage_path(page["webpage_id"]) %></div>
+            <% end %>
+            <ul>
+              <% event["fields"].each do |field| %>
+                <li><%= field["field"] %> · <%= field["reasons"].join(", ") %></li>
+              <% end %>
+            </ul>
+          </li>
+        <% end %>
+      </ul>
+    </details>
+  <% end %>
   <div data-run-failed <%= "hidden" unless @run_status[:status].in?(%w[failed expired]) %>>
     <%= button_to "Retry with the same options", distillator_transition_checks_path,
       params: { website_id: @website.id, check_options: @run.options.to_h }, class: "website-transition-button" %>
+    <%= link_to "Show affected event resources", distillator_transition_check_path(@run, anchor: "discovery-publishability"),
+      hidden: @run_status[:discovery_blockers].blank?, data: { run_discovery_details: true } %>
     <%= link_to "Change check options", website_path(@website, anchor: "website-batch-jobs-transition") %>
   </div>
   <p><%= link_to "Refresh status", distillator_transition_check_path(@run), data: { run_refresh: true } %>

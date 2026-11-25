@@ -20,6 +20,7 @@ module Distillator
         page_message: statement_page_message(evidence),
         waiting_message: active ? TransitionJobStatus.new(run: @run, workflow: @workflow, now: @now).message : nil,
         workflow_id: @workflow&.id,
+        discovery_blockers: @progress["discovery_blockers"],
         phases_recorded: PHASE_EVIDENCE.filter_map { |kind, label| label if evidence.include?(kind) } }
     end
 

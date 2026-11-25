@@ -843,13 +843,14 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal "confirmed_discovery", Distillator::WebsiteInventoryFreshness.for_websites([website.id]).dig(website.id, :status)
   end
 
-  test "Thorough verifies shared requirements on both language pages even when neither page is publishable alone" do
+  test "Thorough accepts both ResourceLists for a bilingual resource with shared dates and location" do
     website = build_website
     english = website.webpages.sole
     french = website.webpages.create!(url: "https://runner-site.example/fr/event", language: "fr", rdf_uri: english.rdf_uri,
       rdfs_class: english.rdfs_class)
     [
       [english, properties(:four), "xpath=//title/text()", "Translated title", true],
+      [french, properties(:four), "xpath=//title/text()", "Titre français", true],
       [french, properties(:location), "xpath=//p/text()", "Hall", false],
       [french, properties(:six), "xpath=//time/text()", '["2027-01-01T20:00:00-05:00"]', true]
     ].each do |page, property, algorithm, value, selected|
@@ -857,9 +858,19 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
       source = website.sources.create!(property: property, language: page.language, algorithm_value: algorithm, selected: selected)
       page.statements.create!(source: source, cache: value, status: "ok", selected_individual: true).update_columns(status: "ok")
     end
-    assert_empty website.webpages.publishable
+    assert_equal [french.rdf_uri], website.webpages.pages_of_publishable_events.distinct.pluck(:rdf_uri)
+    assert_empty website.webpages.publishable.where(id: english.id)
 
-    french_html = "<html><body><p>Hall</p><time>2027-01-01T20:00:00-05:00</time></body></html>"
+    [english, french].each do |page|
+      list, statements = discovery_list_for(page)
+      Distillator::RefreshRunner.expects(:call).with do |args|
+        next false unless args[:webpage].id == list.id
+
+        Statement.where(id: statements.values.map(&:id)).update_all(cache_refreshed: Time.current)
+        true
+      end.times(3)
+    end
+    french_html = "<html><head><title>Titre français</title></head><body><p>Hall</p><time>2027-01-01T20:00:00-05:00</time></body></html>"
     english_html = "<html><head><title>Translated title</title></head></html>"
     html = { english.url => english_html, french.url => french_html }
     caches = html.to_h do |url, body|
@@ -879,6 +890,8 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     end
 
     passed = check.call(html)
+    assert_equal "confirmed_discovery", website.latest_transition_run.progress["discovery_at_start"]
+    assert_equal 2, website.latest_transition_run.progress.dig("discovery_refresh", "lists").size
     assert_equal true, passed.records[:fetch_parity].details["event_resource_scope"]
     assert_equal [english.url, french.url].sort, passed.records[:fetch_parity].details["representative_webpages"].sort
     assert_equal 2, passed.records[:statement_delta].details["compared_webpage_count"]
@@ -911,15 +924,38 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
       statements.fetch(AddWebpagesJob::URI_LIST_LABEL).update_columns(cache: [existing.rdf_uri, "rdf:uninitialized"].to_json, cache_refreshed: Time.current)
       true
     end.once
-    Distillator::RefreshRunner.expects(:call).with { |args| args[:webpage].url == new_url }.once
+    sources = website.sources.joins(:property).where(properties: { label: %w[Title Location] }).index_by { |source| source.property.label }
+    duplicate_location = sources.fetch("Location").dup
+    duplicate_location.save!
+    Distillator::RefreshRunner.expects(:call).with do |args|
+      page = args[:webpage]
+      next false unless page.url == new_url
 
-    error = assert_raises(Distillator::TransitionRun::ConfigurationChanged) do
+      page.statements.create!(source: sources.fetch("Title"), cache: "An event", status: "ok", selected_individual: true)
+        .update_column(:status, "initial")
+      [sources.fetch("Location"), duplicate_location].each do |source|
+        page.statements.create!(source: source, cache: "A hall", status: "ok", selected_individual: true).update_column(:status, "ok")
+      end
+      true
+    end.once
+
+    error = assert_raises(Distillator::TransitionRun::UnpublishableEvents) do
       Distillator::TransitionCheckRunner.call(website: website, check_options: { sample_mode: "all", strictness: "strict" })
     end
-    assert_match "lack publishable statements after refresh", error.message
-    assert_equal "failed", website.latest_transition_run.status
-    assert website.webpages.exists?(url: new_url)
-    assert_empty website.latest_transition_run.transition_evidences
+    assert_match "1 active event resource lacks publishable statements after refresh", error.message
+    assert_includes error.message, "Required fields: Title, Dates, Location."
+    run = website.latest_transition_run
+    assert_equal "failed", run.status
+    assert_equal "discovery", run.progress["phase"]
+    blocker = run.progress.fetch("discovery_blockers").sole
+    assert_equal "rdf:uninitialized", blocker.fetch("rdf_uri")
+    assert_equal [new_url], blocker.fetch("webpages").pluck("url")
+    assert_equal(
+      { "Title" => ["Title needs review"], "Dates" => ["No selected Dates statement"],
+        "Location" => ["Multiple selected Location statements (EN)"] },
+      blocker.fetch("fields").to_h { |row| row.values_at("field", "reasons") }
+    )
+    assert_empty run.transition_evidences
   end
 
   test "Thorough stops before comparison when a refresh leaves only old ResourceList statements" do

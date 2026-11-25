@@ -9,7 +9,7 @@ module Distillator
     MAX_LIST_REFRESH_SKEW = 10.minutes
     DISCOVERY_LABELS = [AddWebpagesJob::RDF_CLASS_LABEL, AddWebpagesJob::URI_LIST_LABEL, AddWebpagesJob::WEBPAGE_URL_LIST_LABEL].freeze
     Result = Struct.new(:status, :lists, :valid_until, :selected_event_urls_missing, :archived_publishable_count,
-      :pending_import, :unpublishable_urls_count, keyword_init: true)
+      :pending_import, :unpublishable_urls_count, :unpublishable_listed_pages, keyword_init: true)
 
     def self.discovery_scope(list_ids)
       Statement.joins(:webpage, source: :property)
@@ -83,7 +83,7 @@ module Distillator
       registered = Webpage.event_pages.where(website_id: inventories.keys)
       urls_by_site = registered.pluck(:website_id, :url).group_by(&:first)
       active_pages = registered.active(@as_of).without_reviewed_transition_exclusions.public_source_urls
-        .pluck(:website_id, :id, :url).group_by(&:first)
+        .pluck(:website_id, :id, :url, :rdf_uri).group_by(&:first)
       candidates = events.where(website_id: inventories.keys)
         .pluck(:website_id, :id, :url, :rdf_uri).group_by(&:first)
       inventories.each do |website_id, lists|
@@ -93,9 +93,10 @@ module Distillator
         inventory.pending_import = !urls.subset?(imported)
         rows = candidates.fetch(website_id, [])
         eligible_ids = rows.map { |_, id, _, _| id }.to_set
-        inventory.unpublishable_urls_count = active_pages.fetch(website_id, []).count do |_, id, url|
-          !eligible_ids.include?(id) && urls.include?(public_url_key(url))
+        inventory.unpublishable_listed_pages = active_pages.fetch(website_id, []).filter_map do |_, id, url, uri|
+          { webpage_id: id, url: url, rdf_uri: uri } if !eligible_ids.include?(id) && urls.include?(public_url_key(url))
         end
+        inventory.unpublishable_urls_count = inventory.unpublishable_listed_pages.size
 
         next unless inventory.status == "confirmed_discovery"
         if inventory.pending_import

@@ -40,13 +40,20 @@ module Distillator
         refresh(page)
       end
 
-      finished = inventory(website)
+      finished_at = Time.current
+      finished = inventory(website, as_of: finished_at)
       finished_lists = finished.lists.select { |list| list[:status] == "event" }
       unless finished.status == "confirmed_discovery" && list_versions(finished_lists) == list_versions(verified_lists)
         raise TransitionRun::ConfigurationChanged, "ResourceList import could not be verified. Review the lists and retry."
       end
       if finished.unpublishable_urls_count.to_i.positive?
-        raise TransitionRun::ConfigurationChanged, "#{finished.unpublishable_urls_count} active events from ResourceLists lack publishable statements after refresh. Review those events and retry."
+        listed = finished.unpublishable_listed_pages.group_by { |page| page[:rdf_uri] }
+        scope = active_public_event_pages(website, as_of: finished_at).where(rdf_uri: listed.keys)
+        requirements = Events::ResourcePublishability.new(scope).missing_requirements
+        blockers = listed.map do |uri, pages|
+          { rdf_uri: uri, webpages: pages, fields: requirements.fetch(uri, []) }
+        end
+        raise TransitionRun::UnpublishableEvents.new(blockers)
       end
 
       warnings = finished_lists.filter_map { |list| list.slice(:webpage_id, :warning) if list[:warning] }
@@ -76,7 +83,7 @@ module Distillator
       urls = TransitionEventInventory.discovery_scope(lists.pluck(:webpage_id))
         .where(properties: { label: AddWebpagesJob::WEBPAGE_URL_LIST_LABEL })
         .where(selected_individual: true, sources: { selected: true }).pluck(:cache).flat_map { |cache| JSON.parse(cache) }
-      active_pages = website.webpages.event_pages.public_source_urls.active
+      active_pages = active_public_event_pages(website)
       publishable = active_pages.pages_of_publishable_events
       eligible = active_pages.without_reviewed_transition_exclusions
       incomplete = eligible.where(url: urls).where.not(id: publishable.select(:id))
@@ -84,14 +91,18 @@ module Distillator
     end
 
     def self.inventory(website, as_of: Time.current)
-      candidates = website.webpages.public_source_urls.active(as_of).pages_of_publishable_events.without_reviewed_transition_exclusions
+      candidates = active_public_event_pages(website, as_of: as_of).pages_of_publishable_events.without_reviewed_transition_exclusions
       TransitionEventInventory.new(as_of: as_of).for_websites([website.id], events: candidates).fetch(website.id)
+    end
+
+    def self.active_public_event_pages(website, as_of: Time.current)
+      website.webpages.event_pages.public_source_urls.active(as_of)
     end
 
     def self.refresh(page)
       RefreshRunner.call(webpage: page, refresh_helper: ApplicationController.helpers, scrape_options: { force_scrape: true, force_scrape_every_hrs: 0 })
     end
 
-    private_class_method :list_versions, :incomplete_listed_pages, :inventory, :refresh
+    private_class_method :list_versions, :incomplete_listed_pages, :inventory, :active_public_event_pages, :refresh
   end
 end

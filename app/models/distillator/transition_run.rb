@@ -7,6 +7,18 @@ module Distillator
     CANCELLED_MESSAGE = "Cancelled by the operator".freeze
     STATUSES = %w[queued running completed failed].freeze
     class ConfigurationChanged < StandardError; end
+    class UnpublishableEvents < ConfigurationChanged
+      attr_reader :blockers
+
+      def initialize(blockers)
+        @blockers = blockers
+        count = blockers.size
+        group = count == 1 ? "event resource lacks" : "event resources lack"
+        fields = blockers.flat_map { |event| event[:fields].pluck(:field) }.uniq
+        summary = fields.any? ? " Required fields: #{fields.join(', ')}." : ""
+        super("#{count} active #{group} publishable statements after refresh.#{summary} Open the check details to review affected resources.")
+      end
+    end
     class Cancelled < StandardError; end
     class OptionsConflict < StandardError; end
     class WorkflowBusy < ArgumentError; end
@@ -175,9 +187,12 @@ module Distillator
       end
     end
 
-    def fail!(message)
-      self.class.where(id: id, status: %w[queued running]).update_all(
-        status: "failed", completed_at: Time.current, error_message: message, updated_at: Time.current)
+    def fail!(message, discovery_blockers: nil)
+      changes = { status: "failed", completed_at: Time.current, error_message: message, updated_at: Time.current }
+      if discovery_blockers
+        changes[:progress] = Arel.sql("progress || CAST(? AS jsonb)", { discovery_blockers: discovery_blockers }.to_json)
+      end
+      self.class.where(id: id, status: %w[queued running]).update_all(changes)
       reload
     end
 
@@ -250,6 +265,9 @@ module Distillator
     rescue Cancelled => error
       fail!(error.message)
       transition_checkpoints.delete_all
+      raise
+    rescue UnpublishableEvents => error
+      fail!(error.message, discovery_blockers: error.blockers)
       raise
     rescue StandardError => error
       message = if error.is_a?(ConfigurationChanged) || error.is_a?(TransitionMemory::LimitExceeded)

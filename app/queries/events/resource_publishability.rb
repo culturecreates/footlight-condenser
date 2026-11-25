@@ -2,6 +2,8 @@ module Events
   class ResourcePublishability
     LOCATION_LABELS = %w[Location VirtualLocation].freeze
     REQUIRED_LABELS = (Webpage::PUBLISHABLE_REQUIRED_PROPERTY_LABELS | LOCATION_LABELS).freeze
+    REQUIREMENTS = { "Title" => ["Title"], "Dates" => ["Dates"], "Location" => LOCATION_LABELS }.freeze
+    SOURCE_LANGUAGE_SQL = "LOWER(COALESCE(sources.language, ''))".freeze
 
     def initialize(pages)
       @pages = pages.reorder(nil)
@@ -9,7 +11,7 @@ module Events
 
     def publishable_resources
       fields = selected_fields
-        .group("webpages.website_id", "webpages.rdf_uri", "properties.label", Arel.sql("LOWER(COALESCE(sources.language, ''))"))
+        .group("webpages.website_id", "webpages.rdf_uri", "properties.label", Arel.sql(SOURCE_LANGUAGE_SQL))
         .having("COUNT(*) = 1 AND BOOL_AND(#{usable_value_sql})", Webpage::PUBLISHABLE_STATUSES)
         .select("webpages.website_id", "webpages.rdf_uri", "properties.label")
 
@@ -39,6 +41,38 @@ module Events
         group.each do |page|
           requirements[page.id] = fields.fetch(page.id, {}).merge(missing)
         end
+      end
+    end
+
+    def missing_requirements
+      usable_value = Arel.sql(Statement.sanitize_sql_array([usable_value_sql, Webpage::PUBLISHABLE_STATUSES]))
+      groups = selected_fields.pluck("webpages.rdf_uri", "properties.label", Arel.sql(SOURCE_LANGUAGE_SQL),
+        :status, usable_value).group_by(&:first)
+
+      @pages.distinct.pluck(:rdf_uri).sort_by(&:to_s).to_h do |uri|
+        fields = groups.fetch(uri, []).group_by { |_, label, _language, _status, _usable| label }
+        missing = REQUIREMENTS.filter_map do |field, labels|
+          matches = labels.flat_map { |label| fields.fetch(label, []) }
+          selections = matches.group_by { |_, label, language, _status, _usable| [label, language] }
+          next if selections.values.any? { |entries| entries.one? && entries.first.last }
+
+          reasons = selections.map do |(label, language), entries|
+            if entries.many?
+              field_language = " (#{language.upcase})" if language.present?
+              "Multiple selected #{label} statements#{field_language}"
+            else
+              status = entries.first[3]
+              case status
+              when "initial" then "#{label} needs review"
+              when "missing" then "#{label} extraction is missing"
+              when *Webpage::PUBLISHABLE_STATUSES then "#{label} value is empty or unusable"
+              else "#{label} status is #{status.presence || 'unset'}"
+              end
+            end
+          end
+          { field: field, reasons: reasons.uniq.presence || ["No selected #{labels.join(' or ')} statement"] }
+        end
+        [uri, missing]
       end
     end
 
