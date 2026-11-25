@@ -483,6 +483,23 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_no_cohort_source_requests
   end
 
+  test "client cohort filter shows only listed sites and retains overlapping La Vitrine membership" do
+    client = Website.create!(name: "Minotaure", seedurl: "minotaure-ca",
+      graph_name: "https://example.org/minotaure", default_language: "fr", distillator_mode: "shadow")
+    Website.create!(name: "Outside Feed", seedurl: "unrelated-site",
+      graph_name: "https://example.org/other", default_language: "fr", distillator_mode: "shadow")
+
+    get websites_url, params: { cohort: "client_sites", q: "Minotaure" }
+
+    assert_response :success
+    assert_select '.website-index-row', count: 1
+    assert_select '.website-index-row th a', text: client.name
+    assert_select 'select[name="cohort"] option[value="client_sites"][selected]', count: 1
+    assert_includes @response.body, "Client sites"
+    assert_includes @response.body, "La Vitrine pipeline"
+    assert_no_cohort_source_requests
+  end
+
   test "website show shows la vitrine badge without external requests" do
     website = Website.create!(
       name: "Hector Charland",

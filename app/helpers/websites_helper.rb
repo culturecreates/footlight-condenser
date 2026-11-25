@@ -27,10 +27,7 @@ module WebsitesHelper
   end
 
   def website_cohort_filter_options
-    [
-      ["All cohorts", ""],
-      [Distillator::Cohorts::LavitrinePipeline.label, Distillator::Cohorts::LavitrinePipeline.key]
-    ]
+    [["All cohorts", ""]] + Distillator::Cohorts::Registry.all.values.map { |cohort| [cohort.fetch(:label), cohort.fetch(:key)] }
   end
 
   def website_rollout_filter_link(label:, mode:, current_filters:, current_sort:, current_direction:)
@@ -98,19 +95,16 @@ module WebsitesHelper
   end
 
   def website_cohort_badge(website)
-    label = website.distillator_primary_cohort_label
-    return unless label.present?
+    memberships = website.distillator_cohort_memberships
+    return if memberships.empty?
 
-    content_tag(:span, label, class: "rollout-badge rollout-badge-cohort")
+    safe_join(memberships.map do |cohort|
+      content_tag(:span, cohort.fetch(:label), class: "rollout-badge rollout-badge-cohort")
+    end, " ")
   end
 
   def website_matches_cohort_filter?(website, cohort_filter)
-    case cohort_filter.to_s
-    when Distillator::Cohorts::LavitrinePipeline.key
-      website.lavitrine_pipeline?
-    else
-      true
-    end
+    Distillator::Cohorts::Matcher.match?(website, cohort_filter)
   end
 
   def website_rollout_label_for(website)
@@ -412,8 +406,7 @@ module WebsitesHelper
     cohort = raw_cohort.to_s.presence
     return nil if cohort.blank?
 
-    allowed = [Distillator::Cohorts::LavitrinePipeline.key]
-    allowed.include?(cohort) ? cohort : nil
+    Distillator::Cohorts::Registry.keys.include?(cohort) ? cohort : nil
   end
 
   private

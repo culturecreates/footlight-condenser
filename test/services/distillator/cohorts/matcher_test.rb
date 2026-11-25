@@ -23,6 +23,26 @@ class Distillator::Cohorts::MatcherTest < ActiveSupport::TestCase
     assert_equal true, Distillator::Cohorts::Matcher.match?(website, "lavitrine_pipeline")
   end
 
+  test "client sites cohort matches the eleven named websites" do
+    names = [
+      "Co-motion Laval", "Culture 3R", "Culture La Tuque",
+      "Culture Mauricie - lepointdevente - Trois-Rivieres", "Gatineau (Ville)",
+      "Maison de culture Gatineau (Salle Odyssée)", "Minotaure",
+      "Tourisme des Chenaux", "Tourisme Maskinongé", "Tourisme Shawinigan",
+      "Tourisme Trois-Rivieres"
+    ]
+    names.each do |name|
+      website = build_website(seedurl: "unrelated-seed", name: name)
+      assert Distillator::Cohorts::Matcher.match?(website, "client_sites"), "Missing client: #{name}"
+    end
+  end
+
+  test "client membership uses exact normalized values, not partial matches" do
+    website = build_website(seedurl: "unrelated-seed", name: "Culture Mauricie - ResourceList")
+    refute Distillator::Cohorts::Matcher.match?(website, "client_sites")
+    assert Distillator::Cohorts::Matcher.match?(build_website(seedurl: "co-motion-ca", name: "Renamed presenter"), "client_sites")
+  end
+
   test "normalizes protocols domains and trailing slashes" do
     assert_equal "placedesarts-com", Distillator::Cohorts::Matcher.normalize("https://www.placedesarts.com/")
     assert_equal "culture-mauricie", Distillator::Cohorts::Matcher.normalize("Culture Mauricie")
