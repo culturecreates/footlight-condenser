@@ -19,6 +19,7 @@ class Webpage < ApplicationRecord
   scope :transition_candidates, -> { order(:archive_date, :id) }
   scope :event_pages, -> { joins(:rdfs_class).where(rdfs_classes: { name: "Event" }) }
   scope :public_publishable_events, -> { event_pages.public_source_urls.publishable }
+  scope :pages_of_publishable_events, -> { Events::ResourcePublishability.new(event_pages).publishable_pages }
   scope :without_reviewed_transition_exclusions, -> {
     reviewed = Distillator::TransitionExclusion.active
       .where("distillator_transition_exclusions.website_id = webpages.website_id AND distillator_transition_exclusions.url = webpages.url")

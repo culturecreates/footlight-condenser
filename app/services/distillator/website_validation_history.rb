@@ -82,8 +82,8 @@ module Distillator
         .pluck(:transition_run_id, Arel.sql("details ->> 'compared_webpage_count'")).to_h
       exports = TransitionEvidence.where(transition_run_id: run_ids, check_kind: "export_diff", status: "checked",
         export_diff_checked: true).pluck(:transition_run_id).to_set
-      eligible_pages = Webpage.public_publishable_events.active.without_reviewed_transition_exclusions
-        .where(website_id: passes.keys.select { |id| passes[id].any? }).group_by(&:website_id)
+      eligible_pages = Webpage.public_source_urls.active.where(website_id: passes.keys.select { |id| passes[id].any? })
+        .pages_of_publishable_events.without_reviewed_transition_exclusions.group_by(&:website_id)
       library_version = TransitionFingerprint.library_version if run_ids.any?
 
       websites.to_h do |website|

@@ -10,7 +10,9 @@ module Distillator
         .select("distillator_transition_runs.*, ROW_NUMBER() OVER (PARTITION BY website_id ORDER BY id DESC) AS timing_rank")
       runs = TransitionRun.from("(#{ranked.to_sql}) distillator_transition_runs").where("timing_rank <= 6")
         .includes(:transition_evidences).group_by(&:website_id)
-      counts = Webpage.public_publishable_events.active.without_reviewed_transition_exclusions.where(website_id: ids).group(:website_id).count
+      pages = Webpage.event_pages.public_source_urls.active.where(website_id: ids)
+      candidates = check_options&.event_resource_scope? ? pages.pages_of_publishable_events : pages.publishable
+      counts = candidates.without_reviewed_transition_exclusions.group(:website_id).count
       websites.to_h do |website|
         estimate = nil
         durations = Array(runs[website.id]).filter_map do |run|

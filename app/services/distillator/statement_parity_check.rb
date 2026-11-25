@@ -8,9 +8,9 @@ module Distillator
       :comparison_count, :slowest_sources, :timings, keyword_init: true)
 
     def self.call(website:, webpages:, url_results:, refresh_helper:, comparator: Distillator::MigrationComparator,
-      strict: false, stop_requested: nil, progress: nil, compact_evidence: false, snapshot_reader: nil, source_lookup: nil)
+      strict: false, stop_requested: nil, progress: nil, compact_evidence: false, snapshot_reader: nil, source_lookup: nil, required_event_fields: nil)
       source_lookup ||= ->(page) do
-        Statements::RefreshWebpageStatementsService.sources_for_webpage(page, default_language: website.default_language).select(&:selected?)
+        Statements::RefreshWebpageStatementsService.sources_for_webpage(page, default_language: website.default_language)
       end
       artifacts = []
       timings = {}
@@ -29,19 +29,25 @@ module Distillator
         if legacy.blank? || condenser.blank?
           next { url: page.url, status: "inconclusive", reason: "paired_snapshot_missing" }
         end
-        sources = source_lookup.call(page)
+        event = page.rdfs_class.name == "Event"
+        required = required_event_fields&.fetch(page.id, nil) ||
+          (event ? Webpage.publishable_required_property_labels.index_with { [] } : {})
+        individual_source_ids = required.values.flatten
+        sources = source_lookup.call(page).select { |source| source.selected? || individual_source_ids.include?(source.id) }
         interrupted = false
         comparison = begin
           comparator.new(website: website, webpage: page, legacy_html: legacy,
             condenser_html: condenser, sources: sources, refresh_helper: refresh_helper,
-            before_reconciliation: true, stop_requested: stop_requested).compare_statements
+            before_reconciliation: true, individual_source_ids: individual_source_ids, stop_requested: stop_requested).compare_statements
         rescue MigrationComparator::BudgetExceeded => error
           interrupted = true
           MigrationComparator::StatementComparison.new(artifacts: Array(error.artifacts))
         end
         entries = comparison.artifacts.map do |artifact|
-          critical = page.rdfs_class.name == "Event" && Webpage.publishable_required_property_labels.include?(artifact[:property_label])
-          verdict = if critical && artifact[:verdict] == MigrationComparator::MATCH && artifact[:condenser].nil?
+          required_sources = required[artifact[:property_label]]
+          required_on_page = required_sources && (required_sources.empty? || required_sources.include?(artifact[:source_id]))
+          critical = event && Events::ResourcePublishability::REQUIRED_LABELS.include?(artifact[:property_label])
+          verdict = if required_on_page && artifact[:verdict] == MigrationComparator::MATCH && artifact[:condenser].nil?
             MigrationComparator::MISSING_STATEMENT
           else
             artifact[:verdict]
@@ -59,13 +65,14 @@ module Distillator
             artifacts << entry
           end
         end
-        required = page.rdfs_class.name == "Event" ? Webpage.publishable_required_property_labels : []
+        uncovered = (required.keys - entries.pluck(:property_label)).any? ||
+          (individual_source_ids - entries.pluck(:source_id)).any?
         unsupported = entries.any? { |entry| unsupported_fetch?(entry) }
         if interrupted
           { url: page.url, status: "inconclusive", reason: "transition_check_timeout_budget_exceeded" }
         elsif entries.any? { |entry| MigrationComparator.reconciliation_failure?(entry) }
           { url: page.url, status: "inconclusive", reason: "reconciliation_inconclusive" }
-        elsif entries.empty? || (required - entries.map { |entry| entry[:property_label] }).any? || unsupported
+        elsif entries.empty? || uncovered || unsupported
           { url: page.url, status: "inconclusive", reason: "paired_extraction_inconclusive" }
         elsif entries.any? { |entry| entry[:severity] == "blocker" && entry[:verdict] != MigrationComparator::MATCH }
           { url: page.url, status: "failed", reason: strict ? "strict_statement_parity_failed" : "critical_statement_parity_failed" }

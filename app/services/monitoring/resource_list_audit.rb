@@ -75,8 +75,9 @@ module Monitoring
 
     def self.check_publishability(state, now)
       kind = "listed_event_unpublishable"
-      pages = state.website.webpages.event_pages.public_source_urls.active(now)
-        .where(url: state.listed_urls).where(created_at: ..(now - ResourceListRefresh::IMPORT_GRACE)).not_publishable
+      active_pages = state.website.webpages.event_pages.public_source_urls.active(now)
+      pages = active_pages.where(url: state.listed_urls).where(created_at: ..(now - ResourceListRefresh::IMPORT_GRACE))
+        .where.not(id: active_pages.pages_of_publishable_events.select(:id))
       count = pages.count
       if count.zero?
         ResourceListIssue.resolve(kind, website: state.website, page: state.webpage, at: now)

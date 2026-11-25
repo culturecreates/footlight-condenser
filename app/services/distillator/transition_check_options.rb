@@ -50,6 +50,10 @@ module Distillator
       @include_retired
     end
 
+    def event_resource_scope?
+      sample_mode == "all" || (strict? && sample_mode == "count")
+    end
+
     def refresh_discovery?
       strict? && sample_mode.in?(%w[all count]) && !include_retired?
     end
@@ -64,10 +68,9 @@ module Distillator
     end
 
     def selection_rule(event_site: true)
-      pages = if include_retired?
-        "archived publishable event pages with public URLs"
-      elsif event_site
-        "active publishable event pages with public URLs"
+      pages = if event_site || include_retired?
+        window = include_retired? ? "archived" : "active"
+        event_resource_scope? ? "#{window} public webpages of publishable events" : "#{window} publishable event pages with public URLs"
       else
         "website pages"
       end

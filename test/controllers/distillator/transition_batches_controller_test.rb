@@ -488,7 +488,7 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
       source = event.website.sources.find_or_create_by!(property: property) do |row|
         row.assign_attributes(language: "en", selected: true, algorithm_value: "manual=Value")
       end
-      event.statements.create!(source: source, cache: "2027-01-01", status: "ok").update_column(:status, "ok")
+      event.statements.create!(source: source, cache: "2027-01-01", status: "ok", selected_individual: true).update_column(:status, "ok")
     end
   end
 

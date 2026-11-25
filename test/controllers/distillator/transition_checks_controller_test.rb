@@ -170,7 +170,7 @@ class Distillator::TransitionChecksControllerTest < ActionDispatch::IntegrationT
       assert_select '[data-run-failed][hidden]'
       assert_select '[data-transition-context]', count: 0
       assert_select '[data-operator-context-card]', count: 0
-      assert_includes response.body, "Up to 10 active publishable event pages"
+      assert_includes response.body, "Up to 10 active public webpages of publishable events"
       assert_includes response.body, "Strict: differences in any selected field block activation"
     end
     get distillator_transition_check_path(run, format: :json)

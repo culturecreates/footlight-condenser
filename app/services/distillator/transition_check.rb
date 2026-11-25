@@ -208,7 +208,7 @@ module Distillator
       return unless event_scope?
 
       status = @check_options.include_retired? ? "historical_audit" : "active_event_scope"
-      TransitionEventInventory::Result.new(status: status, archived_publishable_count: original_publishable_event_scope.archived(@scope_at).count)
+      TransitionEventInventory::Result.new(status: status, archived_publishable_count: publishable_scope(website.webpages.event_pages.public_source_urls.archived(@scope_at)).count)
     end
 
     def selection_rule
@@ -225,19 +225,17 @@ module Distillator
     end
 
     def scoped_publishable_events
-      if @check_options.include_retired?
-        original_publishable_event_scope.archived(@scope_at)
-      else
-        original_publishable_event_scope.active(@scope_at)
-      end
+      pages = website.webpages.event_pages.public_source_urls
+      pages = @check_options.include_retired? ? pages.archived(@scope_at) : pages.active(@scope_at)
+      publishable_scope(pages)
     end
 
-    def original_publishable_event_scope
-      website.webpages.public_publishable_events
+    def publishable_scope(pages)
+      @check_options.event_resource_scope? ? pages.pages_of_publishable_events : pages.publishable
     end
 
     def original_publishable_event_page_count
-      @original_publishable_event_page_count ||= original_publishable_event_scope.count
+      @original_publishable_event_page_count ||= publishable_scope(website.webpages.event_pages.public_source_urls).count
     end
 
     def excluded_records

@@ -1,13 +1,13 @@
 <div class="website-index-table-scroll operator-table-scroll" tabindex="0" role="region" aria-label="Website overview">
   <table class="cache-table website-index-table">
-    <caption class="website-index-sr-only">Website modes, validation history, event page counts and publishability, statement activity, inventory freshness and the last queued scheduled run.</caption>
+    <caption class="website-index-sr-only">Website modes, validation history, event page counts and event resource publishability, statement activity, inventory freshness and the last queued scheduled run.</caption>
     <thead><tr>
       <th scope="col">Transition</th>
       <th scope="col"><%= website_index_sortable("name", "Website", group: group) %></th>
       <th scope="col">State</th>
       <th scope="col" title="Successful validation workflows by profile">Validation</th>
       <th scope="col" class="website-index-number"><%= website_index_sortable("event_pages_count", "Event pages", group: group) %></th>
-      <th scope="col" class="website-index-number" title="Publishable event pages divided by all event pages"><%= website_index_sortable("publishable_event_percentage", "% Publishable", group: group) %></th>
+      <th scope="col" class="website-index-number" title="Publishable event resources divided by all event resources. Pages for the same event contribute selected statements together."><%= website_index_sortable("publishable_event_percentage", "% Publishable", group: group) %></th>
       <th scope="col" class="website-index-number"><%= website_index_sortable("statements_count", "Statements", group: group) %></th>
       <th scope="col" title="Statements refreshed / statements changed in the last 24 hours"><%= website_index_sortable("refreshed_24h", "Refreshed", group: group) %> / <%= website_index_sortable("updated_24h", "Changed", group: group) %> (24h)</th>
       <th scope="col">Inventory freshness</th>
@@ -40,11 +40,10 @@
           <td><%= render "validation_summary", website: website, validation: validation %></td>
           <td class="website-index-number"><%= link_to number_with_delimiter(event_count), website_webpages_filter_path(website, scope: "all", rdfs_class: "Event") %></td>
           <td class="website-index-number">
-            <% if event_count.positive? %>
-              <%= link_to number_to_percentage(pages[:publishable_event_percentage], precision: 1, strip_insignificant_zeros: true),
-                website_publishable_event_pages_path(website), title: "#{pages[:publishable]} of #{event_count} event pages publishable" %>
+            <% if pages[:event_resources].positive? %>
+              <span title="<%= pages[:publishable_event_resources] %> of <%= pages[:event_resources] %> event resources publishable"><%= number_to_percentage(pages[:publishable_event_resource_percentage], precision: 1, strip_insignificant_zeros: true) %></span>
             <% else %>
-              <span title="No event pages">—</span>
+              <span title="No event resources">—</span>
             <% end %>
           </td>
           <td class="website-index-number"><%= link_to number_with_delimiter(@statements_grouped[website.seedurl] || 0), statements_path(seedurl: website.seedurl) %></td>
@@ -76,7 +75,24 @@
               </dl>
               <%= website_cohort_badge(website) %>
             </section>
-            <section aria-label="Webpage breakdown"><h2>Webpages</h2><%= website_webpage_summary_cell(website, pages) %></section>
+            <section aria-label="Event and webpage breakdown">
+              <h2>Events and webpages</h2>
+              <% if pages[:event_resources].positive? %>
+                <dl>
+                  <dt>Publishable events</dt>
+                  <dd><%= pages[:publishable_event_resources] %>/<%= pages[:event_resources] %> resources</dd>
+                  <% if (localized = pages[:fully_localized_event_resources]) %>
+                    <dt><%= pages[:event_languages].size == 2 ? "Bilingual coverage" : "Language coverage" %></dt>
+                    <dd><%= number_to_percentage(localized * 100.0 / pages[:event_resources], precision: 1, strip_insignificant_zeros: true) %>
+                      · <%= localized %>/<%= pages[:event_resources] %> events with pages in <%= pages[:event_languages].map(&:upcase).join(" + ") %></dd>
+                  <% end %>
+                  <dt>Individual event pages</dt>
+                  <dd><%= link_to "#{pages[:publishable]}/#{event_count} publishable", website_publishable_event_pages_path(website) %>
+                    · <%= number_to_percentage(pages[:publishable_event_page_percentage], precision: 1, strip_insignificant_zeros: true) %></dd>
+                </dl>
+              <% end %>
+              <%= website_webpage_summary_cell(website, pages) %>
+            </section>
             <section aria-label="Website operations">
               <h2>Operations</h2>
               <nav class="website-index-operations">

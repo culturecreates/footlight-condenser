@@ -675,7 +675,8 @@ class Distillator::TransitionCheckTest < ActiveSupport::TestCase
         webpage: webpage,
         source: source,
         cache: cache,
-        status: "ok"
+        status: "ok",
+        selected_individual: true
       )
       Statement.where(webpage: webpage, source: source).update_all(status: "ok")
     end

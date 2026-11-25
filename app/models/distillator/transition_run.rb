@@ -103,7 +103,7 @@ module Distillator
       return false unless check_options.refresh_discovery? && !progress["skip_discovery_refresh"]
       return true if check_options.sample_mode == "all"
 
-      website.webpages.public_publishable_events.active.without_reviewed_transition_exclusions
+      website.webpages.public_source_urls.active.pages_of_publishable_events.without_reviewed_transition_exclusions
         .limit(check_options.sample_size + 1).count <= check_options.sample_size
     end
 

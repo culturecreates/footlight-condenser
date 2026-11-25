@@ -67,7 +67,7 @@ class DistillatorTransitionTaskTest < ActiveSupport::TestCase
     Distillator::TransitionCheck.expects(:call).with(website: website).returns(
       OpenStruct.new(fetch: :passed, statements: :passed, export: :passed, status: :ready))
     output, = capture_io { @check_task.invoke(website.id) }
-    assert_includes output, "All active publishable event pages"
+    assert_includes output, "All active public webpages of publishable events"
     assert_includes output, "Strict: differences in any selected field block activation"
   ensure
     previous&.each { |key, value| value ? ENV[key] = value : ENV.delete(key) }

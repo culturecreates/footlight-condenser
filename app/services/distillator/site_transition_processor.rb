@@ -111,7 +111,9 @@ module Distillator
               next
             end
             if requested_phase == "queued"
-              unless can_discover || website.webpages.public_publishable_events.active.without_reviewed_transition_exclusions.exists?
+              event_pages = website.webpages.event_pages.public_source_urls.active
+              candidates = TransitionCheckOptions.coerce(item.batch.check_options).event_resource_scope? ? event_pages.pages_of_publishable_events : event_pages.publishable
+              unless can_discover || candidates.without_reviewed_transition_exclusions.exists?
                 finish(item, website, "attention", "No active publishable event pages with public URLs are available.")
                 next
               end

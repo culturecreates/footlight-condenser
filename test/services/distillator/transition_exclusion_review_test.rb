@@ -144,7 +144,7 @@ class Distillator::TransitionExclusionReviewTest < ActiveSupport::TestCase
   def make_publishable(page)
     { four: "Public event", location: '[["Salle","uri:place"]]', six: [1.month.from_now.iso8601].to_json }.each do |property, cache|
       source = page.website.sources.create!(property: properties(property), language: "en", selected: true, algorithm_value: "manual=#{cache}")
-      statement = page.statements.create!(source: source, status: "ok", cache: cache)
+      statement = page.statements.create!(source: source, status: "ok", cache: cache, selected_individual: true)
       statement.update_column(:status, "ok")
     end
   end

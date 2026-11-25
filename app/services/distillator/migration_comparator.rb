@@ -82,6 +82,7 @@ module Distillator
       source_resolver: Statements::RefreshWebpageStatementsService,
       export_service: ExportArtsdataService,
       before_reconciliation: false,
+      individual_source_ids: [],
       stop_requested: nil
     )
       @website = website
@@ -100,6 +101,7 @@ module Distillator
       @source_resolver = source_resolver
       @export_service = export_service
       @before_reconciliation = before_reconciliation
+      @individual_source_ids = individual_source_ids
       @stop_requested = stop_requested
     end
 
@@ -186,7 +188,7 @@ module Distillator
 
     def resolved_sources
       candidates = sources.nil? ? source_resolver.sources_for_webpage(webpage, default_language: default_language) : Array(sources)
-      candidates.select(&:selected?)
+      candidates.select { |source| source.selected? || @individual_source_ids.include?(source.id) }
     end
 
     def compare_source(source)

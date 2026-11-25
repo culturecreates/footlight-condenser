@@ -9,7 +9,13 @@ json.array! @websites do |website|
   json.webpages pages[:total]
   json.event_pages pages[:by_class].fetch("Event")
   json.publishable_event_pages pages[:publishable]
-  json.publishable_event_percentage pages[:publishable_event_percentage]
+  json.publishable_event_percentage pages[:publishable_event_page_percentage]
+  json.publishable_event_page_percentage pages[:publishable_event_page_percentage]
+  json.event_resources pages[:event_resources]
+  json.publishable_event_resources pages[:publishable_event_resources]
+  json.publishable_event_resource_percentage pages[:publishable_event_resource_percentage]
+  json.event_languages pages[:event_languages]
+  json.fully_localized_event_resources pages[:fully_localized_event_resources]
   json.flags @flags[website[:seedurl]]
   json.updates @updated[website[:seedurl]]
   if @inventory_freshness

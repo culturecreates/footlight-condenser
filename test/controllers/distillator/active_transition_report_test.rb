@@ -229,7 +229,7 @@ class Distillator::ActiveTransitionReportTest < ActionDispatch::IntegrationTest
     run = Distillator::TransitionRun.request!(website: @website, options: { sample_mode: "all", strictness: "strict" }).run
     get distillator_shadow_report_site_path(@website)
     assert_response :success
-    assert_select '#latest-transition-check', text: /All active publishable event pages/
+    assert_select '#latest-transition-check', text: /All active public webpages of publishable events/
     assert_select '#latest-transition-check', text: /Strict: differences in any selected field block activation/
     assert_includes response.body, "Field comparison: Standard: core field differences block; other differences warn"
     assert_select 'strong', text: "Reviewed and accepted for this activation."

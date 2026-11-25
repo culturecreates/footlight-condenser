@@ -286,7 +286,8 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_select "thead a[href*='sort=event_pages_count']", text: /Event pages/
     assert_select "thead a[href*='sort=publishable_event_percentage']", text: /% Publishable/
     assert_select "tr.website-index-row a[href=?]", webpages_path(seedurl: website.seedurl, scope: "all", rdfs_class: "Event"), text: "2"
-    assert_select "tr.website-index-row a[href=?]", webpages_path(seedurl: website.seedurl, scope: "all", publishable: true), text: "50%"
+    assert_select "tr.website-index-row span[title='1 of 2 event resources publishable']", text: "50%"
+    assert_select "tr.website-index-detail-row a[href=?]", webpages_path(seedurl: website.seedurl, scope: "all", publishable: true), text: "1/2 publishable"
     assert_includes @response.body, "7 total"
     assert_includes @response.body, "4 public"
     assert_includes @response.body, "3 internal"
@@ -306,6 +307,35 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal({ "webpages" => 7, "event_pages" => 2, "publishable_event_pages" => 1, "publishable_event_percentage" => 50.0 },
       response.parsed_body.sole.slice("webpages", "event_pages", "publishable_event_pages", "publishable_event_percentage"))
+  end
+
+  test "dashboard counts one bilingual event while preserving independent page diagnostics" do
+    website = Website.create!(name: "Shared bilingual event", seedurl: "shared-bilingual-event", default_language: "fr",
+      graph_name: "https://example.org/shared-bilingual-event", preferred: true)
+    french = website.webpages.create!(url: "https://example.org/fr/event", language: "fr", rdf_uri: "urn:shared:event",
+      rdfs_class: rdfs_classes(:one))
+    english = website.webpages.create!(url: "https://example.org/en/event", language: "en", rdf_uri: french.rdf_uri,
+      rdfs_class: rdfs_classes(:one))
+    create_publishable_statements_for(french)
+    website.sources.find_by!(property: properties(:four)).update!(language: "fr")
+    translation = website.sources.create!(property: properties(:four), language: "en", selected: true, algorithm_value: "manual=English title")
+    english.statements.create!(source: translation, cache: "English title", status: "ok", selected_individual: true)
+
+    get websites_url, params: { q: website.name }
+    assert_response :success
+    assert_select "tr.website-index-row span[title='1 of 1 event resources publishable']", text: "100%"
+    assert_select "tr.website-index-detail-row dt", text: "Bilingual coverage"
+    assert_select "tr.website-index-detail-row dd", text: /100%.*1\/1 events with pages in EN \+ FR/m
+    assert_select "tr.website-index-detail-row dd", text: /1\/2 publishable.*50%/m
+
+    get websites_url(format: :json), params: { q: website.name }
+    assert_response :success
+    row = response.parsed_body.sole
+    assert_equal 50.0, row["publishable_event_page_percentage"]
+    assert_equal 100.0, row["publishable_event_resource_percentage"]
+    assert_equal 1, row["event_resources"]
+    assert_equal 1, row["publishable_event_resources"]
+    assert_equal 1, row["fully_localized_event_resources"]
   end
 
   test "event count and publishable percentage sort on Event pages with undefined percentages last" do
@@ -330,8 +360,8 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
       assert_response :success
       rows = Nokogiri::HTML(response.body).css("tr.website-index-row")
       assert_equal expected.map(&:id), rows.map { |row| row["data-website-id"].to_i }
-      assert_select "tr.website-index-row[data-website-id='#{person_only.id}'] span[title='No event pages']", text: "—"
-      assert_select "tr.website-index-row[data-website-id='#{blocked.id}'] a[title='0 of 2 event pages publishable']", text: "0%"
+      assert_select "tr.website-index-row[data-website-id='#{person_only.id}'] span[title='No event resources']", text: "—"
+      assert_select "tr.website-index-row[data-website-id='#{blocked.id}'] span[title='0 of 2 event resources publishable']", text: "0%"
     end
   end
 
@@ -1793,7 +1823,8 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
         webpage: webpage,
         source: source,
         cache: cache,
-        status: "ok"
+        status: "ok",
+        selected_individual: true
       )
       Statement.where(webpage: webpage, source: source).update_all(status: "ok")
     end

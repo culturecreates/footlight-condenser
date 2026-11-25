@@ -104,7 +104,7 @@
       <% end %>
       <details><summary>How validation and audit work</summary>
         <p>Both profiles can activate sites. Light randomly samples 20% of active publishable event pages (minimum 5, maximum 25, limited by availability), favoring pages checked least recently,
-          and uses Standard field comparison. Thorough checks all active publishable event pages with public URLs and uses Strict field comparison.</p>
+          and uses Standard field comparison. Thorough checks every active public webpage for each publishable event and uses Strict field comparison.</p>
         <p>Processes selected event sites one at a time. The Shadow check and the Active-path verification use the chosen profile.
           Failed verification returns the site to Shadow. Review-needed results stop for manual attention.</p>
         <p>Active audit always uses Thorough and reports findings without changing the serving mode. Select only Active sites for an audit.</p>

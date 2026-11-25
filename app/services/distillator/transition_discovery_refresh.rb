@@ -76,11 +76,15 @@ module Distillator
       urls = TransitionEventInventory.discovery_scope(lists.pluck(:webpage_id))
         .where(properties: { label: AddWebpagesJob::WEBPAGE_URL_LIST_LABEL })
         .where(selected_individual: true, sources: { selected: true }).pluck(:cache).flat_map { |cache| JSON.parse(cache) }
-      website.webpages.event_pages.active.without_reviewed_transition_exclusions.where(url: urls).not_publishable.ids
+      active_pages = website.webpages.event_pages.public_source_urls.active
+      publishable = active_pages.pages_of_publishable_events
+      eligible = active_pages.without_reviewed_transition_exclusions
+      incomplete = eligible.where(url: urls).where.not(id: publishable.select(:id))
+      eligible.where(rdf_uri: incomplete.select(:rdf_uri)).ids
     end
 
     def self.inventory(website, as_of: Time.current)
-      candidates = website.webpages.public_publishable_events.active(as_of).without_reviewed_transition_exclusions
+      candidates = website.webpages.public_source_urls.active(as_of).pages_of_publishable_events.without_reviewed_transition_exclusions
       TransitionEventInventory.new(as_of: as_of).for_websites([website.id], events: candidates).fetch(website.id)
     end
 

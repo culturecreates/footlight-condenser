@@ -108,7 +108,7 @@
           <%= label_tag "check_options_sample_mode", "Event sample" %>
           <%= select_tag "check_options[sample_mode]", options_for_select([
             ["Default sample (20%, minimum 5, maximum 25)", "default"],
-            ["Fixed number of pages", "count"], ["All active publishable event pages", "all"]
+            ["Fixed number of pages", "count"], ["All active public webpages of publishable events", "all"]
           ], check_options.sample_mode) %>
           <%= label_tag "check_options_sample_size", "Page count (Fixed number of pages only)" %>
           <%= number_field_tag "check_options[sample_size]", check_options.sample_size || 25,
@@ -121,7 +121,7 @@
             ["Strict: differences in any selected field block", "strict"]
           ], check_options.strictness) %>
         </p>
-        <p class="cache-page-note">Event sites are checked on active publishable event pages with public URLs.
+        <p class="cache-page-note">Full checks include each active public webpage for events that are publishable across their pages.
           Sites without Event pages or selected Event sources can check other website pages.</p>
         <p class="cache-page-note">Full-scope Strict checks refresh ResourceLists and import discovered events before selecting pages.</p>
         <%= submit_tag "Run transition batch check", class: "website-transition-button" %>

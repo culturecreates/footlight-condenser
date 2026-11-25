@@ -135,6 +135,7 @@ module Distillator
           representative_webpage_count: representative_count,
           candidate_webpage_count: candidate_count,
           publishable_event_page_count: publishable_count,
+          event_resource_scope: fetch_details["event_resource_scope"] == true,
           original_publishable_event_page_count: integer_detail(fetch_details, "original_publishable_event_page_count"),
           transition_exclusions: Array(fetch_details["transition_exclusions"]),
           event_inventory: fetch_details["event_inventory"].to_h,

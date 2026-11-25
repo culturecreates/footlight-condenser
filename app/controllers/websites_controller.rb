@@ -387,7 +387,7 @@ class WebsitesController < ApplicationController
         when "event_pages_count"
           pages[:by_class].fetch("Event")
         when "publishable_event_percentage"
-          pages[:publishable_event_percentage]
+          pages[:publishable_event_resource_percentage]
         when "statements_count"
           @statements_grouped[website.seedurl] || 0
         when "refreshed_24h"

@@ -843,6 +843,60 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal "confirmed_discovery", Distillator::WebsiteInventoryFreshness.for_websites([website.id]).dig(website.id, :status)
   end
 
+  test "Thorough verifies shared requirements on both language pages even when neither page is publishable alone" do
+    website = build_website
+    english = website.webpages.sole
+    french = website.webpages.create!(url: "https://runner-site.example/fr/event", language: "fr", rdf_uri: english.rdf_uri,
+      rdfs_class: english.rdfs_class)
+    [
+      [english, properties(:four), "xpath=//title/text()", "Translated title", true],
+      [french, properties(:location), "xpath=//p/text()", "Hall", false],
+      [french, properties(:six), "xpath=//time/text()", '["2027-01-01T20:00:00-05:00"]', true]
+    ].each do |page, property, algorithm, value, selected|
+      property.update!(value_datatype: "MyString")
+      source = website.sources.create!(property: property, language: page.language, algorithm_value: algorithm, selected: selected)
+      page.statements.create!(source: source, cache: value, status: "ok", selected_individual: true).update_columns(status: "ok")
+    end
+    assert_empty website.webpages.publishable
+
+    french_html = "<html><body><p>Hall</p><time>2027-01-01T20:00:00-05:00</time></body></html>"
+    english_html = "<html><head><title>Translated title</title></head></html>"
+    html = { english.url => english_html, french.url => french_html }
+    caches = html.to_h do |url, body|
+      cache = Distillator::FetchCache.find_by(normalized_url: url) ||
+        create_fetch_cache_for_url(url, signals: { "transport_success" => true, "content_success" => true })
+      cache.update!(html: body, body: body)
+      [url, cache]
+    end
+    opts = { sample_mode: "all", strictness: "strict" }
+    check = lambda do |legacy_html|
+      Distillator::TransitionCheckRunner.call(website: website, check_options: opts,
+        fetch_cache_store: FakeFetchCacheStore.new(caches.transform_values { |cache| fetch_result_for(cache: cache) }),
+        cache_compare: FakeCacheCompare.new(legacy_html.transform_values do |body|
+          { legacy_cache: { html: body }, legacy_lookup_status: "ok", summary: {}, missing: {} }
+        end),
+        export_service: FakeExportService.new(actual: '{"@id":"event:1"}', expected: '{"@id":"event:1"}'))
+    end
+
+    passed = check.call(html)
+    assert_equal true, passed.records[:fetch_parity].details["event_resource_scope"]
+    assert_equal [english.url, french.url].sort, passed.records[:fetch_parity].details["representative_webpages"].sort
+    assert_equal 2, passed.records[:statement_delta].details["compared_webpage_count"]
+    assert_equal "checked", passed.records[:statement_delta].status
+
+    failed = check.call(html.merge(english.url => english_html.sub("Translated title", "Outdated title")))
+    assert_equal "failed", failed.records[:statement_delta].status
+    failures = failed.records[:statement_delta].details["critical_failing_statements"]
+    assert_equal [[english.url, "Title"]], failures.map { |row| row.values_at("webpage_url", "property_label") }
+
+    missing_date = french_html.sub(/<time>.*?<\/time>/, "")
+    caches.fetch(french.url).update!(html: missing_date, body: missing_date)
+    failed = check.call(html.merge(french.url => missing_date))
+    assert_equal "failed", failed.records[:statement_delta].status
+    failures = failed.records[:statement_delta].details["critical_failing_statements"]
+    assert_equal [[french.url, "Dates"]], failures.map { |row| row.values_at("webpage_url", "property_label") }
+  end
+
   test "Thorough blocks when an event found in ResourceLists still lacks required statements" do
     website = build_website
     existing = website.webpages.sole
@@ -937,9 +991,9 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
 
   test "a fresh Wringer retry and body drift do not block matching strict statements and export" do
     website = build_website
-    mark_publishable(website.webpages.sole)
-    page = website.webpages.first
+    page = website.webpages.sole
     create_selected_statement(page, status: "ok")
+    mark_publishable(page)
     cache = Distillator::FetchCache.find_by!(normalized_url: page.url)
     cache.update!(http_response_code: 200)
     endpoint = Distillator::WringerEndpoint::Result.new(legacy_lookup_base_url: "https://legacy.example")
@@ -1113,15 +1167,12 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
   def mark_publishable(page)
     ensure_required_sources(page)
     sources = page.website.sources.joins(:property).where(properties: { label: %w[Title Dates Location] })
-    sources.each do |source|
-      label = source.property.label
-      cache = label == "Dates" ? [1.month.from_now.iso8601].to_json : "Required #{label}"
-      statement = page.statements.find_or_initialize_by(source: source)
-      next if statement.persisted?
+    stored_labels = page.statements.where(selected_individual: true).joins(source: :property).pluck("properties.label")
+    sources.index_by { |source| source.property.label }.each do |label, source|
+      next if stored_labels.include?(label)
 
-      statement.assign_attributes(cache: cache, status: "ok")
-      statement.save!
-      statement.update_column(:status, "ok")
+      cache = label == "Dates" ? [1.month.from_now.iso8601].to_json : "Required #{label}"
+      page.statements.create!(source: source, cache: cache, status: "ok", selected_individual: true).update_column(:status, "ok")
     end
   end
 

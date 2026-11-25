@@ -11,7 +11,7 @@ class Distillator::TransitionExclusionsControllerTest < ActionDispatch::Integrat
     { "Title" => ["title", "Event"], "Location" => ["address", "Hall"], "Dates" => ["time", "2027-01-01"] }.each do |label, (tag, value)|
       property = Property.create!(label: label, rdfs_class: rdfs_classes(:one), uri: "https://example.org/property/#{label}", value_datatype: "MyString")
       source = @website.sources.create!(property: property, language: "en", selected: true, algorithm_value: "xpath=//#{tag}/text()")
-      @pages.each { |page| Statement.create!(webpage: page, source: source, cache: value, status: "ok") }
+      @pages.each { |page| Statement.create!(webpage: page, source: source, cache: value, status: "ok", selected_individual: true) }
     end
     Statement.where(webpage: @pages).update_all(status: "ok")
     @gone = @pages.last

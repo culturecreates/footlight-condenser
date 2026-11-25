@@ -146,6 +146,9 @@ module Distillator
         transition_run.record_discovery_at_start!(check_args.fetch(:scope_at))
       end
       representative_webpages = Array(transition_check.representative_webpages)
+      @required_event_fields = if @check_options.event_resource_scope?
+        Events::ResourcePublishability.required_fields_by_page(representative_webpages)
+      end
       if transition_run.resumable? && (representative_webpages.length > CHECKPOINT_BATCH_SIZE || transition_run.transition_checkpoints.exists?)
         return perform_checkpoint_batch(transition_check, representative_webpages, started)
       end
@@ -165,7 +168,7 @@ module Distillator
       scope = Digest::SHA256.hexdigest(JSON.generate([
         ENV["HEROKU_RELEASE_VERSION"] || ENV["SOURCE_VERSION"] || Digest::SHA256.file(__FILE__).hexdigest,
         transition_run.configuration_digest, website.distillator_mode, @verify_active_path, @require_native_path,
-        check.comparison_policy, webpages.map { |page| [page.id, page.url] }, inventory_details(check),
+        check.comparison_policy, webpages.map { |page| [page.id, page.url] }, inventory_details(check), @required_event_fields,
         DslLibraryEntry.order(:id).pluck(:name, :body, :revision, :aliases),
         WringerEndpoint.current.legacy_lookup_base_url
       ]))
@@ -353,7 +356,8 @@ module Distillator
       StatementParityCheck.call(website: website, webpages: webpages,
         url_results: inputs, refresh_helper: refresh_helper, comparator: statement_comparator,
         strict: @check_options.strict?, stop_requested: method(:comparison_stop_requested?), compact_evidence: true,
-        snapshot_reader: method(:read_html_pair), source_lookup: method(:selected_sources_for),
+        snapshot_reader: method(:read_html_pair), source_lookup: method(:applicable_sources_for),
+        required_event_fields: @required_event_fields,
         progress: ->(completed, _, timings) { record_page_progress("statements", offset + completed, total, timings: timings) unless completed.zero? })
     end
 
@@ -627,6 +631,7 @@ module Distillator
         transition_exclusions: transition_check.respond_to?(:transition_exclusions) ? Array(transition_check.transition_exclusions) : [],
         selected_candidate_tier_count: transition_check.selected_candidate_tier_count,
         selection_rule: transition_check.selection_rule,
+        event_resource_scope: !@required_event_fields.nil?,
         check_options: @check_options.to_h,
         dsl_contract_version: Dsl::Core::AlgorithmRunner::CONTRACT_VERSION,
         fetch_basis: "fresh_both",
@@ -682,10 +687,6 @@ module Distillator
       )
 
       build_representative_url_result(webpage, fetch_result, comparison)
-    end
-
-    def selected_sources_for(webpage)
-      applicable_sources_for(webpage).select(&:selected?)
     end
 
     def applicable_sources_for(webpage)

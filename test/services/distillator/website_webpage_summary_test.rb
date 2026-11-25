@@ -35,14 +35,58 @@ class Distillator::WebsiteWebpageSummaryTest < ActiveSupport::TestCase
     assert_equal 1, summaries.fetch(website_a.id)[:by_class]["WebPage"]
     assert_equal 2, summaries.fetch(website_a.id)[:by_class]["Other"]
     assert_equal 1, summaries.fetch(website_a.id)[:publishable]
-    assert_equal 50.0, summaries.fetch(website_a.id)[:publishable_event_percentage]
+    assert_equal 50.0, summaries.fetch(website_a.id)[:publishable_event_resource_percentage]
     assert_equal 7, summaries.fetch(website_a.id)[:not_publishable]
 
     assert_equal 1, summaries.fetch(website_b.id)[:total]
     assert_equal 0, summaries.fetch(website_b.id)[:by_class]["Event"]
     assert_equal 0, summaries.fetch(website_b.id)[:publishable]
-    assert_nil summaries.fetch(website_b.id)[:publishable_event_percentage]
+    assert_nil summaries.fetch(website_b.id)[:publishable_event_resource_percentage]
     assert_equal 1, summaries.fetch(website_b.id)[:not_publishable]
+  end
+
+  test "language coverage uses each website's event languages and counts each resource once" do
+    website = build_website("summary-languages")
+    event_class = rdfs_classes(:one)
+    %w[en fr es].each do |language|
+      website.webpages.create!(url: "https://example.org/#{language}/first", rdf_uri: "urn:shared-event",
+        language: language, rdfs_class: event_class)
+    end
+    website.webpages.create!(url: "https://example.org/en/duplicate", rdf_uri: "urn:shared-event",
+      language: "en", rdfs_class: event_class)
+    website.webpages.create!(url: "https://example.org/en/second", rdf_uri: "urn:second-event",
+      language: "en", rdfs_class: event_class)
+    other_website = build_website("summary-other")
+    page = other_website.webpages.create!(url: "https://other.example.org/event", rdf_uri: "urn:shared-event",
+      language: "en", rdfs_class: event_class)
+    create_publishable_statements_for(page)
+
+    summaries = Distillator::WebsiteWebpageSummary.for_websites([website.id, other_website.id])
+    summary = summaries.fetch(website.id)
+    assert_equal %w[en es fr], summary[:event_languages]
+    assert_equal 2, summary[:event_resources]
+    assert_equal 1, summary[:fully_localized_event_resources]
+    assert_equal 0, summary[:publishable_event_resources]
+    assert_equal 1, summaries.fetch(other_website.id)[:publishable_event_resources]
+    assert_nil summaries.fetch(other_website.id)[:fully_localized_event_resources]
+  end
+
+  test "an unselected value cannot complete an event and conflicting selected values do not resolve it" do
+    website = build_website("summary-selection")
+    first = website.webpages.create!(url: "https://example.org/primary", rdf_uri: "urn:selection", language: "en", rdfs_class: rdfs_classes(:one))
+    second = website.webpages.create!(url: "https://example.org/translation", rdf_uri: first.rdf_uri, language: "fr", rdfs_class: first.rdfs_class)
+    create_publishable_statements_for(first)
+    title = first.statements.joins(source: :property).find_by!(properties: { label: "Title" })
+    title.update_column(:selected_individual, false)
+    counts = -> { Distillator::WebsiteWebpageSummary.for_websites([website.id]).fetch(website.id) }
+    assert_equal 0, counts.call[:publishable_event_resources]
+    assert_equal 1, counts.call[:publishable]
+
+    first.statements.find(title.id).update_column(:selected_individual, true)
+    duplicate = second.statements.create!(source: title.source, cache: "Other title", status: "ok", selected_individual: true)
+    assert_equal 0, counts.call[:publishable_event_resources]
+    duplicate.update_column(:selected_individual, false)
+    assert_equal 1, counts.call[:publishable_event_resources]
   end
 
   private
@@ -84,7 +128,8 @@ class Distillator::WebsiteWebpageSummaryTest < ActiveSupport::TestCase
         webpage: webpage,
         source: source,
         cache: cache,
-        status: "ok"
+        status: "ok",
+        selected_individual: true
       )
       Statement.where(webpage: webpage, source: source).update_all(status: "ok")
     end

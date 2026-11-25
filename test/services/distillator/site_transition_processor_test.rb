@@ -537,8 +537,8 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     { "Title" => "title", "Location" => "address", "Dates" => "time" }.each do |label, tag|
       property = Property.create!(label: label, uri: "https://example.org/property/#{label}", value_datatype: "MyString", rdfs_class: rdfs_classes(:one))
       source = @website.sources.create!(property: property, language: "en", selected: true, algorithm_value: "xpath=//#{tag}/text()")
-      Statement.create!(webpage: page, source: source, cache: "2027-01-01", status: "ok")
-      Statement.create!(webpage: archived, source: source, cache: "2026-10-01", status: "ok")
+      Statement.create!(webpage: page, source: source, cache: "2027-01-01", status: "ok", selected_individual: true)
+      Statement.create!(webpage: archived, source: source, cache: "2026-10-01", status: "ok", selected_individual: true)
     end
     Statement.where(webpage: [page, archived]).update_all(status: "ok")
     assert @website.webpages.publishable.where(id: archived.id).exists?
@@ -594,7 +594,7 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
     page = website.webpages.create!(url: "https://example.org/#{seed}/event", rdf_uri: "rdf:#{seed}", rdfs_class: rdfs_classes(:one), language: "en")
     { four: "Current event", location: '[["Salle","uri:place"]]', six: [1.month.from_now.iso8601].to_json }.each do |property, value|
       source = website.sources.create!(property: properties(property), language: "en", selected: true, algorithm_value: "manual=#{value}")
-      statement = page.statements.create!(source: source, status: "ok", cache: value)
+      statement = page.statements.create!(source: source, status: "ok", cache: value, selected_individual: true)
       statement.update_column(:status, "ok")
     end
     website
