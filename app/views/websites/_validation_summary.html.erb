@@ -17,7 +17,7 @@
          pass_path = pass.workflow ? distillator_site_transition_path(pass.workflow) : distillator_shadow_report_site_path(website, run_id: pass.site_check.id) %>
       <small>Last pass <%= link_to "#{(pass.profile || 'custom').humanize} · #{l(pass.completed_at.to_date, format: :long)}", pass_path %></small>
     <% end %>
-    <% if validation.eligible.positive? %>
+    <% if !validation.cutover && validation.eligible.positive? %>
       <small title="Distinct currently eligible pages covered by successful validations using matching page and extraction settings"><%= validation.covered %>/<%= validation.eligible %> covered (<%= number_to_percentage(100.0 * validation.covered / validation.eligible, precision: 0) %>)</small>
     <% end %>
     <% if validation.changed %><small>Configuration changed since pass</small><% end %>
@@ -25,6 +25,13 @@
   <% elsif @transition_eligible_ids.include?(website.id) || validation.last_validation || validation.attention || validation.audit.positive? %>
     <span>No validation pass</span>
   <% else %>—
+  <% end %>
+  <% if (cutover = validation.cutover) %>
+    <small>
+      <% label = cutover.event ? "Condenser cutover · #{l(cutover.completed_at.in_time_zone.to_date, format: :long)}" : "Migration recorded" %>
+      <%= link_to label, website_path(website, anchor: "website-rollout-history") %>
+    </small>
+    <% unless validation.migration_baseline %><small>No recorded Thorough coverage</small><% end %>
   <% end %>
   <% if validation.audit.positive? %>
     <small><%= link_to "Active audit #{validation.audit}×", website_path(website, validation_profile: "audit", anchor: "website-validation-history") %></small>

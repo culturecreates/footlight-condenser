@@ -22,7 +22,8 @@ module Distillator
     def activation
       return @activation if defined?(@activation)
 
-      latest = website.rollout_events.order(created_at: :desc, id: :desc).first
+      latest = website.rollout_events.where("readiness_snapshot ->> 'event' IS DISTINCT FROM ?", VerifiedCutover::EVENT)
+        .order(created_at: :desc, id: :desc).first
       @activation = website.distillator_mode == "active" && latest&.to_mode == "active" ? latest : nil
     end
 
@@ -32,6 +33,7 @@ module Distillator
     end
 
     def self.event_label(event)
+      return "Production cutover confirmed" if event.readiness_snapshot["event"] == VerifiedCutover::EVENT
       return "Rolled back to Legacy Wringer" if event.from_mode == "active" && event.to_mode == "legacy"
       return "Returned to Shadow (Wringer)" if event.from_mode == "active" && event.to_mode == "shadow"
       return "Activated after review" if event.to_mode == "active" && reviewed?(event)

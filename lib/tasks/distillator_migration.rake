@@ -13,4 +13,18 @@ namespace :distillator do
       puts " - #{file}"
     end
   end
+
+  desc "Record a completed production handoff using WEBSITE_ID, CUTOVER_AT, OPERATOR and EVIDENCE"
+  task confirm_cutover: :environment do
+    website = Website.find(ENV.fetch("WEBSITE_ID"))
+    event = Distillator::VerifiedCutover.confirm!(
+      website: website,
+      completed_at: Time.iso8601(ENV.fetch("CUTOVER_AT")),
+      actor: ENV.fetch("OPERATOR").strip,
+      evidence: ENV.fetch("EVIDENCE").strip
+    )
+    puts "Recorded Condenser cutover for #{website.seedurl} (rollout event ##{event.id})."
+  rescue KeyError, ArgumentError => error
+    abort error.message
+  end
 end

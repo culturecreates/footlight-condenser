@@ -111,16 +111,31 @@ titles separately.
 
 ## Migration validation history
 
-Run `bin/rails db:migrate` before starting the new web and worker code. The
-migration saves baselines for existing Active, operationally scheduled websites
-whose available evidence still meets the Migrated threshold. An old dashboard
-badge was computed live, so a site whose historical qualification can no longer
-be established needs a fresh qualifying validation before a baseline can be
-recorded.
+Run `bin/rails db:migrate` before starting the new web and worker code. Recording
+a Condenser cutover saves the original Thorough snapshot when available.
+Existing migration baselines remain valid for their Active rollout.
 
-The Migrated badge uses saved Thorough evidence while Condenser serves the
-website. Its coverage is the set of eligible pages validated when the evidence
-was recorded. A changed configuration or page inventory can show Validation
-stale without altering that evidence. Current ResourceList freshness and failed
-validation reports appear alongside the baseline. A new qualifying Thorough
-validation appends a baseline. Previous entries remain in Validation history.
+Ready requires current validation evidence. Once Condenser has taken over
+production, an operator can record the completed handoff in the site's rollout
+history. A validation workflow can move a site to Active and establish Ready.
+The production handoff is a separate action.
+
+Record an already completed handoff using the actual timestamp and a reference
+to the deployment or handoff record:
+
+```sh
+WEBSITE_ID=123 CUTOVER_AT='2026-11-25T14:30:00-05:00' \
+  OPERATOR='Operator name' EVIDENCE='Production handoff ticket or deployment reference' \
+  bin/rails distillator:confirm_cutover
+```
+
+Recording the handoff does not run a check or change serving mode or scheduling.
+The active site appears as Migrated, with its original Thorough coverage if
+available. A subsequent rollback changes the displayed serving state while
+retaining the migration history.
+
+The dashboard shows the covered and eligible page counts saved with the
+Thorough validation. Configuration and inventory changes can show Validation
+stale. Current ResourceList freshness and failed validation reports appear
+alongside it. A qualifying revalidation appends a new baseline, and previous
+entries remain in Validation history.

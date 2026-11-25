@@ -147,7 +147,8 @@ module Distillator
     end
 
     def migrated?(website)
-      MigrationBaseline.exists?(website_id: website.id)
+      baselines = MigrationBaseline.latest_for_websites([website.id])
+      VerifiedCutover.for_websites([website.id], baselines: baselines).key?(website.id)
     end
 
     def finish_phase(item, token, run)
@@ -190,7 +191,7 @@ module Distillator
             "Active-path verification passed."
           end
           finish(item, website, "passed", reason)
-          if item.batch.check_profile == "thorough" && !item.batch.audit?
+          if item.batch.check_profile == "thorough" && item.phase_results["retained_active"] && !item.batch.audit?
             MigrationBaseline.capture!(website, validation_run_id: run.id)
           end
         end

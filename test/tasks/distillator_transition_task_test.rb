@@ -15,6 +15,31 @@ class DistillatorTransitionTaskTest < ActiveSupport::TestCase
     @preflight_task.reenable
   end
 
+  test "operator can record a production cutover without running validation or changing serving mode" do
+    website = websites(:two)
+    website.update_column(:distillator_mode, "active")
+    values = { "WEBSITE_ID" => website.id.to_s, "CUTOVER_AT" => 1.day.ago.iso8601,
+      "OPERATOR" => "Test operator", "EVIDENCE" => "Deployment 42" }
+    previous = values.keys.to_h { |key| [key, ENV[key]] }
+    ENV.update(values)
+    task = Rake::Task["distillator:confirm_cutover"]
+    task.reenable
+
+    assert_no_difference "Distillator::TransitionRun.count" do
+      assert_difference "Distillator::RolloutEvent.count", 1 do
+        capture_io { task.invoke }
+      end
+    end
+
+    cutover = Distillator::VerifiedCutover.for_websites([website.id]).fetch(website.id)
+    assert_equal Time.iso8601(values.fetch("CUTOVER_AT")), cutover.completed_at
+    assert_equal "Test operator", cutover.event.actor
+    assert_equal "Deployment 42", cutover.event.reason
+    assert_equal "active", website.reload.distillator_mode
+  ensure
+    previous&.each { |key, value| value ? ENV[key] = value : ENV.delete(key) }
+  end
+
   test "task prints operator facing check summary and detail path" do
     website = Website.create!(
       name: "Task runner site",

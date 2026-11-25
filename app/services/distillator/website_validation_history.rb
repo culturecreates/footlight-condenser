@@ -11,11 +11,10 @@ module Distillator
     }.freeze
 
     READY_THOROUGH_PASSES = 1
-    MIGRATED_THOROUGH_PASSES = 2
     Pass = Struct.new(:profile, :completed_at, :runs, :workflow, :site_check, keyword_init: true)
 
     Summary = Struct.new(:light, :thorough, :audit, :last_pass, :last_validation, :changed, :covered, :eligible, :milestone,
-      :milestone_blocker, :attention, :migration_baseline, :migration_candidate, keyword_init: true) do
+      :milestone_blocker, :attention, :cutover, :cutover_snapshot, :migration_baseline, :migration_candidate, keyword_init: true) do
       def matches?(filter)
         case filter
         when "never_passed" then last_pass.nil?
@@ -59,6 +58,7 @@ module Distillator
 
     def self.for_websites(websites, inventories: {})
       baselines = MigrationBaseline.latest_for_websites(websites.map(&:id))
+      cutovers = VerifiedCutover.for_websites(websites.select { |website| website.distillator_mode == "active" }.map(&:id), baselines: baselines)
       items = workflows(websites.map(&:id)).where(status: SiteTransition::TERMINAL).to_a.group_by(&:website_id)
       validations = items.transform_values { |rows| rows.reject { |row| row.batch.audit? } }
       passes = validations.transform_values do |rows|
@@ -83,7 +83,7 @@ module Distillator
         .pluck(:transition_run_id, Arel.sql("details ->> 'compared_webpage_count'")).to_h
       exports = TransitionEvidence.where(transition_run_id: run_ids, check_kind: "export_diff", status: "checked",
         export_diff_checked: true).pluck(:transition_run_id).to_set
-      scope_ids = passes.keys.select { |id| passes[id].any? } | baselines.keys
+      scope_ids = passes.keys.select { |id| passes[id].any? } | baselines.keys | cutovers.keys
       eligible_pages = Webpage.public_source_urls.active.where(website_id: scope_ids)
         .pages_of_publishable_events.without_reviewed_transition_exclusions.group_by(&:website_id)
       library_version = TransitionFingerprint.library_version if scope_ids.any?
@@ -99,7 +99,8 @@ module Distillator
         baseline = baselines[website.id]
         serving_condenser = website.distillator_mode == "active" &&
           FetchMode.rollout_resolution_object(website: website).active_backend == :condenser
-        if last || baseline
+        summary.cutover = cutovers[website.id] if serving_condenser
+        if last || baseline || summary.cutover
           pages = eligible_pages.fetch(website.id, [])
           current_digest, configuration = TransitionFingerprint.for_validation_history(website, library_version: library_version)
           page_digests = pages.to_h { |page| [page.id.to_s, TransitionFingerprint.event_page(page)] }
@@ -122,19 +123,24 @@ module Distillator
             end
             complete = thorough.select { |pass| pass.completed_at && summary.eligible.positive? && coverage.fetch(pass).size == summary.eligible }
             summary.milestone, summary.milestone_blocker = milestone(inventories[website.id], thorough.size, complete.size)
-            threshold = baseline ? READY_THOROUGH_PASSES : MIGRATED_THOROUGH_PASSES
-            if summary.milestone == "ready" && (baseline || website.refresh_scheduled?) && complete.size >= threshold
-              pass = complete.max_by { |candidate| [candidate.completed_at, candidate.runs.last.id] }
-              thorough_passes = [summary.thorough, baseline&.thorough_passes.to_i].max
-              summary.migration_candidate = migration_snapshot(pass, evidence, thorough_passes)
+            if summary.cutover && summary.milestone == "ready"
+              revalidation = complete.select { |pass| pass.completed_at >= summary.cutover.completed_at }
+                .max_by { |pass| [pass.completed_at, pass.runs.last.id] }
             end
           end
-          if baseline && serving_condenser
+          if summary.cutover
+            summary.cutover_snapshot = historical_snapshot(summary.cutover, passed, evidence) unless baseline
+            baseline ||= MigrationBaseline.new(summary.cutover_snapshot) if summary.cutover_snapshot
             summary.migration_baseline = baseline
             summary.milestone = "migrated"
             summary.milestone_blocker = nil
-            summary.thorough = [summary.thorough, baseline.thorough_passes].max
-            summary.changed = baseline.configuration_fingerprint != configuration || baseline.page_fingerprints != page_digests
+            summary.migration_candidate = if revalidation
+              migration_snapshot(revalidation, evidence, [summary.thorough, baseline&.thorough_passes.to_i].max)
+            end
+            if baseline
+              summary.thorough = [summary.thorough, baseline.thorough_passes].max
+              summary.changed = baseline.configuration_fingerprint != configuration || baseline.page_fingerprints != page_digests
+            end
           elsif (run = last&.runs&.last || last&.workflow&.post_run || last&.workflow&.pre_run)
             recorded_configuration = evidence.dig(run.id, 0, "configuration")
             summary.changed = run.configuration_digest != current_digest ||
@@ -145,11 +151,25 @@ module Distillator
       end
     end
 
+    def self.historical_snapshot(cutover, passes, evidence)
+      at = cutover.completed_at
+      thorough = passes.select { |pass| pass.profile == "thorough" && pass.completed_at && pass.completed_at <= at }
+      last = thorough.select do |pass|
+        pass.runs.any? && pass.runs.all? do |run|
+          snapshot, _, fetch_basis, checked, eligible, inventory_status = evidence[run.id]
+          run.status == "completed" && run.completed_at && run.completed_at <= at &&
+            fetch_basis == "fresh_both" && inventory_status == "active_event_scope" &&
+            checked.to_i.positive? && eligible.to_i >= checked.to_i &&
+            snapshot&.dig("configuration").present? && snapshot["pages"].is_a?(Hash) && snapshot["pages"].size == checked.to_i
+        end
+      end.max_by { |pass| [pass.completed_at, pass.runs.last.id] }
+      migration_snapshot(last, evidence, thorough.size) if last
+    end
+
     def self.migration_snapshot(pass, evidence, thorough_passes)
       run = pass.runs.last
       snapshot, _, _, _, eligible = evidence.fetch(run.id)
-      # A site can qualify after an older event archives. Retain the original
-      # scope from the successful check, including any pages now archived.
+      # Freeze the recorded scope, including any pages that have since archived.
       covered = snapshot.fetch("pages")
       pass.runs[0...-1].each do |phase|
         earlier = evidence.fetch(phase.id).first.fetch("pages")
@@ -236,6 +256,6 @@ module Distillator
         []
       end
     end
-    private_class_method :standalone_checks, :site_check_profile, :milestone, :qualifying_run?, :latest_attention, :coverage_runs, :covered_pages, :migration_snapshot
+    private_class_method :standalone_checks, :site_check_profile, :milestone, :qualifying_run?, :latest_attention, :coverage_runs, :covered_pages, :migration_snapshot, :historical_snapshot
   end
 end

@@ -224,15 +224,36 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     assert_select "#{row} .website-state-badge", text: "Ready"
     assert_select "#{row} a", text: "Thorough 1×"
 
-    completed = complete_site_check(event, prepared: true)
+    completed = travel(1.minute) { complete_site_check(event, prepared: true) }
+    travel 2.minutes
     get websites_path
     assert_select "#{row} .website-state-badge", text: "Ready"
     assert_select "#{row} a", text: "Thorough 2×"
     assert_empty Distillator::MigrationBaseline.where(website: @two)
 
+    @two.update!(schedule_time: Time.zone.parse("08:00"), last_refresh: 1.day.ago)
+    get websites_path
+    assert_select "#{row} .website-state-badge", text: "Ready"
+    assert_empty Distillator::MigrationBaseline.where(website: @two)
+
+    cutover_at = Time.current
+    @two.sources.find_by!(property: properties(:four)).update!(algorithm_value: "manual=Changed since cutover")
     assert_difference "Distillator::MigrationBaseline.count", 1 do
-      @two.update!(schedule_time: Time.zone.parse("08:00"), last_refresh: 1.day.ago)
+      assert_difference "Distillator::RolloutEvent.count", 1 do
+        2.times do
+          Distillator::VerifiedCutover.confirm!(website: @two, completed_at: cutover_at, actor: "operator",
+            evidence: "Production handoff for Vieux Noranda")
+        end
+      end
     end
+    assert_no_difference "Distillator::MigrationBaseline.count" do
+      get websites_path, params: { validation: "migrated" }
+    end
+    assert_select "#{row} .website-state-badge", text: "Migrated"
+    assert_select "#{row} a[href='#{website_path(@two, anchor: "website-rollout-history")}']", text: /Condenser cutover/
+    assert_select "#{row} small", text: "Validation stale"
+    assert_select "#{row} small", text: "1/1 pages in migration baseline"
+
     baseline = Distillator::MigrationBaseline.where(website: @two).sole
     original = baseline.attributes
     assert_equal completed.id, baseline.validation_run_id
@@ -304,17 +325,18 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
       language: "en", rdfs_class: rdfs_classes(:one))
     [event, another].each { |page| make_publishable(page) }
     create_verified_resource_list(event)
-    first, last = Array.new(2) { complete_site_check(event, pages: [event, another], eligible: 2, prepared: true) }
+    last = complete_site_check(event, pages: [event, another], eligible: 2, prepared: true)
     assert_empty Distillator::MigrationBaseline.where(website: @two)
 
     another.update_column(:archive_date, 1.day.ago)
-    @two.update_columns(schedule_time: Time.zone.parse("08:00"), last_refresh: 1.day.ago)
+    @two.rollout_events.create!(from_mode: "active", to_mode: "active", actor: "operator", reason: "Documented production handoff",
+      readiness_snapshot: { event: Distillator::VerifiedCutover::EVENT, completed_at: Time.current.iso8601(6) })
     assert_difference "Distillator::MigrationBaseline.count", 1 do
       2.times { Distillator::MigrationBaseline.capture!(@two) }
     end
     baseline = Distillator::MigrationBaseline.where(website: @two).sole
     assert_equal last.id, baseline.validation_run_id
-    assert_operator baseline.validation_run_id, :>, first.id
+    assert_equal 1, baseline.thorough_passes
     assert_equal 2, baseline.covered_pages
     assert_equal 2, baseline.eligible_pages
     get websites_path, params: { validation: "migrated" }

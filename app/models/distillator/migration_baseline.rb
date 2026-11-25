@@ -17,18 +17,18 @@ module Distillator
     end
 
     def self.capture!(website, validation_run_id: nil)
-      return unless website.distillator_mode == "active" && (website.refresh_scheduled? || validation_run_id)
+      return unless website.distillator_mode == "active"
 
       website.with_lock do
         return unless website.distillator_mode == "active"
 
         previous = where(website_id: website.id).latest_first.first
-        return unless previous || website.refresh_scheduled?
         return if previous && !validation_run_id
-        return if !validation_run_id && SiteTransition.active.exists?(website_id: website.id)
+        return unless VerifiedCutover.for_websites([website.id], baselines: { website.id => previous }).key?(website.id)
 
         inventories = WebsiteInventoryFreshness.for_websites([website.id])
-        candidate = WebsiteValidationHistory.for_websites([website], inventories: inventories).fetch(website.id).migration_candidate
+        summary = WebsiteValidationHistory.for_websites([website], inventories: inventories).fetch(website.id)
+        candidate = validation_run_id ? summary.migration_candidate : summary.cutover_snapshot
         return unless candidate
         return if validation_run_id && candidate[:validation_run_id] != validation_run_id
         if previous
