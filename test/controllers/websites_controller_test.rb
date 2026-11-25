@@ -309,7 +309,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
       response.parsed_body.sole.slice("webpages", "event_pages", "publishable_event_pages", "publishable_event_percentage"))
   end
 
-  test "dashboard counts one bilingual event while preserving independent page diagnostics" do
+  test "a French title can make a bilingual event publishable while its English title needs attention" do
     website = Website.create!(name: "Shared bilingual event", seedurl: "shared-bilingual-event", default_language: "fr",
       graph_name: "https://example.org/shared-bilingual-event", preferred: true)
     french = website.webpages.create!(url: "https://example.org/fr/event", language: "fr", rdf_uri: "urn:shared:event",
@@ -320,12 +320,15 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     website.sources.find_by!(property: properties(:four)).update!(language: "fr")
     translation = website.sources.create!(property: properties(:four), language: "en", selected: true, algorithm_value: "manual=English title")
     english.statements.create!(source: translation, cache: "English title", status: "ok", selected_individual: true)
+      .update_columns(cache: nil, status: "problem")
 
     get websites_url, params: { q: website.name }
     assert_response :success
     assert_select "tr.website-index-row span[title='1 of 1 event resources publishable']", text: "100%"
     assert_select "tr.website-index-detail-row dt", text: "Bilingual coverage"
     assert_select "tr.website-index-detail-row dd", text: /100%.*1\/1 events with pages in EN \+ FR/m
+    assert_select "tr.website-index-detail-row dd", text: "1/1 events without a usable EN title"
+    assert_select "tr.website-index-detail-row dd", text: /without a usable FR title/, count: 0
     assert_select "tr.website-index-detail-row dd", text: /1\/2 publishable.*50%/m
 
     get websites_url(format: :json), params: { q: website.name }

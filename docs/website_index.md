@@ -103,3 +103,24 @@ One site opens its own report; multiple sites open a group report. Recent
 transitions provides paginated access to running and finished work. See
 `distillator_transition_workflows.md` for progress, timing, failure recovery and
 the required migration.
+
+The Publishable percentage counts unique Event resources. One usable title in
+any language is enough when the event also has dates and a physical or virtual
+location. Bilingual page coverage counts URLs. Details lists unusable localized
+titles separately.
+
+## Migration validation history
+
+Run `bin/rails db:migrate` before starting the new web and worker code. The
+migration saves baselines for existing Active, operationally scheduled websites
+whose available evidence still meets the Migrated threshold. An old dashboard
+badge was computed live, so a site whose historical qualification can no longer
+be established needs a fresh qualifying validation before a baseline can be
+recorded.
+
+The Migrated badge uses saved Thorough evidence while Condenser serves the
+website. Its coverage is the set of eligible pages validated when the evidence
+was recorded. A changed configuration or page inventory can show Validation
+stale without altering that evidence. Current ResourceList freshness and failed
+validation reports appear alongside the baseline. A new qualifying Thorough
+validation appends a baseline. Previous entries remain in Validation history.

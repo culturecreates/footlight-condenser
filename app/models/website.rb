@@ -22,6 +22,7 @@ class Website < ApplicationRecord
 
   before_save :default_values
   before_validation :auto_set_monitorable
+  after_save :capture_migration_baseline, if: :migration_prerequisites_changed?
 
   def default_values
     self.default_language ||= 'en'
@@ -101,6 +102,15 @@ class Website < ApplicationRecord
   end
 
   private
+
+  def migration_prerequisites_changed?
+    saved_change_to_distillator_mode? || saved_change_to_schedule_every_days? || saved_change_to_schedule_time? ||
+      (saved_change_to_last_refresh? && last_refresh_before_last_save.nil?)
+  end
+
+  def capture_migration_baseline
+    Distillator::MigrationBaseline.capture!(self)
+  end
 
   def auto_set_monitorable
     self.monitorable = false if monitoring_excluded?

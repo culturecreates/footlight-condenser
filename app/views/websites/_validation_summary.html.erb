@@ -1,5 +1,13 @@
 <div class="website-validation-summary">
-  <% if validation.last_pass %>
+  <% if (baseline = validation.migration_baseline) %>
+    <%= link_to "Thorough #{baseline.thorough_passes}×", website_path(website, validation_profile: "thorough", anchor: "website-validation-history") %>
+    <small>Last Thorough pass
+      <% date = l(baseline.validated_at.in_time_zone.to_date, format: :long) %>
+      <%= baseline.validation_run ? link_to(date, distillator_shadow_report_site_path(website, run_id: baseline.validation_run_id)) : date %>
+    </small>
+    <small><%= baseline.covered_pages %>/<%= baseline.eligible_pages %> pages in migration baseline</small>
+    <% if validation.changed %><small>Validation stale</small><% end %>
+  <% elsif validation.last_pass %>
     <% { "light" => validation.light, "thorough" => validation.thorough }.each do |profile, count| %>
       <% label = "#{profile.humanize} #{count}×" %>
       <%= count.positive? ? link_to(label, website_path(website, validation_profile: profile, anchor: "website-validation-history")) : tag.span(label) %>

@@ -10,16 +10,16 @@ module Events
     end
 
     def publishable_resources
-      fields = selected_fields
-        .group("webpages.website_id", "webpages.rdf_uri", "properties.label", Arel.sql(SOURCE_LANGUAGE_SQL))
-        .having("COUNT(*) = 1 AND BOOL_AND(#{usable_value_sql})", Webpage::PUBLISHABLE_STATUSES)
-        .select("webpages.website_id", "webpages.rdf_uri", "properties.label")
-
-      Webpage.unscoped.from(fields, :event_fields)
+      Webpage.unscoped.from(usable_field_groups(selected_fields), :event_fields)
         .group("event_fields.website_id", "event_fields.rdf_uri")
         .having("BOOL_OR(event_fields.label = ?) AND BOOL_OR(event_fields.label = ?) AND BOOL_OR(event_fields.label IN (?))",
           "Title", "Dates", LOCATION_LABELS)
         .select("event_fields.website_id", "event_fields.rdf_uri")
+    end
+
+    def title_counts_by_language
+      titles = usable_field_groups(selected_fields.where(properties: { label: "Title" }))
+      Webpage.unscoped.from(titles, :event_fields).group("event_fields.website_id", "event_fields.source_language").count
     end
 
     def publishable_pages
@@ -85,6 +85,12 @@ module Events
     end
 
     private
+
+    def usable_field_groups(fields)
+      fields.group("webpages.website_id", "webpages.rdf_uri", "properties.label", Arel.sql(SOURCE_LANGUAGE_SQL))
+        .having("COUNT(*) = 1 AND BOOL_AND(#{usable_value_sql})", Webpage::PUBLISHABLE_STATUSES)
+        .select("webpages.website_id", "webpages.rdf_uri", "properties.label", Arel.sql("#{SOURCE_LANGUAGE_SQL} AS source_language"))
+    end
 
     def selected_fields
       Statement.joins(:webpage, source: :property)

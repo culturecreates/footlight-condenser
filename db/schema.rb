@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_25_000100) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_25_000200) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -71,6 +71,22 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_25_000100) do
     t.index ["successful_refresh"], name: "index_distillator_fetch_caches_on_successful_refresh"
     t.index ["updated_at"], name: "index_distillator_fetch_caches_on_updated_at"
     t.index ["uri_key"], name: "index_distillator_fetch_caches_on_uri_key", unique: true
+  end
+
+  create_table "distillator_migration_baselines", force: :cascade do |t|
+    t.bigint "website_id", null: false
+    t.bigint "validation_run_id", null: false
+    t.jsonb "validation_run_ids", null: false
+    t.datetime "validated_at", null: false
+    t.string "configuration_digest", null: false
+    t.string "configuration_fingerprint", null: false
+    t.jsonb "page_fingerprints", null: false
+    t.integer "eligible_pages", null: false
+    t.integer "thorough_passes", null: false
+    t.string "backend", null: false
+    t.datetime "created_at", null: false
+    t.index ["website_id", "validated_at", "validation_run_id"], name: "distillator_migration_baseline_history"
+    t.index ["website_id", "validation_run_id"], name: "unique_distillator_migration_validation", unique: true
   end
 
   create_table "distillator_rollout_events", force: :cascade do |t|
@@ -435,6 +451,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_25_000100) do
     t.index ["transition_check_requested_at"], name: "index_websites_on_transition_check_requested_at"
   end
 
+  add_foreign_key "distillator_migration_baselines", "websites", on_delete: :cascade
   add_foreign_key "distillator_rollout_events", "websites"
   add_foreign_key "distillator_site_transitions", "distillator_transition_batches", column: "batch_id"
   add_foreign_key "distillator_site_transitions", "distillator_transition_runs", column: "post_run_id", on_delete: :nullify

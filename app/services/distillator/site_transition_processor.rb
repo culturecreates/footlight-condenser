@@ -147,8 +147,7 @@ module Distillator
     end
 
     def migrated?(website)
-      inventories = WebsiteInventoryFreshness.for_websites([website.id])
-      WebsiteValidationHistory.for_websites([website], inventories: inventories).fetch(website.id).milestone == "migrated"
+      MigrationBaseline.exists?(website_id: website.id)
     end
 
     def finish_phase(item, token, run)
@@ -191,6 +190,9 @@ module Distillator
             "Active-path verification passed."
           end
           finish(item, website, "passed", reason)
+          if item.batch.check_profile == "thorough" && !item.batch.audit?
+            MigrationBaseline.capture!(website, validation_run_id: run.id)
+          end
         end
       end
       if dispatch_post

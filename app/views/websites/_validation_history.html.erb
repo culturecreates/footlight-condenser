@@ -6,7 +6,19 @@
             aria: { current: (@validation_profile || "all") == profile ? "page" : nil } %>
     <% end %>
   </nav>
-  <% if @validation_workflows.empty? && @site_check_passes.empty? %>
+  <% if @migration_baselines.any? %>
+    <h3>Migration baselines</h3>
+    <ul>
+      <% @migration_baselines.each do |baseline| %>
+        <li>
+          <% label = "Thorough · #{l(baseline.validated_at.in_time_zone.to_date, format: :long)} · Check ##{baseline.validation_run_id}" %>
+          <%= baseline.validation_run ? link_to(label, distillator_shadow_report_site_path(@website, run_id: baseline.validation_run_id)) : label %>
+          · <%= baseline.covered_pages %>/<%= baseline.eligible_pages %> pages · <%= baseline.backend.humanize %>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+  <% if @migration_baselines.empty? && @validation_workflows.empty? && @site_check_passes.empty? %>
     <p>No validation passes or workflows in this view.</p>
   <% end %>
   <% if @validation_workflows.any? %>

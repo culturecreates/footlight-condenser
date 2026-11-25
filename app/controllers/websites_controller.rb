@@ -135,7 +135,7 @@ class WebsitesController < ApplicationController
       if @filters[:validation]
         @websites = website_rows.select do |site|
           summary = @validation_summaries.fetch(site.id)
-          (@transition_eligible_ids.include?(site.id) || summary.last_validation || summary.last_pass || summary.attention) && summary.matches?(@filters[:validation])
+          (@transition_eligible_ids.include?(site.id) || summary.last_validation || summary.last_pass || summary.attention || summary.migration_baseline) && summary.matches?(@filters[:validation])
         end
         @transition_eligible_ids &= @websites.map(&:id)
       end
@@ -199,6 +199,7 @@ class WebsitesController < ApplicationController
     cookies[:seedurl] = @website.seedurl
     return unless request.format.html?
 
+    @migration_baselines = Distillator::MigrationBaseline.where(website: @website).latest_first.includes(:validation_run).to_a
     @validation_workflows = Distillator::WebsiteValidationHistory.workflows([@website.id]).to_a
     @validation_profile = params[:validation_profile].presence_in(%w[all light thorough audit])
     @site_check_passes = Distillator::WebsiteValidationHistory.site_check_passes([@website]).select do |pass|

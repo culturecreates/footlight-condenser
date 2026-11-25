@@ -868,7 +868,7 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
 
         Statement.where(id: statements.values.map(&:id)).update_all(cache_refreshed: Time.current)
         true
-      end.times(3)
+      end.times(5)
     end
     french_html = "<html><head><title>Titre français</title></head><body><p>Hall</p><time>2027-01-01T20:00:00-05:00</time></body></html>"
     english_html = "<html><head><title>Translated title</title></head></html>"
@@ -908,6 +908,19 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     assert_equal "failed", failed.records[:statement_delta].status
     failures = failed.records[:statement_delta].details["critical_failing_statements"]
     assert_equal [[french.url, "Dates"]], failures.map { |row| row.values_at("webpage_url", "property_label") }
+
+    english.statements.sole.update_columns(status: "problem", cache: nil)
+    blank_english = english_html.sub("Translated title", "")
+    caches.fetch(french.url).update!(html: french_html, body: french_html)
+    caches.fetch(english.url).update!(html: blank_english, body: blank_english)
+    passed = check.call(html.merge(english.url => blank_english))
+    assert_equal "checked", passed.records[:statement_delta].status
+    assert_equal "confirmed_discovery", website.latest_transition_run.progress["discovery_at_start"]
+
+    failed = check.call(html)
+    assert_equal "failed", failed.records[:statement_delta].status
+    failures = failed.records[:statement_delta].details["critical_failing_statements"]
+    assert_equal [[english.url, "Title"]], failures.map { |row| row.values_at("webpage_url", "property_label") }
   end
 
   test "Thorough blocks when an event found in ResourceLists still lacks required statements" do

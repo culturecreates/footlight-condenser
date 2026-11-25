@@ -258,6 +258,9 @@ module Distillator
             raise ConfigurationChanged, "Check did not finish all required phases. Run a new check."
           end
           update!(status: "completed", completed_at: Time.current)
+          if options.refresh_discovery? && progress["discovery_prepared"] && !cancellation_check
+            MigrationBaseline.capture!(website, validation_run_id: id)
+          end
           transition_checkpoints.delete_all if resumable
         end
       end

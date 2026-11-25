@@ -86,6 +86,12 @@
                     <dd><%= number_to_percentage(localized * 100.0 / pages[:event_resources], precision: 1, strip_insignificant_zeros: true) %>
                       · <%= localized %>/<%= pages[:event_resources] %> events with pages in <%= pages[:event_languages].map(&:upcase).join(" + ") %></dd>
                   <% end %>
+                  <% if pages[:unavailable_title_counts].any? %>
+                    <dt>Title translations needing attention</dt>
+                    <% pages[:unavailable_title_counts].each do |language, count| %>
+                      <dd><%= count %>/<%= pages[:event_resources] %> events without a usable <%= language.upcase %> title</dd>
+                    <% end %>
+                  <% end %>
                   <dt>Individual event pages</dt>
                   <dd><%= link_to "#{pages[:publishable]}/#{event_count} publishable", website_publishable_event_pages_path(website) %>
                     · <%= number_to_percentage(pages[:publishable_event_page_percentage], precision: 1, strip_insignificant_zeros: true) %></dd>

@@ -128,8 +128,10 @@ class Distillator::SiteTransitionProcessorTest < ActiveSupport::TestCase
 
   test "an interrupted Migrated workflow keeps serving through Condenser" do
     @website.update!(distillator_mode: "active")
-    summary = Distillator::WebsiteValidationHistory::Summary.new(milestone: "migrated")
-    Distillator::WebsiteValidationHistory.stubs(:for_websites).returns({ @website.id => summary })
+    page = @website.webpages.sole
+    Distillator::MigrationBaseline.create!(website: @website, validation_run_id: 42, validation_run_ids: [42],
+      validated_at: 1.day.ago, configuration_digest: "recorded-digest", configuration_fingerprint: "outdated-fingerprint",
+      page_fingerprints: { page.id.to_s => "outdated-page" }, eligible_pages: 1, thorough_passes: 2, backend: "condenser")
     @runner.callback = ->(*) { raise "Worker interrupted" }
     _, item = request
 

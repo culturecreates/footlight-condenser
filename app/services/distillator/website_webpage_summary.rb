@@ -29,7 +29,8 @@ module Distillator
         publishable_event_resources: 0,
         publishable_event_resource_percentage: nil,
         event_languages: [],
-        fully_localized_event_resources: nil
+        fully_localized_event_resources: nil,
+        unavailable_title_counts: {}
       }
     end
 
@@ -86,6 +87,7 @@ module Distillator
       # when several URLs share the same language.
       languages_by_site = scope.where.not(rdf_uri: [nil, ""]).distinct
         .pluck(:website_id, :rdf_uri, Arel.sql("LOWER(BTRIM(webpages.language))")).group_by(&:first)
+      titles = events.title_counts_by_language
       summaries.each do |website_id, summary|
         resources = languages_by_site.fetch(website_id, []).group_by { |_, uri, _| uri }
         next if resources.empty?
@@ -99,6 +101,8 @@ module Distillator
         summary[:event_languages] = expected
         if expected.size > 1
           summary[:fully_localized_event_resources] = languages.count { |locales| locales.size == expected.size }
+          summary[:unavailable_title_counts] = expected.index_with { |language| resources.size - titles.fetch([website_id, language], 0) }
+            .select { |_, count| count.positive? }
         end
       end
     end

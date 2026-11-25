@@ -206,7 +206,7 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     assert_select "#{row} a", text: "Thorough 2×"
   end
 
-  test "Vieux Noranda needs independent full checks and an operational schedule for Migrated" do
+  test "Vieux Noranda preserves its migration evidence through inventory changes and explicit revalidation" do
     @two.update_columns(name: "Vieux Noranda", distillator_mode: "active", schedule_every_days: 1)
     event = @two.webpages.sole
     make_publishable(event)
@@ -224,21 +224,36 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     assert_select "#{row} .website-state-badge", text: "Ready"
     assert_select "#{row} a", text: "Thorough 1×"
 
-    complete_site_check(event, prepared: true)
+    completed = complete_site_check(event, prepared: true)
     get websites_path
     assert_select "#{row} .website-state-badge", text: "Ready"
     assert_select "#{row} a", text: "Thorough 2×"
+    assert_empty Distillator::MigrationBaseline.where(website: @two)
 
-    @two.update_columns(schedule_time: Time.zone.parse("08:00"), last_refresh: 1.day.ago)
-    get websites_path, params: { validation: "migrated" }
+    assert_difference "Distillator::MigrationBaseline.count", 1 do
+      @two.update!(schedule_time: Time.zone.parse("08:00"), last_refresh: 1.day.ago)
+    end
+    baseline = Distillator::MigrationBaseline.where(website: @two).sole
+    original = baseline.attributes
+    assert_equal completed.id, baseline.validation_run_id
+    assert_equal [completed.id], baseline.validation_run_ids
+    assert_equal completed.configuration_digest, baseline.configuration_digest
+    assert_equal [event.id.to_s], baseline.page_fingerprints.keys
+    assert_equal 1, baseline.eligible_pages
+    assert_equal "condenser", baseline.backend
+    assert_raises(ActiveRecord::ReadOnlyRecord) { baseline.update!(eligible_pages: 7) }
+    assert_no_difference "Distillator::MigrationBaseline.count" do
+      get websites_path, params: { validation: "migrated" }
+    end
     assert_select "#{row}[data-migration-state='migrated'] .website-state-badge", text: "Migrated"
+    assert_select "#{row} small", text: "1/1 pages in migration baseline"
 
     interrupted = diagnostic_run(@two, status: "failed", error_message: "Worker interrupted")
     get websites_path, params: { validation: "latest_failed" }
     assert_select "#{row} .website-state-badge", text: "Migrated"
     assert_select "#{row} a[href='#{distillator_transition_check_path(interrupted)}']", text: "Latest validation needs attention"
 
-    # A new list member revokes current qualification before the event is imported.
+    # A list change and a later import affect current freshness and coverage.
     url_list = @two.webpages.joins(:rdfs_class).find_by!(rdfs_classes: { name: "ResourceList" })
     new_url = "https://example.org/new-event"
     url_list.statements.joins(source: :property).find_by!(properties: { label: AddWebpagesJob::WEBPAGE_URL_LIST_LABEL })
@@ -246,15 +261,66 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     url_list.statements.joins(source: :property).find_by!(properties: { label: AddWebpagesJob::URI_LIST_LABEL })
       .update_column(:cache, [event.rdf_uri, "rdf:new-event"].to_json)
     get websites_path
-    assert_select "#{row} .website-state-badge", text: "Active"
+    assert_select "#{row} .website-state-badge", text: "Migrated"
     assert_select "#{row} [data-inventory-status=discovery_pending_import]", text: "Awaiting import"
+    assert_select "#{row} small", text: "1/1 pages in migration baseline"
 
     new_event = @two.webpages.create!(url: new_url, rdf_uri: "rdf:new-event", language: "en", rdfs_class: rdfs_classes(:one))
     make_publishable(new_event)
+    @two.sources.find_by!(property: properties(:four)).update!(algorithm_value: "manual=Updated title")
     get websites_path
-    assert_select "#{row} .website-state-badge", text: "Active"
-    assert_select "#{row} small", text: "Run Thorough for the current event scope and configuration"
+    assert_select "#{row} .website-state-badge", text: "Migrated"
+    assert_select "#{row} small", text: "Validation stale"
+    assert_select "#{row} small", text: "1/1 pages in migration baseline"
     assert_select "#{row} a", text: "Thorough 2×"
+
+    assert_no_difference "Distillator::MigrationBaseline.count" do
+      complete_site_check(event, eligible: 2, prepared: true)
+      complete_site_check(event, failed: true, pages: [event, new_event], eligible: 2, prepared: true)
+    end
+
+    assert_difference "Distillator::MigrationBaseline.count", 1 do
+      complete_site_check(event, pages: [event, new_event], eligible: 2, prepared: true)
+    end
+    assert_equal original, baseline.reload.attributes
+    latest = Distillator::MigrationBaseline.where(website: @two).latest_first.first
+    assert_equal [event.id, new_event.id].map(&:to_s).sort, latest.page_fingerprints.keys.sort
+    get websites_path, params: { validation: "migrated" }
+    assert_select "#{row} small", text: "2/2 pages in migration baseline"
+    assert_select "#{row} small", text: "Validation stale", count: 0
+
+    @two.update!(distillator_mode: "shadow")
+    get websites_path
+    assert_select "#{row} .website-state-badge", text: "Shadow"
+    get website_path(@two, validation_profile: "thorough")
+    assert_select "#website-validation-history a", text: /Check ##{baseline.validation_run_id}/, minimum: 1
+    assert_select "#website-validation-history a", text: /Check ##{latest.validation_run_id}/, minimum: 1
+  end
+
+  test "backfill retains recorded validation coverage when the live event inventory shrinks" do
+    @two.update_columns(distillator_mode: "active", schedule_every_days: 1)
+    event = @two.webpages.sole
+    another = @two.webpages.create!(url: "#{event.url}/other", rdf_uri: "rdf:past-event",
+      language: "en", rdfs_class: rdfs_classes(:one))
+    [event, another].each { |page| make_publishable(page) }
+    create_verified_resource_list(event)
+    first, last = Array.new(2) { complete_site_check(event, pages: [event, another], eligible: 2, prepared: true) }
+    assert_empty Distillator::MigrationBaseline.where(website: @two)
+
+    another.update_column(:archive_date, 1.day.ago)
+    @two.update_columns(schedule_time: Time.zone.parse("08:00"), last_refresh: 1.day.ago)
+    assert_difference "Distillator::MigrationBaseline.count", 1 do
+      2.times { Distillator::MigrationBaseline.capture!(@two) }
+    end
+    baseline = Distillator::MigrationBaseline.where(website: @two).sole
+    assert_equal last.id, baseline.validation_run_id
+    assert_operator baseline.validation_run_id, :>, first.id
+    assert_equal 2, baseline.covered_pages
+    assert_equal 2, baseline.eligible_pages
+    get websites_path, params: { validation: "migrated" }
+    row = "tr[data-website-id='#{@two.id}']"
+    assert_select "#{row} small", text: "2/2 pages in migration baseline"
+    assert_select "#{row} small", text: "Validation stale"
   end
 
   test "Active audit is a separate Thorough request and rejects groups containing Shadow sites" do
@@ -471,14 +537,14 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
 
   private
 
-  def complete_site_check(event, failed: false, eligible: 1, prepared: false, **options)
+  def complete_site_check(event, failed: false, eligible: 1, pages: [event], prepared: false, **options)
     options = { sample_mode: "all", strictness: "strict" }.merge(options)
     post distillator_transition_checks_path, params: { website_id: event.website_id, check_options: options }
     run = event.website.transition_runs.last
     assert_redirected_to distillator_transition_check_path(run)
     run.execute do
       record_discovery_proof(run, event) if prepared
-      record_site_check_evidence(run, event, failed: failed, eligible: eligible)
+      record_site_check_evidence(run, event, failed: failed, eligible: eligible, pages: pages)
     end
     run.reload
   end
@@ -508,16 +574,16 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     })
   end
 
-  def record_site_check_evidence(run, event, failed: false, eligible: 1)
+  def record_site_check_evidence(run, event, failed: false, eligible: 1, pages: [event])
     fetch_details = { fetch_basis: "fresh_both", event_inventory: { status: "active_event_scope" },
-      representative_webpage_count: 1, publishable_event_page_count: eligible, representative_webpages: [event.url],
+      representative_webpage_count: pages.size, publishable_event_page_count: eligible, representative_webpages: pages.map(&:url),
       validation_coverage: { configuration: Distillator::TransitionFingerprint.configuration(event.website),
-        pages: { event.id.to_s => Distillator::TransitionFingerprint.event_page(event) } } }
+        pages: pages.to_h { |page| [page.id.to_s, Distillator::TransitionFingerprint.event_page(page)] } } }
     run.transition_evidences.create!(website: event.website, url: event.url, check_kind: "fetch_parity", status: "checked",
       checked_at: run.completed_at || Time.current, details: fetch_details)
     run.transition_evidences.create!(website: event.website, url: event.url, check_kind: "statement_delta",
       status: failed ? "failed" : "checked", statement_count_delta_acceptable: !failed, checked_at: run.completed_at || Time.current,
-      details: { compared_webpage_count: 1 })
+      details: { compared_webpage_count: pages.size })
     run.transition_evidences.create!(website: event.website, url: event.url, check_kind: "export_diff",
       status: "checked", export_diff_checked: true, checked_at: run.completed_at || Time.current)
   end
