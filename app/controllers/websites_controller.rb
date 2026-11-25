@@ -127,7 +127,7 @@ class WebsitesController < ApplicationController
     website_rows = @websites.to_a
     if request.format.html? || @filters[:validation] || params[:inventory_freshness] == "true"
       @inventory_data_as_of = Time.current
-      inventories = Distillator::WebsiteInventoryFreshness.for_websites(website_rows.map(&:id), as_of: @inventory_data_as_of)
+      inventories = Distillator::WebsiteInventoryFreshness.for_websites(website_rows.map(&:id), as_of: @inventory_data_as_of, diagnostics: request.format.html?)
       @inventory_freshness = inventories if request.format.html? || params[:inventory_freshness] == "true"
     end
     if request.format.html? || @filters[:validation]

@@ -112,6 +112,31 @@
               </nav>
             </section>
           </div>
+          <% inventory = @inventory_freshness.fetch(website.id) %>
+          <% diagnosis = Distillator::ResourceListReadiness.validation(validation, inventory) %>
+          <section aria-label="ResourceList operations">
+            <h2>ResourceList operations</h2>
+            <% if diagnosis[:warning] %><p><%= diagnosis[:warning] %></p><% end %>
+            <% if diagnosis[:message] %>
+              <p data-readiness-reason="<%= diagnosis[:reason] %>"><%= diagnosis[:message] %>
+                <% if diagnosis[:next_action] == :run_thorough %>
+                  <%= link_to "Run Thorough validation", website_path(website, comparison: "thorough", anchor: "website-batch-jobs-transition") %>
+                  <span>Refetch ResourceList sources, refresh their statements, reconcile discovered URLs and compare eligible events.</span>
+                <% elsif diagnosis[:next_action] %>
+                  <strong><%= Distillator::ResourceListReadiness::ACTIONS.fetch(diagnosis[:next_action]) %></strong>
+                <% end %>
+              </p>
+            <% end %>
+            <% inventory.fetch(:lists, []).each do |list| %>
+              <details>
+                <summary><%= link_to "ResourceList ##{list[:webpage_id]}", webpage_path(list[:webpage_id], anchor: "webpage-source-extraction") %>
+                  · <%= list[:message].presence || "Review source and extraction" %>
+                </summary>
+                <%= render "shared/resource_list_operations", list: list,
+                  validation: Distillator::ResourceListReadiness.validation(validation, inventory, list: list) %>
+              </details>
+            <% end %>
+          </section>
         </td></tr>
       <% end %>
     </tbody>

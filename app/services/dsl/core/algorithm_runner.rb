@@ -38,6 +38,10 @@ module Dsl
       @graph       = nil
     end
 
+    def refetch_source
+      fetch_document_result
+    end
+
     def abort_structure?(obj)
       obj.is_a?(Array) &&
         obj.length == 2 &&
@@ -304,7 +308,15 @@ module Dsl
         new_url = resolve_url_only(code, arr, step: 'api')
         return new_url if abort_structure?(new_url)
 
-        data = HTTParty.get(new_url)
+        begin
+          data = HTTParty.get(new_url)
+        ensure
+          if (observation = @page_fetch&.observation)
+            code = data&.code
+            result = { status: (code.to_i.in?(200..299) ? :ok : :abort), body: data&.body, http_code: code }
+            observation.observe(Statements::FetchProvenance.document(new_url, result), primary: false)
+          end
+        end
         raise "API error #{data.code}" unless data.code.to_s.start_with?('2')
 
         JSON.parse(data.body)
@@ -509,6 +521,7 @@ module Dsl
     end
 
     def evaluate_ruby(code, results)
+      @page_fetch&.observation&.opaque_dependencies!
       Dsl::RubyWarnings.evaluate(@dsl_binding, sub(code, results))
     end
 
@@ -616,23 +629,29 @@ module Dsl
     end
 
     def fetch_document_result
-      if @page_fetch && @url == @initial_url
-        @page_fetch.call do
-          options = @scrape_opts.merge(use_phantomjs: @page_fetch.render_js, json_post: @page_fetch.json_post)
-          fetch_result_for(url: @url, render_js: @page_fetch.render_js, scrape_options: options)
-        end
-      else
-        fetch_result_for(url: @url, render_js: @render_js, scrape_options: @scrape_opts)
+      return fetch_result_for(url: @url, render_js: @render_js, scrape_options: @scrape_opts) unless @page_fetch && @url == @initial_url
+
+      result = @page_fetch.call do
+        options = @scrape_opts.merge(use_phantomjs: @page_fetch.render_js, json_post: @page_fetch.json_post)
+        fetch_result_for(url: @url, render_js: @page_fetch.render_js, scrape_options: options, observe: false)
       end
+      @page_fetch.observation&.observe(result.fetch(:fetch_provenance), primary: true) if result[:fetch_provenance]
+      result
     end
 
-    def fetch_result_for(url:, render_js:, scrape_options:)
+    def fetch_result_for(url:, render_js:, scrape_options:, observe: true)
       options, log_context = sanitized_scrape_options(scrape_options)
-      if use_wringer_compatibility_client?(options)
+      result = if use_wringer_compatibility_client?(options)
         wringer_client.fetch(url: url, render_js: render_js, scrape_options: options)
       else
         fetch_result_from_cache(url: url, render_js: render_js, scrape_options: options, log_context: log_context)
       end
+      if @page_fetch && (!observe || @page_fetch.observation)
+        provenance = Statements::FetchProvenance.document(url, result)
+        @page_fetch.observation&.observe(provenance, primary: false) if observe
+        result = result.merge(fetch_provenance: provenance) unless observe
+      end
+      result
     end
 
     def fetch_result_from_cache(url:, render_js:, scrape_options:, log_context:)
@@ -710,7 +729,9 @@ module Dsl
             cache_write: fetch.cache_write,
             cache_reason: fetch.cache_reason,
             uri_key: fetch.uri_key,
-            normalized_url: fetch.normalized_url
+            normalized_url: fetch.normalized_url,
+            cache_id: fetch.try(:cache)&.id,
+            backend: signals["fetch_backend"]
           },
           duration_ms: fetch.duration_ms,
           http_code: fetch.http_response_code,
@@ -784,7 +805,10 @@ module Dsl
           cache_write: fetch.cache_write,
           cache_reason: fetch.cache_reason,
           uri_key: fetch.uri_key,
-          normalized_url: fetch.normalized_url
+          normalized_url: fetch.normalized_url,
+          cache_id: fetch.try(:cache)&.id,
+          source_fetched_at: fetch.try(:successful_refresh)&.utc&.iso8601(6),
+          backend: signals.dig("body_profile", "backend") || signals["fetch_backend"]
         },
         duration_ms: fetch.duration_ms,
         http_code: fetch.http_response_code,

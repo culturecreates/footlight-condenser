@@ -14,7 +14,7 @@ module Distillator
     Pass = Struct.new(:profile, :completed_at, :runs, :workflow, :site_check, keyword_init: true)
 
     Summary = Struct.new(:light, :thorough, :audit, :last_pass, :last_validation, :changed, :covered, :eligible, :milestone,
-      :milestone_blocker, :attention, :cutover, :cutover_snapshot, :migration_baseline, :migration_candidate, keyword_init: true) do
+      :milestone_reason, :latest_thorough, :discovery_proof, :attention, :cutover, :cutover_snapshot, :migration_baseline, :migration_candidate, keyword_init: true) do
       def confirmable_cutover?
         cutover.nil? && thorough.positive?
       end
@@ -99,6 +99,8 @@ module Distillator
         summary = Summary.new(light: counts.fetch("light", 0), thorough: counts.fetch("thorough", 0),
           audit: items.fetch(website.id, []).count { |row| row.batch.audit? && row.status == "passed" },
           last_pass: last, last_validation: validations.fetch(website.id, []).first)
+        summary.latest_thorough = passed.select { |pass| pass.profile == "thorough" }
+          .max_by { |pass| [pass.completed_at || Time.at(0), pass.runs.last&.id.to_i] }
         summary.attention = latest_attention(website, items.fetch(website.id, []), standalone[website.id])
         baseline = baselines[website.id]
         serving_condenser = website.distillator_mode == "active" &&
@@ -126,7 +128,13 @@ module Distillator
               end
             end
             complete = thorough.select { |pass| pass.completed_at && summary.eligible.positive? && coverage.fetch(pass).size == summary.eligible }
-            summary.milestone, summary.milestone_blocker = milestone(inventories[website.id], thorough.size, complete.size)
+            recorded_definitions = candidates.filter_map do |pass|
+              pass.runs.first.progress.dig("discovery_refresh", "definition")
+            end
+            summary.milestone, summary.milestone_reason = milestone(inventories[website.id], thorough.size, complete.size,
+              definition: definitions, recorded_definitions: recorded_definitions)
+            newest_qualifying_pass = complete.max_by { |pass| [pass.completed_at, pass.runs.last.id] }
+            summary.discovery_proof = newest_qualifying_pass&.runs&.first&.progress&.dig("discovery_refresh", "lists")
             if summary.cutover && summary.milestone == "ready"
               revalidation = complete.select { |pass| pass.completed_at >= summary.cutover.completed_at }
                 .max_by { |pass| [pass.completed_at, pass.runs.last.id] }
@@ -137,7 +145,7 @@ module Distillator
             baseline ||= MigrationBaseline.new(summary.cutover_snapshot) if summary.cutover_snapshot
             summary.migration_baseline = baseline
             summary.milestone = "migrated"
-            summary.milestone_blocker = nil
+            summary.milestone_reason = nil
             summary.migration_candidate = if revalidation
               migration_snapshot(revalidation, evidence, [summary.thorough, baseline&.thorough_passes.to_i].max)
             end
@@ -214,14 +222,17 @@ module Distillator
         proof["refresh_completed_at"].present? && run.progress["discovery_at_start"] == "confirmed_discovery"
     end
 
-    def self.milestone(inventory, qualifying, complete)
-      if inventory&.dig(:pending_import) || inventory&.dig(:unpublishable_urls_count).to_i.positive?
-        return [nil, "Finish preparing events from ResourceLists for Ready"]
-      end
+    def self.milestone(inventory, qualifying, complete, definition:, recorded_definitions:)
+      return [nil, :pending_reconciliation] if inventory&.dig(:pending_import)
+      return [nil, :listed_events_unpublishable] if inventory&.dig(:unpublishable_urls_count).to_i.positive?
       if complete.zero?
-        message = qualifying.positive? ? "Run Thorough for the current event scope and configuration" :
-          "Pass Thorough after refreshing and importing ResourceLists for Ready"
-        return [nil, message]
+        return [nil, :current_scope_unverified] if qualifying.positive?
+        reason = inventory&.dig(:status)
+        return [nil, reason.to_sym] if reason.in?(%w[no_discovery_lists no_event_discovery])
+        return [nil, :incomplete_thorough_evidence] if recorded_definitions.include?(definition)
+        return [nil, :discovery_configuration_changed] if recorded_definitions.any?
+
+        return [nil, :missing_discovery_proof]
       end
       ["ready", nil]
     end

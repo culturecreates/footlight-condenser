@@ -17,12 +17,23 @@ module Distillator
       verified_lists = inventory(website).lists.reject { |list| list[:status] == "other_class" }
       unless event_lists.pluck(:webpage_id) == verified_lists.pluck(:webpage_id) &&
           definition == TransitionEventInventory.definition_digest(website.id)
-        raise TransitionRun::ConfigurationChanged, "ResourceList configuration changed during discovery. Run a new check."
+        raise TransitionRun::DiscoveryEvidenceError.new("ResourceList configuration changed during discovery.",
+          reason: :discovery_configuration_changed, next_action: :run_thorough)
       end
+      urls = verified_lists.to_h { |list| [list.fetch(:webpage_id), list.fetch(:url)] }
+      activity = WebpageOperationEvidence.for_urls(urls, discovery_only: true)
+      diagnostics = ResourceListReadiness.for_lists(verified_lists, activity: activity).index_by { |list| list[:webpage_id] }
       verified_lists.each do |list|
         unless list[:status] == "event" && Time.iso8601(list.fetch(:refreshed_at)) >= started_at
-          reason = list[:reason].presence || "no fresh statement values were saved"
-          raise TransitionRun::ConfigurationChanged, "ResourceList ##{list.fetch(:webpage_id)} refresh was unverified (#{reason.humanize}). Review the list and retry."
+          id = list.fetch(:webpage_id)
+          diagnosis = diagnostics.fetch(id)
+          reason = diagnosis[:reason] unless diagnosis[:reason] == :discovery_complete
+          reason ||= :missing_statement_extraction
+          guidance = ResourceListReadiness.guidance(reason)
+          raise TransitionRun::DiscoveryEvidenceError.new(
+            "ResourceList ##{id} statement extraction could not be verified. #{guidance.fetch(:message)}",
+            webpage_id: id, reason: reason, next_action: guidance[:next_action])
+
         end
       end
 
@@ -44,7 +55,8 @@ module Distillator
       finished = inventory(website, as_of: finished_at)
       finished_lists = finished.lists.select { |list| list[:status] == "event" }
       unless finished.status == "confirmed_discovery" && list_versions(finished_lists) == list_versions(verified_lists)
-        raise TransitionRun::ConfigurationChanged, "ResourceList import could not be verified. Review the lists and retry."
+        raise TransitionRun::DiscoveryEvidenceError.new("URL reconciliation could not be verified. Review the lists and retry.",
+          reason: :pending_reconciliation, next_action: :reconcile_urls)
       end
       if finished.unpublishable_urls_count.to_i.positive?
         listed = finished.unpublishable_listed_pages.group_by { |page| page[:rdf_uri] }
@@ -59,7 +71,18 @@ module Distillator
       warnings = finished_lists.filter_map { |list| list.slice(:webpage_id, :warning) if list[:warning] }
       proof = {
         definition: definition, lists: list_versions(finished_lists),
-        refresh_completed_at: finished_lists.pluck(:refresh_completed_at).max
+        refresh_completed_at: finished_lists.pluck(:refresh_completed_at).max,
+        stages: {
+          source_fetch: verified_lists.map do |list|
+            observed = activity.fetch(list[:webpage_id]).dig(:extraction, :saved_inputs).filter_map do |input|
+              primary = input["primary"]
+              primary if primary && Time.iso8601(input.fetch("recorded_at")) >= started_at
+            end
+            { webpage_id: list[:webpage_id], responses: observed.uniq }
+          end,
+          statement_extraction: verified_lists.map { |list| list.slice(:webpage_id, :refreshed_at, :refresh_completed_at) },
+          reconciliation: { lists_checked: verified_lists.size, webpages_created: added_page_ids.size }
+        }
       }
       proof[:warnings] = warnings if warnings.any?
       Result.new(added_page_ids: added_page_ids, prior_archive_dates: prior_archive_dates, proof: proof)

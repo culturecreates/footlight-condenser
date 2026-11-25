@@ -44,7 +44,9 @@ module HarmonizedTableHeaders
       { label: "Publishable" },
       { label: "Rdf uri" },
       { label: "Archive Date" },
-      { label: "Updated", sort_key: "updated_at" },
+      { label: "Record updated", sort_key: "updated_at" },
+      { label: "Last source fetch" },
+      { label: "Last statements refresh" },
       { label: "JSON-LD Output" },
       { label: "Active Cache" }
     ]

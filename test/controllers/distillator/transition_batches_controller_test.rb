@@ -176,6 +176,9 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     get websites_path
     assert_select "#{row}[data-migration-state='active'] .website-state-badge", text: "Active"
     assert_select "#{row} a", text: "Thorough 1×"
+    assert_select "#{row} [data-readiness-reason=missing_discovery_proof]",
+      text: /No successful Thorough run recorded the required fresh ResourceList discovery evidence/
+    assert_select "#website-details-#{@two.id} a", text: "Run Thorough validation"
     assert_select ".website-rollout-summary a", text: "Ready"
     assert_select ".website-rollout-summary a", text: "Migrated"
 
@@ -310,7 +313,7 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
       .update_column(:cache, [event.rdf_uri, "rdf:new-event"].to_json)
     get websites_path
     assert_select "#{row} .website-state-badge", text: "Migrated"
-    assert_select "#{row} [data-inventory-status=discovery_pending_import]", text: "Awaiting import"
+    assert_select "#{row} [data-inventory-status=discovery_pending_import]", text: "Awaiting reconciliation"
     assert_select "#{row} small", text: "1/1 pages in migration baseline"
 
     new_event = @two.webpages.create!(url: new_url, rdf_uri: "rdf:new-event", language: "en", rdfs_class: rdfs_classes(:one))

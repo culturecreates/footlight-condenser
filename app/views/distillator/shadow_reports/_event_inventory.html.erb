@@ -5,7 +5,7 @@
     <summary>Event inventory<%= " · #{pluralize(retired.size, 'past event')} omitted" if retired.any? %></summary>
     <% case inventory["status"] %>
     <% when "discovery_unverified" %>
-      <p>Discovery evidence is incomplete. Past events remain in scope. Refresh the ResourceLists before checking again.</p>
+      <p>Discovery evidence is incomplete. Past events remain in scope. Inspect the ResourceList operations before running validation again.</p>
     <% when "discovery_pending_import" %>
       <p>Some discovery URLs have yet to be added to this website. Past events remain in scope.</p>
     <% when "confirmed_discovery" %>
@@ -18,7 +18,20 @@
       <% end %>
     <% when "active_event_scope" %>
       <% if inventory["refresh_completed_at"] %>
-        <p><%= pluralize(inventory["refreshed_list_count"], "event ResourceList") %> refreshed and imported before selection · <%= shadow_report_timestamp(inventory["refresh_completed_at"]) %>.</p>
+        <p>Statement extraction verified for <%= pluralize(inventory["refreshed_list_count"], "event ResourceList") %> · <%= shadow_report_timestamp(inventory["refresh_completed_at"]) %>.</p>
+        <% if (stages = inventory["discovery_stages"]) %>
+          <dl>
+            <dt>Source fetch evidence</dt>
+            <% stages.fetch("source_fetch").each do |fetch| %>
+              <% responses = fetch.fetch("responses") %>
+              <dd>ResourceList #<%= fetch["webpage_id"] %> ·
+                <%= responses.any? ? responses.map { |response| [response["usage"], response["backend"], ("HTTP #{response['http_status']}" if response["http_status"])].compact.join(" · ") }.uniq.join(", ") : "No primary response provenance recorded" %>
+              </dd>
+            <% end %>
+            <dt>URL reconciliation</dt>
+            <dd><%= pluralize(stages.dig("reconciliation", "webpages_created"), "new webpage") %> created</dd>
+          </dl>
+        <% end %>
       <% end %>
       <% Array(inventory["warnings"]).each do |warning| %>
         <p>ResourceList #<%= warning["webpage_id"] %> · <%= warning["warning"].humanize %></p>
@@ -37,7 +50,7 @@
             <% if list["status"] == "event" %>
               · <%= pluralize(list["count"], "URL") %> · <%= shadow_report_timestamp(list["refreshed_at"]) %>
             <% else %>
-              · <%= (list["reason"] || list["status"]).humanize %>
+              · <%= Distillator::ResourceListReadiness.guidance(list["extraction_reason"] || list["reason"] || list["status"])[:message] %>
             <% end %>
           </li>
         <% end %>

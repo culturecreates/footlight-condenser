@@ -981,7 +981,10 @@ class Distillator::TransitionCheckRunnerTest < ActiveSupport::TestCase
     error = assert_raises(Distillator::TransitionRun::ConfigurationChanged) do
       Distillator::TransitionCheckRunner.call(website: website, check_options: { sample_mode: "all", strictness: "strict" })
     end
-    assert_match "ResourceList ##{list.id} refresh was unverified", error.message
+    assert_match "ResourceList ##{list.id} statement extraction could not be verified", error.message
+    diagnostic = website.latest_transition_run.progress.fetch("discovery_error")
+    assert_equal list.id, diagnostic.fetch("webpage_id")
+    assert diagnostic.fetch("next_action").present?
     assert_equal "failed", website.latest_transition_run.status
     assert_empty website.latest_transition_run.transition_evidences
   end

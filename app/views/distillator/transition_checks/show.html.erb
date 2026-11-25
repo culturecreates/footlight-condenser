@@ -7,7 +7,7 @@
   <p>Current mode: <strong><%= @website.distillator_mode.humanize %></strong> ·
     Production backend: <strong><%= website_rollout_backend_for(@website) %></strong></p>
   <% if @run.refresh_discovery? %>
-    <p class="cache-page-note">Before comparing pages, this check refreshes ResourceLists and initializes newly discovered events.</p>
+    <p class="cache-page-note">This check refetches ResourceList sources, refreshes their statements, reconciles discovered URLs and compares eligible events.</p>
   <% end %>
 
   <dl class="website-identity-list">
@@ -30,6 +30,14 @@
   <div data-run-completed <%= "hidden" unless @run_status[:status] == "completed" %>>
     <%= link_to "Open completed report for run ##{@run.id}", @report_path %>
   </div>
+  <% if (diagnostic = @run.progress["discovery_error"]) %>
+    <p data-discovery-reason="<%= diagnostic["reason"] %>">
+      <% if diagnostic["webpage_id"] %>
+        <%= link_to "ResourceList ##{diagnostic['webpage_id']}", webpage_path(diagnostic["webpage_id"], anchor: "webpage-source-extraction") %> ·
+      <% end %>
+      <strong><%= Distillator::ResourceListReadiness::ACTIONS[diagnostic["next_action"]&.to_sym] %></strong>
+    </p>
+  <% end %>
   <% if @run_status[:discovery_blockers].present? %>
     <details id="discovery-publishability" open>
       <summary>Affected event resources (<%= @run_status[:discovery_blockers].size %>)</summary>

@@ -46,7 +46,7 @@ module Distillator
       @as_of = as_of
     end
 
-    def for_websites(website_ids, events:)
+    def for_websites(website_ids, events:, diagnostics: false)
       pages = self.class.list_pages(website_ids).order(:id).group_by { |page| page.discovery_target_website_id || page.website_id }
       results = website_ids.index_with { result("no_discovery_lists") }
       return results if pages.empty?
@@ -68,7 +68,7 @@ module Distillator
         results[website_id] = result(status, lists: evidence, valid_until: event_lists.map { |list| list[:valid_until] }.min)
       end
       inventories.reject! { |_, lists| lists.empty? }
-      record_missing_event_counts(inventories, events, results) if inventories.any?
+      record_missing_event_counts(inventories, events, results, diagnostics: diagnostics) if inventories.any?
       results
     end
 
@@ -79,8 +79,9 @@ module Distillator
 
     private
 
-    def record_missing_event_counts(inventories, events, results)
+    def record_missing_event_counts(inventories, events, results, diagnostics:)
       registered = Webpage.event_pages.where(website_id: inventories.keys)
+      existing_records = Webpage.where(website_id: inventories.keys).pluck(:website_id, :url).group_by(&:first) if diagnostics
       urls_by_site = registered.pluck(:website_id, :url).group_by(&:first)
       active_pages = registered.active(@as_of).without_reviewed_transition_exclusions.public_source_urls
         .pluck(:website_id, :id, :url, :rdf_uri).group_by(&:first)
@@ -91,6 +92,20 @@ module Distillator
         urls = lists.flat_map { |list| list[:url_keys] }.to_set
         imported = urls_by_site.fetch(website_id, []).filter_map { |_, url| public_url_key(url) }.to_set
         inventory.pending_import = !urls.subset?(imported)
+        if diagnostics
+          exact_urls = existing_records.fetch(website_id, []).map(&:last).to_set
+          by_page = lists.index_by { |list| list[:webpage_id] }
+          inventory.lists.each do |list|
+            source = by_page[list[:webpage_id]]
+            next unless source
+
+            discovered = source[:urls].uniq
+            list[:discovered_count] = discovered.size
+            list[:known_count] = discovered.count { |url| exact_urls.include?(url) }
+            list[:new_count] = discovered.size - list[:known_count]
+            list[:missing_count] = source[:url_keys].uniq.count { |key| !imported.include?(key) }
+          end
+        end
         rows = candidates.fetch(website_id, [])
         eligible_ids = rows.map { |_, id, _, _| id }.to_set
         inventory.unpublishable_listed_pages = active_pages.fetch(website_id, []).filter_map do |_, id, url, uri|
@@ -129,19 +144,32 @@ module Distillator
       url_list = only_statement(by_label, AddWebpagesJob::WEBPAGE_URL_LIST_LABEL)
       uri_list = only_statement(by_label, AddWebpagesJob::URI_LIST_LABEL)
       payloads = [url_list, uri_list]
-      return metadata.merge(reason: "ambiguous_list") if payloads.any?(&:nil?)
+      if payloads.any?(&:nil?)
+        missing = [AddWebpagesJob::WEBPAGE_URL_LIST_LABEL, AddWebpagesJob::URI_LIST_LABEL].any? { |label| by_label[label].blank? }
+        return metadata.merge(reason: "ambiguous_list", extraction_reason: ("missing_statement_extraction" if missing))
+      end
       return metadata.merge(reason: "manual_discovery_list_override") if payloads.any?(&:manual?)
       if payloads.any? { |statement| statement.source.algorithm_value.to_s.strip.start_with?("manual=") }
         return metadata.merge(reason: "fixed_discovery_list_payload")
       end
       return metadata.merge(reason: "unreviewed_discovery_list") if payloads.any?(&:is_initial?)
-      return metadata.merge(reason: "ambiguous_list") unless payloads.all? { |statement| current_statement?(statement) }
+      unless payloads.all? { |statement| current_statement?(statement) }
+        explanation = if payloads.any? { |statement| statement.is_problem? || statement.fetch_provenance.dig("attempt", "result") == "failed" }
+          "extraction_failed"
+        elsif payloads.any? { |statement| statement.cache_refreshed.nil? }
+          "missing_statement_extraction"
+        elsif payloads.all? { |statement| statement.cache_refreshed && statement.cache.present? } &&
+            payloads.any? { |statement| [statement.source.updated_at, statement.source.property.updated_at].compact.any? { |changed| statement.cache_refreshed < changed } }
+          "extraction_configuration_changed"
+        end
+        return metadata.merge(reason: "ambiguous_list", extraction_reason: explanation)
+      end
 
       urls = string_array(url_list.cache)
       url_keys = urls&.map { |url| public_url_key(url) }
       rdf_uris = string_array(uri_list.cache)
       unless url_keys.present? && rdf_uris.present? && url_keys.size == rdf_uris.size && url_keys.none?(&:nil?)
-        return metadata.merge(reason: "invalid_or_empty_list")
+        return metadata.merge(reason: "invalid_or_empty_list", count: urls&.size, invalid_count: url_keys&.count(&:nil?))
       end
 
       timestamps = [discovery.extracted_statement, url_list, uri_list].compact.map(&:cache_refreshed)
@@ -152,7 +180,7 @@ module Distillator
       end
 
       refreshed_at = timestamps.min
-      metadata = metadata.merge(refreshed_at: refreshed_at.iso8601(6), refresh_completed_at: timestamps.max.iso8601(6), count: url_keys.size)
+      metadata = metadata.merge(refreshed_at: refreshed_at.iso8601(6), refresh_completed_at: timestamps.max.iso8601(6), count: url_keys.size, invalid_count: 0)
       if changed_at && refreshed_at < changed_at
         return metadata.merge(reason: "list_configuration_changed")
       end

@@ -143,3 +143,25 @@ Thorough validation. Configuration and inventory changes can show Validation
 stale. Current ResourceList freshness and failed validation reports appear
 alongside it. A qualifying revalidation appends a new baseline, and previous
 entries remain in Validation history.
+
+## Source, extraction and discovery evidence
+
+In Website details, expand a ResourceList under **ResourceList operations**.
+The latest source attempt, last successful source fetch, statement extraction,
+URL reconciliation and qualifying validation evidence are reported separately.
+The Webpages table also shows the last source fetch and statement refresh.
+A missing local fetch record means the source response is unknown to Condenser.
+
+On a Webpage, **Refetch source** runs a fetch using the page's usual serving
+backend and updates its source cache. **Refresh statements** runs the existing
+DSL and may fetch inputs as usual. **Refetch + refresh statements** requires a
+successful primary refetch before extraction and reuses that response for
+ordinary primary-source steps. **Reconcile discovered URLs** checks verified
+event list statements and creates any missing webpage records without running
+their DSL.
+
+The deployment migration adds one provenance column to statements. New DSL
+refreshes can associate statement results with the exact primary response or
+secondary inputs they used. Earlier results may have no provenance. Input traces
+include regular DSL URL and API dependencies. Arbitrary Ruby network activity
+can fall outside those traces, so the UI does not advertise a cache-only action.

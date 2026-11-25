@@ -7,6 +7,14 @@ module Distillator
     CANCELLED_MESSAGE = "Cancelled by the operator".freeze
     STATUSES = %w[queued running completed failed].freeze
     class ConfigurationChanged < StandardError; end
+    class DiscoveryEvidenceError < ConfigurationChanged
+      attr_reader :diagnostic
+
+      def initialize(message, **diagnostic)
+        @diagnostic = diagnostic
+        super(message)
+      end
+    end
     class UnpublishableEvents < ConfigurationChanged
       attr_reader :blockers
 
@@ -187,10 +195,11 @@ module Distillator
       end
     end
 
-    def fail!(message, discovery_blockers: nil)
+    def fail!(message, discovery_blockers: nil, discovery_error: nil)
       changes = { status: "failed", completed_at: Time.current, error_message: message, updated_at: Time.current }
-      if discovery_blockers
-        changes[:progress] = Arel.sql("progress || CAST(? AS jsonb)", { discovery_blockers: discovery_blockers }.to_json)
+      details = { discovery_blockers: discovery_blockers, discovery_error: discovery_error }.compact
+      if details.any?
+        changes[:progress] = Arel.sql("progress || CAST(? AS jsonb)", details.to_json)
       end
       self.class.where(id: id, status: %w[queued running]).update_all(changes)
       reload
@@ -268,6 +277,9 @@ module Distillator
     rescue Cancelled => error
       fail!(error.message)
       transition_checkpoints.delete_all
+      raise
+    rescue DiscoveryEvidenceError => error
+      fail!(error.message, discovery_error: error.diagnostic)
       raise
     rescue UnpublishableEvents => error
       fail!(error.message, discovery_blockers: error.blockers)

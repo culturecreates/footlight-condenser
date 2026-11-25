@@ -80,7 +80,8 @@
 
 <%= render "validation_history" %>
 
-<%= content_tag(compact_transition ? :details : :section, id: "website-transition-controls", class: "website-rollout-panel website-show-section") do %>
+<%= content_tag(compact_transition ? :details : :section, id: "website-transition-controls", class: "website-rollout-panel website-show-section",
+    open: (true if compact_transition && params[:comparison] == "thorough")) do %>
   <% if compact_transition %>
     <summary>Active operation and rollback</summary>
   <% else %>
@@ -121,7 +122,11 @@
     <h3>Transition batch check</h3>
     <p><%= website_transition_batch_check_copy %></p>
     <% latest_run = website_operation_status(@website).latest_run %>
-    <% check_options = latest_run ? latest_run.options : Distillator::TransitionCheckOptions.new %>
+    <% check_options = if params[:comparison] == "thorough"
+      Distillator::TransitionCheckOptions.new(sample_mode: "all", strictness: "strict")
+    else
+      latest_run ? latest_run.options : Distillator::TransitionCheckOptions.new
+    end %>
     <%= form_with url: website_transition_batch_check_path, method: :post, local: true, class: "website-transition-check-form" do %>
       <% website_transition_batch_check_params(@website, return_to: website_transition_batch_status_path(@website)).each do |key, value| %>
         <%= hidden_field_tag key, value %>
@@ -146,8 +151,8 @@
         </p>
         <p class="cache-page-note">Full checks include each active public webpage for events that are publishable across their pages.
           Sites without Event pages or selected Event sources can check other website pages.</p>
-        <p class="cache-page-note">Full-scope Strict checks refresh ResourceLists and import discovered events before selecting pages.</p>
-        <%= submit_tag "Run transition batch check", class: "website-transition-button" %>
+        <p class="cache-page-note">Full-scope Strict checks refetch ResourceList sources, refresh their statements and reconcile discovered URLs before choosing event pages.</p>
+        <%= submit_tag(params[:comparison] == "thorough" ? "Run Thorough validation" : "Run transition batch check", class: "website-transition-button") %>
       </fieldset>
     <% end %>
     <% if @website.webpages.event_pages.archived.exists? %>
@@ -194,7 +199,7 @@
     <li><%= link_to "View resources with lists", lists_path(seedurl: @website.seedurl) %></li>
     <li><%= link_to "Export step-by-step", graphs_website_path(seedurl: @website.seedurl) %></li>
     <% unless active %><li><%= link_to "Refresh upcoming events", refresh_upcoming_events_batch_jobs_path(seedurl: @website.seedurl) %></li><% end %>
-    <li><%= link_to "Refresh lists and add webpages", check_for_new_webpages_batch_jobs_path(seedurl: @website.seedurl) %></li>
+    <li><%= link_to "Refresh list statements and reconcile discovered URLs", check_for_new_webpages_batch_jobs_path(seedurl: @website.seedurl) %></li>
     <li><%= link_to "Refresh all Webpages (all classes, all dates)", refresh_webpages_batch_jobs_path(seedurl: @website.seedurl) %></li>
     <li><%= link_to "Export Events to Artsdata", graphs_website_queue_path(seedurl: @website.seedurl) %></li>
   </ul>

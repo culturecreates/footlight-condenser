@@ -224,6 +224,11 @@ Rails.application.routes.draw do
   end
  
   resources :webpages do
+    member do
+      post :refetch_source, to: "webpage_operations#refetch_source"
+      post :refresh_statements, to: "webpage_operations#refresh_statements"
+      post :reconcile_urls, to: "webpage_operations#reconcile_urls"
+    end
     collection do
       post 'create_api' # Internal Webpages Only 
       patch 'refresh' # Internal Webpages Only

@@ -1,0 +1,5 @@
+<% if stamp %>
+  <%= time_tag stamp, l(stamp.in_time_zone, format: :short), title: stamp.in_time_zone.to_s %>
+<% else %>
+  <span title="No successful operation recorded">—</span>
+<% end %>

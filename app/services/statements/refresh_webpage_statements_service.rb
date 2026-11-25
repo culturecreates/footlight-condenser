@@ -35,11 +35,11 @@ module Statements
       @refresh_helper = refresh_helper
     end
 
-    def call(webpage:, default_language: "en", scrape_options: {})
+    def call(webpage:, default_language: "en", scrape_options: {}, page_fetch: nil, sources: nil)
       error_list = []
       refresh_options = normalized_scrape_options(scrape_options)
-      sources = self.class.sources_for_webpage(webpage, default_language: default_language)
-      refresh_options[:page_fetch] = PageFetch.new(render_js: sources.any?(&:render_js?), scrape_options: refresh_options)
+      sources ||= self.class.sources_for_webpage(webpage, default_language: default_language)
+      refresh_options[:page_fetch] = page_fetch || PageFetch.new(render_js: sources.any?(&:render_js?), scrape_options: refresh_options)
 
       sources.each do |src|
         stat = Statement.find_or_initialize_by(webpage_id: webpage.id, source_id: src.id)

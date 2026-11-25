@@ -8,7 +8,7 @@ end %>
 <span class="operator-status operator-status--<%= tone %>" data-inventory-status="<%= inventory[:status] %>"><%= inventory[:label] %></span>
 <% if inventory[:latest_list_refresh_at] %>
   <% refreshed_at = Time.iso8601(inventory[:latest_list_refresh_at]).in_time_zone %>
-  <%= time_tag refreshed_at, refreshed_at.strftime("%b %-d %H:%M"), title: "Latest paired ResourceList refresh · #{refreshed_at}" %>
+  <%= time_tag refreshed_at, refreshed_at.strftime("%b %-d %H:%M"), title: "Latest paired ResourceList statement extraction · #{refreshed_at}" %>
 <% end %>
 <br>
 <small title="Age of the last event webpage added, including imported or manually added events">
@@ -19,5 +19,5 @@ end %>
 </small>
 
 <% if inventory[:unpublishable_urls_count].to_i.positive? %>
-  <br><small><%= pluralize(inventory[:unpublishable_urls_count], "listed event") %> missing publishable statements</small>
+  <br><small><%= pluralize(inventory[:unpublishable_urls_count], "listed event") %> missing required statements</small>
 <% end %>

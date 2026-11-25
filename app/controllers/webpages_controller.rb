@@ -83,6 +83,8 @@ class WebpagesController < ApplicationController
       show_distillator_cache_column: @show_distillator_cache_column
     )
 
+    @operation_evidence = Distillator::WebpageOperationEvidence.for_pages(@webpages) if request.format.html?
+
     publishable_ids = Webpage.publishable.where(id: @webpages.map(&:id)).pluck(:id).to_set
     @publishable = @webpages.each_with_object({}) do |webpage, values|
       values[webpage.id] = publishable_ids.include?(webpage.id) ? "Yes" : "No"
@@ -92,6 +94,18 @@ class WebpagesController < ApplicationController
   # GET /webpages/1
   # GET /webpages/1.json
   def show
+    return unless request.format.html?
+
+    is_list = @webpage.rdfs_class&.name == "ResourceList"
+    @operation_evidence = Distillator::WebpageOperationEvidence.for_pages([@webpage], discovery_only: is_list, details: true).fetch(@webpage.id)
+    return unless is_list
+
+    target = @webpage.discovery_target_website_id || @webpage.website_id
+    inventory = Distillator::WebsiteInventoryFreshness.for_websites([target], diagnostics: true).fetch(target)
+    @list_readiness = inventory.fetch(:lists).find { |list| list[:webpage_id] == @webpage.id }
+    website = @webpage.discovery_target_website || @webpage.website
+    validation = Distillator::WebsiteValidationHistory.for_websites([website], inventories: { target => inventory }).fetch(target)
+    @list_validation = Distillator::ResourceListReadiness.validation(validation, inventory, list: @list_readiness)
   end
 
   # GET /webpages/new

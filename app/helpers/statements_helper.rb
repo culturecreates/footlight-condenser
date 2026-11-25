@@ -267,12 +267,15 @@ module StatementsHelper
     data = nil
     error_messages = []
     saved = false
+    observation = nil
     build_result = -> do
+      errors = (error_messages + stat.errors.full_messages).compact.uniq
+      record_failed_statement_attempt(stat, observation) if observation && errors.any?
       {
         data: data,
         trace: @dsl_trace,
         saved: saved,
-        errors: (error_messages + stat.errors.full_messages).compact.uniq
+        errors: errors
       }
     end
 
@@ -287,12 +290,14 @@ module StatementsHelper
     trace_enabled = trace_enabled_for_request?
     abort_error_message = nil
 
+    settings = statement_refresh_scrape_options(stat, scrape_options)
+    observation = settings.fetch(:page_fetch).observe_statement!
     dsl_result = run_dsl(
       algorithm: stat.source.algorithm_value,
       render_js: stat.source.render_js,
       language: stat.source.language,
       url: stat.webpage.url,
-      scrape_options: statement_refresh_scrape_options(stat, scrape_options),
+      scrape_options: settings,
       trace: trace_enabled
     )
 
@@ -357,6 +362,8 @@ module StatementsHelper
 
       stat.cache           = formatted
       stat.cache_refreshed = Time.zone.now
+      proof = observation.snapshot(result: (data.present? ? "saved" : "empty"), recorded_at: stat.cache_refreshed)
+      stat.fetch_provenance = { "saved" => proof, "attempt" => proof }
       saved = stat.save
       Monitoring::Recorder.success(stat) if saved
     end
@@ -368,6 +375,15 @@ module StatementsHelper
     end
 
     build_result.call
+  end
+
+  def record_failed_statement_attempt(stat, observation)
+    return unless stat.persisted?
+
+    proof = observation.snapshot(result: "failed", recorded_at: Time.current)
+    Statement.where(id: stat.id, cache_refreshed: stat.attribute_in_database("cache_refreshed"))
+      .where("fetch_provenance #>> '{attempt,recorded_at}' IS NULL OR fetch_provenance #>> '{attempt,recorded_at}' <= ?", proof.fetch("recorded_at"))
+      .update_all(["fetch_provenance = fetch_provenance || ?::jsonb", { attempt: proof }.to_json])
   end
 
   def compact_refresh_error(error)

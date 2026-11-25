@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_25_000200) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_25_000300) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -407,6 +407,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_25_000200) do
     t.datetime "updated_at", precision: nil, null: false
     t.boolean "selected_individual", default: false
     t.boolean "manual", default: false
+    t.jsonb "fetch_provenance", default: {}, null: false
     t.index ["source_id", "webpage_id"], name: "index_statements_on_source_id_and_webpage_id", unique: true
     t.index ["source_id"], name: "index_statements_on_source_id"
     t.index ["webpage_id"], name: "index_statements_on_webpage_id"

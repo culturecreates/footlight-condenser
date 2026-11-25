@@ -59,7 +59,7 @@ module WebpagesHelper
       ["Language", webpage.language],
       ["JSON-LD output", webpage_jsonld_output_label(webpage)],
       ["Created", webpage.created_at],
-      ["Updated", webpage.updated_at],
+      ["Record updated", webpage.updated_at],
       ["Archive date", webpage.archive_date]
     ]
   end

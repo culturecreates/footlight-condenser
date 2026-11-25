@@ -1,0 +1,63 @@
+<% fetch = operations.fetch(:fetch) %>
+<% extraction = operations.fetch(:extraction) %>
+<dl>
+  <dt>Last successful source fetch</dt>
+  <dd data-fetch-state="<%= fetch[:state] %>">
+    <%= render "shared/operation_timestamp", stamp: fetch[:last_success_at] %>
+    · <%= fetch[:state] == :failed && fetch[:last_success_at] ? "Latest attempt failed; last good source retained" : fetch[:state].to_s.humanize %>
+    <% if fetch[:backend] %> · <%= fetch[:backend] %><% end %>
+    <% if fetch[:backend] == "legacy" %> · Upstream freshness unknown<% end %>
+  </dd>
+  <% if fetch[:last_attempt_at] %>
+    <dt>Latest source attempt</dt>
+    <dd><%= render "shared/operation_timestamp", stamp: fetch[:last_attempt_at] %>
+      <% if fetch[:http_status] %> · HTTP <%= fetch[:http_status] %><% end %>
+      <% if fetch[:attempt_backend] %> · <%= fetch[:attempt_backend] %><% end %>
+    </dd>
+  <% end %>
+  <dt>Last successful statement refresh</dt>
+  <dd>
+    <%= render "shared/operation_timestamp", stamp: extraction[:last_success_at] %>
+    <% if extraction[:primary_usage].present? %>
+      · Primary source <%= extraction[:primary_usage].join(" / ") %>
+    <% else %>
+      · Primary source usage unknown
+    <% end %>
+    <% if extraction[:failed_statements].positive? %> · <%= pluralize(extraction[:failed_statements], "statement") %> with failures<% end %>
+  </dd>
+  <% if extraction[:last_attempt_at] %>
+    <dt>Latest recorded statement attempt</dt>
+    <dd><%= render "shared/operation_timestamp", stamp: Time.iso8601(extraction[:last_attempt_at]) %></dd>
+  <% end %>
+</dl>
+<% if extraction[:saved_inputs].any? || fetch[:cache_id] %>
+  <details>
+    <summary>Input provenance</summary>
+    <% if fetch[:cache_id] %><p>Current cache record #<%= fetch[:cache_id] %></p><% end %>
+    <% extraction[:saved_inputs].each do |proof| %>
+      <p>Source #<%= proof[:source_id] %> · saved <%= render "shared/operation_timestamp", stamp: Time.iso8601(proof.fetch("recorded_at")) %></p>
+      <% if (primary = proof["primary"]) %>
+        <ul>
+          <% if primary["cache_id"] %><li>Primary cache record #<%= primary["cache_id"] %></li><% end %>
+          <% if primary["fingerprint"] %><li>Primary content SHA-256 <code><%= primary["fingerprint"] %></code></li><% end %>
+          <% if primary["source_fetched_at"] %><li>Response stored <%= render "shared/operation_timestamp", stamp: Time.iso8601(primary["source_fetched_at"]) %></li><% end %>
+        </ul>
+      <% else %>
+        <p>No primary source response recorded for this extraction.</p>
+      <% end %>
+      <% if proof["dependencies"].present? %>
+        <ul>
+          <% proof["dependencies"].each do |dependency| %>
+            <li>Secondary input <%= dependency["host"] %> <code><%= dependency["identity"] %></code>
+              · <%= dependency["result"].to_s.humanize %><%= " · HTTP #{dependency['http_status']}" if dependency["http_status"] %>
+              <%= " · cache ##{dependency['cache_id']}" if dependency["cache_id"] %>
+              <%= " · #{dependency['usage']}" if dependency["usage"] %>
+              <% if dependency["fingerprint"] %> · SHA-256 <code><%= dependency["fingerprint"] %></code><% end %>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+      <% if proof["dependencies_incomplete"] %><p>Ruby or the observation limit may leave other dependencies unrecorded.</p><% end %>
+    <% end %>
+  </details>
+<% end %>

@@ -22,6 +22,7 @@ class Statement < ApplicationRecord
 
   validates :source, uniqueness: { scope: :webpage }
   validates :status, inclusion: { in: STATUSES.keys.map(&:to_s) }
+  before_save :clear_superseded_fetch_provenance
   before_save :check_if_cache_changed
   before_save :check_mandatory_properties
   before_save :update_archive_date
@@ -31,6 +32,13 @@ class Statement < ApplicationRecord
 
   # For pagination
   self.per_page = 100
+
+  def clear_superseded_fetch_provenance
+    if (will_save_change_to_cache? || will_save_change_to_cache_refreshed?) && !will_save_change_to_fetch_provenance?
+      self.fetch_provenance = {}
+    end
+  end
+  private :clear_superseded_fetch_provenance
 
   def check_if_cache_changed
     return unless changed_attribute_names_to_save.include?("cache")

@@ -501,7 +501,7 @@ module Distillator
       if (proof = transition_run&.progress&.dig("discovery_refresh"))
         details[:event_inventory]&.merge!(
           refresh_completed_at: proof["refresh_completed_at"], refreshed_list_count: proof.fetch("lists").size,
-          warnings: proof["warnings"]
+          warnings: proof["warnings"], discovery_stages: proof["stages"]
         )
       end
       details[:event_sample] = transition_run.event_sample if transition_run&.event_sample

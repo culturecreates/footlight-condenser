@@ -50,7 +50,9 @@ class HarmonizedTableHeadersTest < ActiveSupport::TestCase
 
     refute_includes without_condenser.map { |header| header[:label] }, "Condenser Cache"
     assert_includes with_condenser.map { |header| header[:label] }, "Condenser Cache"
-    assert_includes with_condenser, { label: "Updated", sort_key: "updated_at" }
+    assert_includes with_condenser, { label: "Record updated", sort_key: "updated_at" }
+    assert_includes with_condenser, { label: "Last source fetch" }
+    assert_includes with_condenser, { label: "Last statements refresh" }
   end
 
   test "reports headers expose sortable event title cache archive date webpage id and rdf uri" do

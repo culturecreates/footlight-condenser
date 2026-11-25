@@ -1,0 +1,29 @@
+<%= render "shared/webpage_operation_evidence", operations: list %>
+<dl>
+  <dt>Statement extraction verification</dt>
+  <dd><%= list.dig(:extraction, :state).to_s.humanize %></dd>
+  <dt>URL reconciliation</dt>
+  <dd data-reconciliation-state="<%= list.dig(:reconciliation, :state) %>">
+    <% reconciliation = list.fetch(:reconciliation) %>
+    <%= { discovered: "Discovered", already_known: "Already known", new_urls: "New URLs",
+          missing_urls: "Missing event records", invalid_urls: "Invalid URLs" }.map { |key, label| "#{label} #{reconciliation[key] || 'unknown'}" }.join(" · ") %>
+  </dd>
+  <dt>Thorough validation</dt>
+  <dd>
+    <% if (pass = validation[:last_pass]) %>
+      <% report = pass.workflow ? distillator_site_transition_path(pass.workflow) : distillator_shadow_report_site_path(pass.site_check.website_id, run_id: pass.site_check.id) %>
+      <%= link_to "#{pass.profile.humanize} passed", report %>
+      <%= render "shared/operation_timestamp", stamp: pass.completed_at %>
+      <% if validation[:eligible].to_i.positive? && validation[:state] != :migrated %>
+        · <%= validation[:covered] %>/<%= validation[:eligible] %> current event pages covered
+      <% end %>
+      ·
+    <% end %>
+    <%= validation[:current_list_verified] ? "Current list included in qualifying evidence" : "No qualifying evidence for the current list recorded" %>
+  </dd>
+</dl>
+<% if list[:message] %>
+  <p data-resource-list-reason="<%= list[:reason] %>"><%= list[:message] %>
+    <% if list[:next_action] %><strong><%= Distillator::ResourceListReadiness::ACTIONS.fetch(list[:next_action]) %></strong><% end %>
+  </p>
+<% end %>

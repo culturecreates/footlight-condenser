@@ -8,6 +8,9 @@
   <td><%= webpage.rdf_uri %></td>
   <td><%= webpage.archive_date %></td>
   <td><%= l(webpage.updated_at, format: :short) %></td>
+  <% operations = @operation_evidence.fetch(webpage.id) %>
+  <td><%= render "shared/operation_timestamp", stamp: operations.dig(:fetch, :last_success_at) %></td>
+  <td><%= render "shared/operation_timestamp", stamp: operations.dig(:extraction, :last_success_at) %></td>
   <td><%= webpage.jsonld_output&.name %></td>
   <td>
     <% if cache_links[:disabled] %>
