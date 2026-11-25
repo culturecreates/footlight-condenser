@@ -33,3 +33,23 @@ lavitrine_pipeline:
     - theatregranada-com
     - tout-culture
     - culture-mauricie
+
+# Operational cohort managed independently of La Vitrine; memberships may overlap.
+client_sites:
+  label: "Client sites"
+  match_fields:
+    - seedurl
+    - name
+  feed_names:
+    - co-motion-ca
+    - Co-motion Laval
+    - Culture 3R
+    - Culture La Tuque
+    - Culture Mauricie - lepointdevente - Trois-Rivieres
+    - Gatineau (Ville)
+    - Maison de culture Gatineau (Salle Odyssée)
+    - Minotaure
+    - Tourisme des Chenaux
+    - Tourisme Maskinongé
+    - Tourisme Shawinigan
+    - Tourisme Trois-Rivieres
