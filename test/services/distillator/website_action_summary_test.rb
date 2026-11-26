@@ -64,7 +64,7 @@ module Distillator
 
     test "a queued or running comparison leads and earlier findings remain available" do
       @validation.attention = TransitionRun.new(status: "failed", error_message: "Previous comparison failed")
-      @inventory[:lists] = [{ status: "unverified", webpage_id: 1, **ResourceListReadiness.guidance(:invalid_or_empty_list) }]
+      @inventory[:lists] = [{ status: "unverified", health: :failed, webpage_id: 1, **ResourceListReadiness.guidance(:invalid_or_empty_list) }]
 
       %w[queued running].each do |status|
         outcomes = actions(running: TransitionRun.new(status: status))
@@ -75,7 +75,7 @@ module Distillator
 
     test "failed recovery appears ahead of running work and an unverified list" do
       @validation.attention = SiteTransition.new(status: "recovery_failed", reason: "Recovery could not be confirmed")
-      @inventory[:lists] = [{ status: "unverified", reason: :invalid_or_empty_list, message: "Invalid URLs", webpage_id: 1, next_action: :inspect_extraction }]
+      @inventory[:lists] = [{ status: "unverified", health: :failed, reason: :invalid_or_empty_list, message: "Invalid URLs", webpage_id: 1, next_action: :inspect_extraction }]
       outcomes = actions(running: TransitionRun.new(status: "running"))
       assert_equal %i[recovery_failed validation_in_progress invalid_or_empty_list], outcomes.map(&:code)
       assert_equal %i[p0 progress p1], outcomes.map(&:priority)
