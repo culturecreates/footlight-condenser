@@ -158,20 +158,26 @@ class DistillatorRolloutStatementRefreshTest < ActionDispatch::IntegrationTest
     assert_equal "Condenser title", statement.reload.cache
     assert_equal "native", fetch_cache.reload.signals.dig("body_profile", "backend")
     last_good_statement_refresh = statement.cache_refreshed
+    last_good_native_html = fetch_cache.html
+    last_good_native_refresh = fetch_cache.successful_refresh
 
     patch website_path(website), params: { website: { distillator_mode: "legacy" } }
     assert_equal "legacy", website.reload.distillator_mode
     patch refresh_statement_path(statement, format: :json)
     assert_response :unprocessable_entity
     assert_equal "http_5xx", JSON.parse(response.body).fetch("error_type")
-    assert_nil fetch_cache.reload.html
-    assert_nil fetch_cache.successful_refresh
+    assert_equal last_good_native_html, fetch_cache.reload.html
+    assert_equal last_good_native_refresh, fetch_cache.successful_refresh
+    assert_equal "native", fetch_cache.signals.dig("body_profile", "backend")
+    assert_equal true, fetch_cache.signals["last_good_preserved_failure"]
+    assert_equal 503, fetch_cache.http_response_code
     assert_equal last_good_statement_refresh, statement.reload.cache_refreshed
     assert_equal "Condenser title", statement.cache
 
     patch refresh_statement_path(statement)
     assert_equal "Wringer title", statement.reload.cache
     assert_equal "legacy", fetch_cache.reload.signals.dig("body_profile", "backend")
+    assert_equal legacy[:body], fetch_cache.html
     assert_equal %w[shadow active legacy], website.rollout_events.order(:id).pluck(:to_mode)
 
     unverified_body = "<title>Unverified cached title</title>"
