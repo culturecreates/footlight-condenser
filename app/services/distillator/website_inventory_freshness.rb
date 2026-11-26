@@ -6,7 +6,7 @@ module Distillator
       "discovery_unverified" => "Unverified",
       "discovery_pending_import" => "Awaiting reconciliation",
       "no_discovery_lists" => "No event lists",
-      "no_event_discovery" => "Empty event lists"
+      "no_event_discovery" => "No populated event lists"
     }.freeze
 
     def self.for_websites(website_ids, as_of: Time.current, diagnostics: false)
