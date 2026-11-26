@@ -7,7 +7,7 @@ module Distillator
       incomplete_thorough_evidence: ["The recorded discovery proof was not accompanied by a complete Thorough comparison.", :run_thorough],
       discovery_configuration_changed: ["The ResourceList configuration changed since the last recorded discovery.", :run_thorough],
       no_discovery_lists: ["No event ResourceLists are configured.", :review_list_configuration],
-      no_event_discovery: ["All event ResourceLists returned valid empty results. Confirm the calendar is expected to be empty.", :review_list_configuration],
+      no_event_discovery: ["No populated event discovery was verified. Confirm an empty calendar or inspect the configured event lists.", :review_list_configuration],
       source_not_fetched: ["No successful source fetch is recorded.", :refetch_source],
       source_fetch_failed: ["The latest source fetch failed.", :refetch_source],
       source_fetch_stale: ["The last successful source fetch is stale.", :refetch_source],
