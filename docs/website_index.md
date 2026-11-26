@@ -173,23 +173,26 @@ discovery, publishable Event resources, validation and statement activity.
 **Show all metrics** opens the full sortable table. **Details** retains
 per-ResourceList diagnostics, validation coverage and history, schedules,
 counts, and links to Statements, Webpages, Sources, Monitoring and reports.
-Both Information tables show the scheduled interval in days and configured
-JavaScript rendering. **RL** marks ResourceLists, including linked discovery
+Both Information tables show the scheduled interval in days and **Configured
+JS**. **RL** marks ResourceLists, including linked discovery
 lists, and **E** marks active public Event webpages. The indicators reflect
 applicable rendered-fetch source settings, explicit `renderjs_url=` DSL steps
 (including library instructions), and iframe rendering URLs for either serving
-backend.
+backend. Fetch diagnostics show what happened on an individual request.
 
 Choose **Action** to start with the highest-priority issue for each website.
 P0 covers confirmed urgent conditions such as a failed recovery. P1 covers
 failed required checks or discovery and data blockers. P2 covers work such
 as outdated validation evidence and pending reconciliation. P3 covers an
 optional next step such as recording a cutover. Running work takes precedence
-on its website unless a P0 finding requires attention. Choosing **Needs
-attention** still includes a running site with an open finding. Secondary
-findings are in **Details**, and sites with no
-identified action are grouped at the end. A recorded blocked source fetch
-concerns the affected source. The dashboard has no sitewide outage signal.
+on its website unless a P0 finding requires attention. The **In progress**
+summary shows running and queued counts, and **Needs intervention** opens by
+default. Planned work, migration opportunities, and sites with no identified
+action are expandable. Choosing **Needs attention** still includes a running
+site with an open finding. Missing-field rows give the affected Event resource
+count. Explanations and secondary findings are in **Details**. A recorded
+blocked source fetch concerns the affected source. The dashboard has no
+sitewide outage signal.
 ResourceList maintenance can appear alongside verified discovery. On staging,
 all sites with an invalid rollout mode can appear in the queue. Transition
 selection is available only for eligible event sites.

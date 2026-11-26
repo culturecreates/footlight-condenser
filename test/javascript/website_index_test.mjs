@@ -60,10 +60,13 @@ test("a restored dashboard rebinds its cloned evidence disclosure with the actio
 
 test("sorting can reopen its category while an unrelated hash cannot open other content", () => {
   const group = { open: false, matches: (selector) => selector === "details.website-index-category" };
-  const root = { getElementById: (id) => id === "website-list-unscheduled" ? group : null };
-  revealWebsiteGroup(root, "#website-list-unscheduled");
-  assert.equal(group.open, true);
-  group.open = false;
+  const groupIds = ["website-list-unscheduled", "website-list-progress", "website-list-p2", "website-list-no-action"];
+  const root = { getElementById: (id) => groupIds.includes(id) ? group : null };
+  for (const id of groupIds) {
+    revealWebsiteGroup(root, `#${id}`);
+    assert.equal(group.open, true);
+    group.open = false;
+  }
   revealWebsiteGroup(root, "#unrelated");
   assert.equal(group.open, false);
   revealWebsiteGroup(root, "#website-list-tests");

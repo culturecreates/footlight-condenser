@@ -57,7 +57,9 @@ class WebsiteDashboardTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     row = "tr[data-website-id='#{site.id}']"
-    assert_select "#{row} [data-action-code=missing_event_fields]", text: /Location unavailable/
+    assert_select "#{row} [data-action-code=missing_event_fields]", text: /Missing Location\s+· 1 event/
+    assert_select "#{row} [data-action-code=missing_event_fields] p", count: 0
+    assert_select "#website-details-#{site.id} [aria-label='Action evidence'] li", text: /Location unavailable/
     assert_select "#{row} a[href=?]", statements_path(seedurl: site.seedurl, rdf_uri: webpage.rdf_uri), text: "Review event statements"
     assert_select "#{row} button[data-website-details][aria-controls='website-details-#{site.id}'][aria-expanded=false]"
     assert_select "a[href=?]", webpages_path(seedurl: site.seedurl, scope: "all")
@@ -91,6 +93,15 @@ class WebsiteDashboardTest < ActionDispatch::IntegrationTest
     old_check.update!(status: "failed", completed_at: Time.current, error_message: "The previous comparison was interrupted.")
     group = Distillator::TransitionBatch.request!(website_ids: [site.id], request_key: SecureRandom.uuid, workflow_action: "audit")
     workflow = group.site_transitions.sole
+    intervention = websites(:two)
+    interrupted = Distillator::TransitionRun.request!(website: intervention).run
+    interrupted.update!(status: "failed", completed_at: Time.current, error_message: "Another site's check was interrupted.")
+
+    get websites_path, params: { dashboard: "action", view: "all" }
+    assert_response :success
+    assert_select "#website-list-progress:not([open]) summary", text: /In progress \(1\).*0 running · 1 queued/m
+    assert_select "#website-list-intervention[open] tr[data-website-id='#{intervention.id}']"
+    assert_select "#website-list-no-action:not([open])"
 
     %w[all progress attention].each do |filter|
       get websites_path, params: { dashboard: "action", action_filter: filter, q: site.name, view: "all" }
@@ -99,6 +110,7 @@ class WebsiteDashboardTest < ActionDispatch::IntegrationTest
       assert_select "[data-action-code=audit_in_progress]", text: /Active audit queued/
       assert_select "a[href=?]", distillator_site_transition_path(workflow), text: "Open workflow report"
       assert_select "#website-details-#{site.id} [aria-label='Action evidence'] li", text: /previous comparison was interrupted/
+      assert_select "#website-list-progress[open]" if filter == "progress"
     end
     assert_equal "active", site.reload.distillator_mode
   end
@@ -114,10 +126,11 @@ class WebsiteDashboardTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match(/websites are invalid on staging/, response.body)
     assert_select "tr[data-website-id='#{resource_list.id}']" do
-      assert_select "[data-action-code=staging_mode]", text: /This site is in Legacy mode/
+      assert_select "[data-action-code=staging_mode]", text: "Review staging rollout mode"
       assert_select "a[href=?]", website_path(resource_list), text: "Review website"
       assert_select "input[data-transition-site]", count: 0
     end
+    assert_select "#website-details-#{resource_list.id} [aria-label='Action evidence'] li", text: /This site is in Legacy mode/
   end
 
   test "Information shows scheduled days and distinguishes Event and linked ResourceList rendering" do
@@ -142,7 +155,7 @@ class WebsiteDashboardTest < ActionDispatch::IntegrationTest
       get websites_path, params: { view: "all", dashboard: "information", metrics: metrics, q: "Rendering dashboard" }
       assert_response :success
       assert_select "th a[href*='sort=schedule_every_days']", text: "Schedule (days)"
-      assert_select "th", text: "JS usage"
+      assert_select "th", text: "Configured JS"
       assert_select "tr[data-website-id='#{site.id}']" do
         assert_select "td[title^='Every 3 days']", text: "3"
         assert_select "span[aria-hidden=true]", text: "RL"
@@ -166,7 +179,18 @@ class WebsiteDashboardTest < ActionDispatch::IntegrationTest
     assert_select "tr[data-website-id='#{site.id}'] span[aria-hidden=true]", text: "E"
 
     get websites_path, params: { view: "all", dashboard: "action", q: site.name }
-    assert_select "th", text: "JS usage", count: 0
+    assert_select "th", text: "Configured JS", count: 0
     assert_select "th", text: "Schedule (days)", count: 0
+  end
+
+  test "recent cache text matches explain the global count and time window" do
+    statements(:one).update_columns(cache: "A comedy of errors", cache_refreshed: 1.hour.ago, status: "ok")
+    statements(:two).update_columns(cache: "error from an older refresh", cache_refreshed: 2.days.ago)
+    statements(:three).update_columns(cache: "An ordinary value", cache_refreshed: 1.hour.ago)
+
+    get websites_path, params: { q: websites(:two).name }
+    assert_response :success
+    assert_select "details.website-index-warning summary", text: "1 recent statement cache matching “error”"
+    assert_select "details.website-index-warning p", text: /across all websites.*last 24 hours/
   end
 end

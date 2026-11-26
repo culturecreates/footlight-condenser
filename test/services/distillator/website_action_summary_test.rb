@@ -35,6 +35,15 @@ module Distillator
       assert_not outcome.matches?("validation")
     end
 
+    test "missing field title and count summarize distinct affected event resources" do
+      requirements = [[[@site.id, "urn:without-place"], [{ field: "Location", reasons: ["Missing Place"] }]],
+        [[@site.id, "urn:without-dates"], [{ field: "Dates", reasons: ["Missing performance dates"] }]]]
+      outcome = actions(requirements: requirements).find { |item| item.code == :missing_event_fields }
+      assert_equal "Missing Dates and Location", outcome.title
+      assert_equal 2, outcome.evidence[:event_count]
+      assert_equal "urn:without-place", outcome.evidence[:rdf_uri]
+    end
+
     test "a Ready site offers cutover and an already Migrated site has no recommendation" do
       @validation.milestone = "ready"
       assert_equal :confirm_cutover, actions.sole.operation

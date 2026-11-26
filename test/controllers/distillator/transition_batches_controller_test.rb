@@ -228,7 +228,8 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     assert_select "#{row} small", text: "Configuration changed since pass"
     assert_select "#{row} a", text: "Thorough 2×"
     get websites_path, params: { dashboard: "action", q: @two.name }
-    assert_select "#{row} [data-action-code=validation_outdated]", text: /current inventory or configuration/
+    assert_select "#{row} [data-action-code=validation_outdated]", text: "Thorough evidence outdated"
+    assert_select "#website-details-#{@two.id} [aria-label='Action evidence'] li", text: /current inventory or configuration/
     assert_select "#{row} [data-action-code=comparison_failed]", count: 0
   end
 

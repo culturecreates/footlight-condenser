@@ -43,8 +43,11 @@
     <% end %>
   </div>
 
-  <% if @statements_errors.positive? %>
-    <p class="website-index-warning"><strong><%= number_with_delimiter(@statements_errors) %> statement errors in the last 24 hours.</strong></p>
+  <% if @recent_error_cache_count.positive? %>
+    <details class="website-index-warning">
+      <summary><strong><%= pluralize(@recent_error_cache_count, "recent statement cache") %> matching “error”</strong></summary>
+      <p>Counts statement caches across all websites that contain the text “error” and were refreshed in the last 24 hours. This can include ordinary content that mentions errors.</p>
+    </details>
   <% end %>
   <% if (staging_warning = website_staging_rollout_warning).present? %>
     <p class="website-index-warning"><%= staging_warning %></p>

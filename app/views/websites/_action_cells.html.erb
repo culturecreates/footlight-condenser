@@ -2,9 +2,10 @@
   <td><span class="website-action-priority website-action-priority--<%= action.priority %>"><%= action.priority == :progress ? "In progress" : action.priority.to_s.upcase %></span></td>
   <td class="website-action-issue" data-action-code="<%= action.code %>">
     <strong><%= action.title %></strong>
-    <% if action.explanation.present? %><p><%= truncate(action.explanation, length: 220) %></p><% end %>
+    <% if (count = action.evidence[:event_count]) %>
+      <small class="muted"> · <%= pluralize(count, "event") %></small>
+    <% end %>
   </td>
-  <td class="website-action-impact"><%= action.impact %></td>
   <td class="website-action-next">
     <% if action.operation == :details %>
       <button type="button" data-website-details aria-expanded="false" aria-controls="website-details-<%= website.id %>"
@@ -13,11 +14,9 @@
     <% else %>
       <%= website_action_link(website, action) %>
     <% end %>
-    <% if action.consequence %><p class="muted"><%= action.consequence %></p><% end %>
   </td>
 <% else %>
   <td>—</td>
   <td>No action identified</td>
-  <td>—</td>
   <td>—</td>
 <% end %>

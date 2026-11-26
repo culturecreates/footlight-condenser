@@ -149,15 +149,14 @@ class WebsitesController < ApplicationController
     @rollout_counts = Website.group(:distillator_mode).count
 
     @total_statements = Statement.all.count
-    @statements_errors = Statement.where("cache LIKE ?", "%error%")
-                                   .where(cache_refreshed: [(Time.zone.now - 24.hours)..(Time.zone.now)])
-                                   .count
 
     @statements_grouped = Statement.joins(webpage: :website).group(:seedurl).count
     @statements_refreshed_24hr = Statement.joins(webpage: :website).where(cache_refreshed: [(Time.zone.now - 24.hours)..(Time.zone.now)]).group(:seedurl).count
     @statements_updated_24hr = Statement.joins(webpage: :website).where(cache_changed: [(Time.zone.now - 24.hours)..(Time.zone.now)]).group(:seedurl).count
     website_ids = Array(@websites).map(&:id)
     if html_dashboard
+      @recent_error_cache_count = Statement.where("cache LIKE ?", "%error%")
+        .where(cache_refreshed: 24.hours.ago..Time.current).count
       @missed_event_counts = MonitoringIssue.open_issues.where(kind: "possible_missed_event",
         seedurl: Website.where(id: website_ids).select(:seedurl)).group(:seedurl).count
     end
@@ -434,6 +433,10 @@ class WebsitesController < ApplicationController
     @transition_eligible_ids &= @websites.map(&:id)
     # The existing explicit table sort breaks ties within a priority.
     @action_rows = @websites.each_with_index.sort_by { |site, index| [@primary_actions[site.id]&.rank || 5, index] }.map(&:first)
+    @action_groups = @action_rows.group_by do |site|
+      priority = @primary_actions[site.id]&.priority
+      priority.in?(%i[p0 p1]) ? :intervention : priority || :"no-action"
+    end
   end
 
   def sort_column

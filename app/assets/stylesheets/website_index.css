@@ -85,13 +85,12 @@
 }
 
 .website-index-table:not(.website-index-table--full) { min-width: 46rem; }
-.website-index-table :is(.website-action-issue, .website-action-impact, .website-action-next) {
+.website-index-table :is(.website-action-issue, .website-action-next) {
   white-space: normal;
   overflow-wrap: anywhere;
 }
 .website-action-issue { width: 32%; }
-.website-action-impact, .website-action-next { width: 20%; }
-.website-action-issue p, .website-action-next p { margin: .25rem 0 0; }
+.website-action-next { width: 20%; }
 .website-action-priority {
   display: inline-block;
   padding: .2rem .45rem;

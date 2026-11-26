@@ -19,7 +19,7 @@ export function configureWebsiteDetails(root = document) {
 }
 
 export function revealWebsiteGroup(root, hash) {
-  if (!/^#website-list-(unscheduled|resource_lists|entities|templates|tests|no_action)$/.test(hash)) return;
+  if (!/^#website-list-(unscheduled|resource_lists|entities|templates|tests|progress|intervention|p2|p3|no_action|no-action)$/.test(hash)) return;
   const group = root.getElementById(hash.slice(1));
   if (group?.matches("details.website-index-category")) group.open = true;
 }

@@ -151,7 +151,8 @@ module Distillator
       names = fields.pluck(:field).to_sentence
       blocking = listed.include?(uri)
       explanation = fields.flat_map { |field| field.fetch(:reasons) }.to_sentence
-      action(:missing_event_fields, :data_quality, blocking ? :p1 : :p2, "Missing required event fields",
+      affected_fields = @requirements.flat_map { |_, missing| missing.pluck(:field) }.uniq.sort.to_sentence
+      action(:missing_event_fields, :data_quality, blocking ? :p1 : :p2, "Missing #{affected_fields}",
         "#{names} unavailable for an active event. #{explanation}.",
         blocking ? "Listed events lack required statements for validation." : "The affected event cannot be published.",
         :event_statements, evidence: { rdf_uri: uri, fields: fields, event_count: @requirements.size })

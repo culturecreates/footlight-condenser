@@ -6,16 +6,27 @@
     <% end %>
   </nav>
 <% end %>
-<% actionable, remaining = @action_rows.partition { |site| @primary_actions[site.id] || @retry_transition_batch || @dashboard_selection_id } %>
-<h2 class="website-index-list-heading" id="website-list-actions">Website actions (<%= actionable.size %>)</h2>
-<% if actionable.any? %>
-  <%= render "index_table", websites: actionable, group: :actions %>
-<% else %>
+<% if @action_rows.empty? %>
   <p>No actions match these filters.</p>
-<% end %>
-<% if remaining.any? %>
-  <details class="website-index-category" id="website-list-no-action">
-    <summary>No action identified (<%= remaining.size %>)</summary>
-    <%= render "index_table", websites: remaining, group: :no_action %>
-  </details>
+<% elsif @retry_transition_batch || @dashboard_selection_id %>
+  <h2 class="website-index-list-heading" id="website-list-actions">Selected websites (<%= @action_rows.size %>)</h2>
+  <%= render "index_table", websites: @action_rows, group: :actions %>
+<% else %>
+  <% group_labels = { progress: "In progress", intervention: "Needs intervention", p2: "Planned work",
+      p3: "Migration opportunities", "no-action": "No action identified" } %>
+  <% group_labels.each do |group, label| %>
+    <% websites = @action_groups[group] %>
+    <% next if websites.blank? %>
+    <% open = group == :intervention || (group == :progress ? @action_filter == "progress" : @action_filter != "all") %>
+    <%= tag.details class: "website-index-category", id: "website-list-#{group}", open: open do %>
+      <summary>
+        <%= label %> (<%= websites.size %>)
+        <% if group == :progress %>
+          <% counts = websites.map { |site| @dashboard_running.fetch(site.id).status }.tally %>
+          <span class="muted"> · <%= counts.fetch("running", 0) %> running · <%= counts.fetch("queued", 0) %> queued</span>
+        <% end %>
+      </summary>
+      <%= render "index_table", websites: websites, group: group %>
+    <% end %>
+  <% end %>
 <% end %>

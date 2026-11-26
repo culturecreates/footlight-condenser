@@ -78,6 +78,8 @@
           <% if finding.evidence[:event_count].to_i > 1 %>
             · <%= pluralize(finding.evidence[:event_count], "active event") %> with missing fields
           <% end %>
+          <%= finding.impact %>
+          <%= finding.consequence %>
           <% if finding != @primary_actions[website.id] && finding.operation != :details %>
             · <%= website_action_link(website, finding) %>
           <% end %>
