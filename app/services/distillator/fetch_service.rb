@@ -623,6 +623,8 @@ module Distillator
         hints.concat(Array(issue.dig(:rule, "hints") || issue.dig(:rule, :hints)))
       end
 
+      reported_blocker = Distillator::WringerIssueSet.reported_blocking_key(signals)
+      reported_abort = payload.dig(:wringer, :policy_action).to_s == "abort_update"
       issue = issue_set.primary
       if issue
         signals[:primary_issue_key] = issue[:key]
@@ -636,21 +638,28 @@ module Distillator
         signals[:primary_issue_delete] = issue[:delete] unless issue[:delete].nil?
         signals[:issue_keys] = issue_set.matches.map { |match| match[:key] }.uniq
         payload[:wringer][:matched_rule] = issue[:key]
-        payload[:wringer][:matched_rules] = issue_set.matches.map { |match| match[:key] }.uniq
-        payload[:wringer][:policy] = issue[:policy]
-        payload[:wringer][:policy_action] = issue[:action]
-        payload[:wringer][:error_type] ||= issue[:error_type]
-        payload[:wringer][:retry] = issue[:retry] unless issue[:retry].nil?
-        payload[:wringer][:cache] = issue[:cache] unless issue[:cache].nil?
+        payload[:wringer][:matched_rules] = signals[:issue_keys]
+
+        policy_issue = issue_set.blocking || (issue unless reported_blocker || reported_abort)
+        if policy_issue
+          payload[:wringer][:policy] = policy_issue[:policy]
+          payload[:wringer][:policy_action] = policy_issue[:action]
+          payload[:wringer][:error_type] ||= policy_issue[:error_type]
+          payload[:wringer][:retry] = policy_issue[:retry] unless policy_issue[:retry].nil?
+          payload[:wringer][:cache] = policy_issue[:cache] unless policy_issue[:cache].nil?
+        end
       end
 
       signals[:transport_success] = transport_success?(status: payload[:status], http_code: http_code)
-      signals[:blocking_issue_key] = issue[:key] if issue
+      signals.delete("blocking_issue_key")
+      signals.delete(:blocking_issue_key)
+      blocking_key = issue_set.blocking&.dig(:key) || reported_blocker
+      signals[:blocking_issue_key] = blocking_key if blocking_key
       signals[:content_success] = content_success?(
         status: payload[:status],
         http_code: http_code,
         body: body,
-        issue: issue,
+        blocking_key: blocking_key,
         policy_action: payload.dig(:wringer, :policy_action)
       )
 
@@ -663,15 +672,12 @@ module Distillator
       status == :ok && http_code.to_i.between?(200, 299)
     end
 
-    def self.content_success?(status:, http_code:, body:, issue:, policy_action:)
+    def self.content_success?(status:, http_code:, body:, blocking_key:, policy_action:)
       return false unless transport_success?(status: status, http_code: http_code)
       return false unless body.is_a?(String) && body.present?
       return false if policy_action.to_s == "abort_update"
 
-      severity = issue&.dig(:rule, "severity") || issue&.dig(:rule, :severity)
-      return false if %w[blocked failed].include?(severity.to_s)
-
-      true
+      blocking_key.blank?
     end
 
     def self.detect_content_type(headers, body)

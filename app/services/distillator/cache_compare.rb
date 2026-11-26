@@ -180,7 +180,7 @@ module Distillator
         network_status: signal_value(data[:signals], :network_status),
         transport_success: signal_value(data[:signals], :transport_success),
         content_success: signal_value(data[:signals], :content_success),
-        blocking_issue: signal_value(data[:signals], :blocking_issue_key) || signal_value(data[:signals], :primary_issue_key),
+        blocking_issue: Distillator::WringerIssueSet.reported_blocking_key(data[:signals]),
         cache_policy: data[:cache],
         signals: (data[:signals] || {}).to_h,
         hints: Array(data[:hints]),
@@ -204,7 +204,7 @@ module Distillator
         network_status: cache.signals.to_h["network_status"],
         transport_success: cache.signals.to_h["transport_success"],
         content_success: cache.signals.to_h["content_success"],
-        blocking_issue: cache.signals.to_h["blocking_issue_key"] || cache.signals.to_h["primary_issue_key"],
+        blocking_issue: Distillator::WringerIssueSet.reported_blocking_key(cache.signals),
         cache_policy: cache.signals.to_h["cache"],
         signals: (cache.signals || {}).to_h,
         hints: Array(cache.hints),
@@ -426,7 +426,7 @@ module Distillator
       %i[transport_success content_success].each do |field|
         failures << field if !legacy_unknown?(cache[field]) && !Distillator::BooleanParam.parse(cache[field])
       end
-      failures << :blocking_issue if cache[:signals].to_h["blocking_issue_key"].present?
+      failures << :blocking_issue if cache[:blocking_issue].present? || signal_value(cache[:signals], :policy_action) == "abort_update"
       failures << :fetch_health if cache[:operational_failed]
       failures << :empty_html if cache[:html].blank?
       failures.uniq

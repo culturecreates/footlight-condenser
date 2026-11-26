@@ -53,6 +53,47 @@ class Distillator::CacheCompareObservabilityTest < ActiveSupport::TestCase
     assert result.dig(:summary, :promotable)
   end
 
+  test "older successful rendered cache rows keep the observation and report raw hash drift" do
+    @cache.update!(signals: @cache.signals.merge(
+      "primary_issue_key" => "legacy_phantomjs", "blocking_issue_key" => "legacy_phantomjs",
+      "primary_issue_severity" => "info", "policy_action" => "observe", "issue_keys" => ["legacy_phantomjs"]
+    ), hints: ["legacy_phantomjs"])
+    legacy_html = "#{@html}<!-- render version=1 -->"
+    rendered_html = "#{@html}<!-- render version=2 -->"
+    @cache.update!(html: rendered_html, body: rendered_html)
+
+    %i[operator strict].each do |policy|
+      result = compare({ html: legacy_html, http_code: 200, final_url: @url }, policy: policy)
+      assert result.dig(:summary, :promotable)
+      assert_equal "ready_with_metadata_notes", result.dig(:summary, :outcome)
+      assert_empty result.dig(:summary, :operational_failures)
+      assert_nil result.dig(:condenser_cache, :blocking_issue)
+      assert_equal "legacy_phantomjs", result.dig(:condenser_cache, :signals, "primary_issue_key")
+      assert_equal ["legacy_phantomjs"], result.dig(:condenser_cache, :hints)
+      assert_equal :metadata_only, result.dig(:diffs, :html_sha256, :classification)
+      assert_equal Digest::SHA256.hexdigest(rendered_html), result.dig(:diffs, :html_sha256, :distillator)
+      assert_equal Digest::SHA256.hexdigest(legacy_html), result.dig(:diffs, :html_sha256, :legacy)
+      assert result.dig(:diffs, :html_bytes, :same)
+    end
+
+    assert_equal "legacy_phantomjs", @cache.reload.signals["blocking_issue_key"]
+  end
+
+  test "older rendered cache rows cannot hide an independent blocking issue" do
+    @cache.update!(signals: @cache.signals.merge(
+      "primary_issue_key" => "legacy_phantomjs", "blocking_issue_key" => "legacy_phantomjs",
+      "primary_issue_severity" => "info", "policy_action" => "observe",
+      "issue_keys" => %w[legacy_phantomjs queue_it]
+    ))
+
+    result = compare({ html: @html, http_code: 200, final_url: @url })
+
+    assert_equal "queue_it", result.dig(:condenser_cache, :blocking_issue)
+    assert_includes result.dig(:summary, :operational_failures), :blocking_issue
+    assert_equal "blocked", result.dig(:summary, :outcome)
+    assert_not result.dig(:summary, :promotable)
+  end
+
   test "known destination and content changes still need attention" do
     @cache.update!(final_url: "https://example.org/another-event")
     result = compare({ html: @html, final_url: @url })

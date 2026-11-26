@@ -305,7 +305,9 @@ module Distillator
     end
 
     def blocking_issue?
-      cache.primary_issue_severity.to_s.in?(%w[blocked failed])
+      cache.primary_issue_severity.to_s.in?(Distillator::WringerIssueSet::BLOCKING_SEVERITIES) ||
+        Distillator::WringerIssueSet.reported_blocking_key(cache.signals).present? ||
+        signal("policy_action") == "abort_update"
     end
 
     def last_good_preserved_failure?

@@ -183,6 +183,13 @@ class Distillator::FetchServiceTest < ActiveSupport::TestCase
     assert_equal "<html>rendered</html>", result[:body]
     assert_equal :rendered_fetch, logger.infos.first[:reason]
     assert_equal "legacy_phantomjs", result.dig(:wringer, :signals, :renderer)
+    assert_equal "legacy_phantomjs", result.dig(:wringer, :signals, :primary_issue_key)
+    assert_equal ["legacy_phantomjs"], result.dig(:wringer, :signals, :issue_keys)
+    assert_includes result.dig(:wringer, :hints), "legacy_phantomjs"
+    assert_equal "observe", result.dig(:wringer, :policy_action)
+    assert_equal true, result.dig(:wringer, :signals, :transport_success)
+    assert_equal true, result.dig(:wringer, :signals, :content_success)
+    assert_not result.dig(:wringer, :signals).key?(:blocking_issue_key)
     assert_equal "https://example.com/rendered", result[:final_url]
     assert_equal ["https://example.com/events", "https://example.com/rendered"], result[:redirect_chain]
   end
@@ -248,6 +255,27 @@ class Distillator::FetchServiceTest < ActiveSupport::TestCase
     assert_equal "anti_bot", result.dig(:wringer, :signals, :primary_issue_category)
     assert_includes result.dig(:wringer, :hints), "queue_it"
     assert_equal "abort_update", result.dig(:wringer, :policy_action)
+    assert_equal "queue_it", result.dig(:wringer, :signals, :blocking_issue_key)
+    assert_equal false, result.dig(:wringer, :signals, :content_success)
+  end
+
+  test "renderer unavailability stays blocking alongside the legacy renderer note" do
+    Distillator::FetchGuard.stubs(:check_url).returns(fetch_guard_allowed)
+    Distillator::FetchGuard.stubs(:check_response).returns(fetch_guard_allowed)
+    Distillator::FetchService.expects(:internal_fetch).returns(
+      status: :abort, body: ["abort_update", { error_type: "DistillatorRendererUnavailable" }],
+      wringer: {
+        signals: { renderer_unavailable: true, renderer: "legacy_phantomjs" },
+        hints: %w[legacy_phantomjs phantomjs_unavailable]
+      }
+    )
+
+    result = Distillator::FetchService.fetch(url: "https://example.com/event", mode: :internal, render_js: true)
+
+    assert_equal "phantomjs_unavailable", result.dig(:wringer, :signals, :blocking_issue_key)
+    assert_includes result.dig(:wringer, :signals, :issue_keys), "legacy_phantomjs"
+    assert_equal "abort_update", result.dig(:wringer, :policy_action)
+    assert_equal false, result.dig(:wringer, :signals, :content_success)
   end
 
   test "rendered redirect to listing keeps transport success but marks content failure" do
@@ -288,7 +316,7 @@ class Distillator::FetchServiceTest < ActiveSupport::TestCase
     assert_equal "abort_update", result.dig(:wringer, :policy_action)
   end
 
-  test "non 2xx fetch remains transport and content failure" do
+  test "non 2xx fetch blocks even when a higher ranked observation is primary" do
     ENV["DISTILLATOR_FETCH_MODE"] = "legacy"
     Distillator::FetchGuard.stubs(:check_url).returns(fetch_guard_allowed)
     Distillator::FetchGuard.stubs(:check_response).returns(fetch_guard_allowed)
@@ -300,12 +328,8 @@ class Distillator::FetchServiceTest < ActiveSupport::TestCase
       final_url: "https://example.com/events",
       redirect_chain: [],
       wringer: {
-        signals: {
-          network_status: "ok",
-          primary_issue_key: "http_5xx",
-          blocking_issue_key: "http_5xx"
-        },
-        hints: ["http_server_error"]
+        signals: { network_status: "ok" },
+        hints: %w[http_server_error ssl_verify_none_fallback legacy_phantomjs]
       },
       http_code: 500
     )
@@ -317,7 +341,10 @@ class Distillator::FetchServiceTest < ActiveSupport::TestCase
 
     assert_equal false, result.dig(:wringer, :signals, :transport_success)
     assert_equal false, result.dig(:wringer, :signals, :content_success)
+    assert_equal "ssl_verify_none_fallback", result.dig(:wringer, :signals, :primary_issue_key)
     assert_equal "http_5xx", result.dig(:wringer, :signals, :blocking_issue_key)
+    assert_equal "abort_update", result.dig(:wringer, :policy_action)
+    assert_equal false, result.dig(:wringer, :cache)
   end
 
   test "explicit internal mode aborts for unsupported scheme before any network call" do

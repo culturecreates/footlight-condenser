@@ -53,7 +53,7 @@ module Distillator
       end
 
       def blocking_issue_key
-        signal_value("blocking_issue_key").presence || signal_value("primary_issue_key").presence
+        Distillator::WringerIssueSet.reported_blocking_key(signals)
       end
 
       def retry_policy
