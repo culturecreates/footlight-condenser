@@ -1,5 +1,6 @@
 <% action_view = @dashboard == "action" %>
 <% full_metrics = !action_view && @filters[:metrics] == "full" %>
+<% column_count = (full_metrics ? 11 : 7) + (action_view ? 0 : 2) %>
 <div class="website-index-table-scroll operator-table-scroll" tabindex="0" role="region" aria-label="<%= action_view ? "Website actions" : "Website overview" %>">
   <table class="cache-table website-index-table <%= "website-index-table--full" if full_metrics %>">
     <caption class="website-index-sr-only"><%= action_view ? "Website issues and recommended next actions" : "Website states and operational evidence" %></caption>
@@ -25,6 +26,10 @@
         <th scope="col">Data health</th>
         <th scope="col">Validation</th>
         <th scope="col">Activity (24h)</th>
+      <% end %>
+      <% unless action_view %>
+        <th scope="col" class="website-index-number"><%= website_index_sortable("schedule_every_days", "Schedule (days)", group: group) %></th>
+        <th scope="col" title="Configured JavaScript rendering on ResourceLists (RL) and active Event webpages (E)">JS usage</th>
       <% end %>
       <th scope="col">Details</th>
     </tr></thead>
@@ -98,6 +103,25 @@
               <% end %>
             </td>
           <% end %>
+          <% unless action_view %>
+            <td class="website-index-number" title="<%= website.refresh_scheduled? ? website_index_schedule(website) : "Not scheduled" %>">
+              <%= website.refresh_scheduled? ? website.schedule_every_days : "—" %>
+            </td>
+            <td>
+              <% usage = @website_rendered_fetch.fetch(website.id) %>
+              <% if usage.any? %>
+                <% usage.each do |class_name| %>
+                  <% description = class_name == "Event" ? "Active Event webpages use rendered fetching" : "ResourceLists use rendered fetching" %>
+                  <span class="operator-status operator-status--review">
+                    <span aria-hidden="true" title="<%= description %>"><%= Distillator::WebsiteRenderedFetchSummary::LABELS.fetch(class_name) %></span>
+                    <span class="website-index-sr-only"><%= description %></span>
+                  </span>
+                <% end %>
+              <% else %>
+                <span title="No configured rendered fetching detected">—</span>
+              <% end %>
+            </td>
+          <% end %>
           <td class="website-index-actions">
             <%= link_to "Sources", website_sources_index_path(website) if full_metrics %>
             <% unless action_view && @primary_actions[website.id]&.operation == :details %>
@@ -106,7 +130,7 @@
             <% end %>
           </td>
         <% end %>
-        <tr id="website-details-<%= website.id %>" class="website-index-detail-row" hidden><td colspan="<%= full_metrics ? 11 : 7 %>">
+        <tr id="website-details-<%= website.id %>" class="website-index-detail-row" hidden><td colspan="<%= column_count %>">
           <%= render "index_details", website: website, pages: pages, event_count: event_count, validation: validation, inventory: inventory %>
         </td></tr>
       <% end %>

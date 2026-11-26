@@ -119,4 +119,54 @@ class WebsiteDashboardTest < ActionDispatch::IntegrationTest
       assert_select "input[data-transition-site]", count: 0
     end
   end
+
+  test "Information shows scheduled days and distinguishes Event and linked ResourceList rendering" do
+    site = websites(:one)
+    site.update_columns(name: "Rendering dashboard", schedule_every_days: 3)
+    other = websites(:two)
+    other.update_columns(name: "Rendering dashboard list owner", schedule_every_days: 9, schedule_time: nil)
+    event_class = rdfs_classes(:one)
+    list_class = RdfsClass.create!(name: "ResourceList")
+    list_property = list_class.properties.create!(label: "URLs")
+    DslLibraryEntry.create!(name: "RENDER_LIST", body: "renderjs_url=https://example.org/discovery")
+    other.webpages.create!(url: "https://example.org/list", rdf_uri: "urn:list", rdfs_class: list_class,
+      language: other.default_language, discovery_target_website: site)
+    other.sources.create!(property: list_property, language: other.default_language, algorithm_value: "$$RENDER_LIST$$")
+    site.webpages.create!(url: "https://example.org/event", rdf_uri: "urn:rendered-event", rdfs_class: event_class, language: site.default_language)
+    event_source = site.sources.create!(property: properties(:four), language: "", render_js: true, selected: false,
+      algorithm_value: "xpath=//h1")
+    site.sources.create!(property: properties(:five), language: "fr", render_js: true, algorithm_value: "xpath=//h2")
+
+    Distillator::FetchService.expects(:fetch_result).never
+    %w[compact full].each do |metrics|
+      get websites_path, params: { view: "all", dashboard: "information", metrics: metrics, q: "Rendering dashboard" }
+      assert_response :success
+      assert_select "th a[href*='sort=schedule_every_days']", text: "Schedule (days)"
+      assert_select "th", text: "JS usage"
+      assert_select "tr[data-website-id='#{site.id}']" do
+        assert_select "td[title^='Every 3 days']", text: "3"
+        assert_select "span[aria-hidden=true]", text: "RL"
+        assert_select "span[aria-hidden=true]", text: "E"
+      end
+      assert_select "tr[data-website-id='#{other.id}']" do
+        assert_select "td[title='Not scheduled']", text: "—"
+        assert_select "span[aria-hidden=true]", text: "RL"
+        assert_select "span[aria-hidden=true]", text: "E", count: 0
+      end
+      assert_select "#website-details-#{site.id} td[colspan='#{metrics == "full" ? 13 : 9}']"
+    end
+
+    event_source.update!(render_js: false)
+    get websites_path, params: { view: "all", dashboard: "information", q: site.name }
+    assert_select "tr[data-website-id='#{site.id}'] span[aria-hidden=true]", text: "RL"
+    assert_select "tr[data-website-id='#{site.id}'] span[aria-hidden=true]", text: "E", count: 0
+
+    site.webpages.create!(url: "https://example.org/show#iframe", rdf_uri: "urn:iframe-event", rdfs_class: event_class, language: site.default_language)
+    get websites_path, params: { view: "all", dashboard: "information", q: site.name }
+    assert_select "tr[data-website-id='#{site.id}'] span[aria-hidden=true]", text: "E"
+
+    get websites_path, params: { view: "all", dashboard: "action", q: site.name }
+    assert_select "th", text: "JS usage", count: 0
+    assert_select "th", text: "Schedule (days)", count: 0
+  end
 end

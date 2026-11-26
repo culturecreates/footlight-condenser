@@ -173,6 +173,12 @@ discovery, publishable Event resources, validation and statement activity.
 **Show all metrics** opens the full sortable table. **Details** retains
 per-ResourceList diagnostics, validation coverage and history, schedules,
 counts, and links to Statements, Webpages, Sources, Monitoring and reports.
+Both Information tables show the scheduled interval in days and configured
+JavaScript rendering. **RL** marks ResourceLists, including linked discovery
+lists, and **E** marks active public Event webpages. The indicators reflect
+applicable rendered-fetch source settings, explicit `renderjs_url=` DSL steps
+(including library instructions), and iframe rendering URLs for either serving
+backend.
 
 Choose **Action** to start with the highest-priority issue for each website.
 P0 covers confirmed urgent conditions such as a failed recovery. P1 covers

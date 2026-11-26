@@ -176,7 +176,11 @@ class WebsitesController < ApplicationController
 
     if html_dashboard
       @dashboard_running = Distillator::WebsiteActionSummary.running_for(website_ids)
-      prepare_action_dashboard if @dashboard == "action"
+      if @dashboard == "action"
+        prepare_action_dashboard
+      else
+        @website_rendered_fetch = Distillator::WebsiteRenderedFetchSummary.for_websites(website_ids)
+      end
     end
   end
 
