@@ -40,7 +40,10 @@ module Distillator
           unpublishable_urls_count: inventory.unpublishable_urls_count,
           selected_event_urls_missing: inventory.selected_event_urls_missing
         }
-        facts[:lists] = ResourceListReadiness.for_lists(inventory.lists, activity: activity) if diagnostics
+        if diagnostics
+          facts[:lists] = ResourceListReadiness.for_lists(inventory.lists, activity: activity)
+          facts[:unpublishable_listed_pages] = inventory.unpublishable_listed_pages
+        end
         [website_id, facts]
       end
     end

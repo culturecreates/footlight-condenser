@@ -45,15 +45,19 @@ module Events
     end
 
     def missing_requirements
-      usable_value = Arel.sql(Statement.sanitize_sql_array([usable_value_sql, Webpage::PUBLISHABLE_STATUSES]))
-      groups = selected_fields.pluck("webpages.rdf_uri", "properties.label", Arel.sql(SOURCE_LANGUAGE_SQL),
-        :status, usable_value).group_by(&:first)
+      missing_requirements_by_resource.transform_keys(&:last)
+    end
 
-      @pages.distinct.pluck(:rdf_uri).sort_by(&:to_s).to_h do |uri|
-        fields = groups.fetch(uri, []).group_by { |_, label, _language, _status, _usable| label }
+    def missing_requirements_by_resource
+      usable_value = Arel.sql(Statement.sanitize_sql_array([usable_value_sql, Webpage::PUBLISHABLE_STATUSES]))
+      groups = selected_fields.pluck("webpages.website_id", "webpages.rdf_uri", "properties.label", Arel.sql(SOURCE_LANGUAGE_SQL),
+        :status, usable_value).group_by { |row| row.first(2) }
+
+      @pages.distinct.pluck(:website_id, :rdf_uri).sort_by { |site_id, uri| [site_id, uri.to_s] }.to_h do |resource|
+        fields = groups.fetch(resource, []).group_by { |_, _, label, _language, _status, _usable| label }
         missing = REQUIREMENTS.filter_map do |field, labels|
           matches = labels.flat_map { |label| fields.fetch(label, []) }
-          selections = matches.group_by { |_, label, language, _status, _usable| [label, language] }
+          selections = matches.group_by { |_, _, label, language, _status, _usable| [label, language] }
           next if selections.values.any? { |entries| entries.one? && entries.first.last }
 
           reasons = selections.map do |(label, language), entries|
@@ -61,7 +65,7 @@ module Events
               field_language = " (#{language.upcase})" if language.present?
               "Multiple selected #{label} statements#{field_language}"
             else
-              status = entries.first[3]
+              status = entries.first[4]
               case status
               when "initial" then "#{label} needs review"
               when "missing" then "#{label} extraction is missing"
@@ -72,7 +76,7 @@ module Events
           end
           { field: field, reasons: reasons.uniq.presence || ["No selected #{labels.join(' or ')} statement"] }
         end
-        [uri, missing]
+        [resource, missing]
       end
     end
 
