@@ -4,6 +4,8 @@ Footlight Condenser Server used with Footlight **Wringer Server**, Footlight **C
 
 Distillator migration fetch modes, replay behavior, refresh UI guarding, and rollback notes are documented in [docs/distillator_migration.md](docs/distillator_migration.md).
 
+For coding agents: start with [AGENTS.md](AGENTS.md); select only relevant background material through the [documentation map](docs/README.md).
+
 
 # Local Development
 To setup for local development clone this repo.
