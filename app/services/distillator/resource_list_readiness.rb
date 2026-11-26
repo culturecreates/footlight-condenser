@@ -7,7 +7,7 @@ module Distillator
       incomplete_thorough_evidence: ["The recorded discovery proof was not accompanied by a complete Thorough comparison.", :run_thorough],
       discovery_configuration_changed: ["The ResourceList configuration changed since the last recorded discovery.", :run_thorough],
       no_discovery_lists: ["No event ResourceLists are configured.", :review_list_configuration],
-      no_event_discovery: ["None of the configured ResourceLists discover events.", :review_list_configuration],
+      no_event_discovery: ["No populated event discovery was verified. Confirm an empty calendar or inspect the configured event lists.", :review_list_configuration],
       source_not_fetched: ["No successful source fetch is recorded.", :refetch_source],
       source_fetch_failed: ["The latest source fetch failed.", :refetch_source],
       source_fetch_stale: ["The last successful source fetch is stale.", :refetch_source],
@@ -17,7 +17,10 @@ module Distillator
       stale_list: ["The discovery statements are stale.", :refresh_statements],
       stale_or_unpaired_list: ["The required list statements have no verified paired extraction within 10 minutes.", :refresh_statements],
       extraction_failed: ["Extraction failed. Inspect the DSL result and refetch if the source content is the cause.", :inspect_extraction],
-      invalid_or_empty_list: ["The URL and RDF URI lists are empty, invalid, or unmatched.", :inspect_extraction],
+      invalid_or_empty_list: ["The URL and RDF URI arrays are malformed or unmatched.", :inspect_extraction],
+      invalid_list: ["The URL and RDF URI arrays are malformed or unmatched.", :inspect_extraction],
+      pagination_gap: ["An empty page precedes a populated page in the same pagination sequence. Review completeness.", :review_list_configuration],
+      empty_list: ["Valid empty extraction: no events on this page.", nil],
       stale_extracted_discovery_class: ["The extracted RDF Class is older than its configuration.", :refresh_statements],
       unreviewed_extracted_discovery_class: ["The extracted RDF Class needs review before discovery can use it.", :inspect_extraction],
       unreviewed_discovery_list: ["The extracted list statements need review before reconciliation.", :inspect_extraction],
@@ -59,6 +62,8 @@ module Distillator
             [:failed, :extraction_failed]
           elsif list[:status] == "other_class"
             [:not_applicable, nil]
+          elsif extraction_reason == :pagination_gap
+            [:verified, nil]
           elsif extraction_reason
             [extraction[:last_success_at] ? :unverified : :unknown, extraction_reason]
           elsif extraction[:last_success_at] && fetch[:last_success_at] && extraction[:last_success_at] < fetch[:last_success_at]
@@ -76,21 +81,35 @@ module Distillator
           :complete
         end
         reconciliation_reason = { pending: :pending_reconciliation, complete: :discovery_complete }[reconciliation_state]
+        reconciliation_reason = :empty_list if reconciliation_state == :complete && list[:status] == "event" && list[:count] == 0
         # Valid legacy list evidence is retained even when its source fetch was never recorded locally.
         reason = if list[:status] == "other_class"
           :other_class
         elsif fetch[:state].in?(%i[failed stale]) && (extraction_reason != :extraction_failed || extraction[:failed_primary_fetch])
           fetch[:state] == :failed ? :source_fetch_failed : :source_fetch_stale
+        elsif list[:reason].to_s == "pagination_gap"
+          :pagination_gap
         elsif fetch[:state] == :unknown && extraction[:saved_inputs].empty? &&
             extraction_reason.in?(%i[missing_statement_extraction stale_list stale_or_unpaired_list])
           :source_not_fetched
         else
           extraction_reason || reconciliation_reason
         end
+        health = if list[:status] == "other_class"
+          :not_applicable
+        elsif fetch[:state] == :failed || extraction[:latest_attempt_failed] ||
+            extraction_reason == :extraction_failed || list[:reason].to_s.in?(%w[invalid_list invalid_or_empty_list])
+          :failed
+        elsif list[:status] == "event" || list[:reason].to_s.in?(%w[stale_list pagination_gap])
+          :healthy
+        else
+          :unknown
+        end
         guidance = guidance(reason)
         guidance[:message] = "#{missing} new event #{missing == 1 ? 'URL requires' : 'URLs require'} reconciliation." if reason == :pending_reconciliation
         list.slice(:webpage_id, :website_id, :url, :warning, :status, :contents_digest).merge(
-          fetch: fetch, extraction: extraction.merge(state: extraction_state, reason: extraction_reason),
+          health: health, fetch: fetch, extraction: extraction.merge(state: extraction_state, reason: extraction_reason),
+          pagination: list[:pagination],
           reconciliation: { state: reconciliation_state, discovered: list[:discovered_count] || list[:count], already_known: list[:known_count],
             new_urls: missing, missing_urls: list[:missing_count], invalid_urls: list[:invalid_count] },
           **guidance

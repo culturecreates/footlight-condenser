@@ -114,6 +114,33 @@ class AddWebpagesJobTest < ActiveJob::TestCase
     assert_equal ["Place"], Webpage.where(id: ids).map { |page| page.rdfs_class.name }.uniq
   end
 
+  test "valid empty extracted event list has a digest and imports no webpages" do
+    [@url_list_statement, @uri_list_statement].each do |row|
+      row.update_columns(cache: "[]", status: "updated", selected_individual: true, cache_refreshed: Time.current)
+    end
+    snapshot = inventory_for_list
+    assert_equal "event", snapshot.fetch(:status)
+    assert_equal 0, snapshot.fetch(:count)
+    assert_equal Distillator::TransitionEventInventory.list_digest([], []), snapshot.fetch(:contents_digest)
+    assert_no_difference("Webpage.count") do
+      assert_no_enqueued_jobs(only: RefreshWebpageJob) do
+        AddWebpagesJob.perform_now(@resource_list_page.id, selected_only: true)
+      end
+    end
+  end
+
+  test "empty URL List and nonempty URI List remains invalid" do
+    @url_list_statement.update_columns(cache: "[]", status: "updated", cache_refreshed: Time.current)
+    assert_equal "invalid_or_empty_list", inventory_for_list.fetch(:reason)
+    assert_raises(AddWebpagesJob::InvalidResourceListError) { AddWebpagesJob.perform_now(@resource_list_page.id) }
+  end
+
+  test "missing approved extraction cannot masquerade as empty" do
+    @url_list_statement.update_columns(cache: "[]", status: "initial", cache_refreshed: Time.current)
+    @uri_list_statement.update_columns(cache: "[]", status: "updated", cache_refreshed: Time.current)
+    assert_equal "unreviewed_discovery_list", inventory_for_list.fetch(:reason)
+  end
+
   test "mismatched uri and url counts creates none and raises" do
     @url_list_statement.update!(cache: '["https://example.org/events/1"]')
 

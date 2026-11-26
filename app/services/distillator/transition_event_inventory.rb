@@ -56,11 +56,13 @@ module Distillator
       inventories = {}
       pages.each do |website_id, lists|
         evidence = lists.map { |page| inventory_for(page, selected.fetch(page.id, []), class_names) }
-        inventories[website_id] = evidence.select { |list| list[:url_keys] }
+        ResourceLists::Pagination.review!(lists, evidence)
+        inventories[website_id] = evidence.select { |list| list.key?(:url_keys) }
         event_lists = evidence.select { |list| list[:status] == "event" }
         status = if evidence.any? { |list| list[:status] == "unverified" }
           "discovery_unverified"
-        elsif event_lists.empty?
+        elsif event_lists.empty? || event_lists.all? { |list| list[:count].zero? }
+          # A fully empty calendar may be legitimate, but cannot prove live discovery.
           "no_event_discovery"
         else
           "confirmed_discovery"
@@ -168,7 +170,9 @@ module Distillator
       urls = string_array(url_list.cache)
       url_keys = urls&.map { |url| public_url_key(url) }
       rdf_uris = string_array(uri_list.cache)
-      unless url_keys.present? && rdf_uris.present? && url_keys.size == rdf_uris.size && url_keys.none?(&:nil?)
+      # Two saved empty arrays are a valid extraction, not missing evidence.
+      # Missing/malformed arrays remain nil and must not pass this check.
+      unless url_keys && rdf_uris && url_keys.size == rdf_uris.size && url_keys.none?(&:nil?)
         return metadata.merge(reason: "invalid_or_empty_list", count: urls&.size, invalid_count: url_keys&.count(&:nil?))
       end
 

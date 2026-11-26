@@ -6,7 +6,7 @@ module Distillator
       "discovery_unverified" => "Unverified",
       "discovery_pending_import" => "Awaiting reconciliation",
       "no_discovery_lists" => "No event lists",
-      "no_event_discovery" => "No event lists"
+      "no_event_discovery" => "No populated event lists"
     }.freeze
 
     def self.for_websites(website_ids, as_of: Time.current, diagnostics: false)
@@ -38,7 +38,8 @@ module Distillator
           new_event_age_days: last_added && (as_of.to_date - last_added.to_date).to_i,
           pending_import: inventory.pending_import,
           unpublishable_urls_count: inventory.unpublishable_urls_count,
-          selected_event_urls_missing: inventory.selected_event_urls_missing
+          selected_event_urls_missing: inventory.selected_event_urls_missing,
+          empty_list_pages: inventory.lists.count { |list| list[:status] == "event" && list[:count] == 0 }
         }
         if diagnostics
           facts[:lists] = ResourceListReadiness.for_lists(inventory.lists, activity: activity)
