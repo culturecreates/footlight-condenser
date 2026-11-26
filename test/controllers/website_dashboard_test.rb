@@ -73,23 +73,50 @@ class WebsiteDashboardTest < ActionDispatch::IntegrationTest
     assert_select "input[data-transition-site]", count: 1
     assert_select "input[data-transition-site][value='#{site.id}'][checked][form=website-transition-batch]"
     assert_select "form#website-transition-batch[action=?]", distillator_transition_batches_path do
-      assert_select "select[name=check_profile] option[value=thorough][selected]"
+      assert_select "input[type=hidden][name=check_profile][value=thorough]"
+      assert_select "select[name=check_profile]", count: 0
+      assert_select "p", text: /To run a Light check, go back to the website list/
       assert_select "button[data-transition-audit]", text: "Audit selected Active sites (Thorough)"
     end
     assert_match(/may move Active sites to Shadow/, response.body)
+
+    get websites_path, params: { view: "all", dashboard: "action" }
+    assert_select "form#website-transition-batch select[name=check_profile] option[value=light]"
   end
 
   test "active workflow progress is available even when other findings exist" do
     site = websites(:one)
     site.update_column(:distillator_mode, "active")
+    old_check = Distillator::TransitionRun.request!(website: site).run
+    old_check.update!(status: "failed", completed_at: Time.current, error_message: "The previous comparison was interrupted.")
     group = Distillator::TransitionBatch.request!(website_ids: [site.id], request_key: SecureRandom.uuid, workflow_action: "audit")
     workflow = group.site_transitions.sole
-    get websites_path, params: { dashboard: "action", action_filter: "progress" }
+
+    %w[all progress attention].each do |filter|
+      get websites_path, params: { dashboard: "action", action_filter: filter, q: site.name, view: "all" }
+      assert_response :success
+      assert_select "tr.website-index-row", count: 1
+      assert_select "[data-action-code=audit_in_progress]", text: /Active audit queued/
+      assert_select "a[href=?]", distillator_site_transition_path(workflow), text: "Open workflow report"
+      assert_select "#website-details-#{site.id} [aria-label='Action evidence'] li", text: /previous comparison was interrupted/
+    end
+    assert_equal "active", site.reload.distillator_mode
+  end
+
+  test "staging-invalid sites outside event transitions appear in the queue without selection controls" do
+    resource_list = websites(:one)
+    resource_list.update_columns(name: "Festival Resource List", seedurl: "festival-rlist", distillator_mode: "legacy")
+    Distillator::TransitionRuntime.stubs(:staging?).returns(true)
+
+    get websites_path, params: { dashboard: "action", action_filter: "attention", distillator_mode: "invalid_on_staging",
+      view: "all", q: resource_list.name }
 
     assert_response :success
-    assert_select "tr.website-index-row", count: 1
-    assert_select "[data-action-code=audit_in_progress]", text: /Active audit queued/
-    assert_select "a[href=?]", distillator_site_transition_path(workflow), text: "Open workflow report"
-    assert_equal "active", site.reload.distillator_mode
+    assert_match(/websites are invalid on staging/, response.body)
+    assert_select "tr[data-website-id='#{resource_list.id}']" do
+      assert_select "[data-action-code=staging_mode]", text: /This site is in Legacy mode/
+      assert_select "a[href=?]", website_path(resource_list), text: "Review website"
+      assert_select "input[data-transition-site]", count: 0
+    end
   end
 end

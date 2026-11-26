@@ -115,13 +115,18 @@
       <% end %>
       <label hidden data-transition-master-label><input type="checkbox" data-transition-master> Select all <%= @transition_eligible_ids.length %> matching event sites (includes Unscheduled)</label>
       <span data-transition-selection-count aria-live="polite">Select sites using the Transition column.</span>
-      <div>
-        <%= label_tag :check_profile, "Check profile" %>
-        <%= select_tag :check_profile, options_for_select([
-            ["Thorough (all active publishable events, Strict)", "thorough"],
-            ["Light (sample active publishable events, Standard)", "light"]
-        ], (@dashboard_selection_id ? "thorough" : @retry_transition_batch&.check_profile || Distillator::TransitionBatch::DEFAULT_CHECK_PROFILE)) %>
-      </div>
+      <% if @dashboard_selection_id %>
+        <%= hidden_field_tag :check_profile, "thorough" %>
+        <p><strong>Check profile</strong> Thorough (all active publishable events, Strict). To run a Light check, go back to the website list.</p>
+      <% else %>
+        <div>
+          <%= label_tag :check_profile, "Check profile" %>
+          <%= select_tag :check_profile, options_for_select([
+              ["Thorough (all active publishable events, Strict)", "thorough"],
+              ["Light (sample active publishable events, Standard)", "light"]
+          ], @retry_transition_batch&.check_profile || Distillator::TransitionBatch::DEFAULT_CHECK_PROFILE) %>
+        </div>
+      <% end %>
       <%= submit_tag "Validate and activate selected", data: { transition_submit: true } %>
       <%= button_tag "Audit selected Active sites (Thorough)", name: "workflow_action", value: "audit", data: { transition_audit: true } unless @retry_transition_batch %>
       <% unless @retry_transition_batch %>

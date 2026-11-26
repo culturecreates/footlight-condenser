@@ -23,6 +23,10 @@ module Distillator
       def rank
         PRIORITIES.fetch(priority)
       end
+
+      def takes_precedence?
+        priority.in?(%i[p0 progress])
+      end
     end
 
     def self.running_for(website_ids)
@@ -65,10 +69,11 @@ module Distillator
 
     def call
       candidates = [recovery, running, *discovery, data_quality, comparison_attention, monitoring, staging_mode].compact
-      if candidates.none? { |item| item.priority.in?(%i[p0 p1]) || item.category == :discovery || item.code == :staging_mode }
+      if candidates.none? { |item| item.priority.in?(%i[p0 p1]) || item.code == :staging_mode ||
+          (item.category == :discovery && !item.evidence[:verified_discovery]) }
         candidates << progression
       end
-      candidates.compact.each_with_index.sort_by { |item, index| [item.rank, index] }.map(&:first)
+      candidates.compact.each_with_index.sort_by { |item, index| [item.takes_precedence? ? 0 : 1, item.rank, index] }.map(&:first)
     end
 
     private
@@ -105,15 +110,26 @@ module Distillator
     def discovery
       lists = Array(@inventory[:lists])
       findings = lists.filter_map do |list|
-        unverified = list[:status] == "unverified" && list[:next_action].present?
-        recorded_failure = list[:reason].in?(%i[source_fetch_failed extraction_failed]) && list[:status] == "event"
-        next unless unverified || recorded_failure
+        verified = list[:status] == "event"
+        next unless verified || list[:status] == "unverified"
+        # Reconciliation is handled below using the website-wide inventory.
+        next if list[:next_action].blank? || list[:next_action] == :reconcile_urls
 
         priority = list[:reason].in?(%i[invalid_or_empty_list extraction_failed source_fetch_failed ambiguous_list]) ? :p1 : :p2
-        impact = unverified ? "This list needs attention before it can provide current discovery evidence." :
+        impact = if !verified
+          "This list needs attention before it can provide current discovery evidence."
+        elsif priority == :p1
           "The latest failure could affect the next discovery run."
-        action(list[:reason], :discovery, priority, "Review ResourceList discovery", list[:message], impact, :resource_list,
-          evidence: { webpage_id: list[:webpage_id], next_action: list[:next_action] })
+        else
+          "Discovery evidence remains verified. Maintenance supports the next discovery run."
+        end
+        title = if verified && priority == :p2
+          "ResourceList maintenance · #{ResourceListReadiness::ACTIONS.fetch(list[:next_action])}"
+        else
+          "Review ResourceList discovery"
+        end
+        action(list[:reason], :discovery, priority, title, list[:message], impact, :resource_list,
+          evidence: { webpage_id: list[:webpage_id], next_action: list[:next_action], verified_discovery: verified })
       end
       if @inventory[:pending_import]
         list = lists.find { |row| row.dig(:reconciliation, :missing_urls).to_i.positive? && row.dig(:reconciliation, :state) == :pending }
@@ -143,18 +159,21 @@ module Distillator
 
     def comparison_attention
       item = @validation.attention
-      return if @running || !item || (workflow?(item) && item.status == "recovery_failed")
+      return if !item || (workflow?(item) && item.status == "recovery_failed")
 
       if workflow?(item)
         audit = item.batch.audit?
         title = audit ? "Active audit needs review" : "Transition workflow needs review"
+        title = "#{title} (previous run)" if @running
         impact = audit ? "Review the audit findings while keeping the current rollout mode." : "Review the recorded checks before starting another transition."
         action(audit ? :audit_attention : :workflow_attention, :validation, audit ? :p2 : :p1, title,
           item.reason.presence, impact, :workflow, evidence: { record: item })
       else
         failed = item.status == "failed"
+        title = failed ? "Comparison did not complete" : "Comparison needs review"
+        title = "#{title} (previous run)" if @running
         action(failed ? :comparison_failed : :comparison_needs_review, :validation, :p1,
-          failed ? "Comparison did not complete" : "Comparison needs review", item.error_message.presence,
+          title, item.error_message.presence,
           "Review the recorded result before starting another comparison.", :check, evidence: { record: item })
       end
     end
@@ -174,9 +193,10 @@ module Distillator
     end
 
     def staging_mode
-      return unless @eligible && @staging && TransitionRuntime.staging_rollout_mode_invalid?(@website.distillator_mode)
+      return unless @staging && TransitionRuntime.staging_rollout_mode_invalid?(@website.distillator_mode)
 
-      action(:staging_mode, :operations, :p2, "Review staging rollout mode", "This site is in Legacy mode.",
+      explanation = @website.distillator_mode == "legacy" ? "This site is in Legacy mode." : "This site has an unset or unsupported rollout mode."
+      action(:staging_mode, :operations, :p2, "Review staging rollout mode", explanation,
         "Staging expects Shadow or Active.", :website)
     end
 

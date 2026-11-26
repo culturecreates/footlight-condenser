@@ -53,16 +53,56 @@ module Distillator
       assert_not outcome.matches?("validation")
     end
 
-    test "failed recovery appears ahead of an unverified list" do
+    test "a queued or running comparison leads and earlier findings remain available" do
+      @validation.attention = TransitionRun.new(status: "failed", error_message: "Previous comparison failed")
+      @inventory[:lists] = [{ status: "unverified", webpage_id: 1, **ResourceListReadiness.guidance(:invalid_or_empty_list) }]
+
+      %w[queued running].each do |status|
+        outcomes = actions(running: TransitionRun.new(status: status))
+        assert_equal %i[validation_in_progress invalid_or_empty_list comparison_failed], outcomes.map(&:code)
+        assert_match(/previous run/, outcomes.last.title)
+      end
+    end
+
+    test "failed recovery appears ahead of running work and an unverified list" do
       @validation.attention = SiteTransition.new(status: "recovery_failed", reason: "Recovery could not be confirmed")
       @inventory[:lists] = [{ status: "unverified", reason: :invalid_or_empty_list, message: "Invalid URLs", webpage_id: 1, next_action: :inspect_extraction }]
-      assert_equal %i[recovery_failed invalid_or_empty_list], actions.map(&:code)
-      assert_equal %i[p0 p1], actions.map(&:priority)
+      outcomes = actions(running: TransitionRun.new(status: "running"))
+      assert_equal %i[recovery_failed validation_in_progress invalid_or_empty_list], outcomes.map(&:code)
+      assert_equal %i[p0 progress p1], outcomes.map(&:priority)
+    end
+
+    test "maintenance on a verified list follows readiness guidance and preserves cutover eligibility" do
+      @validation.milestone = "ready"
+      list = { status: "event", webpage_id: 1, count: 4, new_count: 0 }
+      extracted_at = 3.days.ago
+      evidence = { fetch: { state: :stale, last_success_at: extracted_at }, extraction: { last_success_at: extracted_at } }
+      @inventory[:lists] = ResourceListReadiness.for_lists([list], activity: { 1 => evidence })
+
+      maintenance, cutover = actions
+      assert_equal :source_fetch_stale, maintenance.code
+      assert_equal :refetch_source, maintenance.evidence[:next_action]
+      assert_match(/Refetch source/, maintenance.title)
+      assert_equal :p2, maintenance.priority
+      assert_match(/remains verified/, maintenance.impact)
+      assert_equal :confirm_cutover, cutover.code
+
+      evidence[:fetch] = { state: :fresh, last_success_at: 1.hour.ago }
+      @inventory[:lists] = ResourceListReadiness.for_lists([list], activity: { 1 => evidence })
+      assert_equal :extraction_predates_source, actions.first.code
+      assert_equal :refresh_statements, actions.first.evidence[:next_action]
+
+      evidence[:extraction][:last_success_at] = Time.current
+      @inventory[:lists] = ResourceListReadiness.for_lists([list], activity: { 1 => evidence })
+      assert_equal :confirm_cutover, actions.sole.code
     end
 
     test "legacy staging redirects to website diagnostics and idle sites generate no incident" do
       @site.distillator_mode = "legacy"
       assert_equal :staging_mode, actions(staging: true).sole.code
+      assert_equal :website, actions(staging: true, eligible: false).sole.operation
+      @site.distillator_mode = nil
+      assert_match(/unset or unsupported/, actions(staging: true, eligible: false).sole.explanation)
       assert_empty actions(eligible: false)
     end
 

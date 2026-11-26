@@ -178,13 +178,19 @@ Choose **Action** to start with the highest-priority issue for each website.
 P0 covers confirmed urgent conditions such as a failed recovery. P1 covers
 failed required checks or discovery and data blockers. P2 covers work such
 as outdated validation evidence and pending reconciliation. P3 covers an
-optional next step such as recording a cutover. Running work appears under
-**In progress**. Secondary findings are in **Details** and sites with no
+optional next step such as recording a cutover. Running work takes precedence
+on its website unless a P0 finding requires attention. Choosing **Needs
+attention** still includes a running site with an open finding. Secondary
+findings are in **Details**, and sites with no
 identified action are grouped at the end. A recorded blocked source fetch
 concerns the affected source. The dashboard has no sitewide outage signal.
+ResourceList maintenance can appear alongside verified discovery. On staging,
+all sites with an invalid rollout mode can appear in the queue. Transition
+selection is available only for eligible event sites.
 
 **Review Thorough validation** opens the existing bulk form with one site
-selected for review. Submitting the form runs the normal guarded workflow.
+selected for review and the Thorough profile fixed. Return to the website
+list to choose Light. Submitting the form runs the normal guarded workflow.
 Thorough validation may temporarily move an Active site to Shadow. An
 **Active audit** checks the serving path and keeps its rollout mode.
 **Open cutover confirmation** goes to the existing confirmation form.

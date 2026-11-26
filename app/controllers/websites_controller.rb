@@ -422,7 +422,10 @@ class WebsitesController < ApplicationController
       running: @dashboard_running)
     @action_filter = @filters[:action_filter] unless @retry_transition_batch || @dashboard_selection_id
     @action_filter ||= "all"
-    @primary_actions = @dashboard_actions.transform_values { |actions| actions.find { |action| action.matches?(@action_filter) } }
+    @primary_actions = @dashboard_actions.transform_values do |actions|
+      match = actions.find { |action| action.matches?(@action_filter) }
+      actions.first.takes_precedence? ? actions.first : match if match
+    end
     @websites = @websites.select { |site| @primary_actions[site.id] } if @action_filter != "all"
     @transition_eligible_ids &= @websites.map(&:id)
     # The existing explicit table sort breaks ties within a priority.
