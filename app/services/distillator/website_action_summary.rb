@@ -112,10 +112,12 @@ module Distillator
       findings = lists.filter_map do |list|
         verified = list[:status] == "event"
         next unless verified || list[:status] == "unverified"
-        # Reconciliation is handled below using the website-wide inventory.
+        # Operational failures belong in the action queue; stale extraction,
+        # absent provenance and fresh-validation requirements belong in evidence.
+        next unless list[:health] == :failed || list[:reason] == :pagination_gap
         next if list[:next_action].blank? || list[:next_action] == :reconcile_urls
 
-        priority = list[:reason].in?(%i[invalid_or_empty_list extraction_failed source_fetch_failed ambiguous_list]) ? :p1 : :p2
+        priority = list[:health] == :failed ? :p1 : :p2
         impact = if !verified
           "This list needs attention before it can provide current discovery evidence."
         elsif priority == :p1
