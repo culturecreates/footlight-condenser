@@ -166,8 +166,9 @@ class Distillator::P0TransitionSafetyTest < ActiveSupport::TestCase
     cache.signals = { "transport_success" => !failed, "content_success" => !failed }
     cache.health_status = failed ? "network_failed" : "healthy"
     cache.network_status = failed ? "failed" : "ok"
-    website = Object.new
-    def website.lavitrine_pipeline?; false; end
+    website = websites(:one)
+    website.stubs(:lavitrine_pipeline?).returns(false)
+    website.stubs(:transition_run_blocker).returns(nil)
     Distillator::TransitionStatus.call(website: website, cache: cache, evidence_by_kind: evidence)
   end
 end
