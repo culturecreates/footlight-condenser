@@ -21,6 +21,10 @@ module ResourceLists
         last_populated = ordered.rindex { |_, entry| entry[:status] == "event" && entry[:count].to_i.positive? }
         next unless last_populated
 
+        shared_uri = ordered.map { |_, entry| pages_by_id.fetch(entry[:webpage_id]).rdf_uri }.uniq.one?
+        # Different per-page RDF URIs: a late gap is diagnostic, not a
+        # blocker. Early gaps (first half) or shared-URI gaps need review.
+        early_cutoff = (ordered.size / 2.0).ceil
         ordered.each_with_index do |(signature, entry), position|
           next unless entry[:status] == "event" && entry[:count] == 0
 
@@ -28,9 +32,11 @@ module ResourceLists
           entry[:pagination] = { page: signature[1], trailing_empty: trailing }
           next if trailing
 
+          entry[:warning] = "A successfully empty page precedes a populated page in this pagination sequence."
+          next unless shared_uri || position < early_cutoff
+
           entry[:status] = "unverified"
           entry[:reason] = "pagination_gap"
-          entry[:warning] = "A successfully empty page precedes a populated page in this pagination sequence."
         end
       end
       evidence
