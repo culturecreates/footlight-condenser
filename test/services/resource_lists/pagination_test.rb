@@ -39,6 +39,21 @@ module ResourceLists
       assert_equal "extraction_failed", evidence.last[:reason]
     end
 
+    test "late internal gap with distinct RDF URIs stays diagnostic rather than blocking" do
+      evidence = rows_for([20, 15, 12, 0, 3, 0])
+      Pagination.review!(pages_for(%w[/events /events/page/1 /events/page/2 /events/page/3 /events/page/4 /events/page/5]), evidence)
+      assert_equal "event", evidence[3][:status]
+      assert_nil evidence[3][:reason]
+      assert_match(/precedes a populated page/, evidence[3][:warning])
+      assert_equal true, evidence[5].dig(:pagination, :trailing_empty)
+    end
+
+    test "all empty pages are valid extractions, not false fetch failures" do
+      evidence = rows_for([0, 0, 0])
+      Pagination.review!(pages_for(%w[/events /events/page/1 /events/page/2]), evidence)
+      assert_equal %w[event event event], evidence.map { |row| row[:status] }
+    end
+
     test "page query parameter is recognized" do
       evidence = rows_for([20, 0])
       Pagination.review!(pages_for(%w[/events /events?page=1]), evidence)
