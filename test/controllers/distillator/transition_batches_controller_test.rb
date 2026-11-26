@@ -110,6 +110,13 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     assert_select "input[data-transition-site]", count: 2
     assert_select "#website-list-unscheduled[open]"
     assert_select "#website-transition-batch select option[value=light][selected]"
+    assert_no_difference ["Distillator::TransitionBatch.count", "Distillator::TransitionRun.count"] do
+      get websites_path, params: { dashboard: "action", action_filter: "progress", retry_transition_batch_id: group.id }
+    end
+    assert_response :success
+    assert_select "input[data-transition-site][checked]", count: 2
+    assert_select "#website-transition-batch select option[value=light][selected]"
+    assert_select "nav[aria-label='Website action filters']", count: 0
 
     @one.update_column(:distillator_mode, "active")
     assert_no_difference "Distillator::TransitionBatch.count" do
@@ -141,7 +148,7 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     failed.site_transitions.sole.update!(status: "attention", final_mode: "shadow", completed_at: 1.minute.ago)
 
     %w[light_only latest_failed].each do |filter|
-      get websites_path, params: { validation: filter }
+      get websites_path, params: { metrics: "full", validation: filter }
       assert_response :success
       assert_select "tr.website-index-row", count: 1
       assert_select "tr[data-website-id='#{@one.id}'] .website-validation-summary" do
@@ -173,7 +180,7 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     failed = complete_site_check(event, failed: true, prepared: true)
     partial = complete_site_check(event, sample_mode: "count", sample_size: 1, eligible: 2, prepared: true)
 
-    get websites_path
+    get websites_path, params: { metrics: "full" }
     assert_select "#{row}[data-migration-state='active'] .website-state-badge", text: "Active"
     assert_select "#{row} a", text: "Thorough 1×"
     assert_select "#{row} [data-readiness-reason=missing_discovery_proof]",
@@ -183,10 +190,16 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     assert_select ".website-rollout-summary a", text: "Migrated"
 
     full = complete_site_check(event, sample_mode: "count", sample_size: 1, prepared: true)
-    get websites_path, params: { validation: "ready" }
+    get websites_path, params: { metrics: "full", validation: "ready" }
     assert_select ".website-rollout-summary a[aria-current='page']", text: "Ready"
     assert_select "#{row}[data-migration-state='ready'] .website-state-badge", text: "Ready"
     assert_select "#{row} a", text: "Thorough 2×"
+
+    get websites_path, params: { dashboard: "information", validation: "ready" }
+    assert_select "#{row} td", text: /Qualified/
+    get websites_path, params: { dashboard: "action", validation: "ready", action_filter: "migration" }
+    assert_select "#{row} [data-action-code=confirm_cutover]"
+    assert_select "#{row} a[href=?]", website_path(@two, anchor: "website-confirm-migrate"), text: "Open cutover confirmation"
 
     get website_path(@two)
     assert_select "h1 .website-state-badge", text: "Ready"
@@ -204,16 +217,19 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     end
 
     travel 49.hours do
-      get websites_path, params: { validation: "ready" }
+      get websites_path, params: { metrics: "full", validation: "ready" }
       assert_select "#{row} .website-state-badge", text: "Ready"
       assert_select "#{row} [data-inventory-status=stale]", text: "Stale"
     end
 
     event.website.sources.find_by!(property: properties(:four)).update!(algorithm_value: "manual=Changed")
-    get websites_path
+    get websites_path, params: { metrics: "full" }
     assert_select "#{row} .website-state-badge", text: "Active"
     assert_select "#{row} small", text: "Configuration changed since pass"
     assert_select "#{row} a", text: "Thorough 2×"
+    get websites_path, params: { dashboard: "action", q: @two.name }
+    assert_select "#{row} [data-action-code=validation_outdated]", text: /current inventory or configuration/
+    assert_select "#{row} [data-action-code=comparison_failed]", count: 0
   end
 
   test "Vieux Noranda preserves its migration evidence through inventory changes and explicit revalidation" do
@@ -230,19 +246,19 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
       run
     end
     batch.site_transitions.sole.update!(status: "passed", final_mode: "active", completed_at: Time.current, pre_run: pre, post_run: postcheck)
-    get websites_path
+    get websites_path, params: { metrics: "full" }
     assert_select "#{row} .website-state-badge", text: "Ready"
     assert_select "#{row} a", text: "Thorough 1×"
 
     completed = travel(1.minute) { complete_site_check(event, prepared: true) }
     travel 2.minutes
-    get websites_path
+    get websites_path, params: { metrics: "full" }
     assert_select "#{row} .website-state-badge", text: "Ready"
     assert_select "#{row} a", text: "Thorough 2×"
     assert_empty Distillator::MigrationBaseline.where(website: @two)
 
     @two.update!(schedule_time: Time.zone.parse("08:00"), last_refresh: 1.day.ago)
-    get websites_path
+    get websites_path, params: { metrics: "full" }
     assert_select "#{row} .website-state-badge", text: "Ready"
     assert_empty Distillator::MigrationBaseline.where(website: @two)
 
@@ -277,7 +293,7 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     assert_select "#website-rollout-history", text: /Production handoff for Vieux Noranda/
     assert_select "details#website-transition-controls:not([open])"
     assert_no_difference "Distillator::MigrationBaseline.count" do
-      get websites_path, params: { validation: "migrated" }
+      get websites_path, params: { metrics: "full", validation: "migrated" }
     end
     assert_select "#{row} .website-state-badge", text: "Migrated"
     assert_select "#{row} a[href='#{website_path(@two, anchor: "website-rollout-history")}']", text: /Condenser cutover/
@@ -294,13 +310,13 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     assert_equal "condenser", baseline.backend
     assert_raises(ActiveRecord::ReadOnlyRecord) { baseline.update!(eligible_pages: 7) }
     assert_no_difference "Distillator::MigrationBaseline.count" do
-      get websites_path, params: { validation: "migrated" }
+      get websites_path, params: { metrics: "full", validation: "migrated" }
     end
     assert_select "#{row}[data-migration-state='migrated'] .website-state-badge", text: "Migrated"
     assert_select "#{row} small", text: "1/1 pages in migration baseline"
 
     interrupted = diagnostic_run(@two, status: "failed", error_message: "Worker interrupted")
-    get websites_path, params: { validation: "latest_failed" }
+    get websites_path, params: { metrics: "full", validation: "latest_failed" }
     assert_select "#{row} .website-state-badge", text: "Migrated"
     assert_select "#{row} a[href='#{distillator_transition_check_path(interrupted)}']", text: "Latest validation needs attention"
 
@@ -311,7 +327,7 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
       .update_column(:cache, [event.url, new_url].to_json)
     url_list.statements.joins(source: :property).find_by!(properties: { label: AddWebpagesJob::URI_LIST_LABEL })
       .update_column(:cache, [event.rdf_uri, "rdf:new-event"].to_json)
-    get websites_path
+    get websites_path, params: { metrics: "full" }
     assert_select "#{row} .website-state-badge", text: "Migrated"
     assert_select "#{row} [data-inventory-status=discovery_pending_import]", text: "Awaiting reconciliation"
     assert_select "#{row} small", text: "1/1 pages in migration baseline"
@@ -319,7 +335,7 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     new_event = @two.webpages.create!(url: new_url, rdf_uri: "rdf:new-event", language: "en", rdfs_class: rdfs_classes(:one))
     make_publishable(new_event)
     @two.sources.find_by!(property: properties(:four)).update!(algorithm_value: "manual=Updated title")
-    get websites_path
+    get websites_path, params: { metrics: "full" }
     assert_select "#{row} .website-state-badge", text: "Migrated"
     assert_select "#{row} small", text: "Validation stale"
     assert_select "#{row} small", text: "1/1 pages in migration baseline"
@@ -336,12 +352,12 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     assert_equal original, baseline.reload.attributes
     latest = Distillator::MigrationBaseline.where(website: @two).latest_first.first
     assert_equal [event.id, new_event.id].map(&:to_s).sort, latest.page_fingerprints.keys.sort
-    get websites_path, params: { validation: "migrated" }
+    get websites_path, params: { metrics: "full", validation: "migrated" }
     assert_select "#{row} small", text: "2/2 pages in migration baseline"
     assert_select "#{row} small", text: "Validation stale", count: 0
 
     @two.update!(distillator_mode: "shadow")
-    get websites_path
+    get websites_path, params: { metrics: "full" }
     assert_select "#{row} .website-state-badge", text: "Shadow"
     get website_path(@two, validation_profile: "thorough")
     assert_select "#website-validation-history a", text: /Check ##{baseline.validation_run_id}/, minimum: 1
@@ -369,7 +385,7 @@ class Distillator::TransitionBatchesControllerTest < ActionDispatch::Integration
     assert_equal 1, baseline.thorough_passes
     assert_equal 2, baseline.covered_pages
     assert_equal 2, baseline.eligible_pages
-    get websites_path, params: { validation: "migrated" }
+    get websites_path, params: { metrics: "full", validation: "migrated" }
     row = "tr[data-website-id='#{@two.id}']"
     assert_select "#{row} small", text: "2/2 pages in migration baseline"
     assert_select "#{row} small", text: "Validation stale"

@@ -4,7 +4,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
   test "inventory freshness is present on the Websites dashboard and opt-in JSON" do
     get websites_url
     assert_response :success
-    assert_select "th", text: "Inventory freshness"
+    assert_select "th", text: "Data health"
     assert_select "[data-inventory-status]", text: "No event lists"
 
     get websites_url(format: :json)
@@ -163,7 +163,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     Nokogiri::HTML(@response.body).css('.website-index-table').each do |table|
-      assert_equal 11, table.css('thead th').length
+      assert_equal 7, table.css('thead th').length
     end
     assert_select '.website-index-row', count: Website.count
     assert_select 'tr.website-index-detail-row[hidden]', count: Website.count
@@ -173,7 +173,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_select '.website-index-advanced:not([open])', count: 1
     assert_select '.website-index-row .webpage-summary-cell', count: 0
     assert_select '.website-index-detail-row .webpage-summary-cell', count: Website.count
-    assert_select '.website-index-actions a', text: "Sources", count: Website.count
+    assert_select '.website-index-detail-row .website-index-operations a', text: "Sources", count: Website.count
   end
 
   test "website search matches seedurl and mode chips preserve the other filters" do
@@ -280,7 +280,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     Webpage.create!(url: "https://example.org/pages/dashboard", language: "en", rdf_uri: "rdf:dashboard:webpage", rdfs_class: web_page_class, website: website)
     Webpage.create!(url: "footlight:dashboard:other", language: "en", rdf_uri: "rdf:dashboard:other", rdfs_class: other_class, website: website)
 
-    get websites_url, params: { q: "Typed dashboard website" }
+    get websites_url, params: { q: "Typed dashboard website", metrics: "full" }
 
     assert_response :success
     assert_select "thead a[href*='sort=event_pages_count']", text: /Event pages/
@@ -322,7 +322,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     english.statements.create!(source: translation, cache: "English title", status: "ok", selected_individual: true)
       .update_columns(cache: nil, status: "problem")
 
-    get websites_url, params: { q: website.name }
+    get websites_url, params: { q: website.name, metrics: "full" }
     assert_response :success
     assert_select "tr.website-index-row span[title='1 of 1 event resources publishable']", text: "100%"
     assert_select "tr.website-index-detail-row dt", text: "Bilingual coverage"
@@ -359,7 +359,7 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
      ["event_pages_count", "desc", [blocked, ready, person_only]],
      ["publishable_event_percentage", "asc", [blocked, ready, person_only]],
      ["publishable_event_percentage", "desc", [ready, blocked, person_only]]].each do |sort, direction, expected|
-      get websites_url, params: { q: "Event metric", view: "preferred", sort: sort, direction: direction }
+      get websites_url, params: { q: "Event metric", view: "preferred", metrics: "full", sort: sort, direction: direction }
       assert_response :success
       rows = Nokogiri::HTML(response.body).css("tr.website-index-row")
       assert_equal expected.map(&:id), rows.map { |row| row["data-website-id"].to_i }

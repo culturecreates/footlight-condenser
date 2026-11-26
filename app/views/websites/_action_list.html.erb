@@ -1,0 +1,21 @@
+<% unless @retry_transition_batch || @dashboard_selection_id %>
+  <nav class="website-dashboard-action-filters" aria-label="Website action filters">
+    <% Distillator::WebsiteActionSummary::FILTERS.each do |filter, label| %>
+      <%= link_to label, websites_path(dashboard_params.merge(action_filter: filter == "all" ? nil : filter).compact),
+            aria: { current: @action_filter == filter ? "page" : nil } %>
+    <% end %>
+  </nav>
+<% end %>
+<% actionable, remaining = @action_rows.partition { |site| @primary_actions[site.id] || @retry_transition_batch || @dashboard_selection_id } %>
+<h2 class="website-index-list-heading" id="website-list-actions">Website actions (<%= actionable.size %>)</h2>
+<% if actionable.any? %>
+  <%= render "index_table", websites: actionable, group: :actions %>
+<% else %>
+  <p>No actions match these filters.</p>
+<% end %>
+<% if remaining.any? %>
+  <details class="website-index-category" id="website-list-no-action">
+    <summary>No action identified (<%= remaining.size %>)</summary>
+    <%= render "index_table", websites: remaining, group: :no_action %>
+  </details>
+<% end %>

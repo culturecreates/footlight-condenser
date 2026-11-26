@@ -43,6 +43,21 @@ test("reinitialization does not attach duplicate toggles and missing targets sta
   assert.equal(rows.get("website-details-1").hidden, false);
 });
 
+test("a restored dashboard rebinds its cloned evidence disclosure with the action labels", () => {
+  const { root, buttons, rows } = harness();
+  configureWebsiteDetails(root);
+  const replacement = harness();
+  const button = replacement.buttons[0];
+  button.dataset = { ...buttons[0].dataset, closedLabel: "Inspect evidence", openLabel: "Close evidence" };
+  configureWebsiteDetails(replacement.root);
+  button.click();
+  assert.equal(replacement.rows.get("website-details-1").hidden, false);
+  assert.equal(rows.get("website-details-1").hidden, true);
+  assert.equal(button.textContent, "Close evidence");
+  button.click();
+  assert.equal(button.textContent, "Inspect evidence");
+});
+
 test("sorting can reopen its category while an unrelated hash cannot open other content", () => {
   const group = { open: false, matches: (selector) => selector === "details.website-index-category" };
   const root = { getElementById: (id) => id === "website-list-unscheduled" ? group : null };

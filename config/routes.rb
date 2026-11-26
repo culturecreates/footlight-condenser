@@ -20,6 +20,7 @@ Rails.application.routes.draw do
     end
     collection do
       patch :default_view
+      patch :default_dashboard
       get 'events'         # Internal Webpages Only
       get 'places'         # Internal Webpages Only
       get 'test_api'       # Internal Webpages Only

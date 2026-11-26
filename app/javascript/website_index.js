@@ -1,35 +1,41 @@
+const boundDetails = new WeakSet();
+const boundPreferences = new WeakSet();
+const boundSelections = new WeakSet();
+
 export function configureWebsiteDetails(root = document) {
   root.querySelectorAll("button[data-website-details]").forEach((button) => {
     const row = root.getElementById(button.getAttribute("aria-controls"));
-    if (!row || button.dataset.detailsBound) return;
-    button.dataset.detailsBound = "true";
+    if (!row || boundDetails.has(button)) return;
+    boundDetails.add(button);
     button.hidden = false;
+    const closedLabel = button.dataset.closedLabel || "Details";
+    const openLabel = button.dataset.openLabel || "Close details";
     button.addEventListener("click", () => {
       row.hidden = !row.hidden;
       button.setAttribute("aria-expanded", String(!row.hidden));
-      button.textContent = row.hidden ? "Details" : "Close details";
+      button.textContent = row.hidden ? closedLabel : openLabel;
     });
   });
 }
 
 export function revealWebsiteGroup(root, hash) {
-  if (!/^#website-list-(unscheduled|entities|templates|tests)$/.test(hash)) return;
+  if (!/^#website-list-(unscheduled|resource_lists|entities|templates|tests|no_action)$/.test(hash)) return;
   const group = root.getElementById(hash.slice(1));
   if (group?.matches("details.website-index-category")) group.open = true;
 }
 
 export function configureWebsitePreferences(root = document) {
   root.querySelectorAll("input[data-auto-submit-preference]").forEach((input) => {
-    if (input.dataset.preferenceBound || !input.form) return;
-    input.dataset.preferenceBound = "true";
+    if (boundPreferences.has(input) || !input.form) return;
+    boundPreferences.add(input);
     input.addEventListener("change", () => input.form.requestSubmit());
   });
 }
 
 export function configureTransitionSelection(root = document) {
   const form = root.getElementById("website-transition-batch");
-  if (!form || form.dataset.selectionBound) return;
-  form.dataset.selectionBound = "true";
+  if (!form || boundSelections.has(form)) return;
+  boundSelections.add(form);
   const inputs = [...root.querySelectorAll("input[data-transition-site]")];
   const master = form.querySelector("[data-transition-master]");
   const count = form.querySelector("[data-transition-selection-count]");
@@ -59,6 +65,7 @@ if (typeof document !== "undefined") {
     revealWebsiteGroup(document, window.location.hash);
   };
   document.addEventListener("DOMContentLoaded", initialize);
+  document.addEventListener("turbo:load", initialize);
   window.addEventListener("hashchange", () => revealWebsiteGroup(document, window.location.hash));
   if (document.readyState !== "loading") initialize();
 }

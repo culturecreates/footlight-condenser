@@ -90,6 +90,41 @@ module WebsitesHelper
     admin_sortable(column, label, filters: @filters.merge(anchor: "website-list-#{group}"))
   end
 
+  def website_dashboard_validation_label(validation, running)
+    return "In progress" if running
+    if (attention = validation.attention)
+      return "Recovery needs review" if attention.status == "recovery_failed"
+      return "Active audit needs review" if attention.is_a?(Distillator::SiteTransition) && attention.batch.audit?
+
+      return "Latest check needs review"
+    end
+    return "Evidence outdated" if validation.changed
+    return "Migration recorded" if validation.milestone == "migrated"
+    return "Qualified" if validation.milestone == "ready"
+    return "Pass recorded · qualification pending" if validation.last_pass
+
+    "No validation recorded"
+  end
+
+  def website_action_link(website, action)
+    evidence = action.evidence
+    label, path = case action.operation
+    when :workflow then ["Open workflow report", distillator_site_transition_path(evidence.fetch(:record))]
+    when :check then ["Open comparison", distillator_transition_check_path(evidence.fetch(:record))]
+    when :resource_list
+      ["Inspect ResourceList", webpage_path(evidence.fetch(:webpage_id), anchor: "webpage-source-extraction")]
+    when :event_statements
+      ["Review event statements", statements_path(seedurl: website.seedurl, rdf_uri: evidence.fetch(:rdf_uri))]
+    when :monitoring then ["Open monitoring", monitoring_path(seedurl: website.seedurl)]
+    when :website then ["Review website", website_path(website)]
+    when :confirm_cutover then ["Open cutover confirmation", website_path(website, anchor: "website-confirm-migrate")]
+    when :validate
+      ["Review Thorough validation", websites_path(view: "all", dashboard: "action", transition_website_id: website.id,
+        anchor: "website-transition-batch")]
+    end
+    link_to label, path if path
+  end
+
   def website_rollout_filter_form_options
     website_rollout_filter_options.map { |label, mode| [mode.blank? ? "All modes" : label, mode] }
   end

@@ -83,3 +83,24 @@
   .website-index-header { align-items: flex-start; }
   .website-index-detail-grid { grid-template-columns: 1fr 1fr; }
 }
+
+.website-index-table:not(.website-index-table--full) { min-width: 46rem; }
+.website-index-table :is(.website-action-issue, .website-action-impact, .website-action-next) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.website-action-issue { width: 32%; }
+.website-action-impact, .website-action-next { width: 20%; }
+.website-action-issue p, .website-action-next p { margin: .25rem 0 0; }
+.website-action-priority {
+  display: inline-block;
+  padding: .2rem .45rem;
+  border-radius: .3rem;
+  font-weight: 650;
+  background: var(--operator-surface);
+}
+.website-action-priority--p0 { color: var(--operator-blocked); background: var(--operator-blocked-bg); }
+.website-action-priority--p1 { color: var(--operator-review); background: var(--operator-review-bg); }
+.website-dashboard-action-filters { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin-block: 1rem; }
+.website-dashboard-table-options, .website-dashboard-evidence { margin-top: 1rem; }
+.website-dashboard-evidence h2 { font-size: 1rem; }

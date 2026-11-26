@@ -1,0 +1,118 @@
+<div class="website-index-detail-grid">
+  <section aria-label="Website settings">
+    <h2><%= website.name %></h2>
+    <dl>
+      <dt>Seedurl</dt><dd><%= website.seedurl %></dd>
+      <dt>Language</dt><dd><%= website.default_language.presence || "Not set" %></dd>
+      <dt>Schedule</dt><dd><%= website_index_schedule(website) %></dd>
+      <dt>Graph</dt><dd><%= website.graph_name.presence || "Not set" %></dd>
+      <dt>Rollout mode</dt><dd><%= website_rollout_label_for(website) %></dd>
+      <dt>Backend</dt><dd><%= website_rollout_backend_for(website) %></dd>
+      <dt>Last scheduled run</dt><dd><%= website_index_refresh_time(website) %></dd>
+    </dl>
+    <%= website_cohort_badge(website) %>
+  </section>
+  <section aria-label="Event and webpage breakdown">
+    <h2>Events and webpages</h2>
+    <% if pages[:event_resources].positive? %>
+      <dl>
+        <dt>Publishable events</dt>
+        <dd><%= pages[:publishable_event_resources] %>/<%= pages[:event_resources] %> resources</dd>
+        <% if (localized = pages[:fully_localized_event_resources]) %>
+          <dt><%= pages[:event_languages].size == 2 ? "Bilingual coverage" : "Language coverage" %></dt>
+          <dd><%= number_to_percentage(localized * 100.0 / pages[:event_resources], precision: 1, strip_insignificant_zeros: true) %>
+            · <%= localized %>/<%= pages[:event_resources] %> events with pages in <%= pages[:event_languages].map(&:upcase).join(" + ") %></dd>
+        <% end %>
+        <% if pages[:unavailable_title_counts].any? %>
+          <dt>Title translations needing attention</dt>
+          <% pages[:unavailable_title_counts].each do |language, count| %>
+            <dd><%= count %>/<%= pages[:event_resources] %> events without a usable <%= language.upcase %> title</dd>
+          <% end %>
+        <% end %>
+        <dt>Individual event pages</dt>
+        <dd><%= link_to "#{pages[:publishable]}/#{event_count} publishable", website_publishable_event_pages_path(website) %>
+          · <%= number_to_percentage(pages[:publishable_event_page_percentage], precision: 1, strip_insignificant_zeros: true) %></dd>
+      </dl>
+    <% end %>
+    <%= website_webpage_summary_cell(website, pages) %>
+  </section>
+  <section aria-label="Website operations">
+    <h2>Diagnostics</h2>
+    <nav class="website-index-operations">
+      <%= link_to "Website and batch jobs", website %>
+      <%= link_to "Sources", website_sources_index_path(website) %>
+      <%= link_to "Statements", statements_path(seedurl: website.seedurl) %>
+      <%= link_to "Webpages", website_webpages_filter_path(website, scope: "all") %>
+      <%= link_to "Monitoring", monitoring_path(seedurl: website.seedurl) %>
+      <%= link_to "Transition report", distillator_shadow_report_site_path(website) %>
+      <% cache_links = website_cache_links(website) %>
+      <% if cache_links[:disabled] %><span><%= cache_links[:warning] %></span>
+      <% elsif cache_links[:active_cache_url].present? %><%= link_to cache_links[:label], cache_links[:active_cache_url] %><% end %>
+      <%= link_to "Edit settings", edit_website_path(website) %>
+      <%= link_to "Export", graphs_website_queue_path(seedurl: website.seedurl), data: { turbo_prefetch: false } %>
+    </nav>
+  </section>
+</div>
+<section aria-label="Validation and activity" class="website-dashboard-evidence">
+  <h2>Validation and activity</h2>
+  <%= render "validation_summary", website: website, validation: validation %>
+  <p><%= number_with_delimiter(@statements_grouped[website.seedurl] || 0) %> statements
+    · <%= number_with_delimiter(@statements_refreshed_24hr[website.seedurl] || 0) %> refreshed
+    · <%= number_with_delimiter(@statements_updated_24hr[website.seedurl] || 0) %> changed in 24 hours</p>
+</section>
+<% if @dashboard == "action" && (findings = @dashboard_actions.fetch(website.id)).any? %>
+  <section aria-label="Action evidence" class="website-dashboard-evidence">
+    <h2>Action evidence</h2>
+    <ul>
+      <% findings.each do |finding| %>
+        <li>
+          <strong><%= finding.title %></strong>
+          <%= finding.explanation %>
+          <% if finding.evidence[:webpage_id] %> · ResourceList #<%= finding.evidence[:webpage_id] %><% end %>
+          <% if finding.evidence[:last_seen_at] %>
+            · <%= l(finding.evidence[:last_seen_at].in_time_zone, format: :short) %>
+          <% end %>
+          <% if finding.evidence[:last_pass_at] %>
+            · Last Thorough pass <%= l(finding.evidence[:last_pass_at].in_time_zone, format: :short) %>
+          <% end %>
+          <% if finding.evidence[:event_count].to_i > 1 %>
+            · <%= pluralize(finding.evidence[:event_count], "active event") %> with missing fields
+          <% end %>
+          <% if finding != @primary_actions[website.id] && finding.operation != :details %>
+            · <%= website_action_link(website, finding) %>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  </section>
+<% end %>
+<% diagnosis = Distillator::ResourceListReadiness.validation(validation, inventory) %>
+<section aria-label="ResourceList operations">
+  <h2>ResourceList operations</h2>
+  <%= render "inventory_freshness", inventory: inventory %>
+  <% if (missed = @missed_event_counts[website.seedurl]) %>
+    <p><%= link_to pluralize(missed, "possible missed event"), monitoring_path(seedurl: website.seedurl) %></p>
+  <% end %>
+  <% if diagnosis[:warning] %><p><%= diagnosis[:warning] %></p><% end %>
+  <% if diagnosis[:message] %>
+    <p data-readiness-reason="<%= diagnosis[:reason] %>"><%= diagnosis[:message] %>
+      <% if diagnosis[:next_action] == :run_thorough %>
+        <% if @dashboard == "information" %>
+          <%= link_to "Run Thorough validation", website_path(website, comparison: "thorough", anchor: "website-batch-jobs-transition") %>
+          <span>Refetch ResourceList sources, refresh their statements, reconcile discovered URLs and compare eligible events.</span>
+        <% end %>
+      <% elsif diagnosis[:next_action] %>
+        <strong><%= Distillator::ResourceListReadiness::ACTIONS.fetch(diagnosis[:next_action]) %></strong>
+      <% end %>
+    </p>
+  <% end %>
+  <% inventory.fetch(:lists, []).each do |list| %>
+    <details>
+      <summary><%= link_to "ResourceList ##{list[:webpage_id]}", webpage_path(list[:webpage_id], anchor: "webpage-source-extraction") %>
+        · <%= list[:message].presence || "Review source and extraction" %>
+      </summary>
+      <%= render "shared/resource_list_operations", list: list,
+        validation: Distillator::ResourceListReadiness.validation(validation, inventory, list: list) %>
+    </details>
+  <% end %>
+</section>

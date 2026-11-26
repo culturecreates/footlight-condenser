@@ -3,6 +3,8 @@ class WebsitesController < ApplicationController
   include SortableIndex
 
   FILTER_KEYS = %i[q seed_filter default_language graph_name distillator_mode cohort view validation retry_transition_batch_id].freeze
+  DASHBOARD_KEYS = %i[dashboard metrics action_filter transition_website_id].freeze
+  DASHBOARDS = %w[action information].freeze
   INDEX_VIEWS = %w[all preferred].freeze
 
   before_action :set_website, only: [:show, :edit, :update, :destroy, :delete_all_statements, :activate_after_review, :activate_anyway, :confirm_cutover, :preference]
@@ -35,10 +37,12 @@ class WebsitesController < ApplicationController
   def index
     return render json: Distillator::FetchCacheStore.lookup_by_term(params[:term]) if wringer_lookup_request?
 
+    html_dashboard = request.format.html? || request.format == Mime::ALL
     requested_rollout_mode = params[:distillator_mode].presence
     requested_cohort = params[:cohort].presence
     requested_view = params[:view].presence
-    cleaned = extract_allowed_filters(params, FILTER_KEYS)
+    filter_keys = html_dashboard ? FILTER_KEYS + DASHBOARD_KEYS : FILTER_KEYS
+    cleaned = extract_allowed_filters(params, filter_keys)
     cleaned[:distillator_mode] = helpers.normalize_website_rollout_filter(cleaned[:distillator_mode])
     cleaned[:cohort] = helpers.normalize_website_cohort_filter(cleaned[:cohort])
     cleaned[:view] = cleaned[:view].presence_in(INDEX_VIEWS)
@@ -50,12 +54,12 @@ class WebsitesController < ApplicationController
     ).compact.stringify_keys
 
     raw = params.to_unsafe_h.slice(
-      *FILTER_KEYS.map(&:to_s),
+      *filter_keys.map(&:to_s),
       "sort",
       "direction"
     ).compact
 
-    normalized_raw = extract_allowed_filters(raw, FILTER_KEYS).merge(
+    normalized_raw = extract_allowed_filters(raw, filter_keys).merge(
       sort: raw["sort"],
       direction: raw["direction"]
     ).compact.stringify_keys
@@ -71,12 +75,13 @@ class WebsitesController < ApplicationController
     return redirect_to(websites_path(canonical)) if invalid_rollout_filter || invalid_cohort_filter || invalid_view || canonical != normalized_raw
 
     @filters = cleaned.compact
+    configure_dashboard if html_dashboard
     if @filters[:retry_transition_batch_id]
       @retry_transition_batch = Distillator::TransitionBatch.find(@filters[:retry_transition_batch_id])
       @retry_website_ids = @retry_transition_batch.retry_website_ids
       @filters[:view] = "all"
     end
-    @default_website_view = request.format.html? ? (cookies.signed[:website_default_view].presence_in(INDEX_VIEWS) || "all") : "all"
+    @default_website_view = html_dashboard ? (cookies.signed[:website_default_view].presence_in(INDEX_VIEWS) || "all") : "all"
     @website_index_view = @filters[:view] || @default_website_view
     # Keep an explicit All override through sorting when Preferred is the default.
     @filters[:view] = @website_index_view if @filters[:view].present? || @default_website_view != "all"
@@ -87,6 +92,7 @@ class WebsitesController < ApplicationController
 
     @websites = Website.all
     @websites = @websites.where(id: @retry_website_ids) if @retry_transition_batch
+    @websites = @websites.where(id: @dashboard_selection_id) if @dashboard_selection_id
     @websites = @websites.where(preferred: true) if @website_index_view == "preferred"
 
     if @filters[:q]
@@ -125,12 +131,12 @@ class WebsitesController < ApplicationController
 
     @transition_eligible_ids = Distillator::EventSiteSelection.eligible_ids(@websites)
     website_rows = @websites.to_a
-    if request.format.html? || @filters[:validation] || params[:inventory_freshness] == "true"
+    if html_dashboard || @filters[:validation] || params[:inventory_freshness] == "true"
       @inventory_data_as_of = Time.current
-      inventories = Distillator::WebsiteInventoryFreshness.for_websites(website_rows.map(&:id), as_of: @inventory_data_as_of, diagnostics: request.format.html?)
-      @inventory_freshness = inventories if request.format.html? || params[:inventory_freshness] == "true"
+      inventories = Distillator::WebsiteInventoryFreshness.for_websites(website_rows.map(&:id), as_of: @inventory_data_as_of, diagnostics: html_dashboard)
+      @inventory_freshness = inventories if html_dashboard || params[:inventory_freshness] == "true"
     end
-    if request.format.html? || @filters[:validation]
+    if html_dashboard || @filters[:validation]
       @validation_summaries = Distillator::WebsiteValidationHistory.for_websites(website_rows, inventories: inventories)
       if @filters[:validation]
         @websites = website_rows.select do |site|
@@ -151,7 +157,7 @@ class WebsitesController < ApplicationController
     @statements_refreshed_24hr = Statement.joins(webpage: :website).where(cache_refreshed: [(Time.zone.now - 24.hours)..(Time.zone.now)]).group(:seedurl).count
     @statements_updated_24hr = Statement.joins(webpage: :website).where(cache_changed: [(Time.zone.now - 24.hours)..(Time.zone.now)]).group(:seedurl).count
     website_ids = Array(@websites).map(&:id)
-    if request.format.html?
+    if html_dashboard
       @missed_event_counts = MonitoringIssue.open_issues.where(kind: "possible_missed_event",
         seedurl: Website.where(id: website_ids).select(:seedurl)).group(:seedurl).count
     end
@@ -162,12 +168,16 @@ class WebsitesController < ApplicationController
     if computed_sort?
       @websites = sort_in_memory(@websites)
     elsif @websites.is_a?(Array)
-      @websites = @websites.sort_by { |website| website.public_send(sort_column).to_s.downcase }
+      @websites = @websites.sort_by { |website| [website.public_send(sort_column).to_s.downcase, website.id] }
       @websites.reverse! if sort_direction == "desc"
     else
-      @websites = @websites.order(sort_column => sort_direction.to_sym)
+      @websites = @websites.order(sort_column => sort_direction.to_sym).order(id: :asc)
     end
-  
+
+    if html_dashboard
+      @dashboard_running = Distillator::WebsiteActionSummary.running_for(website_ids)
+      prepare_action_dashboard if @dashboard == "action"
+    end
   end
 
   def preference
@@ -190,7 +200,17 @@ class WebsitesController < ApplicationController
     return head :bad_request unless INDEX_VIEWS.include?(value)
 
     cookies.permanent.signed[:website_default_view] = { value: value, httponly: true, same_site: :lax, secure: request.ssl? }
-    redirect_to websites_path(view: value), status: :see_other
+    preserved = extract_allowed_filters(params, FILTER_KEYS + DASHBOARD_KEYS).merge(sort: params[:sort], direction: params[:direction])
+    redirect_to websites_path(preserved.merge(view: value).compact), status: :see_other
+  end
+
+  def default_dashboard
+    value = params.require(:dashboard)
+    return head :bad_request unless DASHBOARDS.include?(value)
+
+    cookies.permanent.signed[:website_default_dashboard] = { value: value, httponly: true, same_site: :lax, secure: request.ssl? }
+    preserved = extract_allowed_filters(params, FILTER_KEYS + DASHBOARD_KEYS).merge(sort: params[:sort], direction: params[:direction])
+    redirect_to websites_path(preserved.compact), status: :see_other
   end
 
   # GET /websites/1
@@ -385,6 +405,30 @@ class WebsitesController < ApplicationController
     params.require(:website).permit(:name, :seedurl, :graph_name, :default_language, :schedule_every_days, :schedule_time, :last_refresh, :distillator_mode, :monitorable)
   end
 
+  def configure_dashboard
+    default = cookies.signed[:website_default_dashboard].presence_in(DASHBOARDS) || "information"
+    @dashboard = @filters[:dashboard].presence_in(DASHBOARDS) || default
+    @filters[:dashboard] = @dashboard if @filters.key?(:dashboard) || default == "action"
+    @filters.delete(:metrics) unless @filters[:metrics] == "full"
+    @filters.delete(:action_filter) unless Distillator::WebsiteActionSummary::FILTERS.key?(@filters[:action_filter])
+    @dashboard_selection_id = @filters[:transition_website_id].to_i if !@filters[:retry_transition_batch_id] &&
+      @filters[:transition_website_id].to_s.match?(/\A[1-9][0-9]{0,17}\z/)
+    @filters.delete(:transition_website_id) unless @dashboard_selection_id
+  end
+
+  def prepare_action_dashboard
+    @dashboard_actions = Distillator::WebsiteActionSummary.for_websites(@websites.to_a,
+      inventories: @inventory_freshness, validations: @validation_summaries, eligible_ids: @transition_eligible_ids,
+      running: @dashboard_running)
+    @action_filter = @filters[:action_filter] unless @retry_transition_batch || @dashboard_selection_id
+    @action_filter ||= "all"
+    @primary_actions = @dashboard_actions.transform_values { |actions| actions.find { |action| action.matches?(@action_filter) } }
+    @websites = @websites.select { |site| @primary_actions[site.id] } if @action_filter != "all"
+    @transition_eligible_ids &= @websites.map(&:id)
+    # The existing explicit table sort breaks ties within a priority.
+    @action_rows = @websites.each_with_index.sort_by { |site, index| [@primary_actions[site.id]&.rank || 5, index] }.map(&:first)
+  end
+
   def sort_column
     allowed_columns = %w[
       name seedurl default_language schedule_every_days
@@ -426,7 +470,7 @@ class WebsitesController < ApplicationController
           0
         end
 
-      value.nil? ? [1, 0] : [0, direction * value]
+      value.nil? ? [1, 0, website.id] : [0, direction * value, website.id]
     end
   end
 

@@ -11,6 +11,22 @@
     </div>
   </header>
 
+  <% dashboard_params = @filters.merge(sort: @current_sort, direction: @current_direction).compact %>
+  <div class="website-index-view-controls">
+    <nav aria-label="Dashboard perspective">
+      <% %w[action information].each do |perspective| %>
+        <%= link_to perspective.humanize, websites_path(dashboard_params.merge(dashboard: perspective)),
+          aria: { current: @dashboard == perspective ? "page" : nil } %>
+      <% end %>
+    </nav>
+    <%= form_with url: default_dashboard_websites_path, method: :patch, local: true, class: "website-index-default-view" do %>
+      <% dashboard_params.merge(dashboard: @dashboard).each do |key, value| %>
+        <%= hidden_field_tag key, value, id: nil %>
+      <% end %>
+      <%= submit_tag "Use #{@dashboard.humanize} by default" %>
+    <% end %>
+  </div>
+
   <div class="website-index-view-controls">
     <nav aria-label="Website lists">
       <% view_params = @filters.merge(sort: @current_sort, direction: @current_direction).compact %>
@@ -18,6 +34,9 @@
       <%= link_to "Preferred (#{@preferred_count})", websites_path(view_params.merge(view: "preferred")), aria: { current: @website_index_view == "preferred" ? "page" : nil } %>
     </nav>
     <%= form_with url: default_view_websites_path, method: :patch, local: true, class: "website-index-default-view" do %>
+      <% dashboard_params.except(:view).each do |key, value| %>
+        <%= hidden_field_tag key, value, id: nil %>
+      <% end %>
       <%= hidden_field_tag :view, "all", id: nil %>
       <label><%= check_box_tag :view, "preferred", @default_website_view == "preferred", id: "website-default-preferred", data: { auto_submit_preference: true } %> Use Preferred as default</label>
       <noscript><%= submit_tag "Save default" %></noscript>
@@ -54,6 +73,9 @@
       <%= hidden_field_tag :sort, @current_sort if @current_sort.present? %>
       <%= hidden_field_tag :direction, @current_direction if @current_direction.present? %>
       <%= hidden_field_tag :view, @website_index_view if @filters[:view].present? %>
+      <% @filters.slice(:dashboard, :metrics, :action_filter, :transition_website_id).each do |key, value| %>
+        <%= hidden_field_tag key, value %>
+      <% end %>
       <%= hidden_field_tag :retry_transition_batch_id, @retry_transition_batch.id if @retry_transition_batch %>
       <div class="website-index-filter-row">
         <div class="website-index-search"><%= label_tag :q, "Find a website" %><%= text_field_tag :q, @filters[:q], placeholder: "Name or seedurl, e.g. culture*", autocomplete: "off" %></div>
@@ -62,7 +84,7 @@
         <div><%= label_tag :validation, "Validation history" %><%= select_tag :validation, options_for_select(
               [["All results", ""]] + Distillator::WebsiteValidationHistory::FILTERS.map { |value, label| [label, value] }, @filters[:validation]) %></div>
         <%= submit_tag "Apply filters" %>
-        <%= link_to "Reset filters", websites_path(@filters.slice(:view, :retry_transition_batch_id)) %>
+        <%= link_to "Reset filters", websites_path(@filters.slice(:view, :dashboard, :metrics, :retry_transition_batch_id, :transition_website_id)) %>
       </div>
       <details class="website-index-advanced" <%= "open" if @filters.slice(:seed_filter, :default_language, :graph_name).present? %>>
         <summary class="operator-filter-heading">More filters and sorting</summary>
@@ -75,18 +97,21 @@
       </details>
     <% end %>
 
-    <% visible_filters = @filters.except(:view, :retry_transition_batch_id)
+    <% visible_filters = @filters.except(:view, :dashboard, :metrics, :action_filter, :retry_transition_batch_id, :transition_website_id)
        visible_filters[:validation] = Distillator::WebsiteValidationHistory::FILTERS.fetch(@filters[:validation]) if @filters[:validation] %>
     <%= render "shared/operator_active_filters", filters: visible_filters,
           labels: { q: "Website search", distillator_mode: "Mode", seed_filter: "Seedurl", default_language: "Language", graph_name: "Graph", validation: "Validation" } %>
 
     <%= form_with url: distillator_transition_batches_path, method: :post, local: true, id: "website-transition-batch", class: "website-transition-selection" do %>
       <%= hidden_field_tag :request_key, SecureRandom.uuid %>
-      <%= hidden_field_tag :selection_context, @filters.map { |key, value| "#{key}: #{value}" }.join(" · ") %>
+      <%= hidden_field_tag :selection_context, @filters.except(:dashboard, :metrics, :action_filter).map { |key, value| "#{key}: #{value}" }.join(" · ") %>
       <% if @retry_transition_batch %>
         <%= hidden_field_tag :retry_transition_batch_id, @retry_transition_batch.id, id: nil %>
-        <p><strong>Retry of group #<%= @retry_transition_batch.id %></strong> · <%= link_to "Exit retry", websites_path(view: "all") %></p>
+        <p><strong>Retry of group #<%= @retry_transition_batch.id %></strong> · <%= link_to "Exit retry", websites_path(@filters.slice(:dashboard, :metrics).merge(view: "all")) %></p>
         <p><%= @retry_website_ids.any? ? "The group’s non-Active event sites are preselected. Choose a check profile and start validation." : "No non-Active event sites are available for retry." %></p>
+      <% elsif @dashboard_selection_id %>
+        <p><strong>Review Thorough validation</strong> · <%= link_to "Back to website list",
+          websites_path(@filters.except(:transition_website_id)) %></p>
       <% end %>
       <label hidden data-transition-master-label><input type="checkbox" data-transition-master> Select all <%= @transition_eligible_ids.length %> matching event sites (includes Unscheduled)</label>
       <span data-transition-selection-count aria-live="polite">Select sites using the Transition column.</span>
@@ -95,12 +120,12 @@
         <%= select_tag :check_profile, options_for_select([
             ["Thorough (all active publishable events, Strict)", "thorough"],
             ["Light (sample active publishable events, Standard)", "light"]
-        ], @retry_transition_batch&.check_profile || Distillator::TransitionBatch::DEFAULT_CHECK_PROFILE) %>
+        ], (@dashboard_selection_id ? "thorough" : @retry_transition_batch&.check_profile || Distillator::TransitionBatch::DEFAULT_CHECK_PROFILE)) %>
       </div>
       <%= submit_tag "Validate and activate selected", data: { transition_submit: true } %>
       <%= button_tag "Audit selected Active sites (Thorough)", name: "workflow_action", value: "audit", data: { transition_audit: true } unless @retry_transition_batch %>
       <% unless @retry_transition_batch %>
-        <p>Thorough validation moves Active sites to Shadow before checking. Migrated sites and Active audits keep their serving mode.</p>
+        <p>Thorough validation may move Active sites to Shadow. Migrated sites and Active audits keep their serving mode.</p>
       <% end %>
       <details><summary>How validation and audit work</summary>
         <p>Both profiles can activate sites. Light randomly samples 20% of active publishable event pages (minimum 5, maximum 25, limited by availability), favoring pages checked least recently,
@@ -112,27 +137,36 @@
       </details>
     <% end %>
 
-    <% if @website_index_view == "preferred" %>
-      <h2 class="website-index-list-heading" id="website-list-preferred">Preferred (<%= @websites.size %>)</h2>
-      <% if @websites.empty? %><p>No preferred sites in this view. Choose All sites and check Preferred beside the sites you want to keep here.</p><% end %>
-      <%= render "index_table", websites: @websites, group: :preferred %>
+    <% if @dashboard == "action" %>
+      <%= render "action_list", dashboard_params: dashboard_params %>
     <% else %>
-      <% groups = Distillator::WebsiteIndexGroups.call(@websites) %>
-      <h2 class="website-index-list-heading" id="website-list-scheduled">Scheduled sites (<%= groups[:scheduled].size %>)</h2>
-      <% if groups[:scheduled].any? %>
-        <%= render "index_table", websites: groups[:scheduled], group: :scheduled %>
-      <% elsif @websites.empty? %>
-        <p>No websites match these filters. Try another name or clear the filters.</p>
-        <%= render "index_table", websites: [], group: :scheduled %>
+      <% full_metrics = @filters[:metrics] == "full" %>
+      <div class="website-dashboard-table-options">
+        <%= link_to(full_metrics ? "Compact overview" : "Show all metrics",
+          websites_path(full_metrics ? dashboard_params.except(:metrics) : dashboard_params.merge(metrics: "full"))) %>
+      </div>
+      <% if @website_index_view == "preferred" %>
+        <h2 class="website-index-list-heading" id="website-list-preferred">Preferred (<%= @websites.size %>)</h2>
+        <% if @websites.empty? %><p>No preferred sites in this view. Choose All sites and check Preferred beside the sites you want to keep here.</p><% end %>
+        <%= render "index_table", websites: @websites, group: :preferred %>
       <% else %>
-        <p>No scheduled sites in this view. Open one of the lists below.</p>
-      <% end %>
-      <% Distillator::WebsiteIndexGroups::LABELS.except(:scheduled).each do |key, label| %>
-        <% next if groups[key].empty? %>
-        <details class="website-index-category" id="website-list-<%= key %>" <%= "open" if @filters.except(:view).present? %>>
-          <summary><%= label %> (<%= groups[key].size %>)</summary>
-          <%= render "index_table", websites: groups[key], group: key %>
-        </details>
+        <% groups = Distillator::WebsiteIndexGroups.call(@websites) %>
+        <h2 class="website-index-list-heading" id="website-list-scheduled">Scheduled sites (<%= groups[:scheduled].size %>)</h2>
+        <% if groups[:scheduled].any? %>
+          <%= render "index_table", websites: groups[:scheduled], group: :scheduled %>
+        <% elsif @websites.empty? %>
+          <p>No websites match these filters. Try another name or clear the filters.</p>
+          <%= render "index_table", websites: [], group: :scheduled %>
+        <% else %>
+          <p>No scheduled sites in this view. Open one of the lists below.</p>
+        <% end %>
+        <% Distillator::WebsiteIndexGroups::LABELS.except(:scheduled).each do |key, label| %>
+          <% next if groups[key].empty? %>
+          <details class="website-index-category" id="website-list-<%= key %>" <%= "open" if @filters.except(:view).present? %>>
+            <summary><%= label %> (<%= groups[key].size %>)</summary>
+            <%= render "index_table", websites: groups[key], group: key %>
+          </details>
+        <% end %>
       <% end %>
     <% end %>
 

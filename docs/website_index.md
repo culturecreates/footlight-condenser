@@ -165,3 +165,33 @@ refreshes can associate statement results with the exact primary response or
 secondary inputs they used. Earlier results may have no provenance. Input traces
 include regular DSL URL and API dependencies. Arbitrary Ruby network activity
 can fall outside those traces, so the UI does not advertise a cache-only action.
+
+## Information and Action
+
+The **Information** perspective opens by default. It summarizes state,
+discovery, publishable Event resources, validation and statement activity.
+**Show all metrics** opens the full sortable table. **Details** retains
+per-ResourceList diagnostics, validation coverage and history, schedules,
+counts, and links to Statements, Webpages, Sources, Monitoring and reports.
+
+Choose **Action** to start with the highest-priority issue for each website.
+P0 covers confirmed urgent conditions such as a failed recovery. P1 covers
+failed required checks or discovery and data blockers. P2 covers work such
+as outdated validation evidence and pending reconciliation. P3 covers an
+optional next step such as recording a cutover. Running work appears under
+**In progress**. Secondary findings are in **Details** and sites with no
+identified action are grouped at the end. A recorded blocked source fetch
+concerns the affected source. The dashboard has no sitewide outage signal.
+
+**Review Thorough validation** opens the existing bulk form with one site
+selected for review. Submitting the form runs the normal guarded workflow.
+Thorough validation may temporarily move an Active site to Shadow. An
+**Active audit** checks the serving path and keeps its rollout mode.
+**Open cutover confirmation** goes to the existing confirmation form.
+
+Action and Information are independent of All sites, Preferred, cohort and
+the other existing filters. Use **Use Action by default** or **Use
+Information by default** to store the preference in your browser. The
+`dashboard` parameter overrides that preference. **Show all metrics** uses
+`metrics=full`. Retry pages keep the completed group's eligible selections
+when switching perspectives.
