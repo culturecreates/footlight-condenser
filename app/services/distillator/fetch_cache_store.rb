@@ -203,6 +203,8 @@ module Distillator
 
       wrote_body = write_fetch_result(cache, key, fetch_result)
 
+      # Retain last-good cache history on failure, but never serve a body from a
+      # different backend/request profile unless this fetch successfully replaced it.
       build_result(
         cache,
         key,

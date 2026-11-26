@@ -37,13 +37,30 @@ class Distillator::P0TransitionSafetyTest < ActiveSupport::TestCase
     assert_not result.cache_hit
   end
 
-  test "failed rollback fetch cannot return the previous native body" do
+  test "failed rollback keeps the last good native cache but cannot serve it as legacy" do
     cache = cache_for("native")
+    last_success = cache.successful_refresh
     result = fetch(cache, mode: "legacy", response: failure_response)
+    assert_equal :abort, result.status
     assert_nil result.html
-    assert_nil cache.successful_refresh
     assert_not_equal "OLD", result.body
     assert_not result.content_success?
+    assert_equal "OLD", cache.html
+    assert_equal last_success, cache.successful_refresh
+    assert_equal "native", cache.signals.dig("body_profile", "backend")
+    assert_equal true, cache.signals["last_good_preserved_failure"]
+  end
+
+  test "failed rollback retries until a matching legacy body replaces the native cache" do
+    cache = cache_for("native")
+    fetch(cache, mode: "legacy", response: failure_response)
+    result = fetch(cache, mode: "legacy", response: response("WRINGER", "legacy"))
+    assert_not result.cache_hit
+    assert_equal "WRINGER", result.html
+    assert_equal "WRINGER", result.body
+    assert_equal "WRINGER", cache.body
+    assert_equal "legacy", cache.signals.dig("body_profile", "backend")
+    assert_not cache.signals["last_good_preserved_failure"]
   end
 
   test "a matching body profile remains a cache hit" do

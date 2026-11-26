@@ -15,3 +15,11 @@ bin/rails test test/services/distillator/p0_transition_safety_test.rb test/servi
 ```
 
 The focused safety tests are also included in `test:distillator_fast`. No database migration or rollout-mode change is needed. The separate P1 evidence-run, audit-atomicity and semantic-parity findings remain follow-up work.
+
+## Failed rollback: stored history versus served response
+
+A failed mode change from Condenser to Wringer (or the reverse) must return an unsuccessful fetch result with no HTML from the previous backend. The persisted single-slot cache still retains its last-good `html`, `body`, `successful_refresh` and original `signals.body_profile` for compatibility and diagnostics; the latest `scrape_date`, HTTP status and failure signals record the failed attempt. These are different contracts: preserving historical content **does not authorize serving it** under a different profile.
+
+On a cross-profile failure, `FetchCacheStore::Result#html` is nil, its body describes the failed attempt, and the caller's statement refresh must abort without replacing previously saved statement content. Subsequent serving requests must refetch until a successful body matches the requested profile. By contrast, failures within the *same* profile retain Wringer-compatible last-good serving behavior.
+
+The integration and P0 safety tests verify these distinctions. Tests must not assert that a failed fetch erases the stored successful-refresh timestamp or HTML; doing so would contradict the cache compatibility contract.
