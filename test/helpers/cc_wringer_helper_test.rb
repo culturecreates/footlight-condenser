@@ -507,7 +507,7 @@ class CcWringerHelperTest < ActionView::TestCase
     assert_equal "custom_action", result.last[:error_type]
   end
 
-  test "safe_wringer_call preserves redirect delete policy" do
+  test "safe_wringer_call preserves redirect no-delete policy" do
     response = Struct.new(:code, :body, :uri).new(
       200,
       '<html><div class="jet-listing-dynamic-field">listing</div></html>',
@@ -520,7 +520,8 @@ class CcWringerHelperTest < ActionView::TestCase
     assert_equal "redirect_to_listing", result.last[:error_type]
     assert_not result.last[:retry]
     assert_not result.last[:cache]
-    assert result.last[:delete]
+    # A listing response must not overwrite or delete the last-good cache.
+    assert_equal false, result.last[:delete]
   end
   
   test "invalid regex pattern does not crash rule engine" do
