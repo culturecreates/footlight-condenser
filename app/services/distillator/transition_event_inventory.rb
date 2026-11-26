@@ -173,7 +173,7 @@ module Distillator
       # Two saved empty arrays are a valid extraction, not missing evidence.
       # Missing/malformed arrays remain nil and must not pass this check.
       unless url_keys && rdf_uris && url_keys.size == rdf_uris.size && url_keys.none?(&:nil?)
-        return metadata.merge(reason: "invalid_list", count: urls&.size, invalid_count: url_keys&.count(&:nil?))
+        return metadata.merge(reason: "invalid_or_empty_list", count: urls&.size, invalid_count: url_keys&.count(&:nil?))
       end
 
       timestamps = [discovery.extracted_statement, url_list, uri_list].compact.map(&:cache_refreshed)

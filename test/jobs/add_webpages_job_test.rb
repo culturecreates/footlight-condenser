@@ -131,7 +131,7 @@ class AddWebpagesJobTest < ActiveJob::TestCase
 
   test "empty URL List and nonempty URI List remains invalid" do
     @url_list_statement.update_columns(cache: "[]", status: "updated", cache_refreshed: Time.current)
-    assert_equal "invalid_list", inventory_for_list.fetch(:reason)
+    assert_equal "invalid_or_empty_list", inventory_for_list.fetch(:reason)
     assert_raises(AddWebpagesJob::InvalidResourceListError) { AddWebpagesJob.perform_now(@resource_list_page.id) }
   end
 
