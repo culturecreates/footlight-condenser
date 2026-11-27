@@ -93,7 +93,7 @@ class AddWebpagesJob < ApplicationJob
     end
     return created_pages.map(&:id) unless refresh_new
 
-    created_pages.each { |page| RefreshWebpageJob.perform_later(linked ? page.id : page.url) }
+    created_pages.each { |page| RefreshWebpageJob.perform_later(page.id) }
   rescue StandardError => error
     if monitoring_observation
       Monitoring::ResourceListRefresh.failed(webpage, scheduled_at: Time.iso8601(monitoring_observation.fetch(:scheduled_at)),
