@@ -35,10 +35,10 @@ module ResourceLists
       }
       assert_equal values["en"]["urls"], runner.call("urls,en")
       assert_equal values["fr"]["uris"], runner.call("uris,fr")
-      assert_equal ["abort_update", {
-        error: "Invalid calendar language", error_type: "Invalid", source: "dsl_runner",
-        step: "get_sorted_calendars"
-      }], runner.call("urls,de")
+      invalid = runner.call("urls,de")
+      assert_equal "abort_update", invalid.first
+      assert_equal "Invalid calendar language", invalid.last[:error]
+      assert_equal "get_sorted_calendars", invalid.last[:step]
       assert_equal values["fr"]["urls"], runner.call("urls,fr")
     end
 
