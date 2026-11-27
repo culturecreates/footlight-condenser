@@ -17,6 +17,7 @@ require "time"
 require "uri"
 require_relative "../app/services/resource_lists/short_page_stop"
 require_relative "../app/services/resource_lists/numbered_page_query"
+require_relative "../app/services/resource_lists/link_inventory"
 
 abort "Usage: resource_list_numbered_probe.rb URL [MAX_PAGES] OUTPUT_DIR" unless (2..3).cover?(ARGV.length)
 start = URI.parse(ARGV.fetch(0))
@@ -58,6 +59,7 @@ end
 captures = []
 previous_link_count = nil
 previous_fingerprint = nil
+previous_link_fingerprint = nil
 stop_reason = nil
 limit.times do |offset|
   number = first_page + offset
@@ -81,6 +83,7 @@ limit.times do |offset|
       nil
     end
   end
+  link_fingerprint = ResourceLists::LinkInventory.fingerprint(doc.xpath("//a[@href]").map { |a| a["href"] })
   # Without an explicit site-specific XPath we cannot distinguish event links
   # from navigation/category links. Keep the count diagnostic, not authoritative.
   event_xpath = ENV["EVENT_LINK_XPATH"]
@@ -105,6 +108,7 @@ limit.times do |offset|
   captures << { page: number, url: url.to_s, final_url: final_url.to_s,
     fetched_at: requested_at, status: response.code.to_i, bytes: content.bytesize,
     sha256: Digest::SHA256.hexdigest(content), all_link_count: all_link_count,
+    link_inventory_sha256: link_fingerprint,
     event_link_count: events.length,
     sample_events: events.first(3), numbered_links: pager,
     event_link_xpath: event_xpath, title: doc.at_xpath("//title")&.text.to_s.strip,
@@ -114,10 +118,12 @@ limit.times do |offset|
   short_page = previous_link_count && ResourceLists::ShortPageStop.stop?(
     previous_count: previous_link_count, current_count: all_link_count)
   same_content = previous_fingerprint == Digest::SHA256.hexdigest(content)
+  same_links = !link_fingerprint.nil? && previous_link_fingerprint == link_fingerprint
   captures.last[:short_page_stop] = !!short_page
   captures.last[:repeated_content] = !!same_content
+  captures.last[:repeated_links] = !!same_links
   puts "page=#{number} status=#{response.code} all_links=#{all_link_count} candidate_event_urls=#{events.length} " \
-    "pager_links=#{pager.length} bytes=#{content.bytesize} challenge_hint=#{captures.last[:challenge_hint]} short_page_stop=#{!!short_page} repeated_content=#{!!same_content}"
+    "pager_links=#{pager.length} bytes=#{content.bytesize} challenge_hint=#{captures.last[:challenge_hint]} short_page_stop=#{!!short_page} repeated_content=#{!!same_content} repeated_links=#{!!same_links}"
   if captures.last[:challenge_hint]
     stop_reason = "challenge_page_detected"
     break
@@ -126,11 +132,16 @@ limit.times do |offset|
     stop_reason = "repeated_content"
     break
   end
+  if same_links
+    stop_reason = "repeated_link_inventory"
+    break
+  end
   if short_page
     stop_reason = "heuristic_short_page"
     break
   end
   previous_fingerprint = Digest::SHA256.hexdigest(content)
+  previous_link_fingerprint = link_fingerprint
   previous_link_count = all_link_count
   sleep(0.5) if offset < limit - 1
 end
