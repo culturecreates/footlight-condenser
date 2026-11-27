@@ -1,6 +1,10 @@
 require "test_helper"
 
 class Distillator::PhantomjsFetcherTest < ActiveSupport::TestCase
+  # No database records are used here. Loading globally inherited fixtures
+  # requires privileged FK-trigger changes in PostgreSQL 17 and masks test results.
+  self.fixture_table_names = []
+
   setup do
     @old_phantomjs_api_key = ENV["PHANTOMJS_API_KEY"]
     @old_direct_fallback = ENV["DISTILLATOR_ALLOW_RENDERED_DIRECT_FALLBACK"]
