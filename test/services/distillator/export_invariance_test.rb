@@ -37,6 +37,42 @@ class Distillator::ExportInvarianceTest < ActiveSupport::TestCase
     assert graph.query([event, RDF::Vocab::SCHEMA.eventAttendanceMode, RDF::URI("http://schema.org/OnlineEventAttendanceMode")]).to_a.any?, "expected reconciled attendance mode URI"
   end
 
+  test "diagnostic fetch-cache title never contaminates Artsdata fixture export" do
+    page = webpages(:distillator_full_event)
+    original_html = "<html><title>Distillator Full Event</title><body><h1>Distillator Full Event</h1></body></html>"
+    baseline = Distillator::ExportNormalizer.normalize(ExportArtsdataService.call(seedurl: FIXTURE_SEEDURL))
+    assert_includes baseline, "Distillator Full Event"
+
+    Distillator::FetchCache.delete_all
+    key = Distillator::WringerUrlKey.call(page.url)
+    cache = Distillator::FetchCache.create!(
+      uri_key: key.uri_key, normalized_url: key.normalized_url,
+      name: "Distillator Full Event", html: original_html, body: original_html,
+      scrape_date: 2.days.ago, successful_refresh: 1.day.ago,
+      http_response_code: 200,
+      signals: { "body_profile" => { "backend" => "legacy", "request_method" => "GET", "render_js" => false, "absolute_src" => false } }
+    )
+
+    Distillator::FetchService.expects(:fetch_result).once.returns(
+      status: :abort,
+      body: ["abort_update", { error_type: "http_server_error" }],
+      raw_body: "<html><title>Server Error</title></html>",
+      headers: { content_type: "text/html" },
+      final_url: page.url, redirect_chain: [],
+      wringer: { signals: { network_status: "ok", content_type: "html" }, hints: [] },
+      http_code: 500, duration_ms: 2.0, fetch_path: "legacy"
+    )
+    result = Distillator::FetchCacheStore.fetch(uri: page.url, mode: :legacy, force_scrape: true)
+
+    assert_equal "Distillator Full Event --!^!-- Server Error", cache.reload.name
+    assert_equal original_html, cache.body
+    assert_equal false, result.content_success?
+
+    exported = Distillator::ExportNormalizer.normalize(ExportArtsdataService.call(seedurl: FIXTURE_SEEDURL))
+    assert_equal baseline, exported
+    refute_includes exported, "--!^!--"
+  end
+
   private
 
   def jsonld_to_graph(jsonld)

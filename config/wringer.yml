@@ -153,6 +153,27 @@ system_exceptions:
       cache: false
       error_code: system_captcha
 
+  browser_challenge_interstitial:
+    label: Browser verification interstitial
+    severity: blocked
+    category: anti_bot
+    expose_in_ui: true
+    export_to_apify: true
+    hints:
+      - browser_challenge
+      - anti_bot
+    match:
+      body_contains:
+        - "Please wait while your request is being verified"
+        - "Votre demande est en cours de vérification"
+      page_identity_patterns:
+        - '\A(?:One moment,\s*please|Un instant,\s*s[\x27\u2019]il vous plaît)(?:\.{3}|…)?\z'
+    policy:
+      action: abort_update
+      retry: true
+      cache: false
+      error_code: browser_challenge
+
   # -------------------------
   # CONTENT EDGE CASES
   # -------------------------

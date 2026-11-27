@@ -364,7 +364,7 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
     assert_equal "<html>last good</html>", result.body
     assert_equal old_successful_refresh.to_i, result.successful_refresh.to_i
     assert_operator result.scrape_date, :>, old_scrape_date
-    assert_equal "Server Error", result.name
+    assert_equal "Cached --!^!-- Server Error", result.name
   end
 
   test "404 response preserves last good html body and successful_refresh while updating failure metadata" do
@@ -402,7 +402,7 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
     assert_includes result.hints, "not_found"
     assert_includes result.hints, "last_good_preserved_failure"
     assert_equal "ok", result.signals["network_status"]
-    assert_equal "Not Found", cache.name
+    assert_equal "Cached --!^!-- Not Found", cache.name
   end
 
   test "timeout abort preserves last good html body and successful_refresh while updating abort metadata" do
@@ -552,6 +552,8 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
     assert_equal true, result.signals["last_good_preserved_failure"]
     assert_equal "abort_update", result.signals["policy_action"]
     assert_equal false, result.signals["cache"]
+    assert_equal "Last Good --!^!-- Recherche par titre", result.name
+    assert_equal "Last Good --!^!-- Recherche par titre", cache.name
     assert_equal old_successful_refresh.to_i, cache.successful_refresh.to_i
   end
 
@@ -1778,6 +1780,86 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
     assert_includes result.hints, "blocked_url"
     assert_includes result.hints, "blocked"
     assert_includes result.hints, "last_good_preserved_failure"
+  end
+
+  test "diagnostic title replaces failed response titles and clears after recovery" do
+    good_html = "<html><title>Concert</title><body><h1>Concert</h1></body></html>"
+    previous_success = 6.hours.ago
+    cache = create_cache(
+      name: "Concert", html: good_html, body: good_html,
+      scrape_date: 2.days.ago, successful_refresh: previous_success
+    )
+
+    failures = [[500, "Server Error"], [404, "Not Found"]]
+    failures.each do |http_code, title|
+      Distillator::FetchService.expects(:fetch_result).returns(
+        abort_result(
+          http_code: http_code, raw_body: "<html><title>#{title}</title></html>",
+          headers: { content_type: "text/html" }, signals: { network_status: "ok", content_type: "html" },
+          hints: [], fetch_path: "legacy"
+        )
+      )
+
+      result = Distillator::FetchCacheStore.fetch(uri: cache.normalized_url, mode: :legacy, force_scrape: true)
+      cache.reload
+      expected = "Concert --!^!-- #{title}"
+      assert_equal expected, result.name
+      assert_equal expected, cache.name
+      assert_equal 1, cache.name.scan("--!^!--").size
+      assert_equal good_html, result.html
+      assert_equal good_html, cache.body
+      assert_equal previous_success.to_i, cache.successful_refresh.to_i
+      assert_equal false, result.content_success?
+      assert_equal true, result.signals["last_good_preserved_failure"]
+    end
+
+    recovered_html = "<html><title>Concert 2027</title><body><h1>Concert 2027</h1></body></html>"
+    Distillator::FetchService.expects(:fetch_result).returns(success_result(body: recovered_html, fetch_path: "legacy"))
+    result = Distillator::FetchCacheStore.fetch(uri: cache.normalized_url, mode: :legacy, force_scrape: true)
+    cache.reload
+
+    assert_equal "Concert 2027", result.name
+    assert_equal "Concert 2027", cache.name
+    assert_equal recovered_html, cache.body
+    assert_equal recovered_html, result.html
+    assert result.content_success?
+    assert_operator cache.successful_refresh, :>, previous_success
+  end
+
+  test "diagnostic cache title preserves last good HTML but blocks stale DSL extraction" do
+    good_html = "<html><head><title>Concert</title></head><body><main><h1>Concert</h1></main></body></html>"
+    previous_success = 6.hours.ago
+    cache = create_cache(
+      name: "Concert", html: good_html, body: good_html,
+      scrape_date: 2.days.ago, successful_refresh: previous_success
+    )
+
+    Distillator::FetchService.expects(:fetch_result).returns(
+      abort_result(
+        http_code: 500, raw_body: "<html><title>Server Error</title></html>",
+        headers: { content_type: "text/html" }, signals: { network_status: "ok", content_type: "html" },
+        hints: [], fetch_path: "legacy"
+      )
+    )
+    rejected = Distillator::FetchCacheStore.fetch(uri: cache.normalized_url, mode: :legacy, force_scrape: true)
+    cache.reload
+
+    assert_equal "Concert --!^!-- Server Error", cache.name
+    assert_equal false, rejected.content_success?
+    assert_equal good_html, cache.body
+    assert_equal previous_success.to_i, cache.successful_refresh.to_i
+
+    # This is an extraction safeguard; it does not replace full Artsdata export parity tests.
+    Distillator::FetchService.expects(:fetch_result).never
+    runner = Dsl::Core::AlgorithmRunner.new(
+      url: cache.normalized_url, render_js: false, mode: :legacy,
+      scrape_options: {}, tracer: Dsl::Tracing::NullTracer.new
+    )
+    extraction = runner.run("xpath=//h1")
+    assert_equal "abort_update", extraction.first
+    assert_equal "DistillatorContentFailure", extraction.last[:error_type]
+    refute_includes extraction.inspect, "--!^!--"
+    assert_equal "Concert --!^!-- Server Error", Distillator::FetchCacheStore.lookup_by_term(cache.uri_key).first[:name]
   end
 
   private
