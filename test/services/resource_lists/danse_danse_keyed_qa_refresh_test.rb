@@ -2,6 +2,9 @@ require "test_helper"
 
 module ResourceLists
   class DanseDanseKeyedQaRefreshTest < ActiveSupport::TestCase
+    # Pure keyed calendar tests must not load unrelated database fixtures.
+    self.fixture_table_names = []
+
     FakeWebsite = Struct.new(:id, :seedurl, :test_copy_of_website) do
       def persisted? = true
     end
