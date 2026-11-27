@@ -31,6 +31,7 @@ module Distillator
     def perform_transition
       website.assign_attributes(attributes)
       return failure(["Distillator mode is not included in the list"]) unless valid_target_mode?
+      return failure(["QA copies cannot be promoted to Active"]) if website.test_copy_of_website_id.present? && to_mode == "active"
 
       if blocked_transition_errors.any?
         blocked_transition_errors.each { |message| website.errors.add(:distillator_mode, message) }
