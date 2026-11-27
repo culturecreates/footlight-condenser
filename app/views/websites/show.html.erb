@@ -22,6 +22,17 @@
   </dl>
 
   <p class="website-debug-id"><%= website_debug_id_label(@website) %></p>
+  <% if (Rails.env.development? || Rails.env.test? || Distillator::TransitionRuntime.staging?) && !@website.test_copy_of_website_id %>
+    <details class="website-show-section">
+      <summary>Copy website for QA</summary>
+      <p>Create an unscheduled, non-publishing test site with separate RDF URIs and the same source URLs.</p>
+      <%= form_with url: copy_for_qa_website_path(@website), method: :post, local: true do |form| %>
+        <%= label_tag :test_copy_seedurl, "Test seedurl" %>
+        <%= text_field_tag :test_copy_seedurl, Websites::CreateTestCopy.suggest_seedurl(@website.seedurl), required: true %>
+        <%= form.submit "Create QA copy" %>
+      <% end %>
+    </details>
+  <% end %>
 </section>
 
 <% transition_contract = website_transition_contract(@website) %>
