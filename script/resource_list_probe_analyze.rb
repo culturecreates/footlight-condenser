@@ -7,6 +7,7 @@
 #   /tmp/resource-list-trials/hector-charland/probe.json
 # Optional for other sites: EVENT_LINK_XPATH='//.../@href' bundle exec ruby ...
 require "json"
+require_relative "../app/services/resource_lists/short_page_stop"
 require "nokogiri"
 require "set"
 require "uri"
@@ -71,6 +72,12 @@ page_results = captures.map do |capture|
   }
 end
 
+short_page_stop = page_results.each_cons(2).find do |previous, current|
+  current[:page] == previous[:page] + 1 &&
+    ResourceLists::ShortPageStop.stop?(previous_count: previous[:events], current_count: current[:events])
+end
+short_page_stop_page = short_page_stop&.last&.fetch(:page)
+
 duplicate_urls = seen.select { |_, pages| pages.size > 1 }
 last_page = page_results.last
 observed_numbers = page_results.map { |row| row[:page] }
@@ -81,6 +88,8 @@ possible_tail = !last_page[:next_link_observed] && pager_max == last_page[:page]
   observed_numbers == (observed_numbers.first..last_page[:page]).to_a
 result = {
   purpose: "saved_html_pagination_analysis", verified_completeness: false,
+  short_page_threshold: 0.9, short_page_stop_page: short_page_stop_page,
+  short_page_stop_is_authoritative: false,
   pages: page_results, unique_event_urls: seen.size,
   total_page_event_counts: page_results.sum { |row| row[:events] },
   duplicate_across_pages: duplicate_urls.size,
@@ -95,5 +104,5 @@ page_results.each do |row|
     "next=#{row[:next_link_observed]} challenge=#{row[:challenge_hint]}"
 end
 puts "unique_event_urls=#{seen.size} duplicate_across_pages=#{duplicate_urls.size} " \
-  "possible_tail=#{possible_tail} complete=UNVERIFIED"
+  "short_page_stop=#{short_page_stop_page || 'none'} possible_tail=#{possible_tail} complete=UNVERIFIED"
 puts "Saved #{output}"
