@@ -13,6 +13,7 @@ Rails.application.routes.draw do
   resources :websites do
     # API: get /websites 
     member do
+      post :copy_for_qa
       patch :preference
       post :activate_after_review
       post :confirm_cutover
