@@ -2,6 +2,9 @@ require "test_helper"
 
 module ResourceLists
   class KeyedCalendarAlignmentTest < ActiveSupport::TestCase
+    # Pure keyed calendar tests must not load unrelated database fixtures.
+    self.fixture_table_names = []
+
     test "languages align by key even when source order differs" do
       result = KeyedCalendarAlignment.call(streams: {
         fr: [{key: "C", url: "/fr/c"}, {key: "A", url: "/fr/a"}, {key: "B", url: "/fr/b"}],
