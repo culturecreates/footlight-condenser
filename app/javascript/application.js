@@ -3,3 +3,14 @@ import ujs from "@rails/ujs";
 ujs.start();
 // import "@hotwired/turbo-rails"; // Disabled Turbo for the entire website
 import consumer from "./channels/cable";
+import "./statements_show";
+import "./statement_editor";
+import "./dsl_preview";
+import "./source_page_preview";
+import "./operator_context_card";
+import "./transition_checks";
+import "./transition_exclusions";
+import "./website_index";
+import "./transition_workflows";
+import "./wringer_reachability";
+import "./navigation/header";

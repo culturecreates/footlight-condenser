@@ -1,0 +1,271 @@
+require "test_helper"
+
+class Distillator::StatementParityCheckTest < ActiveSupport::TestCase
+  setup do
+    @website = Website.create!(name: "Paired tests", seedurl: "paired-tests", graph_name: "https://example.org/parity", default_language: "en", distillator_mode: "shadow")
+    @page = @website.webpages.create!(url: "https://example.org/event", rdf_uri: "rdf:paired", language: "en", rdfs_class: rdfs_classes(:one))
+    @sources = {}
+    { "Title" => "//title/text()", "Dates" => "//time/text()", "Location" => "//div[@id='location']/text()", "Price" => "//span[@id='price']/text()" }.each do |label, xpath|
+      property = Property.create!(label: label, value_datatype: "MyString", uri: "https://example.org/#{label}", rdfs_class: rdfs_classes(:one))
+      @sources[label] = @website.sources.create!(property: property, language: "en", selected: true, render_js: false, algorithm_value: "xpath=#{xpath}")
+    end
+    @helper = StatementsHelper.build_refresh_proxy(cookies: {})
+  end
+
+  test "matching extracted values pass without updating stored statements" do
+    stat = Statement.create!(webpage: @page, source: @sources["Title"], cache: "Stored title", status: "ok", selected_individual: true)
+    before = stat.reload.attributes
+    fingerprint = Distillator::TransitionFingerprint.call(@website)
+    result = compare(html, html)
+    assert_equal :checked, result.status
+    assert_equal 4, result.artifacts.length
+    assert_equal before, stat.reload.attributes
+    assert_equal fingerprint, Distillator::TransitionFingerprint.call(@website)
+  end
+
+  test "shared optional source errors hold activation without counting a confirmed regression in either mode" do
+    @sources["Price"].update!(algorithm_value: "ruby=raise NoMethodError, 'drop is unavailable'")
+    [false, true].each do |strict|
+      result = compare(html, html, strict: strict)
+      assert_equal :pending, result.status
+      assert_equal "shared_extraction_failure", result.reason
+      assert_equal "shared_extraction_failure", result.url_results.first[:reason]
+      assert_equal "unverified", result.url_results.first[:status]
+      assert_empty result.critical_failures
+      assert_empty result.optional_failures
+      assert_equal "SHARED_EXTRACTION_ERROR", result.artifacts.find { |entry| entry[:property_label] == "Price" }[:verdict]
+    end
+  end
+
+  test "a shared error cannot hide a real critical value difference" do
+    @sources["Price"].update!(algorithm_value: "ruby=raise NoMethodError, 'drop is unavailable'")
+    result = compare(html, html(title: "Different"), strict: true)
+    assert_equal :failed, result.status
+    assert_equal ["Title"], result.critical_failures.map { |entry| entry[:property_label] }
+    assert_equal "strict_statement_parity_failed", result.reason
+    assert_equal 1, result.artifacts.count { |entry| entry[:verdict] == "SHARED_EXTRACTION_ERROR" }
+  end
+
+  test "a reconciliation error inside the DSL is inconclusive while a verified difference still blocks" do
+    @sources["Price"].update!(algorithm_value: <<~DSL)
+      xpath=//span[@id='price']/text();
+      ruby=$array == ["30"] ? ["abort_update", {error: "Artsdata timed out", error_type: "LinkedDataLookupError"}] : $array
+    DSL
+    with_failure = html(price: "30")
+    [false, true].each do |strict|
+      result = compare(html, with_failure, strict: strict)
+      assert_equal :pending, result.status
+      assert_equal "reconciliation_inconclusive", result.reason
+      assert_equal "inconclusive", result.url_results.sole[:status]
+      assert_empty result.critical_failures
+      assert_empty result.optional_failures
+    end
+    result = compare(html(title: "Different"), with_failure, strict: true)
+    assert_equal :failed, result.status
+    assert_equal ["Title"], result.critical_failures.pluck(:property_label)
+  end
+
+  test "linked data terms are compared in order without reconciliation" do
+    @sources["Price"].property.update!(label: "Event type", value_datatype: "xsd:anyURI", expected_class: "EventType")
+    @sources["Price"].update!(algorithm_value: "xpath=//span[@class='event-type']/text()")
+    @helper.expects(:search_for_uri).never
+    left = html + "<span class='event-type'>Chanson</span><span class='event-type'>Conte et arts de la parole</span>"
+    equivalent = left.sub("Conte et arts", "Conte  et arts")
+    changed = left.sub("Chanson</span><span class='event-type'>Conte et arts de la parole",
+      "Conte et arts de la parole</span><span class='event-type'>Chanson")
+
+    matched = compare(left, equivalent, strict: true)
+    assert_equal :checked, matched.status
+    assert_equal ["Chanson", "Conte et arts de la parole"], matched.artifacts.find { |entry| entry[:property_label] == "Event type" }[:legacy]
+    failed = compare(left, changed, strict: true)
+    assert_equal :failed, failed.status
+    assert_equal ["Conte et arts de la parole", "Chanson"], failed.critical_failures.sole[:condenser]
+    assert_equal :warning, compare(left, changed).status
+  end
+
+  test "matching missing linked data still fails for a required field" do
+    @sources["Location"].property.update!(value_datatype: "xsd:anyURI", expected_class: "Place")
+    @helper.expects(:search_for_uri).never
+    blank_location = html.sub("Hall", "")
+
+    result = compare(blank_location, blank_location, strict: true)
+    assert_equal :failed, result.status
+    assert_equal "MISSING_STATEMENT", result.critical_failures.sole[:verdict]
+  end
+
+  test "standard and strict ignore an unselected alternative Dates source and its rendering profile" do
+    @website.sources.create!(property: @sources["Dates"].property, language: "en", selected: false, render_js: true,
+      algorithm_value: "ruby=raise 'Unselected Dates must not execute'")
+    [false, true].each do |strict|
+      result = compare(html, html, strict: strict)
+      assert_equal :checked, result.status
+      assert_equal @sources.values.map(&:id).sort, result.artifacts.map { |row| row[:source_id] }.sort
+      assert_equal 1, result.artifacts.count { |row| row[:property_label] == "Dates" }
+      assert_empty result.critical_failures
+    end
+  end
+
+  test "an unselected Dates source cannot satisfy required field coverage" do
+    @sources["Dates"].update!(selected: false)
+    result = compare(html, html, strict: true)
+    assert_equal :pending, result.status
+    assert_equal "paired_extraction_inconclusive", result.reason
+    assert_not_includes result.artifacts.map { |row| row[:source_id] }, @sources["Dates"].id
+  end
+
+  test "a changed critical value fails even when both sides parse" do
+    result = compare(html, html(date: "2027-02-02"))
+    assert_equal :failed, result.status
+    assert_equal ["Dates"], result.critical_failures.map { |row| row[:property_label] }
+    assert_equal "2027-01-01", result.critical_failures.first[:legacy]
+    assert_equal "2027-02-02", result.critical_failures.first[:condenser]
+  end
+
+  test "optional value changes require review" do
+    result = compare(html, html(price: "30"))
+    assert_equal :warning, result.status
+    assert_empty result.critical_failures
+    assert_equal ["Price"], result.optional_failures.map { |row| row[:property_label] }
+  end
+
+  test "missing snapshots are inconclusive" do
+    assert_equal :pending, compare(nil, html).status
+  end
+
+  test "missing required source coverage cannot pass" do
+    @sources["Dates"].destroy!
+    assert_equal :pending, compare(html, html).status
+  end
+
+  test "matching blank required values do not establish validity" do
+    assert_equal :failed, compare(html(title: ""), html(title: "")).status
+  end
+
+  test "nested DSL fetches without recorded resources are inconclusive" do
+    @sources["Title"].update!(algorithm_value: %q{url='https://example.org/other';xpath=//title/text()})
+    result = compare(html, html)
+    assert_equal :pending, result.status, result.artifacts.inspect
+    assert_equal "MigrationComparatorFetchUnsupported", result.artifacts.first[:legacy_error]["error_type"]
+  end
+
+  test "different locations block even though export serialization could still agree" do
+    result = compare(html, html.sub("Hall", "Other hall"))
+    assert_equal :failed, result.status
+    assert_equal ["Location"], result.critical_failures.map { |row| row[:property_label] }
+  end
+
+  test "ticket link differences are retained for optional review" do
+    property = Property.create!(label: "Ticket URL", value_datatype: "MyString", uri: "https://example.org/ticket", rdfs_class: rdfs_classes(:one))
+    @website.sources.create!(property: property, selected: true, language: "en", render_js: false, algorithm_value: "xpath=//a/@href")
+    result = compare(html + '<a href="https://tickets.example/old">Tickets</a>', html + '<a href="https://tickets.example/new">Tickets</a>')
+    assert_equal :warning, result.status
+    assert_equal "https://tickets.example/old", result.optional_failures.first[:legacy]
+    assert_equal "https://tickets.example/new", result.optional_failures.first[:condenser]
+  end
+
+  test "French and rendered source values use the supplied snapshots" do
+    @page.update!(language: "fr")
+    @sources.each_value { |source| source.update!(language: "fr", render_js: true) }
+    result = compare(html(title: "Événement"), html(title: "Événement modifié"))
+    assert_equal :failed, result.status
+    assert_equal "fr", result.critical_failures.first[:language]
+    assert_equal "Événement", result.critical_failures.first[:legacy]
+  end
+
+  test "ordered date values are not silently sorted into equality" do
+    @sources["Dates"].update!(algorithm_value: "xpath=//time/text();ruby=$array")
+    left = html.sub("</time>", "</time><time>2027-02-02</time>")
+    right = left.sub("2027-01-01", "TEMP").sub("2027-02-02", "2027-01-01").sub("TEMP", "2027-02-02")
+    assert_equal :failed, compare(left, right).status
+  end
+
+  test "sources with different render flags compare values from the same snapshot pair" do
+    @sources["Title"].update!(render_js: true)
+    result = compare(html, html, strict: true)
+    assert_equal :checked, result.status
+    assert_equal "paired_statements_match", result.url_results.first[:reason]
+    assert_equal 4, result.comparison_count
+
+    result = compare(html, html(date: "2027-02-02"), strict: true)
+    assert_equal :failed, result.status
+    assert_equal ["Dates"], result.critical_failures.map { |entry| entry[:property_label] }
+  end
+
+  test "strict comparison blocks price differences while standard comparison records a warning" do
+    assert_equal :warning, compare(html, html(price: "30")).status
+    result = compare(html, html(price: "30"), strict: true)
+    assert_equal :failed, result.status
+    assert_equal "strict_statement_parity_failed", result.reason
+    assert_equal ["Price"], result.critical_failures.map { |row| row[:property_label] }
+    assert_equal false, result.critical_failures.first[:core_field]
+    assert_equal "blocker", result.critical_failures.first[:severity]
+  end
+
+  test "strict agreement does not make optional fields mandatory or accept unsupported inputs" do
+    assert_equal :checked, compare(html(price: ""), html(price: ""), strict: true).status
+    assert_equal :failed, compare(html(title: ""), html(title: ""), strict: true).status
+    assert_equal :pending, compare(nil, html, strict: true).status
+    @sources["Price"].update!(algorithm_value: %q{url='https://example.org/price';xpath=//title/text()})
+    assert_equal :pending, compare(html, html, strict: true).status
+  end
+
+  test "unselected markup changes do not defeat strict equality of extracted data" do
+    result = compare(html, html + '<aside data-tracking="new">Extra markup</aside>', strict: true)
+    assert_equal :checked, result.status
+    assert result.artifacts.all? { |row| row[:verdict] == Distillator::MigrationComparator::MATCH }
+  end
+
+  test "compact evidence compares complete values and counts matching fields" do
+    prefix = "Événement " * 120
+    result = compare(html(title: "#{prefix}Legacy"), html(title: "#{prefix}Condenser"), strict: true, compact_evidence: true)
+
+    assert_equal :failed, result.status
+    assert_equal 4, result.comparison_count
+    assert_equal ["Title"], result.artifacts.map { |row| row[:property_label] }
+    entry = result.critical_failures.sole
+    assert_equal "DIFFERENT_VALUE", entry[:verdict]
+    assert_equal entry[:legacy][:preview], entry[:condenser][:preview]
+    assert entry[:legacy][:preview].valid_encoding?
+    assert_not_equal entry[:legacy][:sha256], entry[:condenser][:sha256]
+    assert_equal 4, result.slowest_sources.size
+  end
+
+  test "an exhausted budget records incomplete coverage without running more sources" do
+    @helper.expects(:format_datatype).never
+    result = compare(html, html, stop_requested: -> { true })
+    assert_equal :pending, result.status
+    assert_equal "transition_check_timeout_budget_exceeded", result.reason
+    assert_empty result.artifacts
+  end
+
+  test "operator cancellation inside the paired comparison stops extraction" do
+    @helper.expects(:format_datatype).never
+    checks = 0
+    stop_requested = -> { raise Distillator::TransitionRun::Cancelled if (checks += 1) == 2 }
+
+    assert_raises(Distillator::TransitionRun::Cancelled) do
+      compare(html, html, stop_requested: stop_requested)
+    end
+  end
+
+  test "a mid-page deadline retains already detected critical failures and cannot claim full coverage" do
+    checks = 0
+    result = compare(html, html(title: "Different"), stop_requested: -> { checks += 1; checks >= 6 })
+    assert_equal :failed, result.status
+    assert_equal ["Title"], result.critical_failures.map { |row| row[:property_label] }
+    assert_equal "inconclusive", result.url_results.first[:status]
+    assert_equal "transition_check_timeout_budget_exceeded", result.url_results.first[:reason]
+  end
+
+  private
+
+  def html(title: "Shared", date: "2027-01-01", price: "20")
+    "<html><head><title>#{title}</title></head><body><time>#{date}</time><div id='location'>Hall</div><span id='price'>#{price}</span></body></html>"
+  end
+
+  def compare(legacy, candidate, strict: false, stop_requested: nil, compact_evidence: false)
+    Distillator::StatementParityCheck.call(website: @website, webpages: [@page], refresh_helper: @helper,
+      url_results: [{ url: @page.url, fetch_status: "passed", legacy_html: legacy, condenser_html: candidate }], strict: strict,
+      stop_requested: stop_requested, compact_evidence: compact_evidence)
+  end
+end

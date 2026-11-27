@@ -1,4 +1,5 @@
 <%= form_with(model: webpage, local: true) do |form| %>
+  <%= hidden_field_tag :return_to, @return_to if @return_to.present? %>
   <% if webpage.errors.any? %>
     <div id="error_explanation">
       <h2><%= pluralize(webpage.errors.count, "error") %> prohibited this webpage from being saved:</h2>
@@ -45,6 +46,15 @@
     <%= form.label :rdfs_class_id %>
     <%= form.collection_select(:rdfs_class_id, @rdfs_classes, :id, :name, {:prompt => false}) %>
   </div>
+
+  <% if webpage.rdfs_class&.name == "ResourceList" %>
+    <div class="field">
+      <%= form.label :discovery_target_website_id, "Event discovery target" %>
+      <%= form.collection_select :discovery_target_website_id, list_of_websites.where.not(id: webpage.website_id), :id, :seedurl,
+            include_blank: "Use the ResourceList’s website" %>
+      <p>Choose a different website if this ResourceList discovers events for it. Data-only lists do not import webpages.</p>
+    </div>
+  <% end %>
 
   <div class="field">
     <%= form.label "URI of main entity" %>

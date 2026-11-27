@@ -1,9 +1,23 @@
 
-
-<p>
-  <strong>Name:</strong>
-  <%= @rdfs_class.name %>
-</p>
-
-<%= link_to 'Edit', edit_rdfs_class_path(@rdfs_class) %> |
-<%= link_to 'Back', rdfs_classes_path %>
+<%= render "shared/cards/card_grid",
+           cards: [
+             {
+               title: @rdfs_class.name,
+               rows: [
+                 { label: "Rdfs class id", value: @rdfs_class.id },
+                 { label: "Properties", value: @rdfs_class.properties.count },
+                 { label: "Webpages", value: @rdfs_class.webpages.count }
+               ],
+               actions: [
+                 {
+                   title: "Actions",
+                   links: [
+                     { label: "Edit", url: edit_rdfs_class_path(@rdfs_class) },
+                     { label: "Back", url: rdfs_classes_path }
+                   ]
+                 }
+               ]
+             }
+           ],
+           variant: :record,
+           css_class: "rdfs-class-detail-cards" %>

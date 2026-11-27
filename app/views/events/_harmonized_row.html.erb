@@ -1,0 +1,19 @@
+<tr>
+  <td><%= event_row[:title] %></td>
+  <td><%= event_row[:date] %></td>
+  <td><%= event_row[:archive_date] %></td>
+  <td>
+    <% statuses = [] %>
+    <% statuses << "to review" if event_row[:statements_status][:to_review] %>
+    <% statuses << "updated" if event_row[:statements_status][:updated] %>
+    <% statuses << "problem" if event_row[:statements_status][:problem] %>
+    <% statuses << "publishable" if event_row[:statements_status][:publishable] %>
+    <%= statuses.presence&.join(", ") || "none" %>
+  </td>
+  <td>
+    <%= link_to "Statements", statements_path(rdf_uri: event_row[:rdf_uri]) %>
+    <% if event_row[:rdf_uri].present? %>
+      <%= link_to "Console", "#{get_console_url_per_environment}/events/#{event_row[:rdf_uri]}" %>
+    <% end %>
+  </td>
+</tr>

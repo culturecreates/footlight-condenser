@@ -1,83 +1,74 @@
-
-
-<h1><%= @statements.count %> Statements</h1>
-<% if params[:rdf_uri].present? %>
-  <p> Showing statements for resource <%= params[:rdf_uri] %> <%= link_to "Refresh URI", refresh_rdf_uri_statements_path(rdf_uri: params[:rdf_uri]), method: :patch %>
-    | <%= link_to "Crawl URI(1 hr cache)", refresh_rdf_uri_statements_path(rdf_uri: params[:rdf_uri], force_scrape_every_hrs: 1), method: :patch %>
-   <% if params[:rdf_uri].starts_with? "adr:" %> 
-    |  <%= link_to "Console", "#{get_console_url_per_environment}/events/#{params[:rdf_uri]}" %>
-   <% else %>
-    |  <%= link_to "Console Resource", "#{get_console_url_per_environment}/resource?uri=#{CGI.escape(params[:rdf_uri])}" %>
+<% content_for :compact_operator_context, "true" %>
+<main class="operator-workspace statement-workspace">
+<header class="operator-editor__header">
+  <div>
+    <h1>Statements</h1>
+    <p class="operator-editor__context"><%= number_with_delimiter(@statements.total_entries) %> matching
+      <%= "statement".pluralize(@statements.total_entries) %></p>
+  </div>
+  <div class="operator-editor__actions">
+    <% if @filters[:rdf_uri].present? %>
+      <% uri = @filters[:rdf_uri] %>
+      <%= link_to "Refresh URI", refresh_rdf_uri_statements_path(rdf_uri: uri), method: :patch, class: "operator-editor__button" %>
+      <%= link_to "Crawl URI (1 hr cache)", refresh_rdf_uri_statements_path(rdf_uri: uri, force_scrape_every_hrs: 1), method: :patch, class: "operator-editor__button" %>
+      <% console_url = uri.start_with?("adr:") ? "#{get_console_url_per_environment}/events/#{uri}" : "#{get_console_url_per_environment}/resource?uri=#{CGI.escape(uri)}" %>
+      <%= link_to "Open in Console", console_url, class: "operator-editor__button" %>
+    <% elsif @filters[:seedurl].present? && @filters[:seedurl] != "all" %>
+      <%= link_to "Open in Console", contextual_console_url, class: "operator-editor__button" %>
     <% end %>
-  </p>
-<% elsif params[:seedurl] && params[:seedurl] != "all" %>
- <p> Showing statements for website <%= params[:seedurl] %> | <%= link_to "Console", "#{get_console_url_per_environment}/events?seedurl=#{params[:seedurl]}" %>
-      </p>
-<% end %>
-<% show_seedurl_col = params[:seedurl].blank? || params[:seedurl] == "all" %>
-<br>
+    <%= link_to "New statement", new_statement_path, class: "operator-editor__button operator-editor__button--primary" %>
+  </div>
+</header>
+
+<%= render "shared/operator_active_filters", filters: @filters.except(:seedurl).merge(@filters.slice(:seedurl).reject { |_, value| value == "all" }),
+      labels: { seedurl: "Website", rdf_uri: "Resource", prop: "Property ID", source: "Source ID", selected: "Selected source" } %>
+
 <%= will_paginate @statements %>
-<br>
 
-<%= form_tag(batch_update_statements_path) do -%>
-<br>
-seedurl(all): <%= text_field_tag "seedurl", params[:seedurl] %> 
+<details class="statements-batch-actions harmonized-operator-section">
+  <summary>Batch actions</summary>
 
-rdf_uri:  <%= text_field_tag "rdf_uri", params[:rdf_uri], size: 60 %>
+  <p class="operator-note">
+    These actions apply to the current listed statements after filters and pagination.
+  </p>
 
-<table>
-  <thead>
-    <tr>
-      <th>Id</th>
-      <% if show_seedurl_col %><th>Website<br></th><% end %>
-      <th>Property<br> <%= text_field_tag "prop", params[:prop], size: 6 %></th>
-      <th>Source<br> <%= text_field_tag "source", params[:source], size: 6 %></th>
-      <th>Cache<br><%= text_field_tag "cache", params[:cache], size: 50 %></th>
-      <th>Status<br> <%= text_field_tag "status", params[:status], size: 6 %></th>
-      <th>Manual<br><%= text_field_tag "manual", params[:manual], size: 6 %></th>
-      <th>Selected Source<br> <%= text_field_tag "selected", params[:selected], size: 6 %></th>
-      <th>Selected Individual<br> <%= text_field_tag "selected_individual", params[:selected_individual], size: 6 %></th>
-      <th>Status origin<br></th>
-      <th>Cache refreshed<br></th>
-      <th>Cache changed<br></th>   
-      <th colspan="4"></th>
-    </tr>
-  </thead>
-
-<%= submit_tag "View" %>
-Update:
-<%= text_field_tag "update_data", "", size: 50, placeholder: 'selected: true, cache: ["one"]' %>
- <%= submit_tag "Update" %>
-<br>
- <%= submit_tag "Review all listed" %>
-<%= submit_tag "Refresh all listed" %>
-<% end -%>
-
-  <tbody>
-    <% @statements.each do |statement| %>
-      <tr  <%= "style=color:red;" if !statement.source.selected %> >
-        <td><%= statement.id %></td>
-        <% if show_seedurl_col %><td><%= statement.webpage.website.seedurl %> </td><% end %>
-        <td><%= statement.source.property.label %>(<%= statement.source.property.id %>) <%= format_language statement.source.language %></td>
-        <td><%= statement.source.id %></td>
-        <td><%= statement.cache %></td>
-        <td><%= statement.status %></td>
-        <td><%= statement.manual %></td>
-        <td <%= "style=background-color:pink;" if !statement.source.selected %>><%= statement.source.selected %></td>
-        <td <%= "style=background-color:green;" if statement.selected_individual %>><%= statement.selected_individual %></td>
-        <td><%= statement.status_origin %></td>
-        <td><%= statement.cache_refreshed %></td>
-        <td><%= statement.cache_changed %></td>
-
-        <td><%= link_to "Show", statement %></td>
-        <td><%= link_to "Edit", edit_statement_path(statement) %></td>
-        <td><%= link_to "Destroy", statement, method: :delete, data: { confirm: "Are you sure?" } %></td>
-        <td><%= link_to "Report", source_reports_path(source_id: statement.source) %></td>
-      </tr>
+  <%= form_tag(batch_update_statements_path, class: "statements-batch-form") do -%>
+    <% @filters.each do |key, value| %>
+      <%= hidden_field_tag key, value %>
     <% end %>
-  </tbody>
-</table>
+    <%= hidden_field_tag :sort, @sort if @sort.present? %>
+    <%= hidden_field_tag :direction, @direction if @direction.present? %>
+    <%= hidden_field_tag :page, @pagination[:page] if @pagination[:page].present? %>
+    <%= hidden_field_tag :per_page, @pagination[:per_page] if @pagination[:per_page].present? %>
 
-<br>
+    <div class="batch-action-row">
+      <%= label_tag :update_data, "Update" %>
+      <%= text_field_tag "update_data", "", size: 50, placeholder: 'selected: true, cache: ["one"]' %>
+      <%= submit_tag "Update" %>
+    </div>
 
-<%= link_to "New Statement", new_statement_path %>
+    <div class="batch-action-row">
+      <%= submit_tag "Review all listed" %>
+      <%= submit_tag "Refresh all listed" %>
+    </div>
+  <% end -%>
+</details>
+
+<%= render "shared/tables/table_shell",
+           table_key: :statements,
+           records: @statements,
+           row_partial: "statements/harmonized_row",
+           row_name: :statement,
+           headers: @statement_table_headers,
+           filters: @filters,
+           pagination: @pagination,
+           sort: @sort,
+           direction: @direction,
+           sortable_filters: @sortable_filters,
+           table_css_class: "cache-table statements-table",
+           render_filters: true,
+           empty_message: "No statements match the current filters." %>
+
+<%= will_paginate @statements %>
+<%= render "shared/source_page_preview" %>
+</main>

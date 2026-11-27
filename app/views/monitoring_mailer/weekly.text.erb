@@ -1,0 +1,21 @@
+Weekly monitoring pulse — <%= @date %>
+
+<%= @issues.size %> open monitored issues across <%= @site_counts.size %> sites.
+This is the same open-issue list shown in Monitoring at the time this email was generated.
+<% if @monitoring_url.present? %>
+Open Monitoring: <%= @monitoring_url %>
+<% end %>
+<% if @issues.empty? %>
+No open issues are currently flagged in Monitoring.
+<% else %>
+Sites needing attention:
+<% @site_counts.each do |seedurl, count| %>
+- <%= seedurl %>: <%= count %> open issues
+<% end %>
+
+<% @issues.each do |issue| %>
+<%= render "issue", issue: issue %>
+
+<% end %>
+<% end %>
+Includes blocked fetches on monitored sites, flagged DSL errors, enabled preprocessing monitoring policies, and ResourceList findings. This email does not establish that every site or refresh job has been checked.

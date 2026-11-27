@@ -1,0 +1,32 @@
+<% recorded = Array(@detail.checked_scope[:transition_exclusions]).map(&:with_indifferent_access) %>
+<% pending = Array(@current_exclusions).reject { |exclusion| recorded.any? { |entry| entry[:id] == exclusion.id } } %>
+<% if recorded.any? || pending.any? %>
+  <section id="transition-reviewed-exclusions">
+    <% if recorded.any? %>
+      <h2>Excluded after review · run #<%= @detail.completed_transition_run_id %></h2>
+      <p>These URLs were not fetched or compared in this run. Their stored event data and last-good cache are retained.</p>
+      <% recorded.each do |entry| %>
+        <article class="transition-reviewed-exclusion">
+          <p><strong><%= external_website_link(entry[:url], max: 180) %></strong></p>
+          <p>Reason: <%= entry[:reason] %></p>
+          <p class="transition-secondary">Reviewed: <%= entry[:reviewed_at] %> ·
+            <%= link_to "Supporting run ##{entry[:source_run_id]}", distillator_shadow_report_site_path(@website, run_id: entry[:source_run_id]) %></p>
+          <% exclusion = Array(@current_exclusions).find { |item| item.id == entry[:id] } %>
+          <%= render "restore_exclusion", exclusion: exclusion if exclusion && !@historical_run && !@detail.pending_transition_batch_check %>
+        </article>
+      <% end %>
+    <% end %>
+    <% if pending.any? %>
+      <h2>Current reviewed exclusions · apply to the next check</h2>
+      <p>The completed report above has not been changed. Run a new check to use this scope.</p>
+      <% pending.each do |exclusion| %>
+        <article class="transition-reviewed-exclusion">
+          <p><strong><%= external_website_link(exclusion.url, max: 180) %></strong> · <%= exclusion.reason %></p>
+          <p class="transition-secondary">Reviewed: <%= shadow_report_timestamp(exclusion.created_at) %> ·
+            <%= link_to "Supporting run ##{exclusion.source_run_id}", distillator_shadow_report_site_path(@website, run_id: exclusion.source_run_id) %></p>
+          <%= render "restore_exclusion", exclusion: exclusion unless @detail.pending_transition_batch_check %>
+        </article>
+      <% end %>
+    <% end %>
+  </section>
+<% end %>

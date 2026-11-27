@@ -38,7 +38,9 @@ class ActiveSupport::TestCase
   end
 
   # Load all fixtures in the correct order.
-  fixtures :rdfs_classes,
+  fixtures :dsl_library_entries,
+           :dsl_library_versions,
+           :rdfs_classes,
            :properties,
            :search_exceptions,
            :websites,
@@ -52,11 +54,34 @@ class ActiveSupport::TestCase
   require 'mocha/minitest'
   require 'webmock'
   require 'vcr'
+  Dir[Rails.root.join("test/support/**/*.rb")].sort.each { |file| require file }
 
   VCR.configure do |config|
     config.cassette_library_dir = "test/vcr_cassettes"
     config.hook_into :webmock
-    config.allow_http_connections_when_no_cassette = true
+    # Unit tests should never hit live HTTP. Set ALLOW_TEST_HTTP=1 only for deliberate
+    # cassette recording / manual integration debugging.
+    config.allow_http_connections_when_no_cassette = ENV["ALLOW_TEST_HTTP"].present?
+  end
+
+  WebMock.disable_net_connect!(allow_localhost: false)
+
+  if ENV["REPORT_SLOW_TESTS"].present?
+    mod = Module.new do
+      def before_setup
+        @__test_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        super
+      end
+
+      def after_teardown
+        elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - @__test_started_at
+        threshold = ENV.fetch("SLOW_TEST_THRESHOLD", "1.0").to_f
+        STDERR.puts "[SLOW TEST] #{self.class}##{name}: #{elapsed.round(2)}s" if elapsed > threshold
+        super
+      end
+    end
+
+    prepend mod
   end
 
   # Use transactional tests (recommended)

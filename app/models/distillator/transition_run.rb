@@ -1,0 +1,306 @@
+module Distillator
+  class TransitionRun < ApplicationRecord
+    self.table_name = "distillator_transition_runs"
+    LEASE = 1.hour
+    MAX_BATCH_ATTEMPTS = 3
+    CONTINUE = :continue_transition
+    CANCELLED_MESSAGE = "Cancelled by the operator".freeze
+    STATUSES = %w[queued running completed failed].freeze
+    class ConfigurationChanged < StandardError; end
+    class DiscoveryEvidenceError < ConfigurationChanged
+      attr_reader :diagnostic
+
+      def initialize(message, **diagnostic)
+        @diagnostic = diagnostic
+        super(message)
+      end
+    end
+    class UnpublishableEvents < ConfigurationChanged
+      attr_reader :blockers
+
+      def initialize(blockers)
+        @blockers = blockers
+        count = blockers.size
+        group = count == 1 ? "event resource lacks" : "event resources lack"
+        fields = blockers.flat_map { |event| event[:fields].pluck(:field) }.uniq
+        summary = fields.any? ? " Required fields: #{fields.join(', ')}." : ""
+        super("#{count} active #{group} publishable statements after refresh.#{summary} Open the check details to review affected resources.")
+      end
+    end
+    class Cancelled < StandardError; end
+    class OptionsConflict < StandardError; end
+    class WorkflowBusy < ArgumentError; end
+    Request = Struct.new(:run, :created?, keyword_init: true)
+
+    belongs_to :website
+    has_many :transition_evidences, class_name: "Distillator::TransitionEvidence", dependent: :destroy
+    has_many :transition_checkpoints, class_name: "Distillator::TransitionCheckpoint", foreign_key: :transition_run_id, dependent: :delete_all
+    validates :status, inclusion: { in: STATUSES }
+    validates :configuration_digest, :requested_at, presence: true
+    validate :valid_check_options
+    scope :active, -> { where(status: %w[queued running]) }
+    scope :completed, -> { where(status: "completed") }
+    scope :historical_audits, -> { where("check_options ->> 'include_retired' = 'true'") }
+    scope :current_checks, -> { where("check_options ->> 'include_retired' IS DISTINCT FROM 'true'") }
+    scope :guarded_running, -> { where(status: "running").where("progress ->> 'execution_lock' = 'true'") }
+
+    def self.request!(website:, options: {}, workflow_item: nil)
+      requested_options = Distillator::TransitionCheckOptions.coerce(options)
+      website.with_lock do
+        owner = SiteTransition.active.find_by(website_id: website.id)
+        if owner && owner.id != workflow_item&.id
+          raise WorkflowBusy, "This website belongs to validation workflow ##{owner.id}. Follow that workflow before starting another check."
+        end
+        current = active.find_by(website_id: website.id)
+        if current && current.requested_at > Time.current - LEASE
+          unless current.options.to_h == requested_options.to_h
+            raise OptionsConflict, "Run ##{current.id} is already #{current.status} with different check options. Wait for it to finish before requesting another scope."
+          end
+          next Request.new(run: current, created?: false)
+        end
+        current&.update!(status: "failed", completed_at: Time.current, error_message: "Check expired. A new run was requested.")
+        sample = workflow_item.pre_run&.event_sample_for_postcheck if requested_options.default? && workflow_item&.phase == "postcheck"
+        skip_discovery = workflow_item && (workflow_item.batch.audit? || (workflow_item.phase == "postcheck" && workflow_item.pre_run_id.present?))
+        discovery_refresh = workflow_item.pre_run&.progress&.dig("discovery_refresh") if workflow_item&.phase == "postcheck"
+        run = create!(website: website, requested_at: Time.current,
+          progress: { "event_sample" => sample, "skip_discovery_refresh" => (true if skip_discovery),
+            "discovery_refresh" => discovery_refresh }.compact,
+          configuration_digest: Distillator::TransitionFingerprint.call(website), check_options: requested_options.to_h)
+        website.update_column(:transition_check_requested_at, run.requested_at) unless requested_options.include_retired?
+        Request.new(run: run, created?: true)
+      end
+    end
+
+    def options
+      Distillator::TransitionCheckOptions.new(check_options)
+    end
+
+    def event_sample
+      progress["event_sample"]
+    end
+
+    def event_sample_for_postcheck
+      return event_sample if event_sample
+
+      # A precheck that completed before randomized sampling was deployed can
+      # still pass its recorded page selection to an in-flight workflow.
+      details = transition_evidences.find_by(check_kind: "fetch_parity")&.details
+      pages = Array(details&.dig("representative_url_results")).filter_map do |row|
+        row.slice("webpage_id", "url").transform_keys("webpage_id" => "id") if row["webpage_id"] && row["url"]
+      end
+      return if pages.empty?
+
+      { "scope_at" => (started_at || requested_at).iso8601(6), "pages" => pages }
+    end
+
+    def save_event_sample!(sample)
+      with_lock do
+        raise ConfigurationChanged, "Check stopped before sampling was recorded." unless status == "running"
+
+        update!(progress: progress.merge("event_sample" => sample))
+      end
+    end
+
+    def record_discovery_at_start!(scope_at)
+      return if progress.key?("discovery_at_start")
+
+      proof = progress["discovery_refresh"]
+      if proof && !TransitionDiscoveryRefresh.verify(website, proof, as_of: scope_at)
+        raise ConfigurationChanged, "ResourceList evidence changed since discovery preparation. Run a new check."
+      end
+
+      inventory = WebsiteInventoryFreshness.for_websites([website_id], as_of: scope_at).fetch(website_id)
+      with_lock do
+        raise ConfigurationChanged, "Check stopped before discovery evidence was recorded." unless status == "running"
+
+        update!(progress: progress.merge("discovery_at_start" => inventory.fetch(:status),
+          "validation_configuration" => TransitionFingerprint.configuration(website)))
+      end
+    end
+
+    def refresh_discovery?
+      check_options = options
+      return false unless check_options.refresh_discovery? && !progress["skip_discovery_refresh"]
+      return true if check_options.sample_mode == "all"
+
+      website.webpages.public_source_urls.active.pages_of_publishable_events.without_reviewed_transition_exclusions
+        .limit(check_options.sample_size + 1).count <= check_options.sample_size
+    end
+
+    def prepare_discovery!(cancellation_check:)
+      return if progress["discovery_prepared"] || !refresh_discovery?
+      return unless TransitionEventInventory.list_pages(website_id).exists?
+
+      unless configuration_digest == TransitionFingerprint.call(website)
+        raise ConfigurationChanged, "Check configuration changed before refreshing ResourceLists. Run a new check."
+      end
+      record_progress!("discovery")
+      discovery = TransitionDiscoveryRefresh.call(website: website, cancellation_check: cancellation_check)
+      website.with_lock do
+        with_lock do
+          cancellation_check&.call
+          digest = TransitionFingerprint.after_discovery(website, expected_digest: configuration_digest, discovery: discovery)
+          unless status == "running" && digest
+            raise ConfigurationChanged, "Check configuration changed while refreshing ResourceLists. Run a new check."
+          end
+
+          update!(configuration_digest: digest, started_at: Time.current,
+            progress: progress.merge("discovery_prepared" => true, "discovery_refresh" => discovery.proof))
+        end
+      end
+    end
+
+    def inventory_evidence_expired?
+      return false unless status == "completed"
+
+      evidence = transition_evidences.find_by(check_kind: "fetch_parity")
+      inventory = evidence&.details&.dig("event_inventory")
+      return false if inventory.blank? || inventory["retired"].blank?
+
+      expires = inventory["valid_until"]
+      expires.blank? || Time.current >= Time.iso8601(expires)
+    rescue ArgumentError
+      true
+    end
+
+    def record_progress!(phase, completed: nil, total: nil)
+      update = {
+        phase: phase, completed: completed, total: total, updated_at: Time.current.iso8601(6)
+      }.compact
+      self.class.where(id: id, status: "running").update_all([
+        "progress = (progress - ARRAY['phase', 'completed', 'total', 'updated_at']) || CAST(? AS jsonb)", update.to_json
+      ])
+    end
+
+    def execute(resumable: false, cancellation_check: nil, &block)
+      with_execution_lock { execute_claimed(resumable, cancellation_check, &block) }
+    end
+
+    def resumable?
+      progress["resumable"] == true
+    end
+
+    def save_checkpoint!(offset:, page_count:, payload:)
+      with_lock do
+        raise ConfigurationChanged, "Check stopped before checkpointing." unless status == "running"
+        transition_checkpoints.create!(offset: offset, page_count: page_count, payload: payload)
+        update!(progress: progress.merge("batch_attempts" => 0))
+      end
+    end
+
+    def recover_interrupted!
+      with_execution_lock do
+        reload
+        yield if status == "running" && progress["execution_lock"] == true
+      end
+    end
+
+    def fail!(message, discovery_blockers: nil, discovery_error: nil)
+      changes = { status: "failed", completed_at: Time.current, error_message: message, updated_at: Time.current }
+      details = { discovery_blockers: discovery_blockers, discovery_error: discovery_error }.compact
+      if details.any?
+        changes[:progress] = Arel.sql("progress || CAST(? AS jsonb)", details.to_json)
+      end
+      self.class.where(id: id, status: %w[queued running]).update_all(changes)
+      reload
+    end
+
+    private
+
+    # A PostgreSQL session lock disappears on process death. The marker is set
+    # only after the lock is acquired, so legacy executions keep their lease.
+    def with_execution_lock
+      self.class.with_connection do |connection|
+        key = "hashtextextended(#{connection.quote("distillator.transition_run:#{id}")}, 0)"
+        acquired = self.class.uncached { connection.select_value("SELECT pg_try_advisory_lock(#{key})") }
+        next unless acquired
+
+        begin
+          yield
+        ensure
+          self.class.uncached { connection.select_value("SELECT pg_advisory_unlock(#{key})") }
+        end
+      end
+    end
+
+    def execute_claimed(resumable, cancellation_check)
+      claimed = website.with_lock do
+        with_lock do
+          next false unless status == "queued" || (status == "running" && resumable && resumable?)
+          cancellation_check&.call
+          raise ConfigurationChanged, "Check expired. Run a new check." if requested_at <= Time.current - LEASE
+          if resumable
+            unless configuration_digest == Distillator::TransitionFingerprint.call(website)
+              raise ConfigurationChanged, "Check configuration changed. Run a new check."
+            end
+            attempts = progress.fetch("batch_attempts", 0)
+            if attempts >= MAX_BATCH_ATTEMPTS
+              raise ConfigurationChanged, "The verification batch was interrupted repeatedly. Coverage is incomplete."
+            end
+            update!(status: "running", started_at: started_at || Time.current,
+              progress: progress.merge("execution_lock" => true, "resumable" => true, "batch_attempts" => attempts + 1))
+          else
+            update!(status: "running", started_at: Time.current, progress: progress.merge("execution_lock" => true))
+          end
+          true
+        end
+      end
+      return unless claimed
+
+      result = yield self
+      cancellation_check&.call
+      return result if resumable && result == CONTINUE
+      website.with_lock do
+        with_lock do
+          cancellation_check&.call
+          unless status == "running" && requested_at > Time.current - LEASE &&
+              configuration_digest == Distillator::TransitionFingerprint.call(website)
+            raise ConfigurationChanged, "Check expired or source configuration changed. Run a new check."
+          end
+          if (proof = progress["discovery_refresh"]) &&
+              (progress["validation_configuration"] != TransitionFingerprint.configuration(website) ||
+               !TransitionDiscoveryRefresh.verify(website, proof, as_of: Time.current))
+            raise ConfigurationChanged, "ResourceList or extraction configuration changed during the check. Run a new check."
+          end
+          kinds = transition_evidences.distinct.pluck(:check_kind)
+          unless (Distillator::TransitionEvidence::REPORT_CHECK_KINDS - kinds).empty?
+            raise ConfigurationChanged, "Check did not finish all required phases. Run a new check."
+          end
+          update!(status: "completed", completed_at: Time.current)
+          if options.refresh_discovery? && progress["discovery_prepared"] && !cancellation_check
+            MigrationBaseline.capture!(website, validation_run_id: id)
+          end
+          transition_checkpoints.delete_all if resumable
+        end
+      end
+      result
+    rescue Cancelled => error
+      fail!(error.message)
+      transition_checkpoints.delete_all
+      raise
+    rescue DiscoveryEvidenceError => error
+      fail!(error.message, discovery_error: error.diagnostic)
+      raise
+    rescue UnpublishableEvents => error
+      fail!(error.message, discovery_blockers: error.blockers)
+      raise
+    rescue StandardError => error
+      message = if error.is_a?(ConfigurationChanged) || error.is_a?(TransitionMemory::LimitExceeded)
+        error.message
+      else
+        "Transition check failed (#{error.class.name}). Check logs and retry."
+      end
+      fail!(message)
+      raise
+    end
+
+    def valid_check_options
+      options
+      if persisted? && will_save_change_to_check_options?
+        errors.add(:check_options, "cannot change after the check is requested")
+      end
+    rescue ArgumentError => error
+      errors.add(:check_options, error.message)
+    end
+  end
+end

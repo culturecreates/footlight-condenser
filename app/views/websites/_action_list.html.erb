@@ -1,0 +1,32 @@
+<% unless @retry_transition_batch || @dashboard_selection_id %>
+  <nav class="website-dashboard-action-filters" aria-label="Website action filters">
+    <% Distillator::WebsiteActionSummary::FILTERS.each do |filter, label| %>
+      <%= link_to label, websites_path(dashboard_params.merge(action_filter: filter == "all" ? nil : filter).compact),
+            aria: { current: @action_filter == filter ? "page" : nil } %>
+    <% end %>
+  </nav>
+<% end %>
+<% if @action_rows.empty? %>
+  <p>No actions match these filters.</p>
+<% elsif @retry_transition_batch || @dashboard_selection_id %>
+  <h2 class="website-index-list-heading" id="website-list-actions">Selected websites (<%= @action_rows.size %>)</h2>
+  <%= render "index_table", websites: @action_rows, group: :actions %>
+<% else %>
+  <% group_labels = { progress: "In progress", intervention: "Needs intervention", p2: "Planned work",
+      p3: "Migration opportunities", "no-action": "No action identified" } %>
+  <% group_labels.each do |group, label| %>
+    <% websites = @action_groups[group] %>
+    <% next if websites.blank? %>
+    <% open = group == :intervention || (group == :progress ? @action_filter == "progress" : @action_filter != "all") %>
+    <%= tag.details class: "website-index-category", id: "website-list-#{group}", open: open do %>
+      <summary>
+        <%= label %> (<%= websites.size %>)
+        <% if group == :progress %>
+          <% counts = websites.map { |site| @dashboard_running.fetch(site.id).status }.tally %>
+          <span class="muted"> · <%= counts.fetch("running", 0) %> running · <%= counts.fetch("queued", 0) %> queued</span>
+        <% end %>
+      </summary>
+      <%= render "index_table", websites: websites, group: group %>
+    <% end %>
+  <% end %>
+<% end %>

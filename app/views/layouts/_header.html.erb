@@ -1,52 +1,83 @@
-<%
-  # Pick a website just for navigation.
-  # Priority:
-  #   1. @website set by controller (show/edit/etc.)
-  #   2. params[:seedurl]
-  #   3. first website in the list
-  nav_website =
-    if defined?(@website) && @website.present?
-      @website
-    elsif params[:seedurl].present? && params[:seedurl] != "all"
-      Website.find_by(seedurl: params[:seedurl])
-    else
-      list_of_websites.first
-    end
-%>
+<% website = transition_context_website %>
+<header class="condenser-header" data-condenser-header>
+  <div class="condenser-header__main">
+    <nav class="condenser-header__links" aria-label="Condenser">
+      <%= link_to "Condenser", websites_path, class: "condenser-header__brand" %>
+      <%= header_navigation_link "Websites", websites_path, section: "websites", action: "index" %>
 
-<%= link_to "all websites", websites_path %> >
+      <details class="condenser-header__menu" name="condenser-navigation" data-header-menu>
+        <summary>Operations</summary>
+        <div class="condenser-header__dropdown">
+          <%= header_navigation_link "Monitoring", monitoring_path(seedurl: "all"), section: "monitoring" %>
+          <%= header_navigation_link "Transition report", distillator_shadow_report_path,
+                section: %w[distillator/shadow_reports distillator/transition_checks distillator/transition_batches distillator/site_transitions] %>
+          <%= header_navigation_link "Cache", distillator_cache_index_path, section: "distillator/cache" %>
+          <%= link_to "Job queue", sidekiq_web_path %>
+          <%= header_navigation_link "Databus", databus_index_path, section: "databus" %>
+          <%= header_navigation_link "Messages", messages_path, section: "messages" %>
+          <%= header_navigation_link "Test API", test_api_websites_path, section: "websites", action: "test_api" %>
+          <% unless website %>
+            <hr>
+            <%= header_navigation_link "Webpages", webpages_path(seedurl: "all"), section: "webpages" %>
+            <%= header_navigation_link "Sources", sources_path(seedurl: "all"), section: "sources" %>
+            <%= header_navigation_link "Statements", statements_path(seedurl: "all"), section: "statements" %>
+            <%= link_to contextual_console_url do %>
+              Console <span aria-hidden="true">↗</span>
+            <% end %>
+          <% end %>
+        </div>
+      </details>
 
+      <details class="condenser-header__menu" name="condenser-navigation" data-header-menu>
+        <summary>Configuration</summary>
+        <div class="condenser-header__dropdown">
+          <%= header_navigation_link "Properties", properties_path, section: "properties" %>
+          <%= header_navigation_link "Classes", rdfs_classes_path, section: "rdfs_classes" %>
+          <%= header_navigation_link "Exceptions", search_exceptions_path, section: "search_exceptions" %>
+          <%= header_navigation_link "JSON-LD", jsonld_outputs_path, section: "jsonld_outputs" %>
+        </div>
+      </details>
 
-<% if !nav_website.id.nil? %>
-  <b><%= link_to nav_website.seedurl, website_path(nav_website) %></b> |
-  <%= link_to "webpages", webpages_path %> |
-  <%= link_to "sources",  sources_path %> |
-  <%= link_to "events",   events_websites_path(seedurl: nav_website.seedurl) %> |
-  <%= link_to "places",   places_path(seedurl: nav_website.seedurl) %> |
-<% else %>
-  <span class="disabled-link">webpages</span> |
-  <span class="disabled-link">sources</span> |
-  <span class="disabled-link">events</span> |
-  <span class="disabled-link">places</span> |
-<% end %>
+      <%= header_navigation_link "DSL Library", dsl_library_entries_path, section: "dsl_library_entries" %>
+      <%= header_navigation_link "Options", options_path, section: "options" %>
+    </nav>
 
-<%= link_to "statements",     statements_path %> |
-<%= link_to "console",        "#{get_console_url_per_environment}/events?seedurl=#{cookies[:seedurl]}" %> ||
-<%= link_to "properties",     properties_path %> |
-<%= link_to "classes",        rdfs_classes_path %> |
-<%= link_to "exceptions",     search_exceptions_path %> |
-<%= link_to "JSON-LD",        jsonld_outputs_path %> ||
-<%= link_to "test api",       test_api_websites_path %> |
-<%= link_to "databus",        databus_index_path %> |
-<%= link_to "messages",       messages_path %> |
-<%= link_to "job queue",      sidekiq_web_path %> |
-<%= link_to "options",        options_path %> | 
-Current Wringer:
-<%= cookies[:wringer_url] || "default" %> |
-Trace:
-<%= cookies[:dsl_trace] == "true" ? "ON" : "OFF" %> 
+    <div class="condenser-header__status">
+      <% if Distillator::TransitionRuntime.staging? || Rails.env.development? %>
+        <span class="operator-status operator-status--review"><%= Rails.env.development? ? "Development" : "Staging" %></span>
+      <% end %>
+      <% if (wringer_url = wringer_navigation_url) %>
+        <%= link_to wringer_url, title: wringer_url do %>
+          Wringer · <span data-wringer-reachability-url="<%= wringer_reachability_options_path %>" role="status">Checking…</span>
+          <span aria-hidden="true">↗</span>
+        <% end %>
+      <% else %>
+        <span title="Missing or invalid Wringer URL">Wringer · Not configured</span>
+      <% end %>
+      <% if cookies[:dsl_trace] == "true" %>
+        <%= link_to "Trace on", options_path(tab: "trace"), class: "condenser-header__trace" %>
+      <% end %>
+      <select class="condenser-header__theme" data-theme-select aria-label="Appearance" hidden>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+        <option value="kolada">Kolada</option>
+      </select>
+    </div>
+  </div>
 
-<br>
+  <% if website %>
+    <nav class="condenser-header__links condenser-header__website" aria-label="Current website">
+      <%= header_navigation_link website.name, website_path(website), section: "websites", action: "show",
+            class: "condenser-header__site-name" %>
+      <%= header_navigation_link "Webpages", contextual_webpages_path, section: "webpages" %>
+      <%= header_navigation_link "Sources", contextual_sources_path, section: "sources" %>
+      <%= header_navigation_link "Statements", contextual_statements_path, section: "statements" %>
+      <%= link_to contextual_console_url do %>
+        Console <span aria-hidden="true">↗</span>
+      <% end %>
+    </nav>
+  <% end %>
+</header>
 
 <script>
   jQuery(function () {
@@ -56,4 +87,3 @@ Trace:
     });
   });
 </script>
-

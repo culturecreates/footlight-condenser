@@ -1,0 +1,9 @@
+Daily monitoring — <%= @date %>
+<%= @issues.size %> open monitored issues. Includes blocked fetches on monitored sites, flagged DSL errors, enrolled preprocessing problems, and ResourceList findings.
+<% if @monitoring_url.present? %>
+Monitoring: <%= @monitoring_url %>
+<% end %>
+<% @issues.each do |issue| %>
+<%= render "issue", issue: issue %>
+
+<% end %>

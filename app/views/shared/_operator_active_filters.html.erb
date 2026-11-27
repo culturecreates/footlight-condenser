@@ -1,0 +1,7 @@
+<% if filters.present? %>
+  <div class="operator-filter-chips" role="group" aria-label="Active filters">
+    <% filters.each do |key, value| %>
+      <span><strong><%= labels.fetch(key, key.to_s.humanize) %></strong> <%= value %></span>
+    <% end %>
+  </div>
+<% end %>

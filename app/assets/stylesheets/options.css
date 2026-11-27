@@ -1,0 +1,126 @@
+.options-form {
+  max-width: 58rem;
+  margin: 1.5rem auto;
+  padding: 1.5rem;
+  background: var(--operator-surface-muted);
+  border: 1px solid var(--operator-line);
+  border-radius: 8px;
+}
+
+.options-form h2 {
+  font-size: 1.75rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.options-form label {
+  display: block;
+  margin-bottom: 1rem;
+  font-weight: 500;
+  color: var(--operator-ink);
+}
+
+.options-form input[type="number"] {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 1rem;
+  border: 1px solid var(--operator-line);
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+.options-form .btn {
+  display: inline-block;
+  padding: 10px 16px;
+  margin-top: 0.5rem;
+  font-size: 1rem;
+  color: #fff;
+  background-color: var(--operator-action);
+  border-radius: 4px;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+}
+
+.options-form .btn-secondary {
+  background-color: #6c757d;
+}
+
+.options-form .btn:hover {
+  opacity: 0.95;
+}
+
+.options-form .flash.notice {
+  margin-top: 1rem;
+  padding: 10px;
+  background: var(--operator-success-bg);
+  border: 1px solid var(--operator-success);
+  border-radius: 4px;
+  color: var(--operator-success);
+}
+
+.options-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem .5rem;
+  border-bottom: 1px solid var(--operator-line);
+}
+
+.options-tabs a {
+  padding: .6rem .85rem;
+  border-bottom: 3px solid transparent;
+  text-decoration: none;
+}
+
+.options-tabs a[aria-current="page"] {
+  border-bottom-color: var(--operator-focus);
+  color: var(--operator-primary);
+  background: var(--operator-tint);
+  font-weight: 700;
+}
+
+.options-panel {
+  padding: .75rem 0;
+}
+
+.options-form h3 {
+  margin: .8rem 0 .4rem;
+}
+
+.options-form .option-row {
+  margin: .6rem 0;
+}
+
+.options-form .option-row a {
+  margin-right: .4rem;
+}
+
+.options-form .option-row a.active {
+  font-weight: 700;
+}
+
+.options-form .option-row > label {
+  display: block;
+}
+
+.options-form input[type="url"] {
+  width: 100%;
+  max-width: 45rem;
+  box-sizing: border-box;
+}
+
+.options-form .options-help {
+  margin: .25rem 0 .75rem;
+  color: var(--operator-muted);
+}
+
+.options-form .options-connections-defaults {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: .5rem 1rem;
+  overflow-wrap: anywhere;
+}
+
+.options-form .options-connections-defaults dd {
+  margin: 0;
+}

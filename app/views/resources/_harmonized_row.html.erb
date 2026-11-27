@@ -1,0 +1,10 @@
+<tr>
+  <td><%= resource_row[:rdf_uri] %></td>
+  <td><%= resource_row[:rdfs_class_name] %></td>
+  <td><%= resource_row[:name].presence || "Unnamed resource" %></td>
+  <td><%= resource_row[:archive_date] %></td>
+  <td>
+    <%= link_to "Show", show_resources_path(rdf_uri: resource_row[:rdf_uri]) %>
+    <%= link_to "Statements", statements_path(rdf_uri: resource_row[:rdf_uri]) %>
+  </td>
+</tr>

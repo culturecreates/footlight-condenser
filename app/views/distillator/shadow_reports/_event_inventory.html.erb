@@ -1,0 +1,68 @@
+<% if inventory.present? %>
+  <% retired = Array(inventory["retired"]) %>
+  <% lists = Array(inventory["lists"]) %>
+  <details id="transition-event-inventory">
+    <summary>Event inventory<%= " · #{pluralize(retired.size, 'past event')} omitted" if retired.any? %></summary>
+    <% case inventory["status"] %>
+    <% when "discovery_unverified" %>
+      <p>Discovery evidence is incomplete. Past events remain in scope. Inspect the ResourceList operations before running validation again.</p>
+    <% when "discovery_pending_import" %>
+      <p>Some discovery URLs have yet to be added to this website. Past events remain in scope.</p>
+    <% when "confirmed_discovery" %>
+      <p>Past events were eligible for omission when neither their URL nor their RDF URI appeared in any verified event list.</p>
+    <% when "historical_audit" %>
+      <% if inventory.key?("archived_publishable_count") %>
+        <p><%= pluralize(inventory["archived_publishable_count"], "archived publishable event page") %> at the time of the audit.</p>
+      <% else %>
+        <p>This audit included historical event pages.</p>
+      <% end %>
+    <% when "active_event_scope" %>
+      <% if inventory["refresh_completed_at"] %>
+        <p>Statement extraction verified for <%= pluralize(inventory["refreshed_list_count"], "event ResourceList") %> · <%= shadow_report_timestamp(inventory["refresh_completed_at"]) %>.</p>
+        <% if (stages = inventory["discovery_stages"]) %>
+          <dl>
+            <dt>Source fetch evidence</dt>
+            <% stages.fetch("source_fetch").each do |fetch| %>
+              <% responses = fetch.fetch("responses") %>
+              <dd>ResourceList #<%= fetch["webpage_id"] %> ·
+                <%= responses.any? ? responses.map { |response| [response["usage"], response["backend"], ("HTTP #{response['http_status']}" if response["http_status"])].compact.join(" · ") }.uniq.join(", ") : "No primary response provenance recorded" %>
+              </dd>
+            <% end %>
+            <dt>URL reconciliation</dt>
+            <dd><%= pluralize(stages.dig("reconciliation", "webpages_created"), "new webpage") %> created</dd>
+          </dl>
+        <% end %>
+      <% end %>
+      <% Array(inventory["warnings"]).each do |warning| %>
+        <p>ResourceList #<%= warning["webpage_id"] %> · <%= warning["warning"].humanize %></p>
+      <% end %>
+      <p><%= pluralize(inventory["archived_publishable_count"], "archived publishable event page") %> outside the activation scope.</p>
+    <% when "no_publishable_events" %>
+      <p>No publishable event pages were available to reconcile with discovery.</p>
+    <% else %>
+      <p>No event discovery lists were available. Past events remain in scope.</p>
+    <% end %>
+    <% if lists.any? %>
+      <ul>
+        <% lists.each do |list| %>
+          <li>
+            <%= external_website_link(list["url"], max: 110) if list["url"].present? %>
+            <% if list["status"] == "event" %>
+              · <%= pluralize(list["count"], "URL") %> · <%= shadow_report_timestamp(list["refreshed_at"]) %>
+            <% else %>
+              · <%= Distillator::ResourceListReadiness.guidance(list["extraction_reason"] || list["reason"] || list["status"])[:message] %>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
+    <% if retired.any? %>
+      <ul>
+        <% retired.each do |page| %>
+          <li><%= external_website_link(page["url"], max: 110) %> · Last occurrence <%= shadow_report_timestamp(page["last_occurrence"]) %></li>
+        <% end %>
+      </ul>
+      <p>Discovery evidence expires <%= shadow_report_timestamp(inventory["valid_until"]) %>.</p>
+    <% end %>
+  </details>
+<% end %>

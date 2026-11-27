@@ -1,3 +1,122 @@
 // Place all the styles related to the Sources controller here.
 // They will automatically be included in application.css.
 // You can use Sass (SCSS) here: http://sass-lang.com/
+
+.source-algorithm-card,
+.source-diagnostics-card {
+  box-sizing: border-box;
+  margin: 0 0 1rem;
+}
+
+.source-diagnostics-card {
+  max-width: 72rem;
+}
+
+.source-algorithm-editor {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--operator-line);
+  border-radius: 0.5rem;
+  background: var(--operator-page);
+  color: var(--operator-ink);
+  font: 18pt/1.35 ui-monospace, monospace;
+  resize: vertical;
+}
+
+.source-algorithm-toolbar,
+.source-algorithm-actions:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.source-algorithm-toolbar {
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.source-algorithm-actions [hidden] { display: none; }
+
+.source-algorithm-actions [role="status"] {
+  color: var(--operator-muted);
+  font-size: 0.8125rem;
+}
+
+.source-algorithm-panes {
+  display: grid;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+@media (min-width: 80rem) {
+  .source-algorithm-panes:has(> .source-algorithm-preview:not([hidden])) {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+}
+
+.source-algorithm-preview {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--operator-line);
+  border-radius: 0.5rem;
+  background: var(--operator-surface-muted);
+}
+
+.source-algorithm-preview h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+}
+
+.source-algorithm-preview pre {
+  margin: 0;
+  max-height: 60vh;
+  overflow: auto;
+  background: var(--operator-page);
+  font: 0.9375rem/1.5 ui-monospace, monospace;
+}
+
+.source-show-section {
+  max-width: 72rem;
+  margin: 0 0 1rem;
+}
+
+.source-primary-actions p {
+  margin: 0;
+}
+
+.sources-show-list {
+  display: grid;
+  grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+  gap: 0.35rem 1rem;
+  margin: 0 0 0.9rem;
+}
+
+.sources-show-list dt {
+  font-weight: 700;
+  color: var(--operator-muted);
+}
+
+.sources-show-list dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.sources-show-pre {
+  margin: 0.35rem 0 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--operator-line);
+  border-radius: 0.5rem;
+  background: var(--operator-surface);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+.source-show-details {
+  max-width: 72rem;
+  margin: 0 0 1rem;
+}

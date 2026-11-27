@@ -1,0 +1,47 @@
+<% content_for :compact_operator_context, "true" %>
+<main class="operator-workspace monitoring-workspace">
+  <header class="operator-editor__header">
+    <div>
+      <h1>Monitoring</h1>
+      <p class="operator-editor__context">
+        <%= number_with_delimiter(@issues.total_entries) %> <%= @status unless @status == "all" %>
+        <%= "issue".pluralize(@issues.total_entries) %>
+      </p>
+    </div>
+  </header>
+
+  <%= form_with url: monitoring_path, method: :get, local: true, class: "harmonized-table-filters operator-filter-bar" do %>
+    <div>
+      <%= label_tag :seedurl, "Site" %>
+      <%= select_tag :seedurl, options_for_select([["All sites", "all"]] + @sites.map { |site| [site, site] }, @seedurl || "all") %>
+    </div>
+    <div>
+      <%= label_tag :status, "Status" %>
+      <%= select_tag :status, options_for_select([["Open", "open"], ["Resolved", "resolved"], ["All", "all"]], @status) %>
+    </div>
+    <%= submit_tag "Apply filters", class: "operator-editor__button operator-editor__button--small" %>
+  <% end %>
+
+  <% if @issues.empty? %>
+    <%= render "shared/tables/empty_state", message: "No monitored issues match these filters." %>
+  <% else %>
+    <div class="operator-table-scroll" tabindex="0" role="region" aria-label="Monitoring issues">
+      <table class="cache-table monitoring-table">
+        <thead>
+          <tr>
+            <th scope="col">Site</th>
+            <th scope="col">Issue</th>
+            <th scope="col" aria-sort="descending">Last seen</th>
+            <th scope="col" class="monitoring-table__count">Occurrences</th>
+            <th scope="col">Status</th>
+            <th scope="col">Diagnostics</th>
+          </tr>
+        </thead>
+        <tbody>
+          <%= render partial: "issue", collection: @issues, locals: { targets: @diagnostic_targets } %>
+        </tbody>
+      </table>
+    </div>
+    <%= will_paginate @issues, params: { seedurl: @seedurl || "all", status: @status } %>
+  <% end %>
+</main>

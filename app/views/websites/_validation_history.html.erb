@@ -1,0 +1,54 @@
+<details id="website-validation-history" class="website-rollout-panel website-show-section" <%= "open" if @validation_profile %>>
+  <summary>Validation history</summary>
+  <nav aria-label="Validation history filters">
+    <% { "all" => "All", "light" => "Light", "thorough" => "Thorough", "audit" => "Active audits" }.each do |profile, label| %>
+      <%= link_to label, website_path(@website, validation_profile: profile, anchor: "website-validation-history"),
+            aria: { current: (@validation_profile || "all") == profile ? "page" : nil } %>
+    <% end %>
+  </nav>
+  <% if @migration_baselines.any? %>
+    <h3>Migration baselines</h3>
+    <ul>
+      <% @migration_baselines.each do |baseline| %>
+        <li>
+          <% label = "Thorough · #{l(baseline.validated_at.in_time_zone.to_date, format: :long)} · Check ##{baseline.validation_run_id}" %>
+          <%= baseline.validation_run ? link_to(label, distillator_shadow_report_site_path(@website, run_id: baseline.validation_run_id)) : label %>
+          · <%= baseline.covered_pages %>/<%= baseline.eligible_pages %> pages · <%= baseline.backend.humanize %>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+  <% if @migration_baselines.empty? && @validation_workflows.empty? && @site_check_passes.empty? %>
+    <p>No validation passes or workflows in this view.</p>
+  <% end %>
+  <% if @validation_workflows.any? %>
+    <div class="operator-table-scroll" role="region" aria-label="Validation workflows" tabindex="0">
+      <table class="cache-table">
+        <thead><tr><th scope="col">Date</th><th scope="col">Profile</th><th scope="col">Result</th><th scope="col">Shadow check</th><th scope="col">Active check</th><th scope="col">Serving mode</th></tr></thead>
+        <tbody>
+          <% @validation_workflows.each do |item| %>
+            <tr>
+              <td><%= link_to l((item.completed_at || item.created_at).to_date, format: :long), distillator_site_transition_path(item) %></td>
+              <td><%= item.batch.audit? ? "Active audit · Thorough" : item.batch.check_profile&.humanize %> · <%= item.batch.check_options["strictness"].humanize %></td>
+              <td><%= workflow_state_badge(item.status) %></td>
+              <% %i[pre post].each do |phase| %>
+                <td><%= workflow_check_link(item, phase) %>
+                  <% if (count = @validation_page_counts[item.public_send("#{phase}_run_id")]) %> · <%= pluralize(count.to_i, "page") %> compared<% end %></td>
+              <% end %>
+              <td><%= workflow_mode_history(item) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+  <% if @site_check_passes.any? %>
+    <h3>Passed site-screen checks</h3>
+    <ul>
+      <% @site_check_passes.each do |pass| %>
+        <li><%= link_to "#{pass.profile.humanize} · #{l(pass.completed_at.to_date, format: :long)} · Check ##{pass.site_check.id}",
+                        distillator_shadow_report_site_path(@website, run_id: pass.site_check.id) %></li>
+      <% end %>
+    </ul>
+  <% end %>
+</details>

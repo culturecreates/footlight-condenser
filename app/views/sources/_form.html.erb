@@ -11,54 +11,117 @@
     </div>
   <% end %>
 
-  <div class="field">
-    <%= @rdfs_class_name %> <%= form.label :property_id %>
-    <%= form.collection_select(:property_id, @properties.where(rdfs_class_id: @rdfs_class_id), :id, :label, {:prompt => false}) %>
+  <div class="cache-detail-cards source-form-cards">
+    <section class="cache-detail-card">
+      <h2>Identity</h2>
+
+      <div class="field">
+        <%= form.label :website_id, "Website" %>
+        <%= form.collection_select(:website_id, @websites, :id, :seedurl, {selected: @websites.where(seedurl: params[:seedurl]).first&.id }) %>
+      </div>
+
+      <div class="field">
+        <%= @rdfs_class_name %> <%= form.label :property_id, "Property" %>
+        <%= form.collection_select(:property_id, @properties, :id, :label) %>
+      </div>
+
+      <div class="field">
+        <%= form.label :label, "Class / label context" %>
+        <%= form.text_field :label, id: :source_label, size: 60 %>
+        <p class="sources-secondary-text">User-friendly description of where the data is coming from.</p>
+      </div>
+
+      <div class="field">
+        <%= form.label :language, "Language" %>
+        <%= form.text_field :language, id: :source_language, size: 10 %>
+        <p class="sources-secondary-text">Leave blank for linking URIs and photos that are language-independent.</p>
+      </div>
+    </section>
+
+    <section class="cache-detail-card">
+      <h2>Activation</h2>
+
+      <div class="field">
+        <%= form.label :selected, "Website default" %>
+        <%= form.check_box :selected, id: :source_selected %>
+      </div>
+
+      <div class="field">
+        <%= form.label :selected_by, "Selected by" %>
+        <%= form.text_field :selected_by, id: :source_selected_by, size: 40 %>
+      </div>
+
+      <div class="sources-impact-panel">
+        <p><strong>Activation impact:</strong> <%= source_activation_impact(source) %></p>
+        <p class="sources-secondary-text"><%= source_activation_detail(source) %></p>
+      </div>
+    </section>
+
+    <section class="cache-detail-card">
+      <h2>Fetch strategy</h2>
+
+      <div class="field">
+        <%= form.label :render_js, "Rendered fetch" %>
+        <%= form.check_box :render_js, id: :source_render_js %>
+      </div>
+
+      <div class="field">
+        <%= form.label :auto_review, "Auto review" %>
+        <%= form.check_box :auto_review, id: :source_auto_review %>
+      </div>
+
+      <p><strong>Current fetch strategy:</strong> <%= source_form_fetch_strategy_summary(source) %></p>
+      <p class="sources-secondary-text"><%= source_form_fetch_strategy_note(source) %></p>
+    </section>
   </div>
 
-  <div class="field" >
-    <%= form.label :algorithm_value %>
-    <%= form.text_area :algorithm_value, id: :source_algorithm_value, cols: 60, rows:4, style:"font-size: 18pt"%>
-  </div>
+  <section class="cache-detail-card source-algorithm-card operator-workspace"
+           data-dsl-preview data-dsl-preview-kinds="<%= dsl_highlight_kinds.to_json %>"
+           data-dsl-preview-on-load="<%= source.persisted? %>">
+    <h2>Extraction algorithm</h2>
 
- <div class="field">
-    <%= form.label :label %>
-    <%= form.text_field :label, id: :source_label, size: 60 %>
-    User friendly description of where the data is coming from.
-  </div>
+    <div class="field">
+      <div class="source-algorithm-toolbar">
+        <%= form.label :algorithm_value, "Raw extraction DSL" %>
+        <div class="source-algorithm-actions" data-dsl-preview-actions hidden>
+          <span data-dsl-preview-status role="status"></span>
+          <button type="button" class="operator-editor__button operator-editor__button--small"
+                  aria-controls="source_dsl_preview" data-dsl-preview-refresh>Colorize preview</button>
+          <button type="button" class="operator-editor__button operator-editor__button--small"
+                  aria-controls="source_dsl_preview" data-dsl-preview-hide hidden>Hide preview</button>
+        </div>
+      </div>
+      <div class="source-algorithm-panes">
+        <%= form.text_area :algorithm_value, id: :source_algorithm_value, rows: 12, class: "source-algorithm-editor" %>
+        <section id="source_dsl_preview" class="source-algorithm-preview" aria-labelledby="source_dsl_preview_label" hidden>
+          <h3 id="source_dsl_preview_label">Colorized DSL</h3>
+          <pre class="dsl-highlight" aria-labelledby="source_dsl_preview_label" tabindex="0" data-dsl-preview-output></pre>
+        </section>
+      </div>
+    </div>
 
+    <p class="sources-secondary-text">Use pipeline steps such as <code>url=</code>, <code>xpath=</code>, <code>ruby=</code>. Test with trace before activating.</p>
+    <div class="field">
+      <%= label_tag :dsl_library_choice, "Library instruction" %>
+      <%= select_tag :dsl_library_choice, options_for_select(DslLibraryEntry.order(:name).pluck(:name).map { |name| ["$$#{name}$$", "$$#{name}$$"] }), include_blank: "Choose an instruction" %>
+      <button type="button" onclick="const choice=document.getElementById('dsl_library_choice').value; const field=document.getElementById('source_algorithm_value'); if(choice){const current=field.value.replace(/[;\s]*$/, ''); field.value=current+(current ? ';\n' : '')+choice; field.dispatchEvent(new Event('input',{bubbles:true})); field.focus();}">Append instruction</button>
+    </div>
+    <p class="sources-secondary-text"><%= link_to "DSL Library", dsl_library_entries_path %>: use complete steps such as <code>$$META_TITLE$$;$$A_UNIQ$$</code>. Shared edits apply on the next run.</p>
+    <p class="sources-secondary-text">Use <code>api="$$SELF_URL$$/statements.json?..."</code> for this Condenser environment. Defaults to this app’s origin (no trailing slash); <code>CONDENSER_PUBLIC_URL</code> optionally overrides it. Also supported by URL navigation steps.</p>
+    <details class="sources-secondary-text"><summary>Monitor a specific DSL error</summary>
+      <p>Return <code>['abort_update', { error: 'Audience mapping is stale', notify: 'daily' }]</code> to show that error in Monitoring and the optional daily email. Other errors retain their existing behavior.</p>
+    </details>
+  </section>
 
-  <div class="field">
-    <%= form.label :language %>
-    <%= form.text_field :language, id: :source_language, size: 10%>
-    Leave blank for linking URIs and photos that are language independant.
-  </div>
-
-
-  <div class="field" style="margin: 0 5px 0 5px;display:block; float:left;">
-    <%= form.label :selected %>
-    <%= form.check_box :selected, id: :source_selected %>
-  </div>
-
-
-<div class="field"  style="margin: 0 5px 0 5px;display:block; float:left;">
-    <%= form.label :render_js %>
-    <%= form.check_box :render_js, id: :source_render_js %>
-  </div>
-
- <div class="field">
-    <%= form.label :auto_review %>
-    <%= form.check_box :auto_review, id: :source_auto_review %>
-  </div>
-
-  <div style="display:block; float:clear;"></div>
-  
-  <div class="field">
-    <%= form.label :website_id %>
-    <%= form.collection_select(:website_id, @websites, :id, :seedurl, {selected: @websites.where(seedurl: params[:seedurl]).first&.id }) %>
-  </div>
-
-  
+  <section class="cache-detail-card source-diagnostics-card">
+    <h2>Diagnostics</h2>
+    <dl class="sources-detail-list">
+      <% source_diagnostics_pairs(source).each do |label, value| %>
+        <dt><%= label %></dt>
+        <dd><%= value %></dd>
+      <% end %>
+    </dl>
+  </section>
 
   <div class="actions">
     <%= form.submit %>

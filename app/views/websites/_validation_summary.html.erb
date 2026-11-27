@@ -1,0 +1,47 @@
+<div class="website-validation-summary">
+  <% if (baseline = validation.migration_baseline) %>
+    <%= link_to "Thorough #{baseline.thorough_passes}×", website_path(website, validation_profile: "thorough", anchor: "website-validation-history") %>
+    <small>Last Thorough pass
+      <% date = l(baseline.validated_at.in_time_zone.to_date, format: :long) %>
+      <%= baseline.validation_run ? link_to(date, distillator_shadow_report_site_path(website, run_id: baseline.validation_run_id)) : date %>
+    </small>
+    <small><%= baseline.covered_pages %>/<%= baseline.eligible_pages %> pages in migration baseline</small>
+    <% if validation.changed %><small>Validation stale</small><% end %>
+  <% elsif validation.last_pass %>
+    <% { "light" => validation.light, "thorough" => validation.thorough }.each do |profile, count| %>
+      <% label = "#{profile.humanize} #{count}×" %>
+      <%= count.positive? ? link_to(label, website_path(website, validation_profile: profile, anchor: "website-validation-history")) : tag.span(label) %>
+    <% end %>
+    <% if validation.last_pass.completed_at %>
+      <% pass = validation.last_pass
+         pass_path = pass.workflow ? distillator_site_transition_path(pass.workflow) : distillator_shadow_report_site_path(website, run_id: pass.site_check.id) %>
+      <small>Last pass <%= link_to "#{(pass.profile || 'custom').humanize} · #{l(pass.completed_at.to_date, format: :long)}", pass_path %></small>
+    <% end %>
+    <% if !validation.cutover && validation.eligible.positive? %>
+      <small title="Distinct currently eligible pages covered by successful validations using matching page and extraction settings"><%= validation.covered %>/<%= validation.eligible %> covered (<%= number_to_percentage(100.0 * validation.covered / validation.eligible, precision: 0) %>)</small>
+    <% end %>
+    <% if validation.changed %><small>Configuration changed since pass</small><% end %>
+    <% if validation.milestone_reason %>
+      <% diagnosis = Distillator::ResourceListReadiness.validation(validation, @inventory_freshness[website.id]) %>
+      <small data-readiness-reason="<%= diagnosis[:reason] %>">Readiness: Not yet qualified · <%= diagnosis[:message] %></small>
+    <% end %>
+  <% elsif @transition_eligible_ids.include?(website.id) || validation.last_validation || validation.attention || validation.audit.positive? %>
+    <span>No validation pass</span>
+  <% else %>—
+  <% end %>
+  <% if (cutover = validation.cutover) %>
+    <small>
+      <% label = cutover.event ? "Condenser cutover · #{l(cutover.completed_at.in_time_zone.to_date, format: :long)}" : "Migration recorded" %>
+      <%= link_to label, website_path(website, anchor: "website-rollout-history") %>
+    </small>
+    <% unless validation.migration_baseline %><small>No recorded Thorough coverage</small><% end %>
+  <% end %>
+  <% if validation.audit.positive? %>
+    <small><%= link_to "Active audit #{validation.audit}×", website_path(website, validation_profile: "audit", anchor: "website-validation-history") %></small>
+  <% end %>
+  <% if validation.matches?("latest_failed") %>
+    <% attention = validation.attention
+       report = attention.is_a?(Distillator::TransitionRun) ? distillator_transition_check_path(attention) : distillator_site_transition_path(attention) %>
+    <small><%= link_to "Latest validation needs attention", report %></small>
+  <% end %>
+</div>

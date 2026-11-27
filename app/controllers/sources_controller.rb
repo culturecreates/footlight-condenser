@@ -1,36 +1,71 @@
 class SourcesController < ApplicationController
+  include HarmonizedIndexParams
+
+  COMMON_EVENT_PROPERTY_IDS = [1, 3, 4, 5, 12, 13, 14, 52, 54, 55, 67, 75, 96, 97, 119, 130, 136].freeze
+
   before_action :set_source, only: [:show, :edit, :update, :destroy]
   skip_before_action :verify_authenticity_token
 
   # GET /sources
   # GET /sources.json
   def index
-    seedurl = params[:seedurl] || cookies[:seedurl]
+    @seedurl = params[:seedurl].presence || cookies[:seedurl].presence
+    @website = find_source_index_website(@seedurl)
+    return render_missing_sources_website(@seedurl) if @seedurl.present? && @seedurl != "all" && @website.nil?
 
-    if seedurl.present? && seedurl != 'all'
-      website = Website.find_by(seedurl: seedurl)
-
-      if website.nil?
-        respond_to do |format|
-          format.html do
-            flash.now[:alert] = "No website found for seedurl: #{seedurl}"
-            @sources = Source.none
-          end
-          format.json { render json: {error: "Website not found"}, status: :not_found }
-        end
-        @website_id = nil
-      else
-        @sources = Source.where(website_id: website.id)
-                         .order(selected: :desc, property_id: :asc, language: :asc)
-        @website_id = website.id
-        cookies[:seedurl] = seedurl # store valid seedurl in cookie
-      end
-    else
-      # show all if no seedurl or seedurl == 'all'
-      @sources = Source.all.order(selected: :desc, property_id: :asc, language: :asc)
-      @website_id = nil
+    cookies[:seedurl] = @seedurl if @website.present?
+    @website_id = @website&.id
+    website_view = @website.present? && request.format.html?
+    browse_keys = Sources::IndexQuery::FILTER_KEYS.map(&:to_s) + %w[sort direction page per_page]
+    if website_view && (params.keys & browse_keys).empty?
+      return redirect_to sources_path(Sources::IndexQuery::WEBSITE_DEFAULTS.merge(seedurl: @seedurl))
     end
+    default_per_page = website_view ? Sources::IndexQuery::WEBSITE_DEFAULTS[:per_page] : Sources::IndexQuery::DEFAULT_PER_PAGE
 
+    index_params = harmonized_index_params(
+      allowed_filters: Sources::IndexQuery::FILTER_KEYS,
+      allowed_sorts: Sources::IndexQuery::SORT_COLUMNS.keys,
+      default_sort: Sources::IndexQuery::DEFAULT_SORT,
+      default_direction: Sources::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: default_per_page,
+      max_per_page: Sources::IndexQuery::MAX_PER_PAGE
+    )
+
+    canonical = harmonized_index_canonical_params(
+      index_params,
+      default_sort: Sources::IndexQuery::DEFAULT_SORT,
+      default_direction: Sources::IndexQuery::DEFAULT_DIRECTION,
+      default_per_page: default_per_page,
+      preserve: @seedurl.present? ? { seedurl: @seedurl } : {}
+    )
+    # Keep the page size explicit so clearing every filter remains an intentional
+    # unfiltered view rather than redirecting back into the website defaults.
+    canonical["per_page"] = index_params[:per_page].to_s if website_view
+    raw = harmonized_index_raw_params(
+      allowed_filters: Sources::IndexQuery::FILTER_KEYS,
+      preserve: %w[seedurl sort direction page per_page]
+    )
+    return redirect_to(sources_path(canonical)) if canonical != raw
+
+    @filters = index_params[:filters]
+    query_filters = @filters.merge(website_id: @website.id) if @website.present?
+    query_filters ||= @filters
+    @sort = index_params[:sort]
+    @direction = index_params[:direction]
+    @pagination = {
+      page: index_params[:page],
+      per_page: index_params[:per_page]
+    }
+    @sources = Sources::IndexQuery.call(
+      filters: query_filters,
+      sort: @sort,
+      direction: @direction,
+      page: @pagination[:page],
+      per_page: @pagination[:per_page]
+    )
+    @sortable_filters = @filters.merge(per_page: @pagination[:per_page])
+    @source_table_headers = HarmonizedTableHeaders.sources
+    @source_quick_filters = source_index_quick_filters
     @rdfs_classes = RdfsClass.all
   end
 
@@ -50,18 +85,12 @@ class SourcesController < ApplicationController
   # GET /sources/new[?rdfs_class_id=]
   def new
     @source = Source.new
-    @websites = Website.all
-    @properties = Property.all
-    @rdfs_class_id = params[:rdfs_class_id] || 1 #default to event class
-    @rdfs_class_name = RdfsClass.find(@rdfs_class_id).name
+    set_form_options
   end
 
   # GET /sources/1/edit
   def edit
-    @websites = Website.all
-    @properties = Property.all
-    @rdfs_class_id = @source.property.rdfs_class_id
-    @rdfs_class_name = @source.property.rdfs_class.name
+    set_form_options
   end
 
   # POST /sources
@@ -77,7 +106,10 @@ class SourcesController < ApplicationController
         format.html { redirect_to @source, notice: 'Source was successfully created.' }
         format.json { render :show, status: :created, location: @source }
       else
-        format.html { render :new }
+        format.html do
+          set_form_options
+          render :new, status: :unprocessable_entity
+        end
         format.json { render json: @source.errors, status: :unprocessable_entity }
       end
     end
@@ -110,7 +142,10 @@ class SourcesController < ApplicationController
         format.html { redirect_to @source, notice: 'Source was successfully updated.' }
         format.json { render :show, status: :ok, location: @source }
       else
-        format.html { render :edit }
+        format.html do
+          set_form_options
+          render :edit, status: :unprocessable_entity
+        end
         format.json { render json: @source.errors, status: :unprocessable_entity }
       end
     end
@@ -136,8 +171,62 @@ class SourcesController < ApplicationController
     @source = Source.find(params[:id])
   end
 
+  def set_form_options
+    rdfs_class = @source.property&.rdfs_class
+    rdfs_class ||= RdfsClass.find(params[:rdfs_class_id]) if params[:rdfs_class_id].present?
+    rdfs_class ||= RdfsClass.find_by!(name: "Event")
+    @rdfs_class_name = rdfs_class.name
+    @websites = Website.all
+    common_ids = @rdfs_class_name == "Event" ? COMMON_EVENT_PROPERTY_IDS : []
+    @properties = rdfs_class.properties.sort_by do |property|
+      [common_ids.include?(property.id) ? 0 : 1, property.label.to_s.downcase, property.id]
+    end
+  end
+
   # Never trust parameters from the scary internet, only allow the white list through.
   def source_params
     params.require(:source).permit(:algorithm_value, :label, :language, :selected, :selected_by, :render_js, :property_id, :website_id, :auto_review)
+  end
+
+  def find_source_index_website(seedurl)
+    return nil if seedurl.blank? || seedurl == "all"
+
+    Website.find_by(seedurl: seedurl)
+  end
+
+  def render_missing_sources_website(seedurl)
+    respond_to do |format|
+      format.html do
+        flash.now[:alert] = "No website found for seedurl: #{seedurl}"
+        @sources = Source.none
+        @website_id = nil
+        @seedurl = nil
+        @filters = {}
+        @sort = Sources::IndexQuery::DEFAULT_SORT
+        @direction = Sources::IndexQuery::DEFAULT_DIRECTION
+        @pagination = { page: 1, per_page: Sources::IndexQuery::DEFAULT_PER_PAGE }
+        @sortable_filters = @filters.merge(per_page: @pagination[:per_page])
+        @source_table_headers = HarmonizedTableHeaders.sources
+        @source_quick_filters = []
+        @rdfs_classes = RdfsClass.all
+        render :index
+      end
+      format.json { render json: {error: "Website not found"}, status: :not_found }
+    end
+  end
+
+  def source_index_quick_filters
+    [
+      { label: "Website defaults", params: Sources::IndexQuery::WEBSITE_DEFAULTS.merge(seedurl: @seedurl).compact_blank },
+      { label: "Alternatives", params: quick_filter_params(selected: "false") },
+      { label: "Rendered fetch", params: quick_filter_params(render_js: "true") },
+      { label: "Auto review", params: quick_filter_params(auto_review: "true") }
+    ]
+  end
+
+  def quick_filter_params(overrides = {})
+    base = @filters.slice(:term, :language, :property_id).merge(overrides, per_page: @pagination[:per_page])
+    base[:seedurl] = @seedurl if @seedurl.present?
+    base
   end
 end

@@ -1,0 +1,40 @@
+<% show_seedurl_col = @filters[:seedurl].blank? || @filters[:seedurl] == "all" %>
+<tr>
+  <td class="statement-list-secondary"><%= link_to statement.id, statement %></td>
+  <% if show_seedurl_col %><td><%= statement.webpage.website.seedurl %></td><% end %>
+  <td>
+    <strong><%= statement.source.property.label %></strong>
+    <span class="statement-list-secondary">#<%= statement.source.property.id %> <%= format_language statement.source.language %></span>
+  </td>
+  <td class="statement-list-secondary"><%= link_to statement.source.id, source_path(statement.source) %></td>
+  <td class="statement-list-cache">
+    <% if statement.cache.to_s.length > 180 %>
+      <details>
+        <summary><%= truncate(statement.cache, length: 160) %></summary>
+        <pre><%= link_webpage_urls(statement.cache) %></pre>
+      </details>
+    <% else %>
+      <%= link_webpage_urls(statement.cache) %>
+    <% end %>
+  </td>
+  <td><%= operator_statement_status_badge(statement.status) %></td>
+  <td><%= statement.manual? ? "Yes" : "No" %></td>
+  <td><%= statement.source.selected? ? "Yes" : "No" %></td>
+  <td><%= statement.selected_individual? ? "Yes" : "No" %></td>
+  <td class="statement-list-secondary"><%= statement.status_origin %></td>
+  <td class="statement-list-secondary"><%= statement.cache_refreshed %></td>
+  <td class="statement-list-secondary"><%= statement.cache_changed %></td>
+  <td class="statement-list-secondary"><%= statement.updated_at %></td>
+  <td class="statement-list-actions">
+    <div class="statement-list-links">
+      <%= render "shared/source_page_view_link", webpage: statement.webpage, label: "View" %>
+      <%= link_to "Show", statement %>
+      <%= link_to "Edit", edit_statement_path(statement) %>
+    </div>
+    <details>
+      <summary>More actions</summary>
+      <%= link_to "Report", source_reports_path(source_id: statement.source) %>
+      <%= link_to "Destroy", statement, method: :delete, data: { confirm: "Are you sure?" } %>
+    </details>
+  </td>
+</tr>

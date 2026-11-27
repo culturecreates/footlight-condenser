@@ -1,0 +1,138 @@
+<% action_view = @dashboard == "action" %>
+<% full_metrics = !action_view && @filters[:metrics] == "full" %>
+<% column_count = action_view ? 6 : (full_metrics ? 13 : 9) %>
+<div class="website-index-table-scroll operator-table-scroll" tabindex="0" role="region" aria-label="<%= action_view ? "Website actions" : "Website overview" %>">
+  <table class="cache-table website-index-table <%= "website-index-table--full" if full_metrics %>">
+    <caption class="website-index-sr-only"><%= action_view ? "Website issues and recommended next actions" : "Website states and operational evidence" %></caption>
+    <thead><tr>
+      <th scope="col">Transition</th>
+      <th scope="col"><%= website_index_sortable("name", "Website", group: group) %></th>
+      <% if action_view %>
+        <th scope="col">Priority</th>
+        <th scope="col">Issue</th>
+        <th scope="col">Next action</th>
+      <% elsif full_metrics %>
+        <th scope="col">State</th>
+        <th scope="col" title="Successful validation workflows by profile">Validation</th>
+        <th scope="col" class="website-index-number"><%= website_index_sortable("event_pages_count", "Event pages", group: group) %></th>
+        <th scope="col" class="website-index-number" title="Publishable event resources divided by all event resources. Pages for the same event contribute selected statements together."><%= website_index_sortable("publishable_event_percentage", "% Publishable", group: group) %></th>
+        <th scope="col" class="website-index-number"><%= website_index_sortable("statements_count", "Statements", group: group) %></th>
+        <th scope="col" title="Statements refreshed / statements changed in the last 24 hours"><%= website_index_sortable("refreshed_24h", "Refreshed", group: group) %> / <%= website_index_sortable("updated_24h", "Changed", group: group) %> (24h)</th>
+        <th scope="col">Inventory freshness</th>
+        <th scope="col"><%= website_index_sortable("last_refresh", "Last scheduled run", group: group) %></th>
+      <% else %>
+        <th scope="col">State</th>
+        <th scope="col">Data health</th>
+        <th scope="col">Validation</th>
+        <th scope="col">Activity (24h)</th>
+      <% end %>
+      <% unless action_view %>
+        <th scope="col" class="website-index-number"><%= website_index_sortable("schedule_every_days", "Schedule (days)", group: group) %></th>
+        <th scope="col" title="JavaScript rendering configuration for ResourceLists (RL) and active Event webpages (E)">Configured JS</th>
+      <% end %>
+      <th scope="col">Details</th>
+    </tr></thead>
+    <tbody>
+      <% websites.each do |website| %>
+        <% pages = @webpage_summaries.fetch(website.id, Distillator::WebsiteWebpageSummary.empty_summary) %>
+        <% event_count = pages[:by_class].fetch("Event") %>
+        <% validation = @validation_summaries.fetch(website.id) %>
+        <% inventory = @inventory_freshness.fetch(website.id) %>
+        <% state = validation.milestone || website.distillator_mode.presence || "unknown" %>
+        <%= tag.tr(class: "website-index-row", data: { website_id: website.id, migration_state: state }) do %>
+          <td><% if @transition_eligible_ids.include?(website.id) %>
+            <%= check_box_tag "website_ids[]", website.id, @retry_website_ids&.include?(website.id) || @dashboard_selection_id == website.id, id: "website-transition-#{website.id}", form: "website-transition-batch",
+              data: { transition_site: true, transition_mode: website.distillator_mode }, aria: { label: "Select for transition: #{website.name}" } %>
+          <% else %>—<% end %></td>
+          <th scope="row" class="website-index-name">
+            <div class="website-index-identity">
+              <%= form_with url: preference_website_path(website), method: :patch, local: true, class: "website-index-preference" do %>
+                <%= hidden_field_tag :preferred, "0", id: nil %>
+                <%= hidden_field_tag :return_to, "#{request.fullpath.split('#').first}#website-list-#{group}", id: nil %>
+                <%= check_box_tag :preferred, "1", website.preferred?, id: "website-preferred-#{website.id}", title: "Preferred", aria: { label: "Preferred: #{website.name}" }, data: { auto_submit_preference: true } %>
+                <noscript><%= submit_tag "Save" %></noscript>
+              <% end %>
+              <%= link_to website.name.presence || website.seedurl, website, title: website.seedurl %>
+              <% if action_view %><span class="website-state-badge"><%= state.humanize %></span><% end %>
+            </div>
+          </th>
+          <% if action_view %>
+            <%= render "action_cells", website: website, action: @primary_actions[website.id] %>
+          <% elsif full_metrics %>
+            <td title="<%= website_rollout_explanation(website) %>"><span class="website-state-badge"><%= state.humanize %></span></td>
+            <td><%= render "validation_summary", website: website, validation: validation %></td>
+            <td class="website-index-number"><%= link_to number_with_delimiter(event_count), website_webpages_filter_path(website, scope: "all", rdfs_class: "Event") %></td>
+            <td class="website-index-number">
+              <% if pages[:event_resources].positive? %>
+                <span title="<%= pages[:publishable_event_resources] %> of <%= pages[:event_resources] %> event resources publishable"><%= number_to_percentage(pages[:publishable_event_resource_percentage], precision: 1, strip_insignificant_zeros: true) %></span>
+              <% else %>
+                <span title="No event resources">—</span>
+              <% end %>
+            </td>
+            <td class="website-index-number"><%= link_to number_with_delimiter(@statements_grouped[website.seedurl] || 0), statements_path(seedurl: website.seedurl) %></td>
+            <td class="website-index-activity"><%= number_with_delimiter(@statements_refreshed_24hr[website.seedurl] || 0) %> / <%= number_with_delimiter(@statements_updated_24hr[website.seedurl] || 0) %></td>
+            <td>
+              <%= render "inventory_freshness", inventory: @inventory_freshness.fetch(website.id) %>
+              <% if (missed = @missed_event_counts[website.seedurl]) %>
+                <div><%= link_to pluralize(missed, "possible missed event"), monitoring_path(seedurl: website.seedurl),
+                      class: "operator-status operator-status--review" %></div>
+              <% end %>
+            </td>
+            <td><%= website_index_refresh_time(website) %></td>
+          <% else %>
+            <td title="<%= website_rollout_explanation(website) %>"><span class="website-state-badge"><%= state.humanize %></span></td>
+            <td>
+              <strong><%= inventory[:label] == "No event lists" ? inventory[:label] : "Discovery #{inventory[:label].downcase}" %></strong>
+              <% if pages[:event_resources].positive? %>
+                <br><%= pages[:publishable_event_resources] %>/<%= pages[:event_resources] %> publishable events
+              <% end %>
+            </td>
+            <td><%= website_dashboard_validation_label(validation, @dashboard_running[website.id]) %>
+              <% if validation.last_pass&.completed_at %>
+                <br><small>Last pass <%= l(validation.last_pass.completed_at.in_time_zone.to_date, format: :short) %></small>
+              <% end %>
+            </td>
+            <td class="website-index-activity">
+              <% refreshed = @statements_refreshed_24hr[website.seedurl].to_i %>
+              <% changed = @statements_updated_24hr[website.seedurl].to_i %>
+              <% if refreshed.positive? || changed.positive? %>
+                <%= number_with_delimiter(refreshed) %> refreshed · <%= number_with_delimiter(changed) %> changed
+              <% else %>
+                <span class="muted">No statement activity</span>
+              <% end %>
+            </td>
+          <% end %>
+          <% unless action_view %>
+            <td class="website-index-number" title="<%= website.refresh_scheduled? ? website_index_schedule(website) : "Not scheduled" %>">
+              <%= website.refresh_scheduled? ? website.schedule_every_days : "—" %>
+            </td>
+            <td>
+              <% usage = @website_rendered_fetch.fetch(website.id) %>
+              <% if usage.any? %>
+                <% usage.each do |class_name| %>
+                  <% description = class_name == "Event" ? "Rendered fetching is configured for active Event webpages" : "Rendered fetching is configured for ResourceLists" %>
+                  <span class="operator-status operator-status--review">
+                    <span aria-hidden="true" title="<%= description %>"><%= Distillator::WebsiteRenderedFetchSummary::LABELS.fetch(class_name) %></span>
+                    <span class="website-index-sr-only"><%= description %></span>
+                  </span>
+                <% end %>
+              <% else %>
+                <span title="No configured rendered fetching detected">—</span>
+              <% end %>
+            </td>
+          <% end %>
+          <td class="website-index-actions">
+            <%= link_to "Sources", website_sources_index_path(website) if full_metrics %>
+            <% unless action_view && @primary_actions[website.id]&.operation == :details %>
+              <button type="button" data-website-details aria-expanded="false" aria-controls="website-details-<%= website.id %>" aria-label="Details for <%= website.name %>" hidden>Details</button>
+              <noscript><%= link_to "Details", website %></noscript>
+            <% end %>
+          </td>
+        <% end %>
+        <tr id="website-details-<%= website.id %>" class="website-index-detail-row" hidden><td colspan="<%= column_count %>">
+          <%= render "index_details", website: website, pages: pages, event_count: event_count, validation: validation, inventory: inventory %>
+        </td></tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

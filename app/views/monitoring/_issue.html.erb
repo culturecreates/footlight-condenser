@@ -1,0 +1,49 @@
+<% site_name = issue.website_name.presence || issue.seedurl %>
+<% website = monitoring_issue_website(issue, targets) %>
+<% primary, *secondary = monitoring_issue_actions(issue, targets) %>
+<tr>
+  <th scope="row">
+    <%= website ? link_to(site_name, website_path(website)) : site_name %>
+    <% if site_name != issue.seedurl %><div class="operator-editor__muted"><%= issue.seedurl %></div><% end %>
+  </th>
+  <td>
+    <strong><%= monitoring_issue_category(issue) %></strong>
+    <% if issue.property_name.present? %><div class="operator-editor__muted"><%= issue.property_name %></div><% end %>
+    <details class="monitoring-details">
+      <summary>Error details</summary>
+      <p class="monitoring-message"><%= link_webpage_urls(issue.message) %></p>
+      <% if external_http_url?(issue.url) %><p><%= webpage_url_link(issue.url) %></p><% end %>
+      <dl>
+        <% if (verified = issue.evidence["last_verified_refresh_at"]) %>
+          <dt>Last verified ResourceList refresh</dt><dd><%= time_tag Time.zone.iso8601(verified), format: "%b %-d, %Y %H:%M:%S %Z" %></dd>
+        <% end %>
+        <dt>First seen</dt><dd><%= time_tag issue.first_seen_at, format: "%b %-d, %Y %H:%M:%S %Z" %></dd>
+        <% if issue.resolved_at? %>
+          <dt>Resolved</dt><dd><%= time_tag issue.resolved_at, format: "%b %-d, %Y %H:%M:%S %Z" %></dd>
+        <% end %>
+      </dl>
+      <% if issue.evidence["example_urls"].present? %>
+        <ul><% issue.evidence["example_urls"].each do |url| %><li><%= webpage_url_link(url) %></li><% end %></ul>
+      <% end %>
+      <% if secondary.any? %>
+        <div class="operator-editor__actions">
+          <% secondary.each do |label, path| %><%= link_to label, path %><% end %>
+        </div>
+      <% end %>
+    </details>
+  </td>
+  <td class="monitoring-table__time"><%= time_tag issue.last_seen_at, format: "%b %-d, %Y %H:%M:%S %Z" %></td>
+  <td class="monitoring-table__count"><%= number_with_delimiter(issue.occurrences) %></td>
+  <td>
+    <span class="operator-status operator-status--<%= issue.resolved_at? ? "passed" : "review" %>">
+      <%= issue.resolved_at? ? "Resolved" : "Open" %>
+    </span>
+  </td>
+  <td>
+    <% if primary %>
+      <%= link_to primary.first, primary.last, class: "operator-editor__button operator-editor__button--small" %>
+    <% else %>
+      <span class="operator-editor__muted">No linked record</span>
+    <% end %>
+  </td>
+</tr>

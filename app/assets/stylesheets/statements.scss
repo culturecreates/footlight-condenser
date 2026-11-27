@@ -9,13 +9,13 @@ form.inline {
 .as-link {
   background: none;
   border: none;
-  color: #0645ad;
+  color: var(--operator-primary);
   text-decoration: underline;
   padding: 0;
   cursor: pointer;
   font: inherit;
 }
 .as-link:hover {
-  color: #0b0080;
+  color: var(--operator-primary);
   text-decoration: underline;
 }

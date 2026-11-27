@@ -1,0 +1,695 @@
+require "test_helper"
+
+class Distillator::TransitionBatchesControllerTest < ActionDispatch::IntegrationTest
+  setup do
+    @old_adapter = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :test
+    @one = site("culture-alpha", schedule: 1)
+    @two = site("culture-beta", schedule: 0)
+    @other = site("other-event", schedule: nil)
+    @template = site("footlight-manual-fr")
+    @test_site = site("culture-test")
+    @place = site("culture-place", event: false)
+  end
+  teardown { ActiveJob::Base.queue_adapter = @old_adapter }
+
+  test "culture wildcard selects matching event sites including unscheduled but excludes templates tests and entities" do
+    get websites_path, params: { q: "culture*", graph_name: "https://example.org/culture", view: "all" }
+    assert_response :success
+    selected = Nokogiri::HTML(response.body).css('input[data-transition-site]').map { |input| input['value'].to_i }.sort
+    assert_equal [@one.id, @two.id].sort, selected
+    assert_select '#website-list-unscheduled input[data-transition-site][value="' + @two.id.to_s + '"]'
+    assert_select 'input[data-transition-site][form="website-transition-batch"]', count: 2
+    assert_select '[data-transition-master-label]', text: /Select all 2 matching event sites/
+    assert_select '#website-transition-batch select[name=check_profile] option[value=thorough][selected]', 1
+    assert_select '#website-transition-batch select[name=check_profile] option[value=light]', 1
+    assert_select 'form form', count: 0
+  end
+
+  test "single selection opens the site workflow and group of one never renders a master report" do
+    post distillator_transition_batches_path, params: params_for([@two.id])
+    item = Distillator::SiteTransition.last
+    assert_redirected_to distillator_site_transition_path(item)
+    follow_redirect!
+    assert_response :success
+    assert_select 'h1', text: /culture-beta.*Transition workflow/
+    assert_select 'a', text: "Group progress and results", count: 0
+    assert_select '[data-workflow-follow]', count: 1
+    assert_includes response.body, "Not enough previous timing data"
+    get distillator_transition_batch_path(item.batch)
+    assert_redirected_to distillator_site_transition_path(item)
+    get distillator_transition_batches_path
+    assert_response :success
+    assert_select "a[href='#{distillator_site_transition_path(item)}']", text: "culture-beta"
+    assert_select "a[href='#{distillator_transition_batch_path(item.batch)}']", count: 0
+  end
+
+  test "multiple selected sites have a master progress report and read only polling" do
+    post distillator_transition_batches_path, params: params_for([@one.id, @two.id])
+    batch = Distillator::TransitionBatch.last
+    assert_redirected_to distillator_transition_batch_path(batch)
+    follow_redirect!
+    assert_select 'h1', text: /Event-site transition group/
+    assert_select 'tr[data-workflow-result="queued"]', count: 2
+    assert_includes response.body, "0/2 sites finished"
+    assert_select '[data-workflow-filter]', count: 1
+    assert_select 'input[type="submit"][value="Stop remaining sites"]'
+    assert_no_difference ["Distillator::TransitionRun.count", "Distillator::SiteTransition.count", "Distillator::RolloutEvent.count"] do
+      get distillator_transition_batch_path(batch, format: :json)
+    end
+    assert_response :success
+    data = response.parsed_body
+    assert_equal false, data["finished"]
+    assert_includes data["html"], "0/2 sites finished"
+    assert_equal "no-store", response.headers["Cache-Control"]
+    assert_equal "legacy", @two.reload.distillator_mode
+    patch distillator_transition_batch_path(batch)
+    assert batch.site_transitions.reload.all? { |item| item.status == "cancelled" }
+    assert_equal "legacy", @one.reload.distillator_mode
+  end
+
+  test "the group persists the chosen Light profile and rejects a different profile on replay" do
+    parameters = params_for([@one.id, @two.id]).merge(check_profile: "light")
+    post distillator_transition_batches_path, params: parameters
+    batch = Distillator::TransitionBatch.last
+    assert_redirected_to distillator_transition_batch_path(batch)
+    assert_equal({ "sample_mode" => "default", "strictness" => "standard" }, batch.check_options)
+    follow_redirect!
+    assert_includes response.body, "Light · Default sample · Standard"
+
+    assert_no_difference "Distillator::TransitionBatch.count" do
+      post distillator_transition_batches_path, params: parameters.merge(check_profile: "thorough")
+      assert_redirected_to websites_path
+      assert_equal "This request belongs to a different check profile", flash[:alert]
+
+      post distillator_transition_batches_path, params: params_for([@other.id]).merge(check_profile: "unknown")
+      assert_redirected_to websites_path
+      assert_equal "Choose Light or Thorough.", flash[:alert]
+    end
+  end
+
+  test "a finished group retries its currently non-Active sites with a newly chosen profile" do
+    @other.update_column(:distillator_mode, "active")
+    post distillator_transition_batches_path, params: params_for([@one.id, @two.id, @other.id]).merge(check_profile: "light")
+    group = Distillator::TransitionBatch.last
+    group.site_transitions.update_all(status: "attention", completed_at: Time.current)
+    group.site_transitions.find_by!(website_id: @two.id).update!(status: "passed", final_mode: "active")
+    @two.update_column(:distillator_mode, "shadow") # Previously passed, but currently eligible to retry.
+    path = websites_path(view: "all", retry_transition_batch_id: group.id, anchor: "website-transition-batch")
+
+    get distillator_transition_batch_path(group, format: :json)
+    assert_includes response.parsed_body["html"], "Retry non-Active sites"
+    get distillator_transition_batch_path(group)
+    assert_select "a[href='#{path}']", text: "Retry non-Active sites"
+    assert_no_difference ["Distillator::TransitionBatch.count", "Distillator::TransitionRun.count"] do
+      get path
+    end
+    assert_response :success
+    checked = Nokogiri::HTML(response.body).css("input[data-transition-site][checked]").map { |input| input["value"].to_i }
+    assert_equal [@one.id, @two.id].sort, checked.sort
+    assert_select "input[data-transition-site]", count: 2
+    assert_select "#website-list-unscheduled[open]"
+    assert_select "#website-transition-batch select option[value=light][selected]"
+    assert_no_difference ["Distillator::TransitionBatch.count", "Distillator::TransitionRun.count"] do
+      get websites_path, params: { dashboard: "action", action_filter: "progress", retry_transition_batch_id: group.id }
+    end
+    assert_response :success
+    assert_select "input[data-transition-site][checked]", count: 2
+    assert_select "#website-transition-batch select option[value=light][selected]"
+    assert_select "nav[aria-label='Website action filters']", count: 0
+
+    @one.update_column(:distillator_mode, "active")
+    assert_no_difference "Distillator::TransitionBatch.count" do
+      post distillator_transition_batches_path, params: params_for(checked).merge(retry_transition_batch_id: group.id)
+    end
+    assert_redirected_to path
+    assert_match /currently non-Active/, flash[:alert]
+    post distillator_transition_batches_path, params: params_for([@two.id]).merge(
+      retry_transition_batch_id: group.id, check_profile: "thorough")
+    retry_batch = Distillator::TransitionBatch.last
+    assert_equal [@two.id], retry_batch.site_transitions.pluck(:website_id)
+    assert_equal "thorough", retry_batch.check_profile
+    assert_equal "Retry of group ##{group.id}", retry_batch.selection_context
+  end
+
+  test "the dashboard counts workflow passes once and keeps audits and latest failures visible" do
+    light = Distillator::TransitionBatch.request!(website_ids: [@one.id], request_key: SecureRandom.uuid, check_profile: "light")
+    passed = light.site_transitions.sole
+    pre = diagnostic_run(@one)
+    postcheck = diagnostic_run(@one)
+    diagnostic_evidence(pre, "statement_delta", compared_webpage_count: 5)
+    diagnostic_evidence(postcheck, "statement_delta", compared_webpage_count: 5)
+    passed.update!(status: "passed", final_mode: "active", completed_at: 3.minutes.ago, pre_run: pre, post_run: postcheck,
+      phase_results: { activation: { state: "completed" } })
+    @one.update_column(:distillator_mode, "active")
+    audit = Distillator::TransitionBatch.request!(website_ids: [@one.id], request_key: SecureRandom.uuid, workflow_action: "audit")
+    audit.site_transitions.sole.update!(status: "passed", final_mode: "active", completed_at: 2.minutes.ago)
+    failed = Distillator::TransitionBatch.request!(website_ids: [@one.id], request_key: SecureRandom.uuid)
+    failed.site_transitions.sole.update!(status: "attention", final_mode: "shadow", completed_at: 1.minute.ago)
+
+    %w[light_only latest_failed].each do |filter|
+      get websites_path, params: { metrics: "full", validation: filter }
+      assert_response :success
+      assert_select "tr.website-index-row", count: 1
+      assert_select "tr[data-website-id='#{@one.id}'] .website-validation-summary" do
+        assert_select "a", text: "Light 1×"
+        assert_select "span", text: "Thorough 0×"
+        assert_select "a", text: "Active audit 1×"
+        assert_select "a", text: "Latest validation needs attention"
+      end
+      assert_select "tr[data-migration-state=ready], tr[data-migration-state=migrated]", count: 0
+    end
+
+    get website_path(@one, validation_profile: "light")
+    assert_response :success
+    assert_select "#website-validation-history tbody tr", count: 1 do
+      assert_select "td", text: /Light · Standard/
+      assert_select "td", text: /5 pages compared/, count: 2
+      assert_select "td", text: "Legacy → Shadow → Active"
+    end
+  end
+
+  test "Danse Danse earns Ready from one qualifying unscheduled site check and keeps it as freshness ages" do
+    @two.update_columns(name: "Danse Danse", distillator_mode: "active")
+    event = @two.webpages.sole
+    make_publishable(event)
+    row = "tr[data-website-id='#{@two.id}']"
+    light = complete_site_check(event, sample_mode: "default", strictness: "standard")
+    old_pass = complete_site_check(event)
+    create_verified_resource_list(event)
+    failed = complete_site_check(event, failed: true, prepared: true)
+    partial = complete_site_check(event, sample_mode: "count", sample_size: 1, eligible: 2, prepared: true)
+
+    get websites_path, params: { metrics: "full" }
+    assert_select "#{row}[data-migration-state='active'] .website-state-badge", text: "Active"
+    assert_select "#{row} a", text: "Thorough 1×"
+    assert_select "#{row} [data-readiness-reason=missing_discovery_proof]",
+      text: /No successful Thorough run recorded the required fresh ResourceList discovery evidence/
+    assert_select "#website-details-#{@two.id} a", text: "Run Thorough validation"
+    assert_select ".website-rollout-summary a", text: "Ready"
+    assert_select ".website-rollout-summary a", text: "Migrated"
+
+    full = complete_site_check(event, sample_mode: "count", sample_size: 1, prepared: true)
+    get websites_path, params: { metrics: "full", validation: "ready" }
+    assert_select ".website-rollout-summary a[aria-current='page']", text: "Ready"
+    assert_select "#{row}[data-migration-state='ready'] .website-state-badge", text: "Ready"
+    assert_select "#{row} a", text: "Thorough 2×"
+
+    get websites_path, params: { dashboard: "information", validation: "ready" }
+    assert_select "#{row} td", text: /Qualified/
+    get websites_path, params: { dashboard: "action", validation: "ready", action_filter: "migration" }
+    assert_select "#{row} [data-action-code=confirm_cutover]"
+    assert_select "#{row} a[href=?]", website_path(@two, anchor: "website-confirm-migrate"), text: "Open cutover confirmation"
+
+    get website_path(@two)
+    assert_select "h1 .website-state-badge", text: "Ready"
+    assert_select "#active-operation #website-confirm-migrate summary", text: "Confirm Migrate"
+    assert_select "details#website-transition:not([open]) > summary", text: "Latest comparison"
+    assert_select "details#website-transition-controls:not([open]) > summary", text: "Active operation and rollback"
+    assert_select "#website-transition-controls #website-batch-jobs-transition .website-transition-check-form"
+
+    get website_path(@two, validation_profile: "thorough")
+    [full, old_pass].each do |run|
+      assert_select "#website-validation-history a[href='#{distillator_shadow_report_site_path(@two, run_id: run.id)}']", text: /Check/
+    end
+    [light, failed, partial].each do |run|
+      assert_select "#website-validation-history a[href='#{distillator_shadow_report_site_path(@two, run_id: run.id)}']", count: 0
+    end
+
+    travel 49.hours do
+      get websites_path, params: { metrics: "full", validation: "ready" }
+      assert_select "#{row} .website-state-badge", text: "Ready"
+      assert_select "#{row} [data-inventory-status=stale]", text: "Stale"
+    end
+
+    event.website.sources.find_by!(property: properties(:four)).update!(algorithm_value: "manual=Changed")
+    get websites_path, params: { metrics: "full" }
+    assert_select "#{row} .website-state-badge", text: "Active"
+    assert_select "#{row} small", text: "Configuration changed since pass"
+    assert_select "#{row} a", text: "Thorough 2×"
+    get websites_path, params: { dashboard: "action", q: @two.name }
+    assert_select "#{row} [data-action-code=validation_outdated]", text: "Thorough evidence outdated"
+    assert_select "#website-details-#{@two.id} [aria-label='Action evidence'] li", text: /current inventory or configuration/
+    assert_select "#{row} [data-action-code=comparison_failed]", count: 0
+  end
+
+  test "Vieux Noranda preserves its migration evidence through inventory changes and explicit revalidation" do
+    @two.update_columns(name: "Vieux Noranda", distillator_mode: "active", schedule_every_days: 1)
+    event = @two.webpages.sole
+    make_publishable(event)
+    create_verified_resource_list(event)
+    row = "tr[data-website-id='#{@two.id}']"
+    batch = Distillator::TransitionBatch.request!(website_ids: [@two.id], request_key: SecureRandom.uuid)
+    pre, postcheck = Array.new(2) do
+      run = diagnostic_run(@two, check_options: batch.check_options)
+      record_discovery_proof(run, event)
+      record_site_check_evidence(run, event)
+      run
+    end
+    batch.site_transitions.sole.update!(status: "passed", final_mode: "active", completed_at: Time.current, pre_run: pre, post_run: postcheck)
+    get websites_path, params: { metrics: "full" }
+    assert_select "#{row} .website-state-badge", text: "Ready"
+    assert_select "#{row} a", text: "Thorough 1×"
+
+    completed = travel(1.minute) { complete_site_check(event, prepared: true) }
+    travel 2.minutes
+    get websites_path, params: { metrics: "full" }
+    assert_select "#{row} .website-state-badge", text: "Ready"
+    assert_select "#{row} a", text: "Thorough 2×"
+    assert_empty Distillator::MigrationBaseline.where(website: @two)
+
+    @two.update!(schedule_time: Time.zone.parse("08:00"), last_refresh: 1.day.ago)
+    get websites_path, params: { metrics: "full" }
+    assert_select "#{row} .website-state-badge", text: "Ready"
+    assert_empty Distillator::MigrationBaseline.where(website: @two)
+
+    cutover_at = Time.current
+    @two.sources.find_by!(property: properties(:four)).update!(algorithm_value: "manual=Changed since cutover")
+    get website_path(@two)
+    assert_select "#active-operation #website-confirm-migrate form[action='#{confirm_cutover_website_path(@two)}']"
+    assert_select "details#website-transition", count: 0
+
+    assert_no_difference "Distillator::RolloutEvent.count" do
+      post confirm_cutover_website_path(@two), params: { completed_at: "invalid", operator: "operator", evidence: "Production handoff" }
+    end
+    assert_equal "Enter the date and time of the Artsdata handoff.", flash[:alert]
+
+    confirmation = { completed_at: cutover_at.iso8601(6), operator: "operator", evidence: "Production handoff for Vieux Noranda" }
+    assert_no_difference "Distillator::TransitionRun.count" do
+      assert_difference ["Distillator::MigrationBaseline.count", "Distillator::RolloutEvent.count"], 1 do
+        2.times do
+          post confirm_cutover_website_path(@two), params: confirmation
+          assert_response :see_other
+        end
+      end
+    end
+    assert_equal "Migration is already recorded.", flash[:notice]
+    assert_equal "active", @two.reload.distillator_mode
+    assert_equal confirmation[:evidence], @two.rollout_events.last.reason
+
+    follow_redirect!
+    assert_select "h1 .website-state-badge", text: "Migrated"
+    assert_select "#active-operation", text: /Migration confirmed/
+    assert_select "#active-operation #website-confirm-migrate", count: 0
+    assert_select "#website-rollout-history", text: /Production handoff for Vieux Noranda/
+    assert_select "details#website-transition-controls:not([open])"
+    assert_no_difference "Distillator::MigrationBaseline.count" do
+      get websites_path, params: { metrics: "full", validation: "migrated" }
+    end
+    assert_select "#{row} .website-state-badge", text: "Migrated"
+    assert_select "#{row} a[href='#{website_path(@two, anchor: "website-rollout-history")}']", text: /Condenser cutover/
+    assert_select "#{row} small", text: "Validation stale"
+    assert_select "#{row} small", text: "1/1 pages in migration baseline"
+
+    baseline = Distillator::MigrationBaseline.where(website: @two).sole
+    original = baseline.attributes
+    assert_equal completed.id, baseline.validation_run_id
+    assert_equal [completed.id], baseline.validation_run_ids
+    assert_equal completed.configuration_digest, baseline.configuration_digest
+    assert_equal [event.id.to_s], baseline.page_fingerprints.keys
+    assert_equal 1, baseline.eligible_pages
+    assert_equal "condenser", baseline.backend
+    assert_raises(ActiveRecord::ReadOnlyRecord) { baseline.update!(eligible_pages: 7) }
+    assert_no_difference "Distillator::MigrationBaseline.count" do
+      get websites_path, params: { metrics: "full", validation: "migrated" }
+    end
+    assert_select "#{row}[data-migration-state='migrated'] .website-state-badge", text: "Migrated"
+    assert_select "#{row} small", text: "1/1 pages in migration baseline"
+
+    interrupted = diagnostic_run(@two, status: "failed", error_message: "Worker interrupted")
+    get websites_path, params: { metrics: "full", validation: "latest_failed" }
+    assert_select "#{row} .website-state-badge", text: "Migrated"
+    assert_select "#{row} a[href='#{distillator_transition_check_path(interrupted)}']", text: "Latest validation needs attention"
+
+    # A list change and a later import affect current freshness and coverage.
+    url_list = @two.webpages.joins(:rdfs_class).find_by!(rdfs_classes: { name: "ResourceList" })
+    new_url = "https://example.org/new-event"
+    url_list.statements.joins(source: :property).find_by!(properties: { label: AddWebpagesJob::WEBPAGE_URL_LIST_LABEL })
+      .update_column(:cache, [event.url, new_url].to_json)
+    url_list.statements.joins(source: :property).find_by!(properties: { label: AddWebpagesJob::URI_LIST_LABEL })
+      .update_column(:cache, [event.rdf_uri, "rdf:new-event"].to_json)
+    get websites_path, params: { metrics: "full" }
+    assert_select "#{row} .website-state-badge", text: "Migrated"
+    assert_select "#{row} [data-inventory-status=discovery_pending_import]", text: "Awaiting reconciliation"
+    assert_select "#{row} small", text: "1/1 pages in migration baseline"
+
+    new_event = @two.webpages.create!(url: new_url, rdf_uri: "rdf:new-event", language: "en", rdfs_class: rdfs_classes(:one))
+    make_publishable(new_event)
+    @two.sources.find_by!(property: properties(:four)).update!(algorithm_value: "manual=Updated title")
+    get websites_path, params: { metrics: "full" }
+    assert_select "#{row} .website-state-badge", text: "Migrated"
+    assert_select "#{row} small", text: "Validation stale"
+    assert_select "#{row} small", text: "1/1 pages in migration baseline"
+    assert_select "#{row} a", text: "Thorough 2×"
+
+    assert_no_difference "Distillator::MigrationBaseline.count" do
+      complete_site_check(event, eligible: 2, prepared: true)
+      complete_site_check(event, failed: true, pages: [event, new_event], eligible: 2, prepared: true)
+    end
+
+    assert_difference "Distillator::MigrationBaseline.count", 1 do
+      complete_site_check(event, pages: [event, new_event], eligible: 2, prepared: true)
+    end
+    assert_equal original, baseline.reload.attributes
+    latest = Distillator::MigrationBaseline.where(website: @two).latest_first.first
+    assert_equal [event.id, new_event.id].map(&:to_s).sort, latest.page_fingerprints.keys.sort
+    get websites_path, params: { metrics: "full", validation: "migrated" }
+    assert_select "#{row} small", text: "2/2 pages in migration baseline"
+    assert_select "#{row} small", text: "Validation stale", count: 0
+
+    @two.update!(distillator_mode: "shadow")
+    get websites_path, params: { metrics: "full" }
+    assert_select "#{row} .website-state-badge", text: "Shadow"
+    get website_path(@two, validation_profile: "thorough")
+    assert_select "#website-validation-history a", text: /Check ##{baseline.validation_run_id}/, minimum: 1
+    assert_select "#website-validation-history a", text: /Check ##{latest.validation_run_id}/, minimum: 1
+  end
+
+  test "backfill retains recorded validation coverage when the live event inventory shrinks" do
+    @two.update_columns(distillator_mode: "active", schedule_every_days: 1)
+    event = @two.webpages.sole
+    another = @two.webpages.create!(url: "#{event.url}/other", rdf_uri: "rdf:past-event",
+      language: "en", rdfs_class: rdfs_classes(:one))
+    [event, another].each { |page| make_publishable(page) }
+    create_verified_resource_list(event)
+    last = complete_site_check(event, pages: [event, another], eligible: 2, prepared: true)
+    assert_empty Distillator::MigrationBaseline.where(website: @two)
+
+    another.update_column(:archive_date, 1.day.ago)
+    @two.rollout_events.create!(from_mode: "active", to_mode: "active", actor: "operator", reason: "Documented production handoff",
+      readiness_snapshot: { event: Distillator::VerifiedCutover::EVENT, completed_at: Time.current.iso8601(6) })
+    assert_difference "Distillator::MigrationBaseline.count", 1 do
+      2.times { Distillator::MigrationBaseline.capture!(@two) }
+    end
+    baseline = Distillator::MigrationBaseline.where(website: @two).sole
+    assert_equal last.id, baseline.validation_run_id
+    assert_equal 1, baseline.thorough_passes
+    assert_equal 2, baseline.covered_pages
+    assert_equal 2, baseline.eligible_pages
+    get websites_path, params: { metrics: "full", validation: "migrated" }
+    row = "tr[data-website-id='#{@two.id}']"
+    assert_select "#{row} small", text: "2/2 pages in migration baseline"
+    assert_select "#{row} small", text: "Validation stale"
+  end
+
+  test "Active audit is a separate Thorough request and rejects groups containing Shadow sites" do
+    @one.update_column(:distillator_mode, "active")
+    request = params_for([@one.id]).merge(workflow_action: "audit", check_profile: "light")
+    get websites_path
+    assert_select "button[data-transition-audit][name=workflow_action][value=audit]", text: "Audit selected Active sites (Thorough)"
+    assert_select 'input[data-transition-mode="active"][value="' + @one.id.to_s + '"]'
+
+    assert_no_difference "Distillator::TransitionBatch.count" do
+      post distillator_transition_batches_path, params: params_for([@one.id, @two.id]).merge(workflow_action: "audit")
+    end
+    assert_redirected_to websites_path
+    assert_equal "Select only Active event sites for an audit.", flash[:alert]
+
+    post distillator_transition_batches_path, params: request
+    batch = Distillator::TransitionBatch.last
+    assert batch.audit?
+    assert_equal "thorough", batch.check_profile
+    follow_redirect!
+    assert_includes response.body, "Active audit · Thorough"
+    assert_select "li", text: /Thorough Active audit/
+    assert_select "li", text: /Pre-activation comparison/, count: 0
+
+    assert_no_difference "Distillator::TransitionBatch.count" do
+      post distillator_transition_batches_path, params: request.merge(workflow_action: "validate", check_profile: "thorough")
+    end
+    assert_equal "This request belongs to a different workflow action", flash[:alert]
+  end
+
+  test "batch diagnostics are unavailable while any site is unfinished" do
+    post distillator_transition_batches_path, params: params_for([@one.id, @two.id])
+    batch = Distillator::TransitionBatch.last
+    get distillator_transition_batch_path(batch, format: :json)
+    assert_not_includes response.parsed_body.fetch("html"), "Export diagnostics"
+
+    get diagnostics_distillator_transition_batch_path(batch, format: :json)
+    assert_response :conflict
+    assert_includes response.parsed_body.fetch("error"), "still running"
+  end
+
+  test "completed group exports capped examples by site and error kind from its recorded runs" do
+    post distillator_transition_batches_path, params: params_for([@one.id, @two.id]).merge(check_profile: "light")
+    batch = Distillator::TransitionBatch.last
+    first, second = batch.site_transitions.order(:position).to_a
+    pre = diagnostic_run(@one)
+    post = diagnostic_run(@one, status: "failed", error_message: "The worker stopped before the transition check finished.")
+    other = diagnostic_run(@two)
+    unrelated = diagnostic_run(@one)
+    failure = ->(url, code) { { url: url, fetch_status: "failed", http_response_code: code, fetch_reason: "http_#{code}" } }
+    urls = (1..4).map { |i| "https://example.org/event-#{i}" }
+    rows = urls.map { |url| failure.call(url, 404) } + [failure.call(urls.first, 410)]
+    rows << { url: urls.last, fetch_status: "passed", legacy_lookup_status: "unreachable",
+      legacy_fetch: { upstream_http_code: 429 }, legacy_lookup_error: "Wringer scrape was rate limited" }
+    rows << { url: urls[2], fetch_status: "passed", legacy_lookup_status: "ok", comparison_status: "failed",
+      compare_summary: { blocking_regressions: ["final_url"] } }
+    retired = (1..3).map { |i| { url: "https://example.org/past-#{i}", last_occurrence: 1.week.ago.iso8601 } }
+    diagnostic_evidence(pre, "fetch_parity", representative_url_results: rows,
+      event_inventory: { status: "confirmed_discovery", retired: retired })
+    diagnostic_evidence(unrelated, "fetch_parity", representative_url_results: [failure.call("https://example.org/unrelated", 500)])
+    diagnostic_evidence(other, "fetch_parity", representative_url_results: [failure.call(urls.first, 404)])
+    missing = { verdict: "MISSING_STATEMENT", core_field: true, legacy: nil, condenser: nil, property_label: "Location", source_id: 1945 }
+    diagnostic_evidence(pre, "statement_delta", statement_artifacts: urls.map { |url| missing.merge(webpage_url: url) })
+    diagnostic_evidence(pre, "export_diff", reason: "export_generation_failed",
+      error_class: "JsonldGenerator::EventSeriesConversionError", error_message: "Ambiguous venues")
+    historical_error = "Invalid URL: https://phantomjscloud.com/api/browser/v2/test-renderer-secret/?request=fixture"
+    first.update!(status: "attention", phase: "finished", pre_run: pre, post_run: post, completed_at: Time.current, reason: historical_error)
+    second.update!(status: "attention", phase: "finished", pre_run: other, completed_at: Time.current)
+
+    get distillator_transition_batch_path(batch, format: :json)
+    assert response.parsed_body.fetch("finished")
+    assert_includes response.parsed_body.fetch("html"), "Export diagnostics (JSON)"
+
+    assert_no_difference ["Distillator::TransitionRun.count", "Distillator::TransitionEvidence.count", "Distillator::RolloutEvent.count"] do
+      get diagnostics_distillator_transition_batch_path(batch, format: :json)
+    end
+    assert_response :success
+    assert_equal "application/json", response.media_type
+    assert_equal "no-store", response.headers["Cache-Control"]
+    assert_includes response.headers["Content-Disposition"], "transition-group-#{batch.id}-diagnostics.json"
+    assert_not_includes response.body, "test-renderer-secret"
+    assert_not_includes response.body, "unrelated"
+    report = response.parsed_body
+    assert_equal "light", report["check_profile"]
+    assert_equal({ "attention" => 2 }, report["status_counts"])
+    alpha, beta = report.fetch("sites")
+    issues = alpha.fetch("issues").index_by { |issue| issue["code"] }
+    assert_equal [pre.id, post.id], alpha.fetch("checks").pluck("run_id")
+    inventory = alpha.fetch("checks").first.fetch("event_inventory")
+    assert_equal 3, inventory.fetch("past_events_omitted")
+    assert_equal retired.first(2).pluck(:url), inventory.fetch("examples").pluck("url")
+    assert_equal 4, issues.fetch("http_404").fetch("recorded_occurrences")
+    assert_equal urls.first(2), issues.fetch("http_404").fetch("examples").pluck("url")
+    assert_equal 1, issues.fetch("http_410").fetch("examples").size
+    assert_equal ["Wringer"], issues.fetch("http_429").fetch("examples").pluck("backend")
+    assert_equal ["final_url"], issues.fetch("cache_comparison_failed").fetch("examples").first.fetch("fields")
+    assert_equal [1945, 1945], issues.fetch("shared_missing_required_field").fetch("examples").pluck("source_id")
+    assert_equal ["Ambiguous venues"], issues.fetch("export_generation_failed").fetch("examples").pluck("message")
+    assert_equal ["postcheck"], issues.fetch("run_failed").fetch("examples").pluck("phase")
+    assert_equal 1, beta.fetch("issues").first.fetch("recorded_occurrences")
+  end
+
+  test "empty selection and forged excluded sites never queue a workflow" do
+    [[], [@template.id], [@test_site.id], [@place.id]].each do |ids|
+      assert_no_difference ["Distillator::TransitionBatch.count", "Distillator::SiteTransition.count", "Distillator::RolloutEvent.count"] do
+        post distillator_transition_batches_path, params: params_for(ids)
+      end
+      assert_redirected_to websites_path
+      assert flash[:alert].present?
+    end
+  end
+
+  test "the group can request cancellation of its running site independently of queued sites" do
+    post distillator_transition_batches_path, params: params_for([@one.id, @two.id])
+    batch = Distillator::TransitionBatch.last
+    current, queued = batch.site_transitions.order(:position).to_a
+    current.update!(status: "running", phase: "precheck", phase_token: SecureRandom.hex, started_at: Time.current)
+
+    get distillator_transition_batch_path(batch)
+    assert_select "input[type=submit][value='Cancel current transition']", 1
+    assert_select "input[type=submit][value='Stop remaining sites']", 1
+    patch cancel_distillator_site_transition_path(queued)
+    assert_nil queued.reload.cancel_requested_at
+
+    patch cancel_distillator_site_transition_path(current), params: { from: "batch" }
+    assert_redirected_to distillator_transition_batch_path(batch)
+    requested_at = current.reload.cancel_requested_at
+    assert requested_at
+    assert_equal "running", current.status
+    assert_equal "queued", queued.reload.status
+    assert_nil batch.reload.stopped_at
+
+    patch cancel_distillator_site_transition_path(current)
+    assert_equal requested_at, current.reload.cancel_requested_at
+    get distillator_site_transition_path(current)
+    assert_includes response.body, "Cancellation requested. The current operation may need to finish"
+    assert_select "input[type=submit][value='Cancel current transition']", 0
+  end
+
+  test "successful site report has one verdict and links both checks without empty findings" do
+    post distillator_transition_batches_path, params: params_for([@one.id])
+    item = Distillator::SiteTransition.last
+    runs = 2.times.map do
+      @one.transition_runs.create!(status: "completed", requested_at: 2.minutes.ago, completed_at: Time.current,
+        configuration_digest: Distillator::TransitionFingerprint.call(@one))
+    end
+    ready = { state: "ready", fetch: "passed", statements: "passed", export: "passed", warnings: [], blockers: [] }
+    item.update!(status: "passed", phase: "finished", pre_run: runs[0], post_run: runs[1], final_mode: "active", final_backend: "condenser",
+      phase_results: { precheck: ready, postcheck: ready })
+    get distillator_site_transition_path(item)
+    assert_response :success
+    assert_select "h2", text: "Passed"
+    assert_select "details[id$='-findings']", count: 0
+    assert_includes response.body, "Pre-activation verification passed."
+    assert_includes response.body, "Active verification passed."
+    runs.each do |run|
+      assert_select "a[href='#{distillator_shadow_report_site_path(@one.id, run_id: run.id)}']", minimum: 1
+    end
+    item.update!(status: "attention", phase_results: { postcheck: ready.merge(state: "blocked", statements: "failed", blockers: ["Title differs"]) })
+    get distillator_site_transition_path(item, format: :json)
+    html = Nokogiri::HTML(response.parsed_body.fetch("html"))
+    assert_equal 1, html.css("details[open]").length
+    assert_includes html.text, "Title differs"
+  end
+
+  test "group results show one attention label and pin challenge inspection to the failed run" do
+    post distillator_transition_batches_path, params: params_for([@one.id, @two.id])
+    batch = Distillator::TransitionBatch.last
+    item = batch.site_transitions.order(:position).first
+    run = @one.transition_runs.create!(status: "completed", requested_at: 1.minute.ago, completed_at: Time.current,
+      configuration_digest: Distillator::TransitionFingerprint.call(@one))
+    item.update!(status: "attention", phase: "finished", pre_run: run, final_mode: "shadow", final_backend: "wringer",
+      reason: "Condenser: system_cloudflare; cloudflare; system_captcha; captcha — https://example.org/event")
+    get distillator_transition_batch_path(batch)
+    assert_response :success
+    assert_select 'tr[data-workflow-result="attention"]' do
+      assert_select 'td:nth-child(2)', text: "AttentionNot started"
+      assert_select 'p', text: /Condenser reported a Cloudflare\/CAPTCHA challenge/
+      assert_select 'a', text: "Inspect recorded failure", href: distillator_shadow_report_site_path(@one.id, run_id: run.id, anchor: "transition-fetch-issues")
+      assert_select 'details', text: /system_cloudflare/
+    end
+  end
+
+  test "run page processing progress and history based estimate are visible without claiming parity" do
+    started = 1.hour.ago
+    run = @one.transition_runs.create!(status: "completed", requested_at: started, started_at: started,
+      completed_at: started + 30.seconds, configuration_digest: Distillator::TransitionFingerprint.call(@one))
+    run.transition_evidences.create!(website: @one, url: @one.webpages.first.url, check_kind: "fetch_parity", status: "checked",
+      checked_at: run.completed_at, details: { representative_webpage_count: 1 })
+    source = @one.sources.create!(property: properties(:four), selected: true, language: "en", algorithm_value: "manual=Title")
+    [properties(:four), properties(:location), properties(:six)].each do |property|
+      current = property == properties(:four) ? source : @one.sources.create!(property: property, selected: true, language: "en", algorithm_value: "manual=Value")
+      Statement.create!(webpage: @one.webpages.first, source: current, cache: "2027-01-01", status: "ok")
+    end
+    Statement.where(webpage: @one.webpages.first).update_all(status: "ok")
+    assert_equal 60, Distillator::TransitionTimeEstimate.for_site(@one)
+    assert_nil Distillator::TransitionTimeEstimate.for_sites([@one, @two])[@two.id]
+    post distillator_transition_batches_path, params: params_for([@one.id])
+    item = Distillator::SiteTransition.last
+    @one.update_column(:distillator_mode, "shadow")
+    item.update!(status: "running", phase: "precheck", started_at: Time.current, phase_started_at: Time.current,
+      estimated_seconds: 60, expected_mode: "shadow")
+    working = Distillator::TransitionRun.request!(website: @one, workflow_item: item).run
+    working.update!(status: "running", started_at: Time.current)
+    working.record_progress!("fetch", completed: 3, total: 9)
+    item.update!(pre_run: working)
+    get distillator_site_transition_path(item, format: :json)
+    assert_response :success
+    assert_includes response.parsed_body["html"], "3/9 pages processed"
+    assert_includes response.parsed_body["html"], "based on previous checks"
+    assert_equal false, response.parsed_body["finished"]
+    assert_no_match /ready to activate/i, response.parsed_body["html"]
+  end
+
+  private
+
+  def complete_site_check(event, failed: false, eligible: 1, pages: [event], prepared: false, **options)
+    options = { sample_mode: "all", strictness: "strict" }.merge(options)
+    post distillator_transition_checks_path, params: { website_id: event.website_id, check_options: options }
+    run = event.website.transition_runs.last
+    assert_redirected_to distillator_transition_check_path(run)
+    run.execute do
+      record_discovery_proof(run, event) if prepared
+      record_site_check_evidence(run, event, failed: failed, eligible: eligible, pages: pages)
+    end
+    run.reload
+  end
+
+  def make_publishable(event)
+    [properties(:four), properties(:location), properties(:six)].each do |property|
+      source = event.website.sources.find_or_create_by!(property: property) do |row|
+        row.assign_attributes(language: "en", selected: true, algorithm_value: "manual=Value")
+      end
+      event.statements.create!(source: source, cache: "2027-01-01", status: "ok", selected_individual: true).update_column(:status, "ok")
+    end
+  end
+
+  def record_discovery_proof(run, event)
+    website = event.website
+    inventory = Distillator::TransitionEventInventory.new(as_of: Time.current).for_websites([website.id],
+      events: website.webpages.public_publishable_events.active).fetch(website.id)
+    run.update!(progress: {
+      discovery_prepared: true,
+      discovery_at_start: inventory.status,
+      validation_configuration: Distillator::TransitionFingerprint.configuration(website),
+      discovery_refresh: {
+        definition: Distillator::TransitionEventInventory.definition_digest(event.website_id),
+        refresh_completed_at: inventory.lists.pluck(:refresh_completed_at).max,
+        lists: inventory.lists.to_h { |list| [list.fetch(:webpage_id).to_s, list.fetch(:contents_digest)] }
+      }
+    })
+  end
+
+  def record_site_check_evidence(run, event, failed: false, eligible: 1, pages: [event])
+    fetch_details = { fetch_basis: "fresh_both", event_inventory: { status: "active_event_scope" },
+      representative_webpage_count: pages.size, publishable_event_page_count: eligible, representative_webpages: pages.map(&:url),
+      validation_coverage: { configuration: Distillator::TransitionFingerprint.configuration(event.website),
+        pages: pages.to_h { |page| [page.id.to_s, Distillator::TransitionFingerprint.event_page(page)] } } }
+    run.transition_evidences.create!(website: event.website, url: event.url, check_kind: "fetch_parity", status: "checked",
+      checked_at: run.completed_at || Time.current, details: fetch_details)
+    run.transition_evidences.create!(website: event.website, url: event.url, check_kind: "statement_delta",
+      status: failed ? "failed" : "checked", statement_count_delta_acceptable: !failed, checked_at: run.completed_at || Time.current,
+      details: { compared_webpage_count: pages.size })
+    run.transition_evidences.create!(website: event.website, url: event.url, check_kind: "export_diff",
+      status: "checked", export_diff_checked: true, checked_at: run.completed_at || Time.current)
+  end
+
+  def create_verified_resource_list(event)
+    list_class = RdfsClass.find_or_create_by!(name: "ResourceList")
+    page = event.website.webpages.create!(url: "#{event.url}/list", rdf_uri: "rdf:resource-list", rdfs_class: list_class)
+    {
+      AddWebpagesJob::RDF_CLASS_LABEL => "Event",
+      AddWebpagesJob::WEBPAGE_URL_LIST_LABEL => [event.url].to_json,
+      AddWebpagesJob::URI_LIST_LABEL => [event.rdf_uri].to_json
+    }.each do |label, cache|
+      property = Property.create!(rdfs_class: list_class, label: label, uri: "urn:inventory:#{label.parameterize}")
+      manual = label == AddWebpagesJob::RDF_CLASS_LABEL
+      source = event.website.sources.create!(property: property, selected: true, algorithm_value: manual ? "manual=#{cache}" : "xpath=//a")
+      page.statements.create!(source: source, cache: cache, status: "ok", selected_individual: true, manual: manual,
+        cache_refreshed: Time.current).update_column(:status, "ok")
+    end
+  end
+
+  def diagnostic_run(website, status: "completed", error_message: nil, check_options: {})
+    website.transition_runs.create!(status: status, requested_at: 1.minute.ago, completed_at: Time.current,
+      configuration_digest: Distillator::TransitionFingerprint.call(website), error_message: error_message, check_options: check_options)
+  end
+
+  def diagnostic_evidence(run, kind, **details)
+    run.transition_evidences.create!(website: run.website, url: run.website.webpages.first.url, check_kind: kind,
+      status: "failed", checked_at: run.completed_at, details: details)
+  end
+
+  def site(seed, schedule: 1, event: true)
+    website = Website.create!(name: seed, seedurl: seed, graph_name: "https://example.org/#{seed}", default_language: "en", schedule_every_days: schedule, distillator_mode: "legacy")
+    website.webpages.create!(url: "https://example.org/#{seed}", rdf_uri: "rdf:#{seed}", rdfs_class: event ? rdfs_classes(:one) : rdfs_classes(:place))
+    website
+  end
+
+  def params_for(ids)
+    { website_ids: ids.map(&:to_s), request_key: SecureRandom.uuid, selection_context: "q: culture*" }
+  end
+end

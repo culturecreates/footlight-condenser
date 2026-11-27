@@ -1,0 +1,218 @@
+# Transition comparison: data, reliability and diagnostics
+
+## Actionable fetch failures
+
+The report distinguishes Condenser request attempts from successful retrievals,
+available Wringer snapshots, complete snapshot pairs and pages actually compared.
+Counts come from the completed run's per-URL evidence. A missing per-URL count
+is shown as not recorded, never inferred as success from a current cache row.
+The old scope wording `fetched N` has been replaced with `Condenser fetch attempts`.
+
+Failed retrievals appear above collapsed diagnostics in an open table with the
+affected URL, backend, recorded HTTP status, error and a backend-specific inspection
+link. Failed URLs and request-budget exhaustion are different cases: the latter
+is attributed to the transition check, not a failed server. Incomplete statement
+coverage is explained as a consequence of the missing snapshot pair. Known actual
+statement/export failures still retain priority and remain visible.
+
+Retry transition check submits a new batch job with the completed run's immutable
+sample/strictness options; both backends fetch afresh. If another run is already
+pending, the report links to it instead. Historical reports show their findings
+without offering a retry as current guidance. No automatic retry or GET-triggered
+refresh is introduced, and activation safety criteria are unchanged.
+
+For future checks, `FetchCacheStore::Result#fetch_error` preserves the failed
+attempt's structured error separately from any last-good operational body. The
+runner records that error in the per-URL evidence. Existing runs can display only
+what was recorded at the time; the report never uses today's cache to invent the
+cause of an older failure. No additional database migration is needed.
+
+## Selected source scope
+
+Standard and Strict compare website-selected sources only (`Source.selected?`),
+including the read-only extracted-statement diagnostic. Strict changes how
+differences are classified; it does not include unselected alternative algorithms.
+An expanded property scope also remains selected-only. The shared comparator
+enforces selection even when callers supply source lists explicitly, and diagnostic
+source counts reflect the filtered list. An explicitly empty list remains empty.
+Unselected required fields cannot satisfy coverage. There is no implicit exhaustive
+or all-alternatives mode.
+
+## Fresh input policy
+
+Transition checks require new fetches from **both** backends for every sampled
+URL. Condenser uses its internal path with `force_scrape: true`. Wringer is called
+directly at the configured legacy backend's `/websites/wring.json` endpoint with
+`force_scrape=true`, using the same rendering option. Normal fetches omit the
+`use_phantomjs` parameter entirely because older Wringer versions test presence.
+There is no cached-list lookup or hydration fallback in this check path.
+
+Wringer may return last-good HTML after an upstream failure. The check requires
+both a successful API response and an explicit upstream 2xx code, no failed
+signals/abort policy, and a nonempty HTML string. Failure, missing success proof,
+malformed JSON or a timeout leaves the legacy snapshot unavailable. Paired
+extraction then remains inconclusive and cannot authorize activation. Condenser
+cache hits and failed fresh results likewise cannot supply a comparison body.
+
+Each freshly fetched pair is reused for all selected source comparisons within
+that run. Request timestamps and response codes are retained in per-URL evidence;
+`fetch_basis: fresh_both` identifies the policy. Fetching still writes operational
+caches, but comparisons consume this run's responses, never older retained HTML.
+The two requests are sequential and close in time, not an atomic website snapshot;
+live content may still change between them and genuine field differences remain
+blocking. Reconciliation reuse within a run is unchanged.
+
+The comparison-policy version is part of the configuration fingerprint. Earlier
+cached-legacy runs remain available for historical inspection but are stale for
+activation; run a new check after deployment. Rollout modes and audit history are
+not changed. No schema migration is required.
+
+Read-only cache/statement diagnostic GET pages still inspect stored snapshots and
+are explicitly labeled as such. They do not generate activation evidence. Use a
+transition batch check for a new comparison of fresh backend results.
+
+The cache inspection summary reports **Stored cache comparison**, never activation
+readiness. It shows HTTP codes, HTML byte counts, hash/title agreement and the next
+step. Only actual differences appear in grouped tables; equal fields remain in the
+closed detailed comparison. Provenance, settings and raw payloads are also closed
+by default.
+
+Timestamp equality uses parsed instants at the lower recorded fractional precision
+of the two values. Seconds-only timestamps cannot establish a microsecond difference;
+two precise timestamps can. Invalid, missing or timezone-ambiguous values are not
+coerced into matches. Redirect chains compare destination sequences after removing
+an optional starting URL. A singleton starting URL is equivalent to no redirects
+only when it does not contradict a recorded redirect or a different final URL.
+Loops and real route differences remain different. Original timestamp and chain
+values remain in the evidence; title and final-destination safety checks are unchanged.
+
+Transition checks validate selected extracted values, required-field coverage and
+export serialization. Cache diagnostics support this decision; they are not a
+requirement to reproduce Wringer's monitoring limitations.
+
+**Transition context** is a native details/summary infobox, closed on each page by
+default. Its summary gives mode and active backend; expansion shows website
+identity, the latest recorded check state and up to three transition-specific
+links. It does not calculate readiness, fetch cache diagnostics or render action
+forms. The website page owns operations; the pinned report owns evidence and
+decisions. A completed background job is labeled Completed, never Passed without
+examining its comparison report.
+
+| Observation | Treatment |
+| --- | --- |
+| Wringer lacks HTTP, content or transport telemetry; Condenser records a healthy value | Additional Condenser diagnostics; no review requirement |
+| Different hashes or HTML byte counts, with the same selected extracted values | Keep the raw difference as diagnostics; no automatic parity failure from hashes |
+| Different real document titles | Keep the existing title safety blocker |
+| Different known final destinations | Review in operator cache policy; block in strict cache policy |
+| A redirect is newly observed without a legacy destination baseline | Additional diagnostics; actual unsafe content/fetch failures still block |
+| Explicit failed transport/content, HTTP failure, empty HTML or blocking issue | Independent fetch safety failure, including when Wringer reports the same failure |
+| Selected values differ | Core differences block Standard; all selected differences block Strict |
+| Missing snapshots, source coverage, required values or interrupted comparison | Incomplete/failed evidence cannot authorize activation |
+
+Strict field comparison and the cache diagnostic policy are separate settings.
+Neither requires identical diagnostic metadata. A passing cache comparison alone
+never establishes statement or export parity. Existing evidence and accepted
+rollout history are not rewritten; run a new check to use the corrected policy.
+
+The report presents one decision and next step, with the completed run's **Data
+field comparison: Standard/Strict** beside its ID. The separate **Cache diagnostics
+policy** is labeled **Review known destination changes** or **Block known
+destination changes**, including on the cache-comparison page. The existing API
+values `operator` and `strict` are retained for links and stored evidence.
+
+Benign diagnostic notes do not reduce evidence confidence. Missing, stale,
+incomplete or review-needed evidence still lowers confidence as before; optional
+statement differences retain Medium confidence. Confidence describes the evidence,
+not a separate activation decision. Blocking checks and warnings always take
+priority over a promotion recommendation, even when diagnostic notes are present.
+
+Redundant per-row diagnostic captions, duplicate cache links and a repeated export
+URL are suppressed in presentation. The underlying diagnostics and historical
+readiness snapshots are preserved. These presentation/confidence changes require
+only a page reload after deployment, not a new comparison run or migration.
+
+Parity does not establish that the source website's data is correct. Identical
+incorrect timezone offsets on both sides still require a separate data-quality
+check.
+
+# Why tiny websites were slow
+
+Transition checks now compare locally formatted selected-source values. For
+linked-data fields, they compare the ordered terms that would go to
+reconciliation, using the same whitespace normalization as a lookup. Dates,
+durations, and built-in mappings still use the ordinary formatter. The report
+and group diagnostics identify the value stage. Artsdata availability is outside
+this check. DSL errors, required values, fresh fetches, and export verification
+still follow their existing rules.
+
+The benchmarks below describe the earlier transition path, which ran
+reconciliation during parity. The response cache is still available to
+diagnostics that compare reconciled values and to Databus replay.
+
+The uploaded staging logs for Petit Théâtre show:
+
+| Run | Scope | Total | Sum of native fetch durations |
+| --- | --- | ---: | ---: |
+| 9 | 5 pages, Strict | 113.44s | 0.605s |
+| 10 | 9 pages, Standard | 197.95s | 0.976s |
+
+All nine native fetches completed within about four seconds. Date-format log
+clusters then progressed roughly once every 16–27 seconds, consistent with most
+time being spent in sequential source comparisons. The old logs do not time
+individual fields or reconciliation calls, so they cannot prove which lookups
+dominated that particular run.
+
+The comparator runs every selected DSL source against both snapshots and formats
+both outputs. URI formatting can query Artsdata after a local lookup. The old
+path repeats identical requests on both sides and across pages. Organization
+expansion also repeats the same Person query. The latter is now served from the
+run cache rather than changing ordinary reconciliation semantics.
+
+A controlled probe used the real comparator, formatter and local lookups, with
+instant simulated HTTP responses. Each synthetic page had Title, Location,
+Organizer and Performer; venue and organizer were shared and performer differed
+per page. Both snapshots agreed, and selected-source execution counts were
+unchanged.
+
+| Pages | DSL executions | Previous HTTP requests | Requests with run-scoped reuse |
+| ---: | ---: | ---: | ---: |
+| 1 | 8 | 10 | 4 |
+| 9 | 72 | 90 | 12 |
+| 100 | 800 | 1,000 | 103 |
+
+These are measured request counts for the synthetic configuration, not staging
+speed promises. Local work with instant HTTP was around 1.5 seconds for 100 pages
+in both cases. Real elapsed savings depend on external latency and site sources.
+At the old observed rate of roughly 22 seconds/page, 100 pages would take around
+37 minutes and 300 around 110 minutes: a linear projection, not a benchmark.
+
+# Boundaries and measurement in the earlier reconciliation path
+
+`ComparisonRefreshProxy` was created once per transition run and shared by its
+page comparators. Its cache holds parsed raw reconciliation responses keyed by the
+exact request URL, including query, type, endpoint and structured region
+constraints. Valid empty results are reused. Responses are copied; per-page
+filtering and self-link exclusion still run separately. A new run gets a new
+cache, so results never leak into another run, operator or normal refresh.
+
+Only comparison lookups use the ten-second HTTP timeout. Non-success statuses,
+invalid response shapes, error payloads and exceptions are never cached as
+successful empty matches. They remain extraction errors and cannot certify
+parity. Ordinary statement refresh behavior is unchanged.
+
+The run's existing deadline is checked between pages, source sides and before
+formatting. Interrupted pages are inconclusive; already detected critical
+differences are retained. The final run-publication gate still checks its lease
+and configuration digest. These checkpoints do not forcibly interrupt arbitrary
+Ruby DSL code inside a single step.
+
+Each source artifact records separate extraction and formatting times for both
+sides. Export phase evidence holds a `performance` snapshot with phase durations
+and the ten slowest sources. A single `distillator.transition.performance` log
+entry summarizes the run. The pinned report shows this under **Where time was
+spent**. Older reports retain reconciliation request, reuse, error, and HTTP
+timings. Their HTTP timing is part of formatting time.
+
+Use the phase and source timings to diagnose slow checks. A new Le Patriote
+Thorough check can verify its Event type values and measure the effect of
+removing downstream reconciliation from parity.

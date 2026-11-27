@@ -1,11 +1,33 @@
 
+<% rollout_statement = @statements.first %>
+<% if rollout_statement.present? %>
+  <p class="rollout-note">
+    <%= statement_rollout_badge(rollout_statement) %>
+    <span><%= statement_rollout_explanation(rollout_statement) %></span>
+    <%= render "shared/source_page_view_link", webpage: rollout_statement.webpage, label: "View webpage" %>
+  </p>
+  <%= render "shared/source_page_preview" %>
+<% end %>
+
 <ul>
 <% @statements.each do |statement| %>
   <%= statement.source.selected ? "<li>".html_safe : "<ul><li> Alternative".html_safe  %>
   <%= statement.source.property[:label] %>
   <%= format_language statement.source[:language] %>
   -->
-  <%= statement[:cache] %>
+  <%= link_webpage_urls(statement[:cache]) %>
+  <% cache_links = statement_cache_links(statement) %>
+  <% if cache_links[:active_cache_url].present? %>
+    <%= link_to cache_links[:label], cache_links[:active_cache_url] %>
+    <%= operator_active_backend_badge(cache_links) %>
+    <% cache_links[:secondary_links].each do |link| %>
+      | <%= link_to link[:label], link[:url] %>
+    <% end %>
+    <% if cache_links[:warning].present? %>
+      | <span><%= cache_links[:warning] %></span>
+    <% end %>
+  <% end %>
+  <%= link_to "Diagnose refresh", distillator_refresh_preview_url_for(statement.webpage.url) %>
  <%= statement.source.selected ? "" : "</ul>".html_safe %>
 <% end %>
 </ul>

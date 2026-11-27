@@ -1,0 +1,26 @@
+<% if events.any? %>
+  <ul>
+    <% events.each do |event| %>
+      <li>
+        <% cutover = event.readiness_snapshot["event"] == Distillator::VerifiedCutover::EVENT %>
+        <strong><%= Distillator::WebsiteOperationStatus.event_label(event) %></strong> · <%= event.created_at.strftime("%Y-%m-%d %H:%M %Z") %>
+        <% if event.reason.present? || event.readiness_snapshot["blockers"].present? || event.readiness_snapshot["warnings"].present? %>
+          <details class="rollout-audit-details">
+            <summary><%= cutover ? "Cutover evidence" : Distillator::WebsiteOperationStatus.reviewed?(event) ? "Warnings accepted at activation" : "Readiness snapshot at decision time" %></summary>
+            <% if cutover %>
+              <p>Cutover date: <%= Time.iso8601(event.readiness_snapshot.fetch("completed_at")).in_time_zone %></p>
+              <p>Confirmed by: <%= event.actor %></p>
+              <p>Evidence: <%= event.reason %></p>
+            <% elsif event.reason.present? %>
+              <p>Reason: <%= event.reason %></p>
+            <% end %>
+            <% if event.readiness_snapshot["blockers"].present? %><p>Blockers at that time: <%= Array(event.readiness_snapshot["blockers"]).join(", ") %></p><% end %>
+            <% if event.readiness_snapshot["warnings"].present? %><p>Warnings at that time: <%= Array(event.readiness_snapshot["warnings"]).join(", ") %></p><% end %>
+          </details>
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+<% else %>
+  <p>No rollout events recorded yet.</p>
+<% end %>

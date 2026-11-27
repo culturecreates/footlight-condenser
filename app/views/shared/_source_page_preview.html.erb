@@ -1,0 +1,15 @@
+<div id="source-page-preview" class="source-page-preview" popover="manual" role="dialog"
+     aria-labelledby="source-page-preview-title" hidden>
+  <header class="source-page-preview__bar">
+    <div class="source-page-preview__identity">
+      <strong id="source-page-preview-title">Webpage preview</strong>
+      <span class="source-page-preview__url" data-preview-url></span>
+    </div>
+    <div class="source-page-preview__actions">
+      <a data-preview-external target="_blank" rel="noopener noreferrer">Open source ↗</a>
+      <button type="button" data-preview-close>Close</button>
+    </div>
+  </header>
+  <iframe title="Source webpage" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
+  <p class="source-page-preview__hint">If the preview is blank or blocked, choose Open source.</p>
+</div>

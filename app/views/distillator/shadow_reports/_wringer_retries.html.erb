@@ -1,0 +1,42 @@
+<% if retries.any? %>
+  <% recovered = retries.count { |entry| entry[:recovered] } %>
+  <details class="website-rollout-panel" id="transition-wringer-retries">
+    <summary>Wringer retries · <%= recovered %> recovered · <%= retries.size - recovered %> incomplete</summary>
+    <table class="cache-table">
+      <thead><tr><th scope="col">Page</th><th scope="col">Outcome</th><th scope="col">Fresh attempts</th></tr></thead>
+      <tbody>
+        <% retries.each do |row| %>
+          <tr>
+            <td><%= external_website_link(row[:url], max: 130) if row[:url].present? %></td>
+            <td>
+              <%= row[:recovered] ? "Recovered" : "Incomplete" %>
+              <% if row[:retry_stopped].present? %>
+                <br><%= { "attempt_limit" => "Retry limit reached", "transition_budget" => "Check time budget reached",
+                           "retry_after_exceeds_limit" => "Retry-After exceeds the backoff limit" }.fetch(row[:retry_stopped], row[:retry_stopped].humanize) %>
+              <% end %>
+            </td>
+            <td>
+              <% if row[:attempts].any? %>
+                <ol>
+                  <% row[:attempts].each do |attempt| %>
+                    <li>
+                      <% parts = [] %>
+                      <% parts << "Wringer HTTP #{attempt[:response_http_code]}" if attempt[:response_http_code] %>
+                      <% parts << "Source HTTP #{attempt[:upstream_http_code]}" if attempt[:upstream_http_code] %>
+                      <% parts << attempt[:error_class] if attempt[:error_class].present? %>
+                      <% parts << "#{(attempt[:duration_ms].to_f / 1000).round(2)}s" %>
+                      <% parts << "#{attempt[:backoff_seconds]}s before retry" if attempt[:backoff_seconds] %>
+                      <%= parts.join(" · ") %>
+                    </li>
+                  <% end %>
+                </ol>
+              <% else %>
+                No request started
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </details>
+<% end %>

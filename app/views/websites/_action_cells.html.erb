@@ -1,0 +1,22 @@
+<% if action %>
+  <td><span class="website-action-priority website-action-priority--<%= action.priority %>"><%= action.priority == :progress ? "In progress" : action.priority.to_s.upcase %></span></td>
+  <td class="website-action-issue" data-action-code="<%= action.code %>">
+    <strong><%= action.title %></strong>
+    <% if (count = action.evidence[:event_count]) %>
+      <small class="muted"> · <%= pluralize(count, "event") %></small>
+    <% end %>
+  </td>
+  <td class="website-action-next">
+    <% if action.operation == :details %>
+      <button type="button" data-website-details aria-expanded="false" aria-controls="website-details-<%= website.id %>"
+              aria-label="Inspect evidence for <%= website.name %>" data-closed-label="Inspect evidence" data-open-label="Close evidence" hidden>Inspect evidence</button>
+      <noscript><%= link_to "Inspect website", website %></noscript>
+    <% else %>
+      <%= website_action_link(website, action) %>
+    <% end %>
+  </td>
+<% else %>
+  <td>—</td>
+  <td>No action identified</td>
+  <td>—</td>
+<% end %>
