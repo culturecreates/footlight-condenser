@@ -51,17 +51,22 @@ module Websites
         uri_map = uris.to_h { |uri| [uri, test_uri(uri)] }
         raise InvalidCopy, "URI namespace collision" if Webpage.where(rdf_uri: uri_map.values).exists?
 
-        copy = Website.create!(
+        website_attributes = {
           name: "#{@source.name} [QA copy]",
           seedurl: @seedurl,
           graph_name: @source.graph_name,
           default_language: @source.default_language,
-          province: @source.province, city: @source.city,
           test_copy_of_website: @source,
           monitorable: false, preferred: false,
           schedule_every_days: nil, schedule_time: nil, last_refresh: nil,
           distillator_mode: "shadow", transition_check_requested_at: nil
-        )
+        }
+        # Some staging snapshots predate the optional place-reconciliation fields.
+        # Preserve them when installed, without requiring unrelated migrations.
+        %w[province city].each do |column|
+          website_attributes[column] = @source[column] if Website.column_names.include?(column)
+        end
+        copy = Website.create!(website_attributes)
 
         source_map = sources.to_h do |src|
           cloned = copy.sources.create!(src.attributes.except("id", "website_id", "created_at", "updated_at"))
