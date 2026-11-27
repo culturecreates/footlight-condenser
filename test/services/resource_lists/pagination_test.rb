@@ -2,6 +2,9 @@ require "test_helper"
 
 module ResourceLists
   class PaginationTest < ActiveSupport::TestCase
+    # Pure pagination review does not require database fixtures.
+    self.fixture_table_names = []
+
     Page = Struct.new(:id, :url, :website_id, :discovery_target_website_id, :language, :rdf_uri, keyword_init: true)
 
     test "shared URI and distinct URI pages accept a trailing empty tail" do
