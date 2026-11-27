@@ -33,6 +33,29 @@ class AddWebpagesJobTest < ActiveJob::TestCase
     assert Webpage.exists?(url: "https://example.org/events/2", website: @resource_list_page.website)
   end
 
+  test "QA copied ResourceList rejects original-site RDF URIs at import" do
+    copy = Website.create!(name: "Danse Danse QA", seedurl: "dansedansetest-ca",
+      graph_name: "https://example.org/dansedansetest-ca", default_language: "fr",
+      test_copy_of_website: @resource_list_page.website)
+    cloned_page = copy.webpages.create!(url: @resource_list_page.url,
+      rdf_uri: "http://kg.footlight.io/resource/dansedansetest-ca_rl",
+      language: @resource_list_page.language, rdfs_class: @resource_list_page.rdfs_class)
+    [@rdf_class_statement, @uri_list_statement, @url_list_statement].each do |original|
+      cloned_source = original.source.dup
+      cloned_source.website = copy
+      cloned_source.save!
+      cloned_page.statements.create!(source: cloned_source, cache: original.cache,
+        status: "ok", selected_individual: true, manual: true)
+    end
+
+    assert_no_difference("Webpage.count") do
+      error = assert_raises(AddWebpagesJob::InvalidResourceListError) do
+        AddWebpagesJob.perform_now(cloned_page.id, refresh_new: false)
+      end
+      assert_match(/outside the copied website namespace/, error.message)
+    end
+  end
+
   test "scheduled discovery imports a linked Event ResourceList into its target website" do
     owner = @resource_list_page.website
     target = Website.create!(name: "Event target", seedurl: "target", graph_name: "https://example.org/target", default_language: "en")
