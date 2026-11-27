@@ -41,7 +41,8 @@ def fetch_page(uri, origin)
       http.request(request)
     end
     if response.is_a?(Net::HTTPRedirection)
-      target = URI.join(uri.to_s, response.fetch("location"))
+      raise "Redirect without Location" if response["location"].to_s.empty?
+      target = URI.join(uri.to_s, response["location"].to_s)
       raise "Unsafe redirect to #{target}" unless target.scheme == "https" &&
         !target.userinfo && same_origin?(target, origin)
       uri = target
@@ -72,8 +73,23 @@ limit.times do |offset|
       nil
     end
   end
-  prefix = "#{start.path.chomp('/')}/"
-  events = hrefs.select { |link| link.path.start_with?(prefix) && link.path != start.path }.map(&:to_s).uniq
+  # Without an explicit site-specific XPath we cannot distinguish event links
+  # from navigation/category links. Keep the count diagnostic, not authoritative.
+  event_xpath = ENV["EVENT_LINK_XPATH"]
+  events = if event_xpath.to_s.strip.empty?
+    []
+  else
+    doc.xpath(event_xpath).filter_map do |node|
+      begin
+        raw = node.is_a?(Nokogiri::XML::Attr) ? node.value : node["href"]
+        next if raw.to_s.strip.empty?
+        link = URI.join(final_url.to_s, raw)
+        link.to_s if same_origin?(link, start)
+      rescue URI::InvalidURIError
+        nil
+      end
+    end.uniq
+  end
   pager = hrefs.select { |link| link.path == start.path &&
     URI.decode_www_form(link.query.to_s).any? { |key, _| key == "page" } }.map(&:to_s).uniq
   path = File.join(output, "page#{number}.html")
@@ -82,12 +98,14 @@ limit.times do |offset|
     fetched_at: requested_at, status: response.code.to_i, bytes: content.bytesize,
     sha256: Digest::SHA256.hexdigest(content), event_link_count: events.length,
     sample_events: events.first(3), numbered_links: pager,
+    event_link_xpath: event_xpath, title: doc.at_xpath("//title")&.text.to_s.strip,
+    challenge_hint: content.match?(/captcha|cloudflare|verify you are human|access denied|just a moment/i),
     next_link_observed: pager.include?(begin
       next_page = url.dup
       next_page.query = URI.encode_www_form(parameters.map { |key, value| [key, key == "page" ? (number + 1).to_s : value] })
       next_page.to_s
     end) }
-  puts "page=#{number} status=#{response.code} event_urls=#{events.length} pager_links=#{pager.length} bytes=#{content.bytesize}"
+  puts "page=#{number} status=#{response.code} candidate_event_urls=#{events.length} pager_links=#{pager.length} bytes=#{content.bytesize} challenge_hint=#{captures.last[:challenge_hint]}"
   sleep(0.5) if offset < limit - 1
 end
 
