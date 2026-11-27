@@ -132,6 +132,8 @@ class AddWebpagesJobTest < ActiveJob::TestCase
   end
 
   test "fixed valid non-event classes are excluded from event inventory and retain normal discovery" do
+    # This class used to come from the global rdfs_classes fixture.
+    RdfsClass.find_or_create_by!(name: "Place")
     @rdf_class_statement.source.update!(algorithm_value: "manual=Place")
     @rdf_class_statement.update_columns(cache: "Place", status: "initial", manual: true)
 
