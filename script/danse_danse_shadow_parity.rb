@@ -19,8 +19,13 @@ when "capture"
 when "compare"
   abort "Supply a different report path" if output.nil? || File.expand_path(path) == File.expand_path(output)
   baseline = JSON.parse(File.read(path))
-  abort "Snapshot site mismatch" unless baseline.fetch("website").fetch("seedurl") == seedurl
+  baseline_seedurl = baseline.fetch("website").fetch("seedurl")
   shadow = Distillator::WebsiteShadowSnapshot.call(seedurl: seedurl)
+  # Comparing the original to its explicitly linked QA clone is allowed.
+  # A different, unrelated site must never pass through identity normalization.
+  if seedurl != baseline_seedurl && shadow["test_copy_origin_seedurl"] != baseline_seedurl
+    abort "Snapshot site mismatch: #{seedurl} is not a QA copy of #{baseline_seedurl}"
+  end
   result = Distillator::WebsiteShadowParity.call(baseline: baseline, shadow: shadow)
   File.write(output, JSON.pretty_generate({
     site: seedurl, status: result.status, differences: result.differences,
