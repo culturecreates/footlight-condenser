@@ -1,0 +1,13 @@
+{
+  "start_url": "https://example.org/events",
+  "record_xpath": "//article[contains(@class,'event')]",
+  "next_xpath": "//a[@rel='next']/@href",
+  "terminal_xpath": "//button[@aria-label='Next'][@disabled]",
+  "max_pages": 30,
+  "max_skew_seconds": 600,
+  "pages": [
+    { "url": "https://example.org/events", "file": "page1.html", "fetched_at": "2026-11-27T14:00:00Z" },
+    { "url": "https://example.org/events?page=2", "file": "page2.html", "fetched_at": "2026-11-27T14:00:15Z" },
+    { "url": "https://example.org/events?page=3", "file": "page3.html", "fetched_at": "2026-11-27T14:00:30Z" }
+  ]
+}
