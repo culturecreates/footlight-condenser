@@ -79,6 +79,7 @@ module Websites
               "source_id" => source_map.fetch(stat.source_id),
               "webpage_id" => page_map.fetch(stat.webpage_id),
               "cache" => map_cache(stat.cache, uri_map),
+              "fetch_provenance" => {},
               "created_at" => now, "updated_at" => now
             )
           end)
