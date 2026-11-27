@@ -8,8 +8,11 @@ class ShortPageStopTest < Minitest::Test
     ResourceLists::ShortPageStop.stop?(previous_count: previous, current_count: current)
   end
 
-  def test_hector_charland_stops_on_page_five_after_including_23_links
-    assert stop?(42, 23)
+  def test_hector_charland_stops_on_page_five_after_including_108_links
+    refute stop?(127, 127)
+    assert stop?(127, 108)
+    assert stop?(108, 85)
+    refute stop?(85, 85)
   end
 
   def test_full_pages_do_not_stop
