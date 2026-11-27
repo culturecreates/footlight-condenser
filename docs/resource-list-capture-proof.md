@@ -59,19 +59,16 @@ Locally verified: **11 tests, 23 assertions, 0 failures/errors** (Ruby 3.3.8). F
 
 ## Configurable 90% short-page heuristic (experimental)
 
-For sites with a stable per-page number of event links, the user-selected
-stopping rule is: **include the current page and stop when its extracted event
-link count is strictly less than 90% of the previous page's count.**
+For sites with a stable number of HTML anchors on full calendar pages, the user-selected
+stopping rule is: **include the current page and stop when its total number of
+`//a[@href]` links is strictly less than 90% of the previous page's count.**
 
 `ResourceLists::ShortPageStop.stop?(previous_count:, current_count:)`
 uses exact integer comparison (`current_count * 10 < previous_count * 9`)
 to avoid floating-point ambiguity. The first page cannot trigger this rule;
-previous count zero cannot trigger it. Counts must represent successfully
-extracted event URLs, not all page anchors. The page that triggers the rule
-is **included**.
+previous count zero cannot trigger it. Counts are **all HTML anchors having an href**, not event-only URLs. Both pages must be successfully fetched and parsed. The page that triggers the rule is **included**.
 
-Hector-Charland captured example: 42, 42, 42, 42, 23 ⇒ stop after page 5,
-191 distinct URLs; boundary probes pages 6 and 7 each have zero events.
+Hector-Charland captured example, all anchors: **127, 127, 127, 127, 108** ⇒ stop after page 5 (108/127 = 85%). The event-specific extraction independently found **191 distinct event URLs**. Boundary pages 6 and 7 have 85 anchors and zero event URLs. All-anchor counting is used **only to detect the short page**, not to populate discovered event URLs.
 
 **Trust boundary:** this heuristic is *not* a completeness proof: filters,
 dynamic loads, intermittent site failures, and naturally uneven page sizes
