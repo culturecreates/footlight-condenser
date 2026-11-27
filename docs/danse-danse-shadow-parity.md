@@ -71,8 +71,10 @@
 - Zero final selected-statement differences (all properties, including optional data).
 - Zero added or removed RDF graph statements after only test identities are normalized.
 
-## Focused Rails tests (not yet run here)
+## Focused Rails tests and remaining blocker
 
 `bin/rails test test/services/websites/create_test_copy_test.rb test/jobs/refresh_website_job_test.rb test/jobs/add_webpages_job_test.rb test/integration/qa_shared_webpage_url_test.rb test/services/resource_lists/keyed_calendar_alignment_test.rb test/services/resource_lists/keyed_calendar_extractor_test.rb test/services/distillator/website_shadow_parity_test.rb`
 
-**Environment constraint:** The assistant runtime cannot run the Rails/PG17 suite or access the user's WSL test database. The known fixture-loading FK error remains unresolved; no claim of a passing Rails suite or executed keyed QA import has been made.
+**Verified 2026-11-27 on WSL Rails 8/PG17:** the three keyed-calendar unit test files (`danse_danse_keyed_qa_refresh_test.rb`, `keyed_calendar_alignment_test.rb`, `keyed_calendar_extractor_test.rb`) passed: **14 runs, 40 assertions, 0 failures, 0 errors, 0 skips**. These pure tests explicitly disable database fixtures. The saved-input QA script also returned `APPLIED: 8 bilingual pairs`, created 0 webpages, persisted the same 8 RDF identities in both languages, and post-import original/QA parity each returned `PASSED; Graph +0 -0`.
+
+**Still blocked:** fixture-backed Rails integration tests load related tables in a way that fails at `properties.rdfs_class_id` foreign-key validation on the dedicated `footlight_condenser_keyed_qa_test` database. `Mocha::Mockery.teardown` also fails after the fixture setup exception. PostgreSQL `session_replication_role` SET permission is a possible explanation, but not yet confirmed. Do not alter production privileges or weaken foreign-key constraints. The assistant cannot execute WSL's Rails/PG17 suite; the passing numbers above are user-supplied test output.
