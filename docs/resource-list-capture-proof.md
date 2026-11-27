@@ -114,3 +114,42 @@ Hitting the cap is **not** a successful completion signal. The cap limits
 requests and prevents unbounded loops; it does not make an incomplete
 ResourceList authoritative. A site with many unrelated navigation links
 may never cross the 90% threshold, so the cap is especially important.
+
+
+## Filters are immutable across numbered pages; repeated HTML is inconclusive
+
+For ResourceLists with selected categories, date intervals, language, venue,
+page size or other query parameters, **only** the designated numeric pagination
+parameter can change. `ResourceLists::NumberedPageQuery` preserves the complete
+multiset of query parameters, including repeated `typeevenement[]` keys and
+empty parameters. It supports `page`, `pag`, `p`, `pageNumber`, `p_numb`
+and zero-based pagination. Set `PAGE_PARAMETER` if multiple supported keys occur.
+The live probe rejects an effective response URL whose host, path, pagination
+value, or selected filters differ from the configured request (for example,
+a redirect that silently resets category selection). This guard does not prove
+server-side application of filters when the response URL remains unchanged.
+
+The Chasse-galerie user trial returned ten HTTP 200 responses with **40 links
+and no pagination links on each page**; 9 responses were exactly 51,296 bytes
+and the tenth 51,298 bytes. That makes repeated/unapplied pagination plausible,
+but bytes alone do not establish identical page contents. The probe now stops
+on two consecutive byte-identical HTML responses with
+`stop_reason: "repeated_content"`, not a completion claim. Dynamic HTML may
+prevent exact repetition even if event inventories repeat; a semantic event-set
+fingerprint requires an explicit event selector and will be added separately.
+
+Run:
+
+```bash
+bundle exec ruby test/services/resource_lists/numbered_page_query_test.rb
+bundle exec ruby script/resource_list_numbered_probe.rb \
+ 'https://www.chasse-galerie.ca/fr/calendrier?page=1&number_items=48' 10 \
+ /tmp/resource-list-trials/chasse-galerie-filtered
+# Another supported page parameter:
+PAGE_PARAMETER=pag bundle exec ruby script/resource_list_numbered_probe.rb \
+ 'https://example.org/calendar?pag=1&category=concert' 5 /tmp/test-pag
+```
+
+Never use the short-page heuristic, repeated content, or max-page cap as
+permission to delete or archive existing events. On ambiguity, retain last-good
+ResourceList discovery and surface an incomplete refresh.
