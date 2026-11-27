@@ -99,7 +99,8 @@ limit.times do |offset|
     sha256: Digest::SHA256.hexdigest(content), event_link_count: events.length,
     sample_events: events.first(3), numbered_links: pager,
     event_link_xpath: event_xpath, title: doc.at_xpath("//title")&.text.to_s.strip,
-    challenge_hint: content.match?(/captcha|cloudflare|verify you are human|access denied|just a moment/i),
+    challenge_hint: !!(doc.at_xpath("//title")&.text.to_s.match?(/just a moment|attention required|access denied|verify you are human|checking your browser/i) ||
+      doc.at_css("#challenge-stage, #challenge-form, [id^='cf-chl-']")),
     next_link_observed: pager.include?(begin
       next_page = url.dup
       next_page.query = URI.encode_www_form(parameters.map { |key, value| [key, key == "page" ? (number + 1).to_s : value] })
