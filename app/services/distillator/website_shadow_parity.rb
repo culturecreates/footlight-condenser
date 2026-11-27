@@ -112,12 +112,39 @@ module Distillator
       end
       @baseline = @baseline.merge("statements" => baseline_statements)
 
-      export = JSON.generate(map_value(JSON.parse(@shadow.fetch("export_jsonld")), new_to_old))
+      # JSON-LD uses expanded RDF IRIs, including identities derived from an event
+      # (e.g. #Offer, #PostalAddress). Webpage.rdf_uri may be a compact footlight:
+      # identifier; mapping it verbatim would not match the original exported RDF.
+      graph_uri_map = new_to_old.transform_values { |uri| JsonldGenerator.full_uri(uri) }
+      export = JSON.generate(map_graph_value(JSON.parse(@shadow.fetch("export_jsonld")), graph_uri_map))
       [
         @shadow.merge("website" => mapped_website, "event_sources" => mapped_sources,
           "webpages" => mapped_pages, "statements" => mapped_statements),
         export
       ]
+    end
+
+    def map_graph_value(value, mapping)
+      case value
+      when String
+        return mapping.fetch(value) if mapping.key?(value)
+
+        # Only rewrite a descendant of a known, deterministic clone event URI.
+        # Never normalize unrelated URIs, RDF predicates or arbitrary seedurl text.
+        mapping.each do |copied_uri, original_uri|
+          next unless value.start_with?("#{copied_uri}#")
+
+          suffix = value.delete_prefix(copied_uri).delete_prefix("#")
+          # JsonldGenerator.build_uri joins with "-" if the parent already
+          # contains a fragment, otherwise with "#".
+          joiner = original_uri.include?("#") ? "-" : "#"
+          return "#{original_uri}#{joiner}#{suffix}"
+        end
+        value
+      when Array then value.map { |item| map_graph_value(item, mapping) }
+      when Hash then value.transform_values { |item| map_graph_value(item, mapping) }
+      else value
+      end
     end
 
     def map_cached_uri(cache, mapping)
