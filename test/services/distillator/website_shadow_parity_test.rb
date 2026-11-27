@@ -71,6 +71,35 @@ class Distillator::WebsiteShadowParityTest < ActiveSupport::TestCase
     assert_includes result.differences.keys, "statements"
   end
 
+  test "clone graph normalizes derived event fragments without normalizing unrelated URI objects" do
+    original = snapshot
+    event_uri = "http://kg.footlight.io/resource/dansedanse-ca_a"
+    original["webpages"] = [["https://example.org/fr/a", event_uri, "fr", "Event", nil]]
+    original["statements"] = []
+    original["event_sources"] = []
+    original["export_jsonld"] = {
+      "@id" => event_uri,
+      "http://schema.org/offers" => { "@id" => "#{event_uri}#Offer",
+        "http://schema.org/price" => "30" },
+      "http://schema.org/location" => { "@id" => "http://kg.artsdata.ca/resource/K1" }
+    }.to_json
+
+    copy = Marshal.load(Marshal.dump(original))
+    copy["website"]["seedurl"] = "dansedansetest-ca"
+    copy["website"]["name"] = "Danse Danse QA"
+    copy["test_copy_origin_seedurl"] = "dansedanse-ca"
+    copied_uri = Websites::CreateTestCopy.test_uri(event_uri, seedurl: "dansedansetest-ca")
+    copy["webpages"][0][1] = copied_uri
+    copy["export_jsonld"] = original["export_jsonld"].gsub(event_uri, copied_uri)
+    assert Distillator::WebsiteShadowParity.call(baseline: original, shadow: copy).passed?
+
+    # An actual change to an unrelated linked location is not normalized away.
+    copy["export_jsonld"] = copy["export_jsonld"].sub("/K1", "/K2")
+    result = Distillator::WebsiteShadowParity.call(baseline: original, shadow: copy)
+    assert_equal "failed", result.status
+    assert_includes result.differences.keys, "artsdata_graph"
+  end
+
   test "non-ResourceList source changes fail strict parity" do
     after = snapshot
     after["event_sources"] = [{"id" => 12, "algorithm_value" => "xpath=//h2"}]
