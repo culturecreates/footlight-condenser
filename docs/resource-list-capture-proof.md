@@ -56,3 +56,35 @@ Locally verified: **11 tests, 23 assertions, 0 failures/errors** (Ruby 3.3.8). F
 **Terminal signal requirement:** The example `terminal_xpath` looks for a disabled Next button. Adapt it to a real, independently identifiable DOM signal on your site's last page. Absence of a Next anchor is *not* sufficient: if there is no independent HTML terminal signal, the result is expected to be `incomplete`. This is a limitation to document, not a reason to invent terminal evidence. For AJAX-only or infinite-scroll sites, the collector needs a later API/JS capture adapter rather than pretending the HTML contains link-based pagination.
 
 **Known limitations:** This initial script does not validate extracted event identities, duplicate cards, actual network responses or source-provided HTTP provenance. It does not substitute for live page coverage, bilingual alignment, or export parity. The record XPath should be chosen to identify one card per event, not a page container. The `next_xpath` must return at most one `@href` attribute. HTML snapshots must correspond to the saved URLs in the manifest.
+
+## Configurable 90% short-page heuristic (experimental)
+
+For sites with a stable per-page number of event links, the user-selected
+stopping rule is: **include the current page and stop when its extracted event
+link count is strictly less than 90% of the previous page's count.**
+
+`ResourceLists::ShortPageStop.stop?(previous_count:, current_count:)`
+uses exact integer comparison (`current_count * 10 < previous_count * 9`)
+to avoid floating-point ambiguity. The first page cannot trigger this rule;
+previous count zero cannot trigger it. Counts must represent successfully
+extracted event URLs, not all page anchors. The page that triggers the rule
+is **included**.
+
+Hector-Charland captured example: 42, 42, 42, 42, 23 ⇒ stop after page 5,
+191 distinct URLs; boundary probes pages 6 and 7 each have zero events.
+
+**Trust boundary:** this heuristic is *not* a completeness proof: filters,
+dynamic loads, intermittent site failures, and naturally uneven page sizes
+can make a page unexpectedly short. In particular, a partially populated
+page followed by additional pages would cause premature termination.
+Therefore a threshold stop is recorded as `heuristic_short_page` and must
+not be converted into `verified_no_next_link` or cause automatic
+deletion/archiving of previously discovered events. Keep max-page caps,
+explicit fetch validation, snapshot provenance and last-good preservation.
+The stricter `PaginationCaptureProof` contract remains unchanged.
+
+Run the standalone tests:
+
+```bash
+bundle exec ruby test/services/resource_lists/short_page_stop_test.rb
+```
