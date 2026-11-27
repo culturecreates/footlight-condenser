@@ -1,5 +1,7 @@
 # README
 
+**New to Condenser or reviewing the changes since the production baseline?** Start with the [developer handoff and change map](docs/DEVELOPER_HANDOFF.md), which links the current migration, DSL, scheduling, monitoring, deployment and test documentation. Git branch state does not itself establish the deployed production SHA.
+
 Footlight Condenser Server used with Footlight **Wringer Server**, Footlight **Code Snippet Server**, and Footlight **Console Servers** (multiple skins)
 
 Distillator migration fetch modes, replay behavior, refresh UI guarding, and rollback notes are documented in [docs/distillator_migration.md](docs/distillator_migration.md).
