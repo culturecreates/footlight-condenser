@@ -103,6 +103,15 @@ class Distillator::WebsiteShadowParityTest < ActiveSupport::TestCase
     assert_includes result.differences.keys, "artsdata_graph"
   end
 
+  test "QA comparison requires original website name rather than silently accepting an incomplete baseline" do
+    original = snapshot
+    original["website"].delete("name")
+    copy = Marshal.load(Marshal.dump(original))
+    copy["test_copy_origin_seedurl"] = "dansedanse-ca"
+    copy["website"]["seedurl"] = "dansedansetest-ca"
+    assert_raises(KeyError) { Distillator::WebsiteShadowParity.call(baseline: original, shadow: copy) }
+  end
+
   test "non-ResourceList source changes fail strict parity" do
     after = snapshot
     after["event_sources"] = [{"id" => 12, "algorithm_value" => "xpath=//h2"}]
@@ -114,7 +123,8 @@ class Distillator::WebsiteShadowParityTest < ActiveSupport::TestCase
   def snapshot
     {
       "schema_version" => 1,
-      "website" => {"seedurl" => "dansedanse-ca", "graph_name" => "https://example.org"},
+      "website" => {"name" => "Danse Danse", "seedurl" => "dansedanse-ca",
+        "graph_name" => "https://example.org", "default_language" => "fr"},
       "event_sources" => [{"id" => 12, "algorithm_value" => "xpath=//h1"}],
       "webpages" => [["https://example.org/fr/a", "footlight:a", "fr", "Event", nil]],
       "statements" => [
