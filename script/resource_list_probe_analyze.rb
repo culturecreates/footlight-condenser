@@ -66,7 +66,8 @@ page_results = captures.map do |capture|
   challenge = !!(title.match?(/just a moment|attention required|access denied|verify you are human|checking your browser/i) ||
     doc.at_css("#challenge-stage, #challenge-form, [id^='cf-chl-']"))
   {
-    page: number, title: title, events: urls.size, pager_numbers: pager_numbers,
+    page: number, title: title, events: urls.size,
+    all_links: doc.xpath("//a[@href]").length, pager_numbers: pager_numbers,
     next_link_observed: capture["next_link_observed"], challenge_hint: challenge,
     html_sha256: capture["sha256"]
   }
@@ -74,7 +75,7 @@ end
 
 short_page_stop = page_results.each_cons(2).find do |previous, current|
   current[:page] == previous[:page] + 1 &&
-    ResourceLists::ShortPageStop.stop?(previous_count: previous[:events], current_count: current[:events])
+    ResourceLists::ShortPageStop.stop?(previous_count: previous[:all_links], current_count: current[:all_links])
 end
 short_page_stop_page = short_page_stop&.last&.fetch(:page)
 
@@ -100,7 +101,7 @@ result = {
 output = File.join(File.dirname(path), "probe-analysis.json")
 File.write(output, JSON.pretty_generate(result))
 page_results.each do |row|
-  puts "page=#{row[:page]} events=#{row[:events]} pager=#{row[:pager_numbers].join(',')} " \
+  puts "page=#{row[:page]} events=#{row[:events]} all_links=#{row[:all_links]} pager=#{row[:pager_numbers].join(',')} " \
     "next=#{row[:next_link_observed]} challenge=#{row[:challenge_hint]}"
 end
 puts "unique_event_urls=#{seen.size} duplicate_across_pages=#{duplicate_urls.size} " \
