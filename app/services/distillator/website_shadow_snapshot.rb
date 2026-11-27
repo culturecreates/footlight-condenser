@@ -26,6 +26,7 @@ module Distillator
       # JSON round-trip normalizes Rails Time/Date and DB scalar serialization.
       JSON.parse(JSON.generate({
         "schema_version" => 1,
+        "test_copy_origin_seedurl" => site.test_copy_of_website&.seedurl,
         "website" => site.attributes.slice("name", "seedurl", "graph_name", "default_language"),
         "event_sources" => event_sources,
         "webpages" => pages.map { |page| [page.url, page.rdf_uri, page.language.to_s,
