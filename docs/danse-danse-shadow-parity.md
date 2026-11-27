@@ -77,4 +77,11 @@
 
 **Verified 2026-11-27 on WSL Rails 8/PG17:** the three keyed-calendar unit test files (`danse_danse_keyed_qa_refresh_test.rb`, `keyed_calendar_alignment_test.rb`, `keyed_calendar_extractor_test.rb`) passed: **14 runs, 40 assertions, 0 failures, 0 errors, 0 skips**. These pure tests explicitly disable database fixtures. The saved-input QA script also returned `APPLIED: 8 bilingual pairs`, created 0 webpages, persisted the same 8 RDF identities in both languages, and post-import original/QA parity each returned `PASSED; Graph +0 -0`.
 
-**Still blocked:** fixture-backed Rails integration tests load related tables in a way that fails at `properties.rdfs_class_id` foreign-key validation on the dedicated `footlight_condenser_keyed_qa_test` database. `Mocha::Mockery.teardown` also fails after the fixture setup exception. PostgreSQL `session_replication_role` SET permission is a possible explanation, but not yet confirmed. Do not alter production privileges or weaken foreign-key constraints. The assistant cannot execute WSL's Rails/PG17 suite; the passing numbers above are user-supplied test output.
+**Updated Rails regression evidence, 2026-11-27 (user-run WSL, Rails 8.0.2 / PG17):** To avoid the shared fixture loader's foreign-key trigger permission problem, the focused suites construct valid related records through ActiveRecord or disable fixtures when none are needed. No schema or permission changes were made.
+- Keyed alignment/extraction/QA DSL: **14 runs, 40 assertions, 0 failures, 0 errors, 0 skips**.
+- QA copy, shared URL isolation, strict shadow parity: **16 runs, 65 assertions, 0 failures, 0 errors, 0 skips**.
+- `AddWebpagesJobTest`: **18 runs, 98 assertions, 0 failures, 0 errors, 0 skips**.
+- Aggregate across three **separate** runs: **48 tests, 203 assertions**, all passed. These have not yet been rerun as one combined test invocation.
+- Original and QA-copy post-import comparisons each returned `Shadow parity: PASSED; Graph +0 -0`; persisted alignment: EN/FR 8 URLs and 8 matching RDF identities, 0 new webpages.
+
+**Remaining:** run combined tests, then related refresh/pagination integration tests and failure/recovery paths. Other legacy tests may still be blocked by global fixture loading. Keep PR in draft; do not relax database integrity or Artsdata export invariants. The assistant cannot directly run WSL tests; these counts are from user-supplied output.
