@@ -2,6 +2,9 @@ require "test_helper"
 
 module ResourceLists
   class KeyedCalendarExtractorTest < ActiveSupport::TestCase
+    # Pure keyed calendar tests must not load unrelated database fixtures.
+    self.fixture_table_names = []
+
     ITEMS = "//li[contains(concat(' ',normalize-space(@class),' '),' listingShows_wrapper ')]".freeze
     URL = ".//h3[contains(@class,'listingShows_title')]/a/@href".freeze
     KEY = ".//div[contains(@class,'listingShows_imgWrapper')]//img/@src".freeze
