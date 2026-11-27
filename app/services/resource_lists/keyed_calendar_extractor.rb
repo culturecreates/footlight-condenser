@@ -14,12 +14,14 @@ module ResourceLists
       end
     end
 
-    def self.call(html:, base_url:, item_xpath:, url_xpath:, key_xpath:)
-      new(html: html, base_url: base_url, item_xpath: item_xpath, url_xpath: url_xpath, key_xpath: key_xpath).call
+    def self.call(html:, base_url:, item_xpath:, url_xpath:, key_xpath:, key_mode: :raw)
+      new(html: html, base_url: base_url, item_xpath: item_xpath, url_xpath: url_xpath, key_xpath: key_xpath, key_mode: key_mode).call
     end
 
-    def initialize(html:, base_url:, item_xpath:, url_xpath:, key_xpath:)
+    def initialize(html:, base_url:, item_xpath:, url_xpath:, key_xpath:, key_mode:)
       @html, @base_url, @item_xpath, @url_xpath, @key_xpath = html, base_url, item_xpath, url_xpath, key_xpath
+      @key_mode = key_mode.to_sym
+      raise ArgumentError, "Unsupported key mode: #{@key_mode}" unless %i[raw url_last_segment].include?(@key_mode)
     end
 
     def call
@@ -38,7 +40,7 @@ module ResourceLists
           next
         end
         raw_url = urls.first.text.to_s.strip
-        key = keys.first.text.to_s.strip
+        key = normalize_key(keys.first.text.to_s.strip)
         if key.empty? || raw_url.empty?
           errors << "blank_key_or_url: #{index}"
           next
@@ -58,6 +60,15 @@ module ResourceLists
       Result.new(records: records, errors: errors)
     rescue Nokogiri::XML::XPath::SyntaxError => e
       Result.new(records: [], errors: ["invalid_xpath: #{e.message}"])
+    end
+
+    private
+
+    def normalize_key(value)
+      return value if @key_mode == :raw
+      URI.parse(value).path.to_s.split("/").reject(&:empty?).last.to_s
+    rescue URI::InvalidURIError
+      ""
     end
   end
 end
