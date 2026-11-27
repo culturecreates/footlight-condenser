@@ -153,3 +153,39 @@ PAGE_PARAMETER=pag bundle exec ruby script/resource_list_numbered_probe.rb \
 Never use the short-page heuristic, repeated content, or max-page cap as
 permission to delete or archive existing events. On ambiguity, retain last-good
 ResourceList discovery and surface an incomplete refresh.
+
+
+## Chasse-galerie: link inventory stall check
+
+The HTML hashes differ across pages 1–4, but 40 anchors and 25 unique raw
+href destinations were observed on each. This suggests comparing the
+**destinations**, rather than byte-for-byte HTML; equality of counts alone
+does not establish equality of sets.
+
+`ResourceLists::LinkInventory.fingerprint` uses a sorted unique list of
+raw href values (not anchor text or other dynamic HTML). The experimental
+live probe now reports `link_inventory_sha256` and
+`repeated_links` and terminates with
+`repeated_link_inventory` when consecutive page
+inventories are identical. This is **inconclusive**, not a complete calendar:
+the site might require JS fetching, or have event data without anchor links.
+
+Test against the **already saved HTML** before another network probe:
+
+```bash
+bundle exec ruby -rnokogiri -rdigest -rjson -e '
+  previous = nil
+  (1..4).each do |page|
+    file = "/tmp/resource-list-trials/chasse-galerie-repeat/page#{page}.html"
+    doc = Nokogiri::HTML(File.binread(file))
+    hrefs = doc.xpath("//a[@href]").map { |a| a["href"].strip }.uniq.sort
+    sha = Digest::SHA256.hexdigest(JSON.generate(hrefs))
+    puts "page=#{page} distinct_links=#{hrefs.size} href_sha=#{sha[0,12]} same_as_previous=#{previous == sha}"
+    previous = sha
+  end
+'
+```
+
+If inventories differ, compare the actual href values or site-specific
+event cards rather than assuming they repeat. Keep all Source category
+and date filters invariant when the numeric page parameter changes.
