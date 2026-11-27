@@ -189,3 +189,52 @@ bundle exec ruby -rnokogiri -rdigest -rjson -e '
 If inventories differ, compare the actual href values or site-specific
 event cards rather than assuming they repeat. Keep all Source category
 and date filters invariant when the numeric page parameter changes.
+
+
+## Native rendered ResourceLists: filtered URL contract and bounded QA
+
+The active Condenser implementation routes `render_js=true` from a Source
+through `Distillator::FetchService` (native eligibility) to
+`Distillator::RenderedFetch` and
+`Distillator::PhantomjsFetcher`. The Wringer compatibility endpoint
+`/websites/wring?use_phantomjs=true` also uses the Distillator cache store
+and native rendered fetch; it is not evidence of a separate JavaScript renderer.
+Default `DISTILLATOR_RENDERER` is `legacy_phantomjs`;
+disabled rendering aborts, and missing `PHANTOMJS_API_KEY` must not
+fall back to unrendered HTML.
+
+A renderer request parameter must encode the entire JSON payload, rather than
+interpolating the target URL (with `&` and `?`) directly into its
+query string. Previous requests risked splitting repeated category selectors
+into top-level PhantomJSCloud query keys. The renderer JSON now round-trips
+filtered calendar URLs and retains iframe and wait settings. Regression tests
+cover `number_items`, repeated `typeevenement[]`,
+`pageNumber` and URL-encoded values, including an active
+`FetchService.fetch_result(mode: :internal, render_js: true)` path.
+
+For a **small, explicitly authorized paid-renderer live trial**, use:
+
+```bash
+cd ~/rails-upgrade/githubed/footlight-condenser-pagination
+bundle exec rails test test/services/distillator/phantomjs_fetcher_test.rb \
+  test/services/distillator/rendered_fetch_test.rb
+# Makes at most 3 PhantomJSCloud calls (each may incur charges).
+bin/rails runner script/resource_list_rendered_probe.rb \
+  'https://www.chasse-galerie.ca/fr/calendrier?page=1&number_items=48' \
+  3 /tmp/resource-list-trials/chasse-rendered
+```
+
+The rendered probe calls `FetchService.fetch_result` directly without
+calling `FetchCacheStore`, saving or refreshing Statements, or
+importing Webpages. It stores per-page rendered HTML and diagnostic metadata,
+and stops on an AJAX shell still empty after rendering, a challenge response,
+two consecutive identical link destination sets, a less-than-90%-link page,
+or a request cap. All stop reasons remain `complete=UNVERIFIED`;
+no event deletion, archiving, or automated production cutover follows.
+
+**Unverified:** the actual configured category choices may be dynamically
+applied by the site's JavaScript rather than query parameters; checking URLs
+and HTML counts is not enough to assert selected-category correctness. Compare
+rendered card identities, configured Source XPath, and category selection
+before considering completeness. Do not force an unrendered fallback if the
+renderer is unavailable.
