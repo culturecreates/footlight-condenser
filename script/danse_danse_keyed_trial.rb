@@ -43,10 +43,22 @@ missing = alignment.pairs.filter_map do |pair|
   absent = pair.urls.reject { |_, url| existing.key?(url) || url.nil? }
   {key: pair.key, missing: absent, urls: pair.urls} if absent.any?
 end
-old_list = Statement.joins(:webpage).where(source_id: 1340, webpages: { website_id: site.id })
-  .order(cache_refreshed: :desc, id: :desc).limit(1).pick(:cache)
-old_urls = old_list ? JSON.parse(old_list) : []
-abort "Prior Source #1340 cache is not a JSON array" unless old_urls.is_a?(Array)
+list_class = RdfsClass.find_by!(name: "ResourceList")
+list_caches = Statement.joins(:webpage, source: :property)
+  .where(webpages: { website_id: site.id, rdfs_class_id: list_class.id },
+    properties: { label: AddWebpagesJob::WEBPAGE_URL_LIST_LABEL },
+    sources: { language: "en", selected: true }, selected_individual: true)
+  .order("webpages.url ASC", "statements.id ASC").pluck(:cache)
+abort "No selected English ResourceList URL lists found" if list_caches.empty?
+old_urls = list_caches.flat_map do |cache|
+  begin
+    value = JSON.parse(cache)
+    raise ArgumentError, "not an array" unless value.is_a?(Array)
+    value
+  rescue JSON::ParserError, ArgumentError => error
+    abort "Prior English ResourceList cache is invalid: #{error.message}"
+  end
+end.uniq
 new_urls = alignment.pairs.filter_map { |pair| pair.urls["en"] if pair.urls.values.none?(&:nil?) }
 manifest = {
   seedurl: seedurl, inputs: inputs,
@@ -54,7 +66,7 @@ manifest = {
   alignment_digest: alignment.digest, pair_count: alignment.pairs.size,
   unmatched_translation_keys: alignment.unmatched.map(&:key),
   conflicts: conflicts, currently_missing_webpages: missing,
-  current_en_source_id: 1340,
+  current_en_resource_list_count: list_caches.size,
   removed_vs_source_1340: old_urls.uniq - new_urls.uniq,
   added_vs_source_1340: new_urls.uniq - old_urls.uniq,
   pairs: alignment.pairs.map { |pair| {key: pair.key, urls: pair.urls,
@@ -62,6 +74,6 @@ manifest = {
 }
 File.write(output, JSON.pretty_generate(manifest))
 puts "Keys=#{alignment.pairs.size}; conflicts=#{conflicts.size}; incomplete=#{alignment.unmatched.size}; new candidate URLs=#{missing.size}"
-puts "EN source #1340 difference: -#{manifest[:removed_vs_source_1340].size} +#{manifest[:added_vs_source_1340].size}"
+puts "EN ResourceLists difference: -#{manifest[:removed_vs_source_1340].size} +#{manifest[:added_vs_source_1340].size}"
 puts "Saved #{output} without database changes"
 abort "Alignment blocked by conflicts/missing translations" unless alignment.complete? && conflicts.empty?
