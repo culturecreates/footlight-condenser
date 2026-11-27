@@ -3,6 +3,9 @@ class Website < ApplicationRecord
   # They intentionally do not expose Distillator's internal execution naming.
   DISTILLATOR_MODES = %w[legacy shadow active].freeze
 
+  belongs_to :test_copy_of_website, class_name: "Website", optional: true
+  validates :seedurl, presence: true, uniqueness: { case_sensitive: false }
+
   has_many :transition_exclusions, class_name: "Distillator::TransitionExclusion", dependent: :destroy
   has_many :transition_runs, class_name: "Distillator::TransitionRun", dependent: :destroy
   has_many :webpages, dependent: :destroy
@@ -93,6 +96,8 @@ class Website < ApplicationRecord
 
   # These are the persisted prerequisites the refresh scheduler can act on.
   def refresh_scheduled?
+    return false if test_copy_of_website_id.present?
+
     schedule_every_days.to_i.positive? && schedule_time.present? && last_refresh.present?
   end
 
