@@ -238,3 +238,28 @@ and HTML counts is not enough to assert selected-category correctness. Compare
 rendered card identities, configured Source XPath, and category selection
 before considering completeness. Do not force an unrendered fallback if the
 renderer is unavailable.
+
+
+## Local PostgreSQL 17 test database bootstrap
+
+The checked-in `db/schema.rb` declares `enable_extension "pg_stat_statements"`,
+which a normal PostgreSQL role cannot install. For an **isolated local test DB**,
+install the extension using PostgreSQL superuser **once per database** before
+loading the schema; never point Rails test schema loading at a staging database.
+
+```bash
+createdb -p 5433 footlight_condenser_pagination_test
+sudo -u postgres psql -p 5433 -d footlight_condenser_pagination_test \
+  -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements;'
+env 'FOOTLIGHT-CONDENSER-DB_TEST=footlight_condenser_pagination_test' \
+  PGPORT=5433 RAILS_ENV=test bin/rails db:schema:load
+env 'FOOTLIGHT-CONDENSER-DB_TEST=footlight_condenser_pagination_test' \
+  PGPORT=5433 bundle exec rails test \
+  test/services/distillator/phantomjs_fetcher_test.rb \
+  test/services/distillator/rendered_fetch_test.rb
+```
+
+The legacy `FOOTLIGHT-CONDENSER-DB_TEST` environment variable contains
+hyphens, so set it using `env 'KEY=value'` rather than shell assignment.
+This installation is only a test environment prerequisite and does not
+change migration or Artsdata export contracts.
