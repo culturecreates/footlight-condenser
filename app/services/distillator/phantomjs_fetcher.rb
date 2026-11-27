@@ -1,4 +1,5 @@
 require "json"
+require "uri"
 
 module Distillator
   class PhantomjsFetcher
@@ -34,10 +35,16 @@ module Distillator
 
     def self.request_url(url:, iframe:)
       api_key = ENV.fetch("PHANTOMJS_API_KEY")
-      output_as_json = iframe ? "true" : "false"
-      request = "{url:%22#{url}%22,renderType:%22html%22,outputAsJson:#{output_as_json},requestSettings:{ignoreImages:true, waitInterval:2500 }}"
-
-      "#{PHANTOMJS_BASE_URL}/#{api_key}/?request=#{request}"
+      request = {
+        url: url,
+        renderType: "html",
+        outputAsJson: !!iframe,
+        requestSettings: { ignoreImages: true, waitInterval: 2500 }
+      }
+      # PhantomJSCloud requires encoding the entire request JSON. Without it,
+      # a target URL containing '&' splits into unrelated renderer query keys,
+      # silently losing configured categories, date filters, and page size.
+      "#{PHANTOMJS_BASE_URL}/#{api_key}/?#{URI.encode_www_form(request: JSON.generate(request))}"
     end
 
     def self.extract_iframe_content(result)
