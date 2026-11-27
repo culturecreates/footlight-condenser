@@ -1,6 +1,9 @@
 require "test_helper"
 
 class Distillator::WebsiteShadowParityTest < ActiveSupport::TestCase
+  # Pure snapshot comparison: unrelated fixtures are unnecessary.
+  self.fixture_table_names = []
+
   BASE_JSONLD = '{"@context":{"schema":"http://schema.org/"},"@id":"http://example.org/event","schema:name":"One"}'.freeze
   CHANGED_JSONLD = '{"@context":{"schema":"http://schema.org/"},"@id":"http://example.org/event","schema:name":"Different"}'.freeze
 
