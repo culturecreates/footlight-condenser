@@ -5,12 +5,18 @@ class RefreshWebpageJobTest < ActiveJob::TestCase
   self.fixture_table_names = []
 
   setup do
+    @previous_queue_adapter = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :test
     @event_class = RdfsClass.find_or_create_by!(name: "Event")
     site = Website.create!(name: "Refresh job original", seedurl: "refresh-job-original",
       graph_name: "https://example.org/refresh-original", default_language: "en")
     @original_page = site.webpages.create!(url: "https://example.org/events/source",
       language: "en", rdf_uri: "http://kg.footlight.io/resource/refresh_job_original",
       rdfs_class: @event_class)
+  end
+
+  teardown do
+    ActiveJob::Base.queue_adapter = @previous_queue_adapter if @previous_queue_adapter
   end
 
   test "URL-only refresh fails closed when source and clone share a URL" do
