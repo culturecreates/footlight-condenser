@@ -1,6 +1,19 @@
 require "test_helper"
 
 class Distillator::WringerSystemErrorMatcherTest < ActiveSupport::TestCase
+  test "binary VCR HTML is safe to classify including French browser challenges" do
+    event = '<html><head><title>Événement culturel</title></head><body><h1>Événement culturel</h1></body></html>'.b
+    assert_nil match_for(body: event, http_code: 200)
+
+    challenge = '<html><head><title>Un instant, s’il vous plaît…</title></head><body><p>Votre demande est en cours de vérification, veuillez patienter…</p></body></html>'.b
+    issue = match_for(body: challenge, http_code: 200)
+    assert_equal "browser_challenge_interstitial", issue&.dig(:key)
+    assert_equal "page_identity", issue&.dig(:match_details, :source)
+
+    invalid = "<html><title>Caf\xE9</title><body>Ordinary event</body></html>".b
+    assert_nil match_for(body: invalid, http_code: 200)
+  end
+
   test "Co-motion Reservatech integration scripts are not a waiting room" do
     html = Rails.root.join("test/fixtures/files/distillator_dsl/co_motion_ticketing_assets.html").read
     assert_nil match_for(body: html, http_code: 200)

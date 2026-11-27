@@ -30,7 +30,14 @@ module Distillator
 
     def initialize(body:, http_code:, final_url:, hints:, signals:, rules:, logger:)
       @body_value = body
-      @body = body.to_s
+      # VCR/HTTP clients may label UTF-8 HTML as ASCII-8BIT. Decode only the
+      # matcher copy; never mutate the original response or stored cache body.
+      decoded = Distillator::HtmlContent.decode(body.to_s, html: true)
+      @body = if decoded.encoding == Encoding::UTF_8 && decoded.valid_encoding?
+        decoded
+      else
+        decoded.b.force_encoding(Encoding::UTF_8).scrub
+      end
       @http_code = http_code.to_i
       @final_url = final_url.to_s
       @hints = Array(hints).map(&:to_s)
