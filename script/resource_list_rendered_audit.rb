@@ -8,6 +8,7 @@
 require "json"
 require "time"
 require_relative "../app/services/resource_lists/rendered_card_audit"
+require_relative "../app/services/resource_lists/rendered_terminal_evidence"
 
 manifest_path = File.expand_path(ARGV.fetch(0))
 manifest = JSON.parse(File.read(manifest_path))
@@ -27,6 +28,21 @@ pages = captures.map do |capture|
 end
 audit = ResourceLists::RenderedCardAudit.analyze(pages: pages)
 audit[:generated_at] = Time.now.utc.iso8601
+# Explicit opt-in: an empty marker is site-specific and cannot be inferred
+# safely from an arbitrary blank page or a generic "no links" observation.
+empty_text = ENV["RESOURCE_LIST_TERMINAL_TEXT"].to_s
+if !empty_text.strip.empty?
+  evidence = ResourceLists::RenderedTerminalEvidence.call(
+    manifest: manifest, audit: audit, exact_empty_text: empty_text
+  )
+  audit[:terminal_evidence] = {
+    status: evidence.status, errors: evidence.errors,
+    terminal_page: evidence.terminal_page, observed_cards: evidence.observed_cards,
+    reported_total: evidence.reported_total, digest: evidence.digest,
+    verified_completeness: false
+  }
+  puts "terminal_evidence=#{evidence.status} errors=#{evidence.errors.inspect} complete=UNVERIFIED"
+end
 output = File.join(File.dirname(manifest_path), "rendered-card-audit.json")
 File.write(output, JSON.pretty_generate(audit))
 

@@ -296,3 +296,40 @@ FOOTLIGHT_CONDENSER_DB_TEST=footlight_condenser_pagination_test PGPORT=5433 \
 
 Unit test execution results are **not yet verified** on the local WSL PostgreSQL
 instance after this focused fix.
+
+
+## Explicit rendered empty-tail candidate (read-only, opt-in)
+
+For a site with a validated, exact empty-page message, the saved rendered
+card audit can evaluate a **terminal candidate** without new paid requests.
+The Chasse-galerie capture has 48 + 44 dated cards, reports 92 items on each
+page, and renders a single empty-results paragraph on page 3.
+
+\`ResourceLists::RenderedTerminalEvidence\` checks consecutive numbered-page
+receipts, unchanged query filters (including repeated values), saved HTML
+SHA-256 digests, native renderer/challenge flags, a bounded capture time span,
+one nonempty event card per DOM child, stable numeric reported totals, card
+**occurrences** (not distinct hrefs), and the exact configured empty paragraph.
+A failed check is \`inconclusive\`; a pass is only \`terminal_candidate\`.
+
+Run on the existing saved HTML without network or database calls:
+
+\`\`\`bash
+bundle exec ruby test/services/resource_lists/rendered_terminal_evidence_test.rb
+RESOURCE_LIST_TERMINAL_TEXT="Il n'y a aucun événement" \
+  bundle exec ruby script/resource_list_rendered_audit.rb \
+  /tmp/resource-list-trials/chasse-rendered/probe.json
+\`\`\`
+
+The new \`terminal_evidence\` section in \`rendered-card-audit.json\` includes
+errors, card count, reported total, receipt digest, and
+\`verified_completeness: false\`. No terminal inference runs unless the exact
+site-specific text is explicitly supplied. Observed request URLs do **not**
+prove that the server actually applied the category filters.
+
+**Do not feed this result into \`PaginationCaptureProof\` as
+\`verified_no_next_link\`.** That class requires an observed next-link chain,
+which AJAX pagination does not supply. A later explicit adapter needs separate
+pagination-transition provenance and selected Source/identity validation.
+Maintain the last-good ResourceList on any uncertainty; never archive from
+this diagnostic or the short-page heuristic.

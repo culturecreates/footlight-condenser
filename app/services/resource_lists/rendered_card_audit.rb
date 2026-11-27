@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "digest"
 require "nokogiri"
 require "uri"
 
@@ -29,6 +30,9 @@ module ResourceLists
         {
           page: page,
           requested_url: url,
+          html_sha256: Digest::SHA256.hexdigest(html),
+          terminal_message: cards.length == 1 && cards.first[:tag] == "p" && cards.first[:raw_hrefs].empty? ?
+            container.element_children.first.text.to_s.gsub(/\s+/, " ").strip : nil,
           container_found: !container.nil?,
           direct_elements: cards.length,
           unique_raw_hrefs: cards.flat_map { |item| item[:raw_hrefs] }.uniq.size,
