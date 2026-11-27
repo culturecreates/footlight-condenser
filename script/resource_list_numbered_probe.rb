@@ -3,9 +3,11 @@
 # Bounded, read-only collection of known ?page=N calendar URLs for local QA.
 # It collects evidence; it does NOT infer a complete calendar or run imports.
 #
+# Default: at most 25 pages. Optional explicit limit: 1..50 pages.
 # bundle exec ruby script/resource_list_numbered_probe.rb \
-#   'https://hector-charland.com/programmation-spectacles?page=1' 5 \
+#   'https://hector-charland.com/programmation-spectacles?page=1' \
 #   /tmp/resource-list-trials/hector-charland
+# bundle exec ruby script/resource_list_numbered_probe.rb URL 5 OUTPUT_DIR
 require "digest"
 require "fileutils"
 require "json"
@@ -13,13 +15,15 @@ require "net/http"
 require "nokogiri"
 require "time"
 require "uri"
+require_relative "../app/services/resource_lists/short_page_stop"
 
+abort "Usage: resource_list_numbered_probe.rb URL [MAX_PAGES] OUTPUT_DIR" unless (2..3).cover?(ARGV.length)
 start = URI.parse(ARGV.fetch(0))
-limit = Integer(ARGV.fetch(1), 10)
-output = File.expand_path(ARGV.fetch(2))
+limit = ARGV.length == 3 ? Integer(ARGV.fetch(1), 10) : 25
+output = File.expand_path(ARGV.last)
 abort "Expected HTTPS URL without credentials or fragment" unless
   start.scheme == "https" && start.host && !start.userinfo && !start.fragment
-abort "Expected between 1 and 25 pages" unless (1..25).cover?(limit)
+abort "Expected MAX_PAGES between 1 and 50" unless (1..50).cover?(limit)
 parameters = URI.decode_www_form(start.query.to_s)
 abort "Expected exactly one numeric page=N parameter" unless
   parameters.count { |name, _| name == "page" } == 1 &&
@@ -54,6 +58,8 @@ def fetch_page(uri, origin)
 end
 
 captures = []
+previous_link_count = nil
+stop_reason = nil
 limit.times do |offset|
   number = first_page + offset
   url = start.dup
@@ -65,6 +71,7 @@ limit.times do |offset|
   raise "Page #{number}: not HTML (#{response['content-type']})" unless response["content-type"].to_s.match?(/html/i)
   raise "Page #{number}: oversized HTML response" if content.bytesize > 8_000_000
   doc = Nokogiri::HTML(content)
+  all_link_count = doc.xpath("//a[@href]").length
   hrefs = doc.xpath("//a[@href]").filter_map do |anchor|
     begin
       absolute = URI.join(final_url.to_s, anchor["href"])
@@ -96,7 +103,8 @@ limit.times do |offset|
   File.binwrite(path, content)
   captures << { page: number, url: url.to_s, final_url: final_url.to_s,
     fetched_at: requested_at, status: response.code.to_i, bytes: content.bytesize,
-    sha256: Digest::SHA256.hexdigest(content), event_link_count: events.length,
+    sha256: Digest::SHA256.hexdigest(content), all_link_count: all_link_count,
+    event_link_count: events.length,
     sample_events: events.first(3), numbered_links: pager,
     event_link_xpath: event_xpath, title: doc.at_xpath("//title")&.text.to_s.strip,
     challenge_hint: !!(doc.at_xpath("//title")&.text.to_s.match?(/just a moment|attention required|access denied|verify you are human|checking your browser/i) ||
@@ -106,12 +114,28 @@ limit.times do |offset|
       next_page.query = URI.encode_www_form(parameters.map { |key, value| [key, key == "page" ? (number + 1).to_s : value] })
       next_page.to_s
     end) }
-  puts "page=#{number} status=#{response.code} candidate_event_urls=#{events.length} pager_links=#{pager.length} bytes=#{content.bytesize} challenge_hint=#{captures.last[:challenge_hint]}"
+  short_page = previous_link_count && ResourceLists::ShortPageStop.stop?(
+    previous_count: previous_link_count, current_count: all_link_count)
+  captures.last[:short_page_stop] = !!short_page
+  puts "page=#{number} status=#{response.code} all_links=#{all_link_count} candidate_event_urls=#{events.length} " \
+    "pager_links=#{pager.length} bytes=#{content.bytesize} challenge_hint=#{captures.last[:challenge_hint]} short_page_stop=#{!!short_page}"
+  if captures.last[:challenge_hint]
+    stop_reason = "challenge_page_detected"
+    break
+  end
+  if short_page
+    stop_reason = "heuristic_short_page"
+    break
+  end
+  previous_link_count = all_link_count
   sleep(0.5) if offset < limit - 1
 end
 
+stop_reason ||= "max_pages_reached"
 File.write(File.join(output, "probe.json"), JSON.pretty_generate(
   purpose: "read_only_numbered_pagination_diagnostic", not_completeness_proof: true,
-  requested_pages: limit, captures: captures
+  max_pages: limit, pages_fetched: captures.size, stop_reason: stop_reason,
+  verified_completeness: false, captures: captures
 ))
+puts "stop_reason=#{stop_reason} pages_fetched=#{captures.size} complete=UNVERIFIED"
 puts "Saved #{File.join(output, 'probe.json')}"
