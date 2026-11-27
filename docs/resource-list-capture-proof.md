@@ -265,3 +265,34 @@ observed as missing inside Rails in this worktree. Always check the resolved
 Rails test database before schema loading; never target staging.
 This installation is only a test environment prerequisite and does not
 change migration or Artsdata export contracts.
+
+
+## Renderer tests and inherited fixtures (PostgreSQL 17)
+
+The first Rails run on the isolated `footlight_condenser_pagination_test`
+database reached Minitest but failed before assertions: global fixtures in
+`test/test_helper.rb` attempted to insert `properties.rdfs_class_id=980190962`
+before its referenced `rdfs_classes` row was available. PostgreSQL reports
+`PG::ForeignKeyViolation` during `ActiveRecord::FixtureSet.insert`.
+Mocha's `undefined method 'pop' for nil` teardown errors are subsequent
+noise after the setup exception, not separate renderer failures.
+
+The renderer unit tests do not use application records. Both
+`PhantomjsFetcherTest` and `RenderedFetchTest` now opt out of globally
+inherited fixtures via `self.fixture_table_names = []`. This is deliberately
+scoped to these tests: do not disable foreign keys, elevate the application
+database role, or weaken global fixtures to make these checks pass. Global
+fixture referential-integrity behavior on PostgreSQL 17 remains a separate
+test-infrastructure issue for DB-backed test suites.
+
+Verify locally:
+
+```bash
+git pull --ff-only
+FOOTLIGHT_CONDENSER_DB_TEST=footlight_condenser_pagination_test PGPORT=5433 \
+  bundle exec rails test test/services/distillator/phantomjs_fetcher_test.rb \
+  test/services/distillator/rendered_fetch_test.rb
+```
+
+Unit test execution results are **not yet verified** on the local WSL PostgreSQL
+instance after this focused fix.
