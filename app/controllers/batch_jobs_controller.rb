@@ -31,7 +31,7 @@ class BatchJobsController < ApplicationController
     website = Website.where(seedurl: params[:seedurl]).first
     webpages = website.webpages
     webpages.each do |wp|
-      RefreshWebpageJob.perform_later(wp.url)
+      RefreshWebpageJob.perform_later(wp.id)
     end
     redirect_to website_path(website), notice: "Created batch jobs for #{webpages.count} webpages. "
   end
@@ -70,7 +70,7 @@ class BatchJobsController < ApplicationController
     end_date = start_date + 5.years
     webpages = Webpage.includes(:website).where(websites: { seedurl: seedurl }, rdfs_class: event_class, archive_date: [start_date..end_date])
     webpages.each do |wp|
-      RefreshWebpageJob.perform_later(wp.url)
+      RefreshWebpageJob.perform_later(wp.id)
     end
     return webpages.count
   end
