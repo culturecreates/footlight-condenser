@@ -40,6 +40,37 @@ class Distillator::WebsiteShadowParityTest < ActiveSupport::TestCase
     assert_operator result.graph_diff.removed_count, :>, 0
   end
 
+  test "Danse Danse test copy normalizes expected website/source/RDF IDs" do
+    original = snapshot
+    original["event_sources"] = [{"id" => 12, "website_id" => 10, "property_id" => 20,
+      "algorithm_value" => "xpath=//h1", "language" => "fr"}]
+    original["webpages"] = [["https://example.org/fr/a", "http://kg.footlight.io/resource/dansedanse-ca_a",
+      "fr", "Event", nil]]
+    original["statements"] = [["https://example.org/fr/a",
+      "http://kg.footlight.io/resource/dansedanse-ca_a", 12, "fr", "Title A", "ok", false, true]]
+    original["export_jsonld"] = %q({"@id":"http://kg.footlight.io/resource/dansedanse-ca_a","http://schema.org/name":"Title A"})
+
+    copy = Marshal.load(Marshal.dump(original))
+    copy["test_copy_origin_seedurl"] = "dansedanse-ca"
+    copy["website"]["seedurl"] = "dansedansetest-ca"
+    copy["website"]["name"] = "Danse Danse QA"
+    copy["event_sources"][0]["id"] = 912
+    copy["event_sources"][0]["website_id"] = 21
+    test_uri = Websites::CreateTestCopy.test_uri("http://kg.footlight.io/resource/dansedanse-ca_a",
+      seedurl: "dansedansetest-ca")
+    copy["webpages"][0][1] = test_uri
+    copy["statements"][0][1] = test_uri
+    copy["statements"][0][2] = 912
+    copy["export_jsonld"] = %Q({"@id":"#{test_uri}","http://schema.org/name":"Title A"})
+    result = Distillator::WebsiteShadowParity.call(baseline: original, shadow: copy)
+    assert result.passed?, result.differences.inspect
+
+    copy["statements"][0][4] = "Modified title"
+    result = Distillator::WebsiteShadowParity.call(baseline: original, shadow: copy)
+    assert_equal "failed", result.status
+    assert_includes result.differences.keys, "statements"
+  end
+
   test "non-ResourceList source changes fail strict parity" do
     after = snapshot
     after["event_sources"] = [{"id" => 12, "algorithm_value" => "xpath=//h2"}]
