@@ -18,6 +18,7 @@ require "uri"
 require_relative "../app/services/resource_lists/short_page_stop"
 require_relative "../app/services/resource_lists/numbered_page_query"
 require_relative "../app/services/resource_lists/link_inventory"
+require_relative "../app/services/resource_lists/ajax_pagination_shell"
 
 abort "Usage: resource_list_numbered_probe.rb URL [MAX_PAGES] OUTPUT_DIR" unless (2..3).cover?(ARGV.length)
 start = URI.parse(ARGV.fetch(0))
@@ -74,6 +75,7 @@ limit.times do |offset|
   raise "Page #{number}: not HTML (#{response['content-type']})" unless response["content-type"].to_s.match?(/html/i)
   raise "Page #{number}: oversized HTML response" if content.bytesize > 8_000_000
   doc = Nokogiri::HTML(content)
+  ajax_shell = ResourceLists::AjaxPaginationShell.inspect(doc)
   all_link_count = doc.xpath("//a[@href]").length
   hrefs = doc.xpath("//a[@href]").filter_map do |anchor|
     begin
@@ -112,6 +114,7 @@ limit.times do |offset|
     event_link_count: events.length,
     sample_events: events.first(3), numbered_links: pager,
     event_link_xpath: event_xpath, title: doc.at_xpath("//title")&.text.to_s.strip,
+    ajax_shell_only: ajax_shell.shell_only?, ajax_endpoint: ajax_shell.endpoint,
     challenge_hint: !!(doc.at_xpath("//title")&.text.to_s.match?(/just a moment|attention required|access denied|verify you are human|checking your browser/i) ||
       doc.at_css("#challenge-stage, #challenge-form, [id^='cf-chl-']")),
     next_link_observed: pager.any? { |link| pagination.matches_page?(link.to_s, page: number + 1) } }
@@ -123,7 +126,11 @@ limit.times do |offset|
   captures.last[:repeated_content] = !!same_content
   captures.last[:repeated_links] = !!same_links
   puts "page=#{number} status=#{response.code} all_links=#{all_link_count} candidate_event_urls=#{events.length} " \
-    "pager_links=#{pager.length} bytes=#{content.bytesize} challenge_hint=#{captures.last[:challenge_hint]} short_page_stop=#{!!short_page} repeated_content=#{!!same_content} repeated_links=#{!!same_links}"
+    "pager_links=#{pager.length} bytes=#{content.bytesize} challenge_hint=#{captures.last[:challenge_hint]} short_page_stop=#{!!short_page} repeated_content=#{!!same_content} repeated_links=#{!!same_links} ajax_shell=#{ajax_shell.shell_only?}"
+  if ajax_shell.shell_only?
+    stop_reason = "ajax_shell_requires_rendering"
+    break
+  end
   if captures.last[:challenge_hint]
     stop_reason = "challenge_page_detected"
     break
