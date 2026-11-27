@@ -1,6 +1,6 @@
 # Danse Danse same-database QA copy — acceptance test
 
-**Stage:** draft QA-only integration. On 2026-11-27 the isolated staging-derived PostgreSQL database was exercised: cloning 102 sources, 22 webpages, and 396 statements succeeded, original snapshot parity PASSED (graph +0/-0), untouched QA clone snapshot parity PASSED (graph +0/-0), and eight saved-html FR/EN keys matched without conflicts or inventory changes. The new keyed DSL and atomic ResourceList adapter have NOT been executed against that database yet. Keep PR in draft until focused Rails and end-to-end QA tests pass.
+**Stage: QA-only keyed ResourceList acceptance PASSED; automatic/live discovery NOT implemented.** On 2026-11-27 the isolated staging-derived PostgreSQL database was exercised: the QA clone contained 102 sources, 22 webpages and 396 statements. The saved-input bilingual keyed DSL/atomic ResourceList adapter was actually applied to the QA clone: **8 English URLs / 8 French URLs / 8 matching RDF identities; 0 webpages created**. Original and QA-copy post-import graph parity each returned **PASSED; +0/-0**. The nine-file focused Rails regression suite also passed **63 runs, 245 assertions, 0 failures, 0 errors, 0 skips**, in a single run on Rails 8.0.2/PostgreSQL 17. This is not evidence of complete live pagination, new-event RDF identity minting, unattended refresh scheduling, or full production readiness; keep PR in draft while deciding production scope.
 
 ## Goal
 
@@ -37,7 +37,7 @@
 
    It reports key conflicts, unmatched pairs, existing RDF URI conflicts and changed URL inventory compared to the copy's stored English ResourceList caches. A manifest is NOT an end-to-end parity pass.
 
-6. **QA-only shared DSL integration (new, unverified):** `get_sorted_calendars=urls,en` or `get_sorted_calendars=uris,fr` is authorized only with a validated shared `DanseDanseKeyedQaRefresh::Context`, bound to the specific shadow QA copy. Ordinary DSL runs without this context fail closed.
+6. **QA-only shared DSL integration (validated and applied to the 8-event QA clone):** `get_sorted_calendars=urls,en` or `get_sorted_calendars=uris,fr` is authorized only with a validated shared `DanseDanseKeyedQaRefresh::Context`, bound to the specific shadow QA copy. Ordinary DSL runs without this context fail closed.
 
    After capturing and reviewing the read-only manifest and saving contemporaneous HTML, use the **isolated QA database only**:
 
@@ -71,7 +71,7 @@
 - Zero final selected-statement differences (all properties, including optional data).
 - Zero added or removed RDF graph statements after only test identities are normalized.
 
-## Focused Rails tests and remaining blocker
+## Focused Rails tests and remaining work
 
 `bin/rails test test/services/websites/create_test_copy_test.rb test/jobs/refresh_website_job_test.rb test/jobs/add_webpages_job_test.rb test/integration/qa_shared_webpage_url_test.rb test/services/resource_lists/keyed_calendar_alignment_test.rb test/services/resource_lists/keyed_calendar_extractor_test.rb test/services/distillator/website_shadow_parity_test.rb`
 
@@ -81,9 +81,11 @@
 - Keyed alignment/extraction/QA DSL: **14 runs, 40 assertions, 0 failures, 0 errors, 0 skips**.
 - QA copy, shared URL isolation, strict shadow parity: **16 runs, 65 assertions, 0 failures, 0 errors, 0 skips**.
 - `AddWebpagesJobTest`: **18 runs, 98 assertions, 0 failures, 0 errors, 0 skips**.
-- Aggregate across three **separate** runs: **48 tests, 203 assertions**, all passed. These have not yet been rerun as one combined test invocation.
+- Aggregate across the first three tranches: **48 tests, 203 assertions**, all passed in the same combined invocation on 2026-11-27.
 - Original and QA-copy post-import comparisons each returned `Shadow parity: PASSED; Graph +0 -0`; persisted alignment: EN/FR 8 URLs and 8 matching RDF identities, 0 new webpages.
 
 **Additional Rails regression evidence, 2026-11-27 (user-run WSL, Rails 8.0.2 / PG17):** `test/jobs/refresh_website_job_test.rb` and `test/services/resource_lists/pagination_test.rb`: **15 runs, 42 assertions, 0 failures, 0 errors, 0 skips**. Includes a test of failed ResourceList refresh not enqueueing import or deleting the webpage. Across the verified tranches, **63 tests and 245 assertions** have passed. The original 48-test run was verified in combination; the additional 15 tests were run together separately.
 
-**Remaining:** run all nine test files together, then assess broader refresh/pagination integration, new-event identity, live pagination completeness, and failure/recovery paths. Other legacy tests may still be blocked by global fixture loading. Keep PR in draft; do not relax database integrity or Artsdata export invariants. The assistant cannot directly run WSL tests; these counts are from user-supplied output.
+**Complete combined focused test run (user-run WSL on 2026-11-27): 63 runs, 245 assertions, 0 failures, 0 errors, 0 skips.** Line coverage 38.41% (2422 / 6305), branch coverage 12.84% (413 / 3217), measured over the files loaded in this focused run, **not** total repository coverage. PostgreSQL foreign keys remained active; no permission or constraint weakening. Other legacy test suites may still need fixture-loader remediation. The assistant cannot directly run WSL tests; these counts are from user-supplied output.
+
+**Remaining outside QA-only acceptance:** contemporaneous *live* pagination completeness (both languages, all pages); nonidentical FR/EN slug identities; deterministic, collision-safe RDF URI minting for new events; missing/removed event policy; atomic scheduled two-language refresh with failure/replay coverage; then wider regression and full export parity. No part of the QA-only saved-input adapter authorizes unattended production discovery.
