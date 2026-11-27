@@ -1,6 +1,8 @@
 require "test_helper"
 
 class QaSharedWebpageUrlTest < ActionDispatch::IntegrationTest
+  self.fixture_table_names = []
+
   setup do
     @original = Website.create!(name: "Danse Danse", seedurl: "dansedanse-ca",
       graph_name: "https://example.org/dansedanse", default_language: "fr")
@@ -8,7 +10,7 @@ class QaSharedWebpageUrlTest < ActionDispatch::IntegrationTest
       graph_name: "https://example.org/dansedanse", default_language: "fr",
       test_copy_of_website: @original)
     @url = "https://www.dansedanse.ca/fr/spectacles/qa-pair"
-    cls = RdfsClass.find_by!(name: "Event")
+    cls = RdfsClass.find_or_create_by!(name: "Event")
     @original_page = Webpage.create!(url: @url, website: @original, language: "fr",
       rdf_uri: "rdf:dansedanse-ca:qa-pair", rdfs_class: cls)
     @copied_page = Webpage.create!(url: @url, website: @copy, language: "fr",
