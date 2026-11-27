@@ -14,7 +14,7 @@ module Websites
       parts = seedurl.to_s.split("-")
       return "#{seedurl}test" if parts.size < 2
 
-      parts.insert(-2, "test")
+      parts[-2] = "#{parts[-2]}test"
       parts.join("-")
     end
 
