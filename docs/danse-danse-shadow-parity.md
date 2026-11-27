@@ -1,32 +1,62 @@
-# Danse Danse shadow parity — strict pre-URI acceptance test
+# Danse Danse same-database QA copy — acceptance test
 
-This is a **staging-only test plan**, not an already executed staging comparison. The trial must run against copies of the *same* PostgreSQL staging snapshot. It must not create a second Website in the existing database: Statement callbacks may update archive dates for all pages sharing an rdf_uri, including across sites.
+**Stage:** draft implementation. No staging website has been copied and no real end-to-end comparison has been run. Keep PR in draft until focused Rails and staging tests pass.
 
-## Immutable input and baseline
+## Goal
 
-1. Take a named staging database backup/snapshot. Restore it to two isolated databases, **baseline** and **trial**, using the same code/dependencies. Pause jobs/schedulers on both.
-2. Capture the legacy site's full bilingual ResourceLists and their selected source settings. Fetch/cache both calendars **once** with equivalent fetch options; preserve all language-specific pagination HTML and evidence. A missing or failed page makes trial inconclusive, not complete.
-3. On baseline DB, execute the *existing* selected Danse Danse ResourceList algorithms and refresh all relevant event statements (if a full refresh is required), without changing any algorithms or selection flags. Keep the pre-run DB backup so the baseline can be repeated.
-4. Execute `bin/rails runner script/danse_danse_shadow_parity.rb capture /tmp/danse-danse-baseline.json` with DATABASE_URL pointing to **baseline**. This is read-only and includes every non-ResourceList page, its rdf_uri/language/archive_date, all selected event/non-ResourceList statement cache/status/manual flags, non-ResourceList source configuration, and the site's Artsdata export.
-5. Run `DANSE_EN_HTML=/tmp/en1.html[,/tmp/en2.html] DANSE_FR_HTML=/tmp/fr1.html[,/tmp/fr2.html] bin/rails runner script/danse_danse_keyed_trial.rb /tmp/danse-danse-keyed-manifest.json` with DATABASE_URL pointing at the *trial*. This is a read-only **discovery** comparison: card-relative XPath, URL slug as current Danse Danse key, full cross-language matching, existing rdf_uri conflicts, and Source #1340 URL differences. Preserve the manifest and its digest.
+1. Copy working `dansedanse-ca` to `dansedansetest-ca` (same database, different Website/Source/Webpage IDs and **different RDF URIs**).
+2. Keep original and copy's source URLs, full bilingual event inventory, all non-ResourceList DSL, selected statements and review state equivalent.
+3. Change **only** ResourceList pairing extraction in the copy to `get_sorted_calendars` after that DSL and its shared multi-language refresh context have been implemented.
+4. Refresh copy only; compare every final statement and normalized Artsdata graph with original; never publish the copy.
 
-## The actual comparison gate, not yet wired
+## QA copy implementation in draft PR
 
-6. In the trial DB **only**, replace the existing Source #1340 extraction through the new `get_sorted_calendars` DSL, keeping its selected flags and the rest of the site, sources, statements, and existing RDF URIs unchanged. The new DSL instruction and shared refresh context are NOT implemented in this PR yet. Do **not** treat the read-only manifest as a full shadow run.
-7. Execute the same ResourceList/URI reconciliation and final event statement refresh sequence on the trial DB using identical stored fetch responses (or clearly mark any non-reproducible network dependency as inconclusive).
-8. Run `bin/rails runner script/danse_danse_shadow_parity.rb compare /tmp/danse-danse-baseline.json /tmp/danse-danse-report.json` with DATABASE_URL pointing at trial. The comparator fails on any changes to website identity, non-ResourceList source config, webpage URL/rdf_uri/language/class/archive_date, selected statement cache/status/manual and selection flags, or normalized semantic Artsdata graph. It reports added/removed triples with examples.
-9. **Pass requires zero non-ResourceList differences and zero added/removed RDF statements**, plus verified complete fetch/pagination evidence and preserved URI assignments. Discovery order alone is not semantically significant. Unmatched keys, different source counts, changed source inputs, or incomplete pagination block the parity claim.
-10. Run unrelated export invariance / migration safeguard tests and keep the trial DB disposable. Do not migrate/import into the live staging site or merge based only on this script.
+- Website detail on staging/development has "Copy website for QA" with proposed seedurl `dansedansetest-ca`.
+- Clone service creates a new Website, Sources, Webpages, Statements, preserves bilingual grouping, and remaps all site-owned RDF URI identities. Public Webpage URLs intentionally remain **identical**.
+- Copy is unscheduled (`schedule_every_days=nil`, `schedule_time=nil`, `last_refresh=nil`), unmonitorable, and its direct Artsdata export is prohibited. Promoting it to active through normal rollout is blocked.
+- Cross-site ResourceList discovery targets cause clone creation to **fail closed** pending explicit mapping.
+- Jobs enqueue Webpage IDs; ambiguous URL-only refreshes fail. Public URL-only graph queries exclude test copies unless website ID explicitly supplied.
+- ResourceList import rejects original-site RDF URI values regenerated by the old URI-list DSL. This may prevent early copy refresh: that is an **expected safety block**, not pairing success.
+- New case-insensitive DB seedurl unique index: inspect staging duplicates before applying the migration.
+- Service is atomic and does not enqueue refresh/publish jobs. No automatic clone creation is performed by this PR.
 
-## Existing contracts involved
+## Staging runbook
 
-- `AddWebpagesJob` assumes aligned Webpage URL List and URI List arrays and creates immutable rdf_uri values for new URLs.
-- `Distillator::TransitionEventInventory` retains list and definition digests and freshness/skew evidence.
-- `Distillator::TransitionDiscoveryRefresh` refreshes ResourceLists, reconciles URLs, refreshes incomplete pages and verifies the resulting inventory.
-- `Distillator::GraphDiff` compares RDF graphs from final JSON-LD exports.
+**Preflight:** Inspect duplicate seeds: `Website.group(Arel.sql("lower(seedurl)")).having("COUNT(*) > 1").count`; duplicates must be reconciled before the unique-index migration. Ensure normal refresh jobs won't mutate the original during snapshot capture.
 
-Run unit tests (requires Rails development checkout / test database):
+1. Deploy draft to a throwaway/staging runtime only after migrations and the focused tests pass.
+2. Capture the original's baseline:
 
-`bin/rails test test/services/resource_lists/keyed_calendar_alignment_test.rb test/services/resource_lists/keyed_calendar_extractor_test.rb test/services/distillator/website_shadow_parity_test.rb`
+   `SHADOW_SITE_SEEDURL=dansedanse-ca bin/rails runner script/danse_danse_shadow_parity.rb capture /tmp/danse-danse-baseline.json`
 
-**Current limitation:** no access to the staging database or contemporaneous Danse Danse calendar HTML in this execution environment. The actual stage 6–9 parity result is **not measured**.
+3. Use **Copy website for QA** on the original; accept `dansedansetest-ca`. Check schedules, Sources, Webpages and selected Statements counts. Check at least 2 bilingual event URLs point to exactly one test RDF URI, distinct from the original.
+4. Preserve complete contemporaneous fetched calendar snapshots for both languages **and every pagination page**.
+5. Run read-only discovery:
+
+   `SHADOW_SITE_SEEDURL=dansedansetest-ca DANSE_EN_HTML=/tmp/en1.html DANSE_FR_HTML=/tmp/fr1.html bin/rails runner script/danse_danse_keyed_trial.rb /tmp/danse-danse-keyed.json`
+
+   It reports key conflicts, unmatched pairs, existing RDF URI conflicts and changed URL inventory compared to the copy's stored English ResourceList caches. A manifest is NOT an end-to-end parity pass.
+
+6. **Still to implement:** `get_sorted_calendars=` in the DSL runner and shared, atomic bilingual ResourceList orchestration, with copy-aware RDF URI minting and completeness checks. Without these, do not run the new pairing import on the copy.
+7. When the new DSL is implemented, change only the copy's ResourceList algorithm; use recorded equivalent input HTML, refresh both calendars then the event statements on the copy, and verify no original statements changed.
+8. Compare final state:
+
+   `SHADOW_SITE_SEEDURL=dansedansetest-ca bin/rails runner script/danse_danse_shadow_parity.rb compare /tmp/danse-danse-baseline.json /tmp/danse-danse-qa-report.json`
+
+   The snapshot records test-copy provenance; comparator maps the **known deterministic** test RDF URI namespace and copied Source IDs back to original identities. Non-ResourceList DSL, selected values, statuses, manual flags, archive dates, URL inventory and RDF graph must match.
+
+## Pass criteria
+
+- Original website unchanged (verify before/after original snapshot).
+- No cross-site jobs, no original-source data mutations, no clone publication or scheduling.
+- Complete FR and EN pagination (fail if one side incomplete).
+- No key ambiguity and no silent dropping of unmatched translations.
+- Equal event counts and correct FR/EN URI groupings.
+- Zero final selected-statement differences (all properties, including optional data).
+- Zero added or removed RDF graph statements after only test identities are normalized.
+
+## Focused Rails tests (not yet run here)
+
+`bin/rails test test/services/websites/create_test_copy_test.rb test/jobs/refresh_website_job_test.rb test/jobs/add_webpages_job_test.rb test/integration/qa_shared_webpage_url_test.rb test/services/resource_lists/keyed_calendar_alignment_test.rb test/services/resource_lists/keyed_calendar_extractor_test.rb test/services/distillator/website_shadow_parity_test.rb`
+
+**Environment constraint:** Current assistant runtime has Ruby/Minitest but not Rails, ActiveRecord, Nokogiri or the staging PostgreSQL connection. The standalone alignment smoke ran (3 tests, 7 assertions) and passed. There is no real Danse Danse end-to-end QA verdict yet.
