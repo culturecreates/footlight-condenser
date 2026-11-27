@@ -85,3 +85,32 @@ Run the standalone tests:
 ```bash
 bundle exec ruby test/services/resource_lists/short_page_stop_test.rb
 ```
+
+
+## Live numbered-page probe: bounded by default
+
+`script/resource_list_numbered_probe.rb` now accepts `URL [MAX_PAGES] OUTPUT_DIR`.
+The default is **25 pages** (configurable 1–50), and it stops early when the
+current fetched page has strictly fewer than 90% of the previous page's
+`//a[@href]` links. The triggering page remains included and saved. For
+Hector-Charland's saved response counts (127, 127, 127, 127, 108), that
+means five requests, not six or seven. The probe does not require an event
+XPath for the short-page decision.
+
+```bash
+bundle exec ruby script/resource_list_numbered_probe.rb \
+  'https://hector-charland.com/programmation-spectacles?page=1' \
+  /tmp/resource-list-trials/hector-auto
+# Explicit smaller cap for smoke tests:
+bundle exec ruby script/resource_list_numbered_probe.rb \
+  'https://hector-charland.com/programmation-spectacles?page=1' 5 \
+  /tmp/resource-list-trials/hector-capped
+```
+
+The JSON records `stop_reason` = `heuristic_short_page`,
+`max_pages_reached`, or `challenge_page_detected`, along with
+`pages_fetched`, `max_pages`, and `verified_completeness: false`.
+Hitting the cap is **not** a successful completion signal. The cap limits
+requests and prevents unbounded loops; it does not make an incomplete
+ResourceList authoritative. A site with many unrelated navigation links
+may never cross the 90% threshold, so the cap is especially important.
