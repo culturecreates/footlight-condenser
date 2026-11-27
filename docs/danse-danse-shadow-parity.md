@@ -1,6 +1,6 @@
 # Danse Danse same-database QA copy — acceptance test
 
-**Stage:** draft implementation. No staging website has been copied and no real end-to-end comparison has been run. Keep PR in draft until focused Rails and staging tests pass.
+**Stage:** draft QA-only integration. On 2026-11-27 the isolated staging-derived PostgreSQL database was exercised: cloning 102 sources, 22 webpages, and 396 statements succeeded, original snapshot parity PASSED (graph +0/-0), untouched QA clone snapshot parity PASSED (graph +0/-0), and eight saved-html FR/EN keys matched without conflicts or inventory changes. The new keyed DSL and atomic ResourceList adapter have NOT been executed against that database yet. Keep PR in draft until focused Rails and end-to-end QA tests pass.
 
 ## Goal
 
@@ -37,7 +37,23 @@
 
    It reports key conflicts, unmatched pairs, existing RDF URI conflicts and changed URL inventory compared to the copy's stored English ResourceList caches. A manifest is NOT an end-to-end parity pass.
 
-6. **Still to implement:** `get_sorted_calendars=` in the DSL runner and shared, atomic bilingual ResourceList orchestration, with copy-aware RDF URI minting and completeness checks. Without these, do not run the new pairing import on the copy.
+6. **QA-only shared DSL integration (new, unverified):** `get_sorted_calendars=urls,en` or `get_sorted_calendars=uris,fr` is authorized only with a validated shared `DanseDanseKeyedQaRefresh::Context`, bound to the specific shadow QA copy. Ordinary DSL runs without this context fail closed.
+
+   After capturing and reviewing the read-only manifest and saving contemporaneous HTML, use the **isolated QA database only**:
+
+   ```bash
+   DATABASE_URL="postgresql:///footlight_condenser_dansedanse_qa" \
+   DANSE_EN_HTML="/tmp/danse-en-1.html" DANSE_FR_HTML="/tmp/danse-fr-1.html" \
+   bin/rails runner script/danse_danse_keyed_qa_refresh.rb /tmp/danse-danse-keyed-trial.json
+   ```
+
+   This defaults to **read-only validation**. It checks both language inventories and exact manifest pairs, all currently existing event URL/RDF identities, and the selected ResourceList statements. It does not create any event pages.
+
+   If and only if read-only validation and focused tests pass, repeat the command with `--apply`. That atomically writes only QA ResourceList cache values and calls the existing `AddWebpagesJob` import validator with `refresh_new: false`; it rejects unexpected new pages, so this initial tranche supports **existing eight pairs only**, not production discovery or minting. No scheduling or event statement refresh is performed.
+
+   Before and after applying, compare the original and QA copy with `script/danse_danse_shadow_parity.rb compare`, retaining distinct report paths. Validate that the copied ResourceList caches now hold the same ordered RDF URIs in both languages.
+
+   **Still to implement:** live fetched-pagination completeness proofs, general-purpose `get_sorted_calendars` for other sites, source-configured automated bilingual refresh scheduling, and reviewed URI minting for new events. None should be enabled by this QA script.
 7. When the new DSL is implemented, change only the copy's ResourceList algorithm; use recorded equivalent input HTML, refresh both calendars then the event statements on the copy, and verify no original statements changed.
 8. Compare final state:
 
@@ -59,4 +75,4 @@
 
 `bin/rails test test/services/websites/create_test_copy_test.rb test/jobs/refresh_website_job_test.rb test/jobs/add_webpages_job_test.rb test/integration/qa_shared_webpage_url_test.rb test/services/resource_lists/keyed_calendar_alignment_test.rb test/services/resource_lists/keyed_calendar_extractor_test.rb test/services/distillator/website_shadow_parity_test.rb`
 
-**Environment constraint:** Current assistant runtime has Ruby/Minitest but not Rails, ActiveRecord, Nokogiri or the staging PostgreSQL connection. The standalone alignment smoke ran (3 tests, 7 assertions) and passed. There is no real Danse Danse end-to-end QA verdict yet.
+**Environment constraint:** The assistant runtime cannot run the Rails/PG17 suite or access the user's WSL test database. The known fixture-loading FK error remains unresolved; no claim of a passing Rails suite or executed keyed QA import has been made.
