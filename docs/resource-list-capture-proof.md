@@ -251,15 +251,17 @@ loading the schema; never point Rails test schema loading at a staging database.
 createdb -p 5433 footlight_condenser_pagination_test
 sudo -u postgres psql -p 5433 -d footlight_condenser_pagination_test \
   -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements;'
-env 'FOOTLIGHT-CONDENSER-DB_TEST=footlight_condenser_pagination_test' \
+env FOOTLIGHT_CONDENSER_DB_TEST=footlight_condenser_pagination_test \
   PGPORT=5433 RAILS_ENV=test bin/rails db:schema:load
-env 'FOOTLIGHT-CONDENSER-DB_TEST=footlight_condenser_pagination_test' \
+env FOOTLIGHT_CONDENSER_DB_TEST=footlight_condenser_pagination_test \
   PGPORT=5433 bundle exec rails test \
   test/services/distillator/phantomjs_fetcher_test.rb \
   test/services/distillator/rendered_fetch_test.rb
 ```
 
-The legacy `FOOTLIGHT-CONDENSER-DB_TEST` environment variable contains
-hyphens, so set it using `env 'KEY=value'` rather than shell assignment.
+Use the shell-compatible `FOOTLIGHT_CONDENSER_DB_TEST` override. The prior
+hyphenated name is still accepted as a backward-compatible fallback, but was
+observed as missing inside Rails in this worktree. Always check the resolved
+Rails test database before schema loading; never target staging.
 This installation is only a test environment prerequisite and does not
 change migration or Artsdata export contracts.
