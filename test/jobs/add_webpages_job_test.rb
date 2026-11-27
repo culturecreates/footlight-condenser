@@ -1,22 +1,25 @@
 require "test_helper"
 
 class AddWebpagesJobTest < ActiveJob::TestCase
+  # Build the specific ResourceList graph through ActiveRecord, with real FK checks.
+  # Legacy global fixtures depend on PostgreSQL superuser trigger permissions.
+  self.fixture_table_names = []
+
   setup do
     @previous_queue_adapter = ActiveJob::Base.queue_adapter
     ActiveJob::Base.queue_adapter = :test
-    @resource_list_page = webpages(:resource_list_page)
-    @rdf_class_statement = statements(:resource_list_rdf_class_statement)
-    @uri_list_statement = statements(:resource_list_uri_list_statement)
-    @url_list_statement = statements(:resource_list_url_list_statement)
-    @resource_list_page.update!(rdfs_class: RdfsClass.find_or_create_by!(name: "ResourceList"))
-
-    sources(:resource_list_rdf_class_source).property.update!(label: AddWebpagesJob::RDF_CLASS_LABEL)
-    sources(:resource_list_uri_list_source).property.update!(label: AddWebpagesJob::URI_LIST_LABEL)
-    sources(:resource_list_url_list_source).property.update!(label: AddWebpagesJob::WEBPAGE_URL_LIST_LABEL)
-    [@uri_list_statement, @url_list_statement].each do |statement|
-      statement.source.update!(algorithm_value: "xpath=//li/text()")
-      statement.update_columns(cache_refreshed: Time.current)
-    end
+    @event_class = RdfsClass.find_or_create_by!(name: "Event")
+    list_class = RdfsClass.find_or_create_by!(name: "ResourceList")
+    site = Website.create!(name: "ResourceList import test", seedurl: "resource-list-import-test",
+      graph_name: "https://example.org/resource-list", default_language: "en")
+    @resource_list_page = site.webpages.create!(url: "https://fixtures.example/resource-list",
+      rdf_uri: "adr:resource-list", language: "en", rdfs_class: list_class)
+    @rdf_class_statement = build_list_statement(list_class, AddWebpagesJob::RDF_CLASS_LABEL,
+      "manual=Event", "Event")
+    @uri_list_statement = build_list_statement(list_class, AddWebpagesJob::URI_LIST_LABEL,
+      "xpath=//li/text()", '["adr:event-1","adr:event-2"]')
+    @url_list_statement = build_list_statement(list_class, AddWebpagesJob::WEBPAGE_URL_LIST_LABEL,
+      "xpath=//li/text()", '["https://example.org/events/1","https://example.org/events/2"]')
   end
 
   teardown do
@@ -218,7 +221,8 @@ class AddWebpagesJobTest < ActiveJob::TestCase
   end
 
   test "a scheduled data-only list refresh stores its inputs and targets the right website when URLs are shared" do
-    data_website = websites(:one)
+    data_website = Website.create!(name: "Data-only list", seedurl: "data-only-list-test",
+      graph_name: "https://example.org/data-list", default_language: "en")
     resource_list_class = RdfsClass.find_by!(name: "ResourceList")
     page = Webpage.create!(url: @resource_list_page.url, rdf_uri: "adr:audience-list", website: data_website,
       rdfs_class: resource_list_class, language: "fr")
@@ -249,7 +253,7 @@ class AddWebpagesJobTest < ActiveJob::TestCase
       url: "https://example.org/events/1",
       rdf_uri: "adr:event-1",
       language: @resource_list_page.language,
-      rdfs_class: rdfs_classes(:one),
+      rdfs_class: @event_class,
       website: @resource_list_page.website
     )
 
@@ -262,6 +266,18 @@ class AddWebpagesJobTest < ActiveJob::TestCase
     assert Webpage.exists?(url: "https://example.org/events/2", website: @resource_list_page.website)
   end
   private
+
+  def build_list_statement(list_class, label, algorithm, cache)
+    property = Property.create!(rdfs_class: list_class, label: label, uri: "urn:test:#{label.parameterize}")
+    source = @resource_list_page.website.sources.create!(property: property, language: "en",
+      selected: true, algorithm_value: algorithm, render_js: false)
+    statement = @resource_list_page.statements.create!(source: source, cache: cache,
+      status: "ok", selected_individual: true, manual: false)
+    # Match the fixture's already reviewed extraction state without triggering a refresh.
+    statement.update_columns(status: "ok", status_origin: "DistillatorFixture",
+      cache_refreshed: Time.current, cache_changed: Time.current)
+    statement.reload
+  end
 
   def inventory_for_list
     website = @resource_list_page.website
