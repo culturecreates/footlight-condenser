@@ -333,3 +333,55 @@ which AJAX pagination does not supply. A later explicit adapter needs separate
 pagination-transition provenance and selected Source/identity validation.
 Maintain the last-good ResourceList on any uncertainty; never archive from
 this diagnostic or the short-page heuristic.
+
+
+## Chasse-galerie category-filtered AJAX POST: offline candidate (2026-11-27)
+
+The user verified the site's unauthenticated \`multipart/form-data\` POST to
+\`/fetch-front-end-events\` with \`reference_id\`, \`filters[categ]\`,
+\`current_page\`, \`number_items_per_page\`, and \`action=null\`. The returned
+JSON contains \`count\`, \`current_page\`, \`max\`, \`url\`, and \`html\`.
+The calendar's plain GET correctly selects a category but initially returns
+an empty AJAX shell; a GET to the AJAX endpoint returns HTML rather than JSON.
+
+Observed live results:
+- **Jeunesse**, page size 1: 1 / 1 / 0 cards on pages 1 / 2 / 3.
+  Page 1 was \`les-voisines\`, page 2 \`l-expedition-de-la-rythmobile\`;
+  page 3 supplied the exact empty message \`Il n'y a aucun événement\`.
+- **Prestige**, page size 10: 10 / 10 / 8 / 0 cards on pages 1–4,
+  all 28 nonempty cards labeled Prestige. A separate supplied JSON
+  response with page size 48 contained 28 distinct event URLs.
+  The available outputs corroborate *counts*, but the 10+10+8 URLs
+  were not independently saved and compared against the 48-item response.
+- \`max\` was consistently 2 for Jeunesse and 27 for Prestige. Its meaning
+  is **unknown**; do not use it as an authoritative total or last page.
+
+\`ResourceLists::AjaxPaginationEvidence\` independently checks **saved**
+request/response receipts: method, endpoint and invariant multipart fields;
+status/JSON content type; actual JSON page, card count, category label,
+site-scoped event links, server URL template and immutable selected filters;
+adjacent repeated nonempty HTML, explicit empty terminal message, bounded page
+count, optional separate expected card total, and capture-time skew. It only
+returns \`terminal_candidate\` or \`inconclusive\`; it does **not** declare
+complete ResourceList discovery or authorize deletions, archivals or exports.
+An event URL can occur on multiple dated cards without being counted as lost.
+
+Fixture provenance matters: \`test/fixtures/resource_lists/chasse_galerie_ajax_observations.json\`
+records the observed page summaries and the 28 URLs from the original single
+Prestige response. The regression test constructs **minimal synthetic
+page-specific JSON/HTML** from these observations; these are **not saved raw
+HTTP responses for each page**. The positive tests verify the validator's
+invariants, not independent network provenance or actual source completeness.
+To move beyond this, save the raw response body and status/header metadata for
+each live page separately (without cookies or credentials) and replay those.
+
+Run the standalone tests using the app's Nokogiri dependency:
+
+\`\`\`bash
+bundle exec ruby test/services/resource_lists/ajax_pagination_evidence_test.rb
+\`\`\`
+
+This is read-only and offline. No POST fetcher, DB writes, scheduling,
+ResourceList source changes, RDF minting or Artsdata export logic were added.
+Do **not** pass AJAX evidence as \`verified_no_next_link\` to the anchor-chain
+\`PaginationCaptureProof\`; an AJAX transition requires its own proof path.
