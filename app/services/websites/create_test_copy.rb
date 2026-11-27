@@ -18,6 +18,10 @@ module Websites
       parts.join("-")
     end
 
+    def self.test_uri(original, seedurl:)
+      "http://kg.footlight.io/resource/#{seedurl}_#{Digest::SHA256.hexdigest(original.to_s).first(24)}"
+    end
+
     def self.call(source:, seedurl: suggest_seedurl(source.seedurl))
       new(source: source, seedurl: seedurl).call
     end
@@ -68,6 +72,7 @@ module Websites
             "discovery_target_website_id", "rdf_uri", "url")
           url = page.url == page.rdf_uri ? uri_map.fetch(page.rdf_uri) : page.url
           cloned = copy.webpages.create!(attributes.merge("url" => url, "rdf_uri" => uri_map.fetch(page.rdf_uri)))
+          cloned.update_column(:archive_date, page.archive_date) if page.archive_date.nil?
           [page.id, cloned.id]
         end
 
@@ -93,7 +98,7 @@ module Websites
     def test_uri(original)
       # Namespaced by the selected seedurl, deterministic per original URI;
       # same original RDF URI across FR/EN pages => same cloned URI.
-      "http://kg.footlight.io/resource/#{@seedurl}_#{Digest::SHA256.hexdigest(original.to_s).first(24)}"
+      self.class.test_uri(original, seedurl: @seedurl)
     end
 
     def map_cache(cache, map)
