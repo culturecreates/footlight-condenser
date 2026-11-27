@@ -2,12 +2,15 @@ require "test_helper"
 
 module Websites
   class CreateTestCopyTest < ActiveSupport::TestCase
+    # Build the small related dataset through ActiveRecord under real FK checks.
+    self.fixture_table_names = []
+
     setup do
       @original = Website.create!(name: "Danse Danse", seedurl: "dansedanse-ca",
         graph_name: "https://example.org/dansedanse", default_language: "fr",
         monitorable: true, schedule_every_days: 1, last_refresh: 1.day.ago,
         schedule_time: Time.zone.parse("00:05"))
-      @event_class = RdfsClass.find_by!(name: "Event")
+      @event_class = RdfsClass.find_or_create_by!(name: "Event")
       @property = Property.create!(rdfs_class: @event_class, label: "QA title", uri: "urn:qa:title")
       @source = @original.sources.create!(property: @property, language: "fr", selected: true,
         algorithm_value: "xpath=//h1/text()", selected_by: "test", render_js: false)
@@ -73,7 +76,7 @@ module Websites
       list_class = RdfsClass.find_or_create_by!(name: "ResourceList")
       @original.webpages.create!(url: "https://www.dansedanse.ca/fr/spectacles",
         rdf_uri: "rdf:dansedanse-ca:resource-list", rdfs_class: list_class,
-        language: "fr", discovery_target_website: websites(:one))
+        language: "fr", discovery_target_website: Website.create!(name: "Outside", seedurl: "outside-ca"))
       assert_no_difference("Website.count") do
         error = assert_raises(CreateTestCopy::InvalidCopy) { CreateTestCopy.call(source: @original) }
         assert_match(/Cross-site ResourceList/, error.message)
