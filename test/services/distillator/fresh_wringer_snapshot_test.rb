@@ -123,6 +123,43 @@ class Distillator::FreshWringerSnapshotTest < ActiveSupport::TestCase
     end
   end
 
+  test "rejects bilingual browser challenges despite successful legacy HTTP responses" do
+    [
+      ["One moment, please...", "Please wait while your request is being verified..."],
+      ["Un instant, s'il vous plaît…", "Votre demande est en cours de vérification, veuillez patienter…"]
+    ].each do |title, message|
+      html = "<html><head><title>#{title}</title></head><body><p>#{message}</p></body></html>"
+      fresh_request.to_return(body: { html: html, http_code: 200 }.to_json)
+
+      result = fetch
+      assert_equal "unreachable", result[:status]
+      assert_nil result[:payload]
+      assert_match(/browser verification challenge/, result[:error])
+      assert_equal 1, result[:fetch][:attempts].size
+    end
+  end
+
+  test "does not reject normal legacy event HTML mentioning browser verification" do
+    html = '<!DOCTYPE html><html lang="fr"><head><title>Concert</title></head><body><main><h1>Concert</h1><p>Samedi à 20 h</p></main><footer>Votre demande est en cours de vérification</footer></body></html>'
+
+    request = fresh_request.to_return(
+      status: 200,
+      body: { html: html, http_code: 200 }.to_json
+    )
+
+    result = fetch
+
+    assert_equal "ok", result[:status], result[:error]
+    assert_equal "remote_wringer_fresh", result[:source]
+    assert_equal html, result.dig(:payload, "html")
+    assert_nil result[:error]
+
+    assert_equal 1, result.dig(:fetch, :attempts).size
+    assert_equal "ok", result.dig(:fetch, :attempts, 0, :status)
+    assert_equal 200, result.dig(:fetch, :attempts, 0, :upstream_http_code)
+    assert_requested request, times: 1
+  end
+
   test "empty body malformed JSON and timeout never fall back to a cache listing" do
     fresh_request.to_return(body: { html: "", http_code: 200 }.to_json)
     assert_equal "body_omitted", fetch[:status]

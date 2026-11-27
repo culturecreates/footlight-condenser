@@ -102,6 +102,16 @@ module Distillator
       return failure("unreachable", "Fresh Wringer scrape failed; cached HTML rejected") if failed
       return failure("body_omitted", "Fresh Wringer scrape returned no HTML") unless payload["html"].is_a?(String) && payload["html"].present?
 
+      challenge = Distillator::WringerSystemErrorMatcher.all_matches(
+        body: payload["html"], http_code: code,
+        final_url: payload["final_url"].presence || @query[:uri],
+        hints: Array(payload["hints"]), signals: signals
+      ).find { |issue| issue[:key] == "browser_challenge_interstitial" }
+
+      if challenge
+        return failure("unreachable", "Fresh Wringer returned browser verification challenge; cached HTML rejected")
+      end
+
       { payload: payload, source: "remote_wringer_fresh", status: "ok", error: nil }
     rescue StandardError => error
       attempt[:error_class] = error.class.name

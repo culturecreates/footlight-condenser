@@ -6,6 +6,8 @@ module Distillator
     # See docs/rollout_modes.md for the shared rollout glossary and operator copy.
     # FetchCacheStore owns Wringer-compatible cache lookup and refresh semantics
     # while FetchService performs a single legacy, shadow, internal, or replay fetch.
+    TITLE_ERROR_SEPARATOR = " --!^!-- ".freeze
+
     DEFAULT_SIGNALS = {
       "network_status" => "ok",
       "content_type" => "unknown",
@@ -305,7 +307,6 @@ module Distillator
       cache.assign_attributes(
         normalized_url: key.normalized_url,
         scrape_date: now,
-        name: extract_title(raw_body) || cache.name,
         http_response_code: http_code,
         headers: headers,
         signals: signals,
@@ -322,7 +323,12 @@ module Distillator
 
       cache.signals = annotate_storage_signals(cache.signals, cache: cache, abort_update: abort_update_policy?(fetch_result))
 
-      if abort_update_policy?(fetch_result) || !content_successful_fetch?(signals: cache.signals || {}, http_code: http_code, raw_body: raw_body)
+      accepted = !abort_update_policy?(fetch_result) && content_successful_fetch?(signals: cache.signals || {}, http_code: http_code, raw_body: raw_body)
+      fetched_title = extract_title(raw_body)
+      unless accepted
+        # Show the latest error page title without replacing the last-good body.
+        # Repeated failures replace the diagnostic suffix rather than stacking it.
+        cache.name = diagnostic_title(cache.name, fetched_title)
         cache.save!
         return false
       end
@@ -330,6 +336,7 @@ module Distillator
       html = escape_erb_tokens(raw_body.to_s)
       html = Distillator::HtmlAbsolutizer.call(html: html, base_url: final_url) if self.class.truthy?(absolute_src)
       cache.assign_attributes(
+        name: fetched_title || original_title(cache.name),
         html: html,
         body: html,
         successful_refresh: now
@@ -486,6 +493,17 @@ module Distillator
 
     def extract_title(html)
       Distillator::HtmlContent.title(html)
+    end
+
+    def original_title(name)
+      name.to_s.split(TITLE_ERROR_SEPARATOR, 2).first.presence
+    end
+
+    def diagnostic_title(previous_name, fetched_title)
+      return previous_name if fetched_title.blank?
+
+      title = original_title(previous_name)
+      title.present? ? "#{title}#{TITLE_ERROR_SEPARATOR}#{fetched_title}" : fetched_title
     end
 
     def successful_http?(code)
