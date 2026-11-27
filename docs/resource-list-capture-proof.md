@@ -39,3 +39,20 @@ ruby test/services/resource_lists/pagination_capture_proof_test.rb
 ```
 
 Locally verified: **11 tests, 23 assertions, 0 failures/errors** (Ruby 3.3.8). Full Rails integration and real-world live fetches have not been run.
+
+## Local multi-page website trial (saved HTML, no database mutation)
+
+1. Open a site's paginated calendar and save **each page's actual HTML** to a separate file, keeping the original page URLs. For JavaScript calendars, save the rendered HTML and record whether pagination was a button/API request rather than an anchor.
+2. Copy `script/resource_list_capture_trial.example.json` into the same directory as the saved HTML. Edit `start_url`, `record_xpath`, `next_xpath`, `terminal_xpath`, and the ordered `pages` list. Each `fetched_at` is the actual capture time, not a made-up timestamp.
+3. From the Condenser repo, run:
+
+   ```bash
+   bundle exec ruby script/resource_list_capture_trial.rb /tmp/site/manifest.json
+   ```
+
+   This script reads HTML snapshots only; it does **not** fetch websites, run Condenser Sources or change data. Output contains a per-page count, content fingerprint, observed next URL and overall chain status. Exit code `0` is a complete nonempty chain and `2` is inconclusive/incomplete.
+4. Repeat with at least two pagination forms and one deliberate missing middle page. Preserve output and snapshots for review.
+
+**Terminal signal requirement:** The example `terminal_xpath` looks for a disabled Next button. Adapt it to a real, independently identifiable DOM signal on your site's last page. Absence of a Next anchor is *not* sufficient: if there is no independent HTML terminal signal, the result is expected to be `incomplete`. This is a limitation to document, not a reason to invent terminal evidence. For AJAX-only or infinite-scroll sites, the collector needs a later API/JS capture adapter rather than pretending the HTML contains link-based pagination.
+
+**Known limitations:** This initial script does not validate extracted event identities, duplicate cards, actual network responses or source-provided HTTP provenance. It does not substitute for live page coverage, bilingual alignment, or export parity. The record XPath should be chosen to identify one card per event, not a page container. The `next_xpath` must return at most one `@href` attribute. HTML snapshots must correspond to the saved URLs in the manifest.
