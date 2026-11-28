@@ -199,3 +199,61 @@ authorization for imports, archival, publishing, or production changes.
 If the previous report is older than 30 minutes, run a new read-only
 `--qa-copy --full` audit with a fresh JSON name first and use that
 report as the resume input. No database reset is needed.
+
+## Browser navigation yields inconsistent numbered pages (2026-11-28)
+
+The operator captured four French HTML pages under
+`/mnt/r/Downloads`:
+
+| File | Requested URL query | Observed browser result |
+|---|---|---|
+| `meridian-fr1.html` | `?page=0` | full calendar |
+| `meridian-fr2.html` | `?page=1` | empty calendar |
+| `meridian-fr2b.html` | `?page=1` | full calendar |
+| `meridian-fr3.html` | `?page=2` | one event, Scaramouch |
+
+A separate earlier `?page=0` browser navigation also yielded an empty
+calendar but was not saved. The browser labels pages 1, 2, 3 while query
+numbers are 0, 1, 2 respectively.
+
+These observations indicate possible **same-URL content instability**;
+they do not by themselves identify whether the cause is server/cache state,
+session-sensitive behavior, JavaScript navigation or an error response.
+
+A new offline and DB-read-only comparison uses the QA copy's **selected
+Webpage URL List Source XPath**, never the original's chosen Source or
+a guessed CSS selector. It compares exact URL sets, duplicates, page
+identity, content challenge markers, pager and canonical hints. The
+expected file mapping is explicit and must not be inferred from filenames:
+
+```bash
+bin/condenser --db footlight_condenser_dansedanse_qa --rails-env development \
+  runner script/meridian_browser_snapshots_audit.rb \
+  --page fr1:0:/mnt/r/Downloads/meridian-fr1.html \
+  --page fr2-empty:1:/mnt/r/Downloads/meridian-fr2.html \
+  --page fr2b-full:1:/mnt/r/Downloads/meridian-fr2b.html \
+  --page fr3-scaramouch:2:/mnt/r/Downloads/meridian-fr3.html \
+  --json /tmp/meridian-browser-comparison.json
+```
+
+This is not the prior `--blocked-html` live-audit resume; it does not
+need a fresh audit report, does not access the network and cannot declare
+live inventory complete. A saved empty page is a legitimate data point
+but not proof there are no events. It checks the loaded page's DOM and
+selected Source XPath; if no event links are extracted from a full
+browser-visible calendar, verify the saved HTML contains rendered
+markup rather than a JS shell.
+
+Review the `same_url_comparisons` and `unstable_page_numbers` first,
+then compare link sets and pager labels. This must pass before treating
+any single timestamped page-numbered response as authoritative
+discovery/archival evidence.
+
+Focused test:
+```bash
+bin/condenser --db footlight_condenser_keyed_qa_test --rails-env test test \
+  test/services/resource_lists/meridian_saved_pages_comparison_test.rb
+```
+
+**Status:** tool and test committed on draft PR #14; local test and
+browser-saved HTML have not yet been executed/inspected by this tool.
