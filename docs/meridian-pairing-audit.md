@@ -257,3 +257,31 @@ bin/condenser --db footlight_condenser_keyed_qa_test --rails-env test test \
 
 **Status:** tool and test committed on draft PR #14; local test and
 browser-saved HTML have not yet been executed/inspected by this tool.
+
+## Revision after comparing four actual browser-saved HTML documents
+
+The operator's offline report showed **identical raw HTML SHA-256 digests
+for two cross-page pairs**:
+- `fr1` (assigned `?page=0`) and `fr2b-full` (assigned `?page=1`):
+  `85baa77312fc…`, with active label **Page actuelle 1**.
+- `fr2-empty` (assigned `?page=1`) and `fr3-scaramouch`
+  (assigned `?page=2`): `1d19da062a40…`, with active label
+  **Page actuelle 3**.
+
+The files' *contents* did not match their assigned URL in the two
+page-1 captures. They **do not demonstrate that the server returned
+inconsistent bodies for the same URL**: browser history, navigation,
+stale document state or saving the wrong tab could explain them.
+The standalone non-browser audit separately established an HTTP-200
+Imperva interstitial for FR page 2. These are distinct observations.
+
+The comparison now reports `mismatched_active_page_labels`,
+`identical_documents_across_assigned_pages` and
+`inconsistent_assigned_page_numbers` rather than the misleading
+`unstable_page_numbers` conclusion. Keep the regular keyed ResourceList
+architecture; do not add Meridian-specific pagination handling without
+repeatable **URL-bound** response evidence. A fresh HTTP capture that
+records the request URL, response URL, HTML digest and extracted links
+is needed to make such a claim.
+
+**Code committed but local regression tests still need to be run.**
