@@ -104,7 +104,11 @@ module ResourceLists
         streams.keys.sort != LANGUAGES.keys.sort
 
       alignment = KeyedCalendarAlignment.call(streams: streams)
-      errors.concat(alignment.errors)
+      if alignment.errors.any?
+        errors.concat(alignment.errors)
+        return result("blocked", [], errors, counts, alignment.digest,
+          alignment.unmatched.map(&:key), fetch_paths, page_counts, page_details)
+      end
       urls = alignment.pairs.flat_map { |pair| pair.urls.values.compact }.uniq
       existing = @website.webpages.event_pages.where(url: urls).pluck(:url, :language, :rdf_uri)
         .to_h { |url, language, rdf_uri| [url, { language: language, rdf_uri: rdf_uri }] }
