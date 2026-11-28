@@ -16,6 +16,7 @@ require "nokogiri"
 require "time"
 require "uri"
 require_relative "../app/services/resource_lists/short_page_stop"
+require_relative "../app/services/resource_lists/numbered_probe_stop"
 require_relative "../app/services/resource_lists/numbered_page_query"
 require_relative "../app/services/resource_lists/link_inventory"
 require_relative "../app/services/resource_lists/ajax_pagination_shell"
@@ -113,7 +114,7 @@ limit.times do |offset|
     link_inventory_sha256: link_fingerprint,
     event_link_count: events.length,
     sample_events: events.first(3), numbered_links: pager,
-    event_link_xpath: event_xpath, title: doc.at_xpath("//title")&.text.to_s.strip,
+    event_link_xpath: event_xpath, numbered_link_urls: pager, title: doc.at_xpath("//title")&.text.to_s.strip,
     ajax_shell_only: ajax_shell.shell_only?, ajax_endpoint: ajax_shell.endpoint,
     challenge_hint: !!(doc.at_xpath("//title")&.text.to_s.match?(/just a moment|attention required|access denied|verify you are human|checking your browser/i) ||
       doc.at_css("#challenge-stage, #challenge-form, [id^='cf-chl-']")),
@@ -126,27 +127,14 @@ limit.times do |offset|
   captures.last[:repeated_content] = !!same_content
   captures.last[:repeated_links] = !!same_links
   puts "page=#{number} status=#{response.code} all_links=#{all_link_count} candidate_event_urls=#{events.length} " \
-    "pager_links=#{pager.length} bytes=#{content.bytesize} challenge_hint=#{captures.last[:challenge_hint]} short_page_stop=#{!!short_page} repeated_content=#{!!same_content} repeated_links=#{!!same_links} ajax_shell=#{ajax_shell.shell_only?}"
-  if ajax_shell.shell_only?
-    stop_reason = "ajax_shell_requires_rendering"
-    break
-  end
-  if captures.last[:challenge_hint]
-    stop_reason = "challenge_page_detected"
-    break
-  end
-  if same_content
-    stop_reason = "repeated_content"
-    break
-  end
-  if same_links
-    stop_reason = "repeated_link_inventory"
-    break
-  end
-  if short_page
-    stop_reason = "heuristic_short_page"
-    break
-  end
+    "pager_links=#{pager.length} next_link=#{captures.last[:next_link_observed]} bytes=#{content.bytesize} challenge_hint=#{captures.last[:challenge_hint]} short_page_stop=#{!!short_page} repeated_content=#{!!same_content} repeated_links=#{!!same_links} ajax_shell=#{ajax_shell.shell_only?}"
+  stop_reason = ResourceLists::NumberedProbeStop.reason(
+    ajax_shell: ajax_shell.shell_only?, challenge: captures.last[:challenge_hint],
+    repeated_content: same_content, repeated_links: same_links,
+    short_page: !!short_page, next_link_observed: captures.last[:next_link_observed],
+    allow_heuristic_stop: ENV["RESOURCE_LIST_PROBE_STOP_ON_SHORT_PAGE"] == "1"
+  )
+  break if stop_reason
   previous_fingerprint = Digest::SHA256.hexdigest(content)
   previous_link_fingerprint = link_fingerprint
   previous_link_count = all_link_count
@@ -156,7 +144,8 @@ end
 stop_reason ||= "max_pages_reached"
 File.write(File.join(output, "probe.json"), JSON.pretty_generate(
   purpose: "read_only_numbered_pagination_diagnostic", not_completeness_proof: true,
-  max_pages: limit, page_parameter: pagination.parameter, pages_fetched: captures.size, stop_reason: stop_reason,
+  max_pages: limit, page_parameter: pagination.parameter,
+  heuristic_stop_enabled: ENV["RESOURCE_LIST_PROBE_STOP_ON_SHORT_PAGE"] == "1", pages_fetched: captures.size, stop_reason: stop_reason,
   verified_completeness: false, captures: captures
 ))
 puts "stop_reason=#{stop_reason} pages_fetched=#{captures.size} complete=UNVERIFIED"

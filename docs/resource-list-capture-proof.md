@@ -90,9 +90,14 @@ bundle exec ruby test/services/resource_lists/short_page_stop_test.rb
 ## Live numbered-page probe: bounded by default
 
 `script/resource_list_numbered_probe.rb` now accepts `URL [MAX_PAGES] OUTPUT_DIR`.
-The default is **25 pages** (configurable 1–50), and it stops early when the
-current fetched page has strictly fewer than 90% of the previous page's
-`//a[@href]` links. The triggering page remains included and saved. For
+The default is **25 pages** (configurable 1–50). A current page with strictly
+fewer than 90% of the previous page's `//a[@href]` links records the advisory
+`short_page_stop` flag, but **does not end the default probe**. Otherwise a
+valid next-page link can be lost, as observed on Co-Motion page 10. To use the
+older experimental stopping behavior explicitly, set
+`RESOURCE_LIST_PROBE_STOP_ON_SHORT_PAGE=1`; even then, an observed matching
+next-page URL suppresses the heuristic stop. This opt-in stop is inconclusive,
+never a completeness claim. For
 Hector-Charland's saved response counts (127, 127, 127, 127, 108), that
 means five requests, not six or seven. The probe does not require an event
 XPath for the short-page decision.
@@ -107,13 +112,15 @@ bundle exec ruby script/resource_list_numbered_probe.rb \
   /tmp/resource-list-trials/hector-capped
 ```
 
-The JSON records `stop_reason` = `heuristic_short_page`,
+The JSON records `stop_reason` = `heuristic_short_page` (opt-in only),
 `max_pages_reached`, or `challenge_page_detected`, along with
 `pages_fetched`, `max_pages`, and `verified_completeness: false`.
 Hitting the cap is **not** a successful completion signal. The cap limits
 requests and prevents unbounded loops; it does not make an incomplete
-ResourceList authoritative. A site with many unrelated navigation links
-may never cross the 90% threshold, so the cap is especially important.
+ResourceList authoritative. A site with many unrelated navigation links may never cross the 90% threshold,
+so the cap is especially important. `numbered_link_urls` in the per-page probe
+receipts records the raw pager links for resolving missing/contradictory next
+signals.
 
 
 ## Filters are immutable across numbered pages; repeated HTML is inconclusive
@@ -385,3 +392,35 @@ This is read-only and offline. No POST fetcher, DB writes, scheduling,
 ResourceList source changes, RDF minting or Artsdata export logic were added.
 Do **not** pass AJAX evidence as \`verified_no_next_link\` to the anchor-chain
 \`PaginationCaptureProof\`; an AJAX transition requires its own proof path.
+
+
+## Co-Motion contradictory pager / short-page diagnostic (2026-11-27)
+
+The user ran the bounded Co-Motion probe on `?page=1` and obtained HTTP 200 on
+pages 1–10. Page 9 reported 106 total HTML links and **no matching next-page
+link**, yet page 10 was fetchable; page 10 had 89 links (84% of page 9) and
+**did expose a matching page-11 link**. The old probe stopped at page 10 on
+`heuristic_short_page`. This is **not** evidence that page 10 is terminal.
+
+The numbered probe now records short pages as advisory only by default,
+retains `short_page_stop` as the historical diagnostic field name, and records
+`numbered_link_urls` in each saved receipt so exact hrefs can be inspected.
+The explicit opt-in `RESOURCE_LIST_PROBE_STOP_ON_SHORT_PAGE=1` is for legacy
+trials only and cannot override `next_link_observed=true`. Stops for challenge,
+AJAX shell and repeated body/link inventory remain inconclusive. A page cap
+still terminates read-only diagnostics without proving completeness.
+
+To rerun at most 13 read-only requests (no database writes):
+
+```bash
+bundle exec ruby script/resource_list_numbered_probe.rb \
+  'https://co-motion.ca/spectacles/?page=1' 13 \
+  /tmp/resource-list-trials/co-motion-continued
+jq '.captures[] | select(.page == 9 or .page == 10 or .page == 11) |
+    {page, next_link_observed, numbered_link_urls, short_page_stop}' \
+  /tmp/resource-list-trials/co-motion-continued/probe.json
+```
+
+The missing page-10 link on page 9 needs HTML pager inspection; `next_link_observed=false`
+alone is not an authoritative terminal signal. No ResourceList page creation,
+retirement, event archiving, or publishing is authorized by this trial.
