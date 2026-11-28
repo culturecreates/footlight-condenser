@@ -89,3 +89,50 @@
 **Complete combined focused test run (user-run WSL on 2026-11-27): 63 runs, 245 assertions, 0 failures, 0 errors, 0 skips.** Line coverage 38.41% (2422 / 6305), branch coverage 12.84% (413 / 3217), measured over the files loaded in this focused run, **not** total repository coverage. PostgreSQL foreign keys remained active; no permission or constraint weakening. Other legacy test suites may still need fixture-loader remediation. The assistant cannot directly run WSL tests; these counts are from user-supplied output.
 
 **Remaining outside QA-only acceptance:** contemporaneous *live* pagination completeness (both languages, all pages); nonidentical FR/EN slug identities; deterministic, collision-safe RDF URI minting for new events; missing/removed event policy; atomic scheduled two-language refresh with failure/replay coverage; then wider regression and full export parity. No part of the QA-only saved-input adapter authorizes unattended production discovery.
+
+
+## Read-only QA UI preview (new, awaiting local test verification)
+
+On the \`feat/keyed-resource-list-alignment\` branch the unscheduled
+\`dansedansetest-ca\` copy shows **Preview multilingual pairing** in its Website
+detail view (development, test, or staging only). The button submits to
+\`POST /websites/:id/preview_multilingual_pairing\`; the result page displays
+pairing keys, English/French URLs, existing QA RDF identities, missing matches,
+fetch failures and a digest.
+
+This first button fetches **only the first configured English and French
+Danse Danse calendar pages**, using a read-only internal fetch path. It does
+not persist Wringer cache entries, touch Statements, change Source DSL, enqueue
+jobs, create or delete Webpages, or authorize publishing. Both page receipts
+must succeed for the preview to show pairs. Existing candidate pages are
+looked up **only in the QA copy**.
+
+**Do not interpret any preview as complete bilingual discovery.** Dynamic
+pagination, full FR/EN inventory proof, live automatic refresh, new-page RDF
+URI minting and an Apply button are still deliberately absent. The current
+pairing key is the final URL path segment; different FR/EN slugs may appear
+as unmatched and must not be silently paired.
+
+Local smoke run, after checking out and migrating the QA branch:
+
+1. Open the original \`dansedanse-ca\` Website in development.
+2. Use **Copy website for QA** to create \`dansedansetest-ca\`.
+3. Open the clone and select **Preview multilingual pairing**.
+4. Confirm the result page explicitly says pagination **UNVERIFIED** and
+   reports the two extracted streams and unresolved keys.
+5. Confirm no changes to original or cloned Statements, Sources, Webpages,
+   scheduling or selected Graph export.
+
+Focused regression commands:
+
+\`\`\`bash
+bin/rails test test/services/resource_lists/danse_danse_keyed_preview_test.rb \
+  test/controllers/websites_controller_test.rb \
+  test/services/resource_lists/keyed_calendar_alignment_test.rb \
+  test/services/resource_lists/keyed_calendar_extractor_test.rb
+\`\`\`
+
+**Verification status:** GitHub changes are committed on the draft branch.
+These new tests have **not** been run in the user's WSL Rails environment and
+the local UI has **not** yet been manually exercised. Existing 63/245 passing
+results predate the preview feature and must not be misrepresented as coverage.
