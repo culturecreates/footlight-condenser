@@ -27,7 +27,7 @@ class DanseDansePairingPreviewTest < ActionDispatch::IntegrationTest
     get website_path(copy)
     assert_response :success
     assert_select "#qa-multilingual-pairing form[action='#{preview_multilingual_pairing_website_path(copy)}']", count: 1
-    assert_select "#qa-multilingual-pairing button", text: /Preview multilingual pairing/
+    assert_select "#qa-multilingual-pairing form[method='post'] input[type='submit'][value='Preview multilingual pairing']", count: 1
   end
 
   test "original website cannot execute pairing preview" do
