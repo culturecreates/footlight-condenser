@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
-# Read-only, bounded live capture against four explicitly configured Meridian
-# calendar URLs. Uses selected URL Source XPath only (NOT its ruby= step).
+# Read-only, bounded Meridian calendar capture. Default audits four pages;
+# --full requires explicit live terminal-page evidence (up to 25 pages/language).
+# Uses selected URL Source XPath only (NOT its ruby= step).
 # No result from this probe is authoritative discovery/archival evidence.
 # bin/rails runner script/meridian_live_pagination_audit.rb --json /tmp/meridian-live.json
 require "digest"
@@ -15,6 +16,7 @@ module MeridianLivePaginationAudit
   ROOT = "https://meridiancentrepointe.com"
   PATHS = { "en" => "/en/events", "fr" => "/fr/evenements" }.freeze
   MAX_HTML_BYTES = 5 * 1024 * 1024
+  MAX_PAGES = ResourceLists::MeridianPager::MAX_PAGES
   AUDIT_PAGES = (0..1).freeze
 
   module_function
@@ -123,12 +125,13 @@ module MeridianLivePaginationAudit
     raise "invalid selected Source XPath: #{error.message}"
   end
 
-  def run(output: nil, snapshots: {})
+  def run(output: nil, snapshots: {}, full: false)
     connection = ActiveRecord::Base.connection
     raise "Refusing production" if Rails.env.production?
     allowed = connection.current_database == "footlight_condenser_staging_work" ||
       connection.current_database.match?(/\Afootlight_condenser_[a-z0-9_]*qa\z/)
     raise "Expected a local staging working or QA database" unless allowed
+    raise "Full live pagination cannot use four-page snapshots" if full && snapshots.any?
     expected = PATHS.keys.product(AUDIT_PAGES.to_a)
     if snapshots.any? && snapshots.keys.sort != expected.sort
       raise "For replay, all four contemporaneous EN/FR page 0/1 HTML snapshots are required"
@@ -139,7 +142,7 @@ module MeridianLivePaginationAudit
       site: "meridiancentrepointe-com", read_only: true, pages: {}, errors: [],
       inventory_authoritative: false, terminal_evidence: "NOT_ESTABLISHED",
       execution: "Selected Source XPath only; no Ruby DSL, imports, cache writes, or new RDF identities",
-      input_mode: snapshots.empty? ? "live_http" : "operator_snapshots_not_live_proof" }
+      input_mode: snapshots.empty? ? (full ? "live_full_bounded" : "live_four_page_sample") : "operator_snapshots_not_live_proof" }
     connection.transaction do
       connection.execute("SET TRANSACTION READ ONLY")
       site = Website.find_by!(seedurl: report.fetch(:site))
@@ -153,12 +156,15 @@ module MeridianLivePaginationAudit
 
       PATHS.each do |language, path|
         report[:pages][language] = {}
-        AUDIT_PAGES.each do |number|
+        page_numbers = full ? [0] : AUDIT_PAGES.to_a
+        observed_last_page = nil
+        page_numbers.each do |number|
           url = "#{ROOT}#{path}?page=#{number}"
           begin
             snapshot_path = snapshots[[language, number]]
             fetched = snapshot_path ? snapshot_page(snapshot_path) : fetch_page(url)
             identity = validate_calendar_html!(fetched.fetch(:html), url, language)
+            pager = ResourceLists::MeridianPager.call(html: fetched.fetch(:html), url: url)
             extracted = extract_page(fetched.fetch(:html), url, language, source_by_language.fetch(language).fetch(:xpath))
             raise "no event links from selected XPath" if extracted.fetch(:urls).empty?
             raise "out-of-scope or malformed XPath values" if extracted.fetch(:rejected_xpath_values).any?
@@ -166,11 +172,57 @@ module MeridianLivePaginationAudit
               bytes: fetched.fetch(:bytes), final_url: fetched.fetch(:final_url), capture_mode: fetched[:capture_mode] || "live_http",
               source_id: source_by_language.fetch(language).fetch(:source_id),
               source_sha256: source_by_language.fetch(language).fetch(:source_sha256),
-              captured_at: Time.current.utc.iso8601, **identity, **extracted }
+              captured_at: Time.current.utc.iso8601, **identity, **extracted,
+              pager_last_page: pager.last_page, pager_next_page: pager.next_page }
+
+            next unless full
+
+            if number == 0
+              observed_last_page = pager.last_page
+              raise "No explicit last-page navigation on first page" if observed_last_page.nil?
+              raise "Out-of-range terminal page #{observed_last_page}" unless observed_last_page.between?(0, MAX_PAGES - 1)
+              page_numbers = (0..observed_last_page).to_a
+              # each reads the receiver only once: enumerate the remaining
+              # discovered page numbers explicitly in a separate phase.
+              break
+            end
           rescue StandardError => error
             report[:errors] << "#{language} page #{number}: #{error.class}: #{error.message}"
             report[:pages][language][number] = { url: url, status: "blocked", error: error.class.name }
+            break if full
           end
+        end
+
+        next unless full && observed_last_page && report[:errors].none? { |e| e.start_with?("#{language} page 0:") }
+        (1..observed_last_page).each do |number|
+          url = "#{ROOT}#{path}?page=#{number}"
+          begin
+            fetched = fetch_page(url)
+            identity = validate_calendar_html!(fetched.fetch(:html), url, language)
+            pager = ResourceLists::MeridianPager.call(html: fetched.fetch(:html), url: url)
+            extracted = extract_page(fetched.fetch(:html), url, language, source_by_language.fetch(language).fetch(:xpath))
+            raise "no event links from selected XPath" if extracted.fetch(:urls).empty?
+            raise "out-of-scope or malformed XPath values" if extracted.fetch(:rejected_xpath_values).any?
+            raise "Pager last-page changed mid-capture" if pager.last_page && pager.last_page != observed_last_page
+            raise "Last page still links to a next page" if number == observed_last_page && pager.next_page
+            report[:pages][language][number] = { url: url, http: 200, sha256: fetched.fetch(:sha256),
+              bytes: fetched.fetch(:bytes), final_url: fetched.fetch(:final_url), capture_mode: "live_http",
+              source_id: source_by_language.fetch(language).fetch(:source_id),
+              source_sha256: source_by_language.fetch(language).fetch(:source_sha256),
+              captured_at: Time.current.utc.iso8601, **identity, **extracted,
+              pager_last_page: pager.last_page, pager_next_page: pager.next_page }
+          rescue StandardError => error
+            report[:errors] << "#{language} page #{number}: #{error.class}: #{error.message}"
+            report[:pages][language][number] = { url: url, status: "blocked", error: error.class.name }
+            break
+          end
+        end
+        if report[:pages][language].keys.sort == (0..observed_last_page).to_a &&
+            report[:pages][language].values.none? { |row| row[:status] == "blocked" }
+          report[:terminal_evidence] = {} if report[:terminal_evidence].is_a?(String)
+          report[:terminal_evidence][language] = { last_page: observed_last_page,
+            expected_pages: observed_last_page + 1, verified_pages: report[:pages][language].size,
+            note: "Explicit first-page last link; all numbered pages fetched. Not proof of atomic snapshot." }
         end
       end
 
@@ -233,9 +285,11 @@ module MeridianLivePaginationAudit
 end
 
 output = nil
+full = false
 snapshots = {}
 OptionParser.new do |opts|
   opts.on("--json PATH") { |path| output = path }
+  opts.on("--full", "Follow the explicit last-page link, max 25 pages per language") { full = true }
   opts.on("--html LANG:PAGE:PATH", "Read-only replay of all 4 contemporaneous HTML captures") do |spec|
     lang, number, path = spec.split(":", 3)
     abort "Invalid --html: #{spec}" unless MeridianLivePaginationAudit::PATHS.key?(lang) &&
@@ -244,4 +298,4 @@ OptionParser.new do |opts|
   end
 end.parse!(ARGV)
 abort "Unexpected arguments" unless ARGV.empty?
-MeridianLivePaginationAudit.run(output: output, snapshots: snapshots)
+MeridianLivePaginationAudit.run(output: output, snapshots: snapshots, full: full)
