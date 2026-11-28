@@ -9,7 +9,11 @@ require "digest"
 require "optparse"
 
 output = nil
-OptionParser.new { |opts| opts.on("--json PATH") { |path| output = path } }.parse!(ARGV)
+qa_copy = false
+OptionParser.new do |opts|
+  opts.on("--json PATH") { |path| output = path }
+  opts.on("--qa-copy", "Inspect the linked Meridian QA website rather than the original") { qa_copy = true }
+end.parse!(ARGV)
 abort "Unexpected arguments" unless ARGV.empty?
 abort "Refusing production" if Rails.env.production?
 abort "Refusing overwrite: #{output}" if output && File.exist?(output)
@@ -17,7 +21,15 @@ abort "Refusing overwrite: #{output}" if output && File.exist?(output)
 report = nil
 ActiveRecord::Base.connection.transaction do
   ActiveRecord::Base.connection.execute("SET TRANSACTION READ ONLY")
-  site = Website.find_by!(seedurl: "meridiancentrepointe-com")
+  original = Website.find_by!(seedurl: "meridiancentrepointe-com")
+  site = if qa_copy
+    raise "QA-copy schema missing" unless ActiveRecord::Base.connection.column_exists?(:websites, :test_copy_of_website_id)
+    copies = Website.where(test_copy_of_website_id: original.id).to_a
+    raise "Expected exactly one Meridian QA copy, got #{copies.length}" unless copies.one?
+    copies.first
+  else
+    original
+  end
   event_class = RdfsClass.find_by!(name: "Event")
   rl_class = RdfsClass.find_by!(name: "ResourceList")
   labels = ["Webpage URL List", "URI List"].freeze
@@ -59,6 +71,11 @@ ActiveRecord::Base.connection.transaction do
     end
   end
 
+  namespace_prefix = "http://kg.footlight.io/resource/#{site.seedurl}_"
+  namespace_alias = "footlight:#{site.seedurl}_"
+  mismatched_namespace = entries.select do |entry|
+    !entry.fetch(:rdf_uri).start_with?(namespace_prefix, namespace_alias)
+  end
   by_url = entries.group_by { |row| row[:url] }
   url_conflicts = by_url.filter_map do |url, rows|
     rdf_uris = rows.map { |row| row[:rdf_uri] }.uniq
@@ -98,7 +115,8 @@ ActiveRecord::Base.connection.transaction do
 
   report = {
     generated_at: Time.current.utc.iso8601, database: ActiveRecord::Base.connection.current_database,
-    website: { id: site.id, seedurl: site.seedurl }, read_only: true,
+    website: { id: site.id, seedurl: site.seedurl, test_copy_of_website_id: site.has_attribute?(:test_copy_of_website_id) ? site.test_copy_of_website_id : nil }, read_only: true,
+    qa_namespace_expected: namespace_prefix, qa_namespace_mismatches: qa_copy ? mismatched_namespace : [],
     rl_counts: rl_pages.group_by(&:language).transform_values(&:size),
     selected_sources: sources, rl_entries: entries, rl_errors: errors, url_rdf_conflicts: url_conflicts,
     missing_event_webpage_urls: missing_urls, cache_to_webpage_rdf_mismatches: mismatches,
@@ -110,6 +128,7 @@ end
 puts "Database: #{report[:database]} | #{report.dig(:website, :seedurl)} | READ-ONLY"
 puts "Cached URL/RDF entries: #{report[:rl_entries].size} | RL errors: #{report[:rl_errors].size} | URL-RDF conflicts: #{report[:url_rdf_conflicts].size}"
 puts "Existing Webpages absent for cached URLs: #{report[:missing_event_webpage_urls].size} | RDF mismatches: #{report[:cache_to_webpage_rdf_mismatches].size}"
+puts "RDF URI namespace mismatches: #{report[:qa_namespace_mismatches].size} (QA copy)" if qa_copy
 report[:selected_sources].each do |source|
   puts "  RL #{source[:rl_id]} #{source[:property]} #{source[:source_language]} count=#{source[:count]} DSL ops=#{source[:algorithm_steps].join(',')} sha=#{source[:algorithm_sha256][0, 12]}"
 end
