@@ -285,3 +285,9 @@ with last-good/Artsdata baselines, and verify that incomplete refreshes
 cannot remove existing statements. Do not add an event XPath to the
 pagination collector. No production fetch/import/archival behavior
 changed in this PR.
+
+## Saved DSL replay (local, existing Source only)
+
+See [`docs/resource-list-saved-dsl-replay.md`](resource-list-saved-dsl-replay.md) for the
+bounded read-only harness. It uses the **actual existing configured Source DSL**
+on the saved HTML and intentionally leaves completeness/parity unverified.
