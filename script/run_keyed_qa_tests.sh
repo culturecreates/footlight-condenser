@@ -32,9 +32,7 @@ psql_test() { env -u PGDATABASE -u PGOPTIONS psql -X -v ON_ERROR_STOP=1 -h "$SOC
 psql_admin() { sudo -u postgres psql -X -v ON_ERROR_STOP=1 -h "$SOCKET" -p "$PORT" -d postgres "$@"; }
 psql_admin_test() { sudo -u postgres psql -X -v ON_ERROR_STOP=1 -h "$SOCKET" -p "$PORT" -d "$DB" "$@"; }
 rails() {
-  env -u DATABASE_URL -u TEST_DATABASE_URL -u PGDATABASE -u PGOPTIONS -u FOOTLIGHT_CONDENSER_DB_TEST \
-    RAILS_ENV=test DISABLE_SPRING=1 PGHOST="$SOCKET" PGPORT="$PORT" \
-    'FOOTLIGHT-CONDENSER-DB_TEST=footlight_condenser_keyed_qa_test' bin/rails "$@"
+  bash bin/condenser --db "$DB" --rails-env test --pghost "$SOCKET" --pgport "$PORT" "$@"
 }
 
 exists_db() {
