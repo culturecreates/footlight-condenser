@@ -377,3 +377,43 @@ bin/condenser --db footlight_condenser_keyed_qa_test --rails-env test test \
 **Status:** Implemented on draft PR #14; the new tests and live event
 fetch have not been run in the operator's WSL environment. No
 database writes, imports or RDF minting were performed by this audit.
+
+## Drupal node identity evidence from cached calendar HTML
+
+The operator supplied the original site's cached `/en/events` HTML (scrape
+2026-11-28 13:04:48 -0500). In the **main** event-listing cards,
+`article.theatre-listing-teaser a[rel=bookmark]` owns
+`h2#node-<id>-title`. Twelve event URLs have twelve explicit Drupal
+node IDs. A separate *Featured events* section repeats three events with
+`h2#featured-node-<id>-title` and explains the 15 XPath hits versus 12
+unique calendar URLs. This is structural duplication, not necessarily
+pagination overlap.
+
+The corresponding Drupal node identifier across EN/FR **may provide a
+stable language-independent event key** if the French card and both event
+documents confirm the same ID. The individual event pages also expose
+Drupal settings JSON `path.currentPath = node/<id>` on this site
+(the cached calendar itself has `node/8`, which identifies the calendar
+page, not an event).
+
+The read-only translation audit now extracts `drupal_node_id` from event
+page settings. When both documents have the same node ID and reciprocal
+`hreflang`, it reports `verified_shared_key=drupal-node:<id>`. When
+explicit node IDs conflict, the verification is blocked; if neither node
+ID is present, reciprocal translation evidence remains separately
+verified but `verified_shared_key` remains null.
+
+Re-run the focused test and event audit using new output filename:
+
+```bash
+bin/condenser --db footlight_condenser_keyed_qa_test --rails-env test test \
+  test/services/resource_lists/meridian_event_translation_evidence_test.rb
+
+bin/condenser --db footlight_condenser_dansedanse_qa --rails-env development \
+  runner script/meridian_event_translation_audit.rb --live \
+  --json /tmp/meridian-translations-node-evidence.json
+```
+
+**Not yet verified locally:** updated test and live node evidence. No
+discovery import or RDF minting is performed; existing QA RDF identities
+remain untouched.
