@@ -173,7 +173,7 @@ module ResourceLists
       result = DanseDanseKeyedPreview.call(website: copy)
       assert_equal "blocked", result.status
       assert_empty result.rows
-      assert result.errors.any? { |error| error.include?("fr: calendar fetch failed") }
+      assert result.errors.any? { |error| error.include?("fr page 1: fetch failed") }
     end
 
     test "network exceptions fail closed instead of returning partial pairs" do
@@ -189,7 +189,7 @@ module ResourceLists
       result = DanseDanseKeyedPreview.call(website: copy)
       assert_equal "blocked", result.status
       assert_empty result.rows
-      assert result.errors.any? { |error| error.include?("en: preview failed") }
+      assert result.errors.any? { |error| error.include?("en page 1: preview failed (Net::ReadTimeout)") }
     end
 
     test "unmatched translations are reported without hiding the discovered key" do
