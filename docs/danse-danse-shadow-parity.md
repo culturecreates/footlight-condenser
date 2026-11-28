@@ -416,3 +416,34 @@ Do not use the existing Meridian cache #2742 as a trusted baseline: the
 stored response is an HTTP-200 verification challenge, not a calendar.
 First fetch new content in the QA copy, then validate the resulting
 ResourceList before performing discovery/reconciliation.
+
+## PostgreSQL 17 fixture FK ordering (2026-11-28; awaiting local verification)
+
+Rails' default fixture loader deletes and inserts fixture tables in an order that
+is not guaranteed to respect PostgreSQL foreign keys. It normally temporarily
+disables referential-integrity triggers, which requires elevated privileges on
+PostgreSQL 17; the local non-superuser role cannot rely on that. As a result,
+`properties.rdfs_class_id` may be inserted before the `rdfs_classes` parent
+exists and trigger `PG::ForeignKeyViolation` before test setup completes.
+
+`test/support/foreign_key_ordered_fixtures.rb` now supplies a test-only
+PostgreSQL fixture loader that queries the database's foreign keys and orders
+deletions child-first and inserts parent-first, inside a transaction.
+Constraints remain enabled. A cyclic dependency fails explicitly instead of
+silently bypassing integrity checks. No database schema or role permissions
+are changed. A small regression test exercises actual FK fixtures and order.
+
+After pulling the feature branch:
+
+```bash
+bin/condenser --db footlight_condenser_keyed_qa_test --rails-env test \
+  test test/foreign_key_ordered_fixtures_test.rb \
+       test/services/distillator/page_evidence_test.rb \
+       test/services/distillator/fetch_cache_store_test.rb \
+       test/services/distillator/qa_fetch_isolation_test.rb
+```
+
+Do not rerun `--reset` simply because the fixture loader fails: the cause
+is test setup order, not necessarily a corrupt DB. This test-only patch
+uses internal Rails adapter APIs, so test it against the pinned Rails version
+before merging; investigate any failures rather than skipping fixtures.
