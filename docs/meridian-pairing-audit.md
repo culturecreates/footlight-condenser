@@ -115,3 +115,48 @@ PostgreSQL test execution has not yet been reported for these new files.
 The earlier passing 62-test/874-assertion suite predates this audit change.
 
 **2026-11-28 correction:** the first audit run stopped on original RL #10684 because its selected Source has `render_js=true`. The operator had set `render_js=false` **only on the QA copy**. Use `--qa-copy` for pairing validation. The first attempt did not fetch pages or establish parity. The corrected path and renderer tests await local execution.
+
+## Single-page resume after HTTP-200 Imperva challenge (2026-11-28)
+
+The first QA-copy full audit (database `footlight_condenser_dansedanse_qa`,
+website #585) inspected all EN pages 0–2, FR pages 0–1 and rejected FR
+page 2 as an Imperva challenge. **This was correct safety behavior.** Its
+partial diagnostic counted 25 unique EN URLs, 24 unique FR URLs, 22
+existing bilingual RDF identities, 3 cross-page identities, 4 unmapped
+URLs and 1 unmatched existing identity. Those latter anomalies are only
+provisional until FR page 2 is validated.
+
+To avoid refetching the five successful pages, the audit supports a bounded
+resume from the saved JSON report, without reusing rejected content:
+
+```bash
+bin/condenser --db footlight_condenser_dansedanse_qa --rails-env development \
+  runner script/meridian_live_pagination_audit.rb --qa-copy --full \
+  --resume /tmp/meridian-qa-full.json \
+  --json /tmp/meridian-qa-full-resumed.json
+```
+
+The resume requires a report no more than **30 minutes old**, the exact
+database and QA-copy Website identity, matching EN/FR selected Source IDs,
+XPath DSL digests and rendering flags, unchanged page URLs, and fresh
+verified HTML receipts. Blocked pages cannot be reused. It retries the
+missing page(s), recomputes all pairing metrics and records the original
+JSON's SHA-256 as provenance. If any check fails, start a new full audit
+rather than weakening the evidence.
+
+A resumed run uses captured URLs from two moments, so it **does not prove
+atomic inventory** even when both language pagers have valid terminal
+receipts. It remains read-only and diagnostic; a successful resume does
+not authorize unattended imports, deletion, archival or new RDF minting.
+
+Focused regression:
+```bash
+bin/condenser --db footlight_condenser_keyed_qa_test --rails-env test test \
+  test/services/resource_lists/meridian_audit_resume_test.rb \
+  test/services/resource_lists/meridian_page_validation_test.rb \
+  test/services/resource_lists/meridian_pager_test.rb \
+  test/services/resource_lists/meridian_rendered_page_test.rb
+```
+
+**Status:** Committed to draft PR #14; this additional resume code and tests
+have not been run on the user's WSL machine. No local database was changed.
