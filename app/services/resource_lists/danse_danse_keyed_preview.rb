@@ -42,23 +42,26 @@ module ResourceLists
       # rows during this read-only diagnostic.
       configured_lists = @website.webpages.where(rdfs_class: resource_list_class).to_a
 
-      LANGUAGES.each do |language, config|
+      # Validate *all* language configurations before making *any* network
+      # request. A gap in EN must not cause FR to fetch a partial inventory.
+      configured_by_language = LANGUAGES.to_h do |language, config|
         configured = ConfiguredCalendarPages.call(
           webpages: configured_lists.select { |page| page.language == language },
           root: ROOT, path: config.fetch(:path)
         )
         page_details[language] = []
         page_counts[language] = configured.pages.size
-        unless configured.valid?
-          errors.concat(configured.errors.map { |error| "#{language}: #{error}" })
-          next
-        end
+        errors.concat(configured.errors.map { |error| "#{language}: #{error}" })
+        [language, configured.pages]
+      end
+      return result("blocked", [], errors, counts, nil, [], fetch_paths, page_counts, page_details) if errors.any?
 
+      LANGUAGES.each do |language, config|
         item_xpath = "//div[contains(@class,'section--listing-spectacles__container')]" \
           "//div[contains(concat(' ',normalize-space(@class),' '),' block--spectacle ')]" \
           "[.//div[contains(@class,'block--spectacle__title--info--category')]/span[normalize-space(.)='#{config.fetch(:category)}']]"
         records, fetch_paths_for_language, total_bytes = [], [], 0
-        configured.pages.each do |page|
+        configured_by_language.fetch(language).each do |page|
           # Fixed configured same-origin URL; no page enumeration or new URLs guessed.
           fetched = Distillator::FetchService.fetch_result(url: page.url, render_js: false,
             scrape_options: {}, mode: :internal)
