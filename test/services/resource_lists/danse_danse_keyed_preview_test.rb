@@ -127,7 +127,8 @@ module ResourceLists
         body: %(<div class="section--listing-spectacles__container"><div class="block--spectacle"><div class="block--spectacle__title--info--category"><span>Show</span></div><a href="/en/shows/a?variant=2">Example</a></div></div>),
         final_url: "https://www.dansedanse.ca/en/shows?page=2", fetch_path: "native" })
       result = DanseDanseKeyedPreview.call(website: copy)
-      assert_equal "needs_review", result.status
+      assert_equal "blocked", result.status
+      assert_empty result.rows
       assert result.errors.any? { |message| message.include?("duplicate_key: en:a") }
     end
 
