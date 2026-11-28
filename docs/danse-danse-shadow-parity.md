@@ -248,3 +248,41 @@ minting, absence of every possible incidental DB write, unattended
 scheduling, or Artsdata export parity after this specific browser run.
 The screenshot/pasted rendered report is observational evidence; an
 independent post-preview baseline comparison is still advisable.
+
+
+## Configured bilingual multi-page preview — QA-only expansion (2026-11-28)
+
+Each legacy ResourceList is an independent Webpage with its own Sources, Statements
+and refresh. The previous browser preview observed only `/en/shows` and
+`/fr/spectacles`, 8 EN / 8 FR with 8 existing QA RDF identities.
+
+New QA-only implementation reads the `dansedansetest-ca` copy's already
+**configured** ResourceList Webpages (no guessed URLs) for both language roots.
+Accepted URL patterns are the root, `?page=N` or `/page/N`, using strict
+same-origin HTTPS matching; page numbering must be contiguous from 1 and is
+bounded at 25 per language. It fetches every configured page through the
+internal read-only fetch service; validates each HTTP response and final URL,
+extracts each page's keyed cards, aggregates and deduplicates by key, and
+pairs across language/page positions using `KeyedCalendarAlignment`.
+
+A missing configured page, duplicate page number, bad redirect, failed fetch,
+empty extraction, oversized response or conflicting per-language key blocks
+the entire preview. Unmatched FR/EN keys remain visible for review instead of
+being silently excluded. The UI shows configured page counts and per-page
+extraction counts; no database statements, sources or webpage rows are written.
+
+**Critical evidence distinction:** contiguous **configured** pages are not
+proof of an actual final page on the live website. `UNVERIFIED` remains on
+the report even when all configured pages succeed and keys pair. In particular,
+a root-only configuration cannot claim completeness just because it returned
+8 matches. Positive terminal evidence is required before this becomes an
+authoritative inventory, import, archival trigger or scheduled two-language
+refresh.
+
+Focused test additions cover unequal language page counts (3 FR vs 4 EN),
+cross-page matches, gaps in configured page numbering, later-page HTTP failure
+and conflicting duplicate keys. These changes were committed but have **not
+yet** been run in the user's WSL environment. Run the existing local
+`bash script/run_keyed_qa_tests.sh` (no DB reset) and inspect the resulting
+live preview on Website #584. Do not merge or enable scheduled refresh until
+full live terminal-page proof, new-event identity policy and graph parity pass.
