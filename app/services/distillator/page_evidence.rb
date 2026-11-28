@@ -41,6 +41,11 @@ module Distillator
       signals.merge!(evidence.to_signals)
       signals["content_success"] = false
       signals["blocking_issue_key"] ||= evidence.blocking_key
+      signals["primary_issue_key"] ||= evidence.blocking_key
+      signals["primary_issue_label"] ||= evidence.status == "rejected" ? "Suspected browser challenge" : "Unverified page structure"
+      signals["primary_issue_severity"] ||= evidence.status == "rejected" ? "blocked" : "failed"
+      signals["primary_issue_category"] ||= evidence.status == "rejected" ? "anti_bot" : "content"
+      signals["issue_keys"] = (Array(signals["issue_keys"]) + [evidence.blocking_key]).uniq
       wringer[:signals] = signals
       wringer[:policy_action] = "abort_update"
       wringer[:retry] = true if wringer[:retry].nil?
