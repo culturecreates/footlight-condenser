@@ -71,10 +71,10 @@ module MeridianEventTranslationAudit
       end
       result[:pairs][name] = assessment
       result[:fully_verified_pairs] += 1 if assessment[:status] == "verified_reciprocal_translation"
-      puts "#{name}: #{assessment[:status]}"
+      puts "#{name}: #{assessment[:status]} shared_key=#{assessment[:verified_shared_key] || "unverified"} node_conflict=#{assessment[:node_id_conflict] || false}"
       if assessment[:pages]
         assessment[:pages].each do |language, page|
-          puts "  #{language.upcase} #{page[:state]} title=#{page[:title].inspect} alternates=#{page[:head_alternates].inspect} shortlinks=#{page[:drupal_shortlinks].inspect}"
+          puts "  #{language.upcase} #{page[:state]} title=#{page[:title].inspect} alternates=#{page[:head_alternates].inspect} shortlinks=#{page[:drupal_shortlinks].inspect} drupal_node_id=#{page[:drupal_node_id] || "unknown"}"
           Array(page[:errors]).each { |error| puts "    #{error}" }
         end
       else
