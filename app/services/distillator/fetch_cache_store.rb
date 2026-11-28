@@ -159,7 +159,9 @@ module Distillator
 
     def fetch
       key = Distillator::WringerUrlKey.call(uri, include_fragment: include_fragment)
-      cache = Distillator::FetchCache.find_by(uri_key: key.uri_key)
+      qa_website_id = Distillator::QaFetchIsolation.website_id(website: website, website_id: website_id, log_context: log_context)
+      cache_uri_key = Distillator::QaFetchIsolation.cache_key(uri_key: key.uri_key, website_id: qa_website_id)
+      cache = Distillator::FetchCache.find_by(uri_key: cache_uri_key)
       stored_profile = stored_body_profile(cache)
       requested_profile = requested_body_profile(key)
       profile_mismatch = cache.present? && stored_profile != requested_profile
@@ -180,10 +182,12 @@ module Distillator
       had_cache = cache.present?
       log_cache_event(had_cache ? "cache.refresh" : "cache.miss", key: key, cache_reason: decision[:reason].to_s)
 
-      cache ||= Distillator::FetchCache.new(uri_key: key.uri_key)
+      cache ||= Distillator::FetchCache.new(uri_key: cache_uri_key)
       cache.normalized_url ||= key.normalized_url
 
       options = scrape_options(key)
+      # The URL key in outgoing Wringer requests must remain the real URL,
+      # never the QA storage namespace. QA requests use local native fetching.
       # Wringer also caches by URL, so refresh upstream when the rendering mode differs.
       if stored_profile["render_js"] != requested_profile["render_js"] && (stored_profile.key?("render_js") || requested_profile["render_js"])
         options[:force_scrape] = true
@@ -275,7 +279,7 @@ module Distillator
         cache_hit: cache_hit,
         cache_write: cache_write,
         cache_reason: cache_reason.to_s,
-        uri_key: key.uri_key,
+        uri_key: cache.uri_key,
         normalized_url: key.normalized_url,
         fetch_path: fetch_path,
         name: cache&.name,
@@ -653,7 +657,10 @@ module Distillator
         service: "distillator",
         event: event,
         uri: key.normalized_url,
-        uri_key: key.uri_key,
+        uri_key: result&.uri_key || Distillator::QaFetchIsolation.cache_key(
+          uri_key: key.uri_key,
+          website_id: Distillator::QaFetchIsolation.website_id(website: website, website_id: website_id, log_context: log_context)
+        ),
         mode: mode.to_s,
         fetch_path: result&.fetch_path,
         cache_reason: cache_reason || result&.cache_reason,
