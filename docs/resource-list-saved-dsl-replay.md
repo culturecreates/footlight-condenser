@@ -137,3 +137,38 @@ Report status remains `dsl_replayed_parity_unverified`; verify URL/URI
 pairing and compare with last-good statements separately.
 Existing source configuration is trusted input; `ruby=` expressions are
 not process- or filesystem-sandboxed. Do not point the runner to staging.
+
+## Actual Shawinigan DSL replay observations (2026-11-27)
+
+The operator replayed both **original** selected Source algorithms (9098 for
+URI List, 9102 for Webpage URL List) on the SHA-verified local captures.
+Every invocation reported `dsl_replayed_parity_unverified`:
+
+| Selected calendar | Source outputs | Occurrences | Repeated occurrences | Unique values | Terminal candidate |
+|---|---|---:|---:|---:|---:|
+| Unfiltered | 9098 and 9102 | 86 each | 35 each | 51 each | 11 |
+| Culture | 9098 and 9102 | 72 each | 27 each | 45 each | 9 |
+
+These are **per-chain** unique raw values, not a proven count of missing Event
+Webpages. The snapshot has 31 Event webpages but was captured at a different
+time and only has configured ResourceLists for unfiltered pages 1–4.
+URL/URI positional pairing, Source cache baselines, and Artsdata parity remain
+separate evidence gates. Equal counts and duplicate totals alone do not certify
+pairing correctness.
+
+To check **every URL/URI pair in its original DSL array position**, without
+re-extracting HTML, fetches, database connections or any new XPath:
+
+```bash
+bundle exec ruby test/services/resource_lists/saved_dsl_pair_parity_test.rb
+for selection in shawinigan-numbered shawinigan-culture; do
+  bundle exec ruby script/resource_list_saved_dsl_pair_audit.rb \
+    "/tmp/resource-list-trials/${selection}" || exit 1
+done
+```
+
+The pairing audit checks the existing Shawinigan URI naming contract,
+matching page/Source identity, value digests, duplicates and pair ordering.
+A `url_uri_pairing_verified_last_good_unverified` result certifies only
+**local pairing of recorded DSL outputs**. It does not establish pagination
+completeness, last-good Statement-cache parity, or Artsdata/Databus invariants.
