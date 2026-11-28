@@ -139,6 +139,10 @@ module MeridianLivePaginationAudit
     raise "Full live pagination cannot use four-page snapshots" if full && snapshots.any?
     raise "--resume requires --qa-copy --full without --html" if resume_path && (!qa_copy || !full || snapshots.any?)
     raise "--blocked-html requires --resume" if blocked_snapshots.any? && resume_path.nil?
+    blocked_snapshots.each do |(language, number), path|
+      raise "Missing operator HTML snapshot for #{language} page #{number}: #{path}" unless File.file?(path)
+      raise "Empty or oversized operator HTML snapshot for #{language} page #{number}: #{path}" unless File.size(path).between?(1, MAX_HTML_BYTES)
+    end
     expected = PATHS.keys.product(AUDIT_PAGES.to_a)
     if snapshots.any? && snapshots.keys.sort != expected.sort
       raise "For replay, all four contemporaneous EN/FR page 0/1 HTML snapshots are required"
@@ -185,8 +189,7 @@ module MeridianLivePaginationAudit
       if blocked_snapshots.any?
         unexpected = blocked_snapshots.keys - resumed.blocked_pages
         raise "Operator HTML can replace only previously blocked pages: #{unexpected.inspect}" if unexpected.any?
-        report[:operator_supplied_pages] = blocked_snapshots.keys.map { |lang, number| { language: lang, page: number, path: blocked_snapshots[[lang, number]] } }
-        report[:input_mode] = "mixed_live_and_operator_html"
+        report[:operator_html_requested] = blocked_snapshots.keys.map { |lang, number| { language: lang, page: number } }
       end
 
       PATHS.each do |language, path|
@@ -256,11 +259,21 @@ module MeridianLivePaginationAudit
           report[:terminal_evidence] = {} if report[:terminal_evidence].is_a?(String)
           report[:terminal_evidence][language] = { last_page: last_page, expected_pages: last_page + 1,
             verified_pages: report[:pages][language].size,
-            note: blocked_snapshots.any? ? "Some pages are operator-supplied; terminal coverage is diagnostic, not live verified." :
-              resumed ? "Mixed-time validated receipts, not an atomic snapshot." :
+            note: resumed ? "Validated receipts from multiple times; not an atomic inventory." :
               "Explicit last-page link plus all numbered responses. Not an atomic snapshot." }
         end
       end
+
+      accepted_operator_pages = report[:pages].flat_map do |language, pages|
+        pages.filter_map do |number, row|
+          { language: language, page: number, sha256: row[:sha256] } if row[:capture_mode] == "operator_snapshot"
+        end
+      end
+      if accepted_operator_pages.any?
+        report[:input_mode] = "mixed_live_and_operator_html"
+        report[:operator_supplied_pages] = accepted_operator_pages
+      end
+      report[:operator_html_rejected] = blocked_snapshots.any? && accepted_operator_pages.empty?
 
       all_records = report[:pages].flat_map do |language, pages|
         pages.flat_map do |number, entry|
@@ -302,14 +315,19 @@ module MeridianLivePaginationAudit
       terminal_verified = full && report[:terminal_evidence].is_a?(Hash) &&
         report[:terminal_evidence].keys.sort == PATHS.keys.sort
       report[:pairing_review] = {
-        terminal_verified: terminal_verified && blocked_snapshots.empty?,
+        terminal_verified: terminal_verified && accepted_operator_pages.empty?,
         terminal_coverage: terminal_verified,
-        existing_pairs_verified: terminal_verified && blocked_snapshots.empty? && report[:errors].empty? &&
+        existing_pairs_verified: terminal_verified && accepted_operator_pages.empty? && report[:errors].empty? &&
           unmatched.empty? && new_urls.empty? && !paired.empty?,
         unmapped_urls: new_urls.length,
         unmatched_existing_identities: unmatched.length,
-        note: blocked_snapshots.any? ? "Operator HTML: diagnostic pairing only, not verified live inventory." :
+        note: if accepted_operator_pages.any?
+          "Operator HTML accepted for diagnostic pairing only, not verified live inventory."
+        elsif blocked_snapshots.any?
+          "Operator HTML was requested but not accepted; no new page evidence was obtained."
+        else
           "Existing RDF identities only. New-event keys and URI minting remain unverified."
+        end
       }
       report[:status] = report[:errors].empty? ? "diagnostic_only" : "blocked"
     end
