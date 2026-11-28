@@ -256,7 +256,8 @@ module MeridianLivePaginationAudit
           report[:terminal_evidence] = {} if report[:terminal_evidence].is_a?(String)
           report[:terminal_evidence][language] = { last_page: last_page, expected_pages: last_page + 1,
             verified_pages: report[:pages][language].size,
-            note: resumed ? "Mixed-time validated receipts, not an atomic snapshot." :
+            note: blocked_snapshots.any? ? "Some pages are operator-supplied; terminal coverage is diagnostic, not live verified." :
+              resumed ? "Mixed-time validated receipts, not an atomic snapshot." :
               "Explicit last-page link plus all numbered responses. Not an atomic snapshot." }
         end
       end
