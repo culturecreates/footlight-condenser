@@ -124,7 +124,7 @@ module MeridianLivePaginationAudit
     raise "invalid selected Source XPath: #{error.message}"
   end
 
-  def run(output: nil, snapshots: {}, full: false, qa_copy: false, resume_path: nil)
+  def run(output: nil, snapshots: {}, full: false, qa_copy: false, resume_path: nil, blocked_snapshots: {})
     connection = ActiveRecord::Base.connection
     raise "Refusing production" if Rails.env.production?
     allowed = connection.current_database == "footlight_condenser_staging_work" ||
@@ -138,6 +138,7 @@ module MeridianLivePaginationAudit
     end
     raise "Full live pagination cannot use four-page snapshots" if full && snapshots.any?
     raise "--resume requires --qa-copy --full without --html" if resume_path && (!qa_copy || !full || snapshots.any?)
+    raise "--blocked-html requires --resume" if blocked_snapshots.any? && resume_path.nil?
     expected = PATHS.keys.product(AUDIT_PAGES.to_a)
     if snapshots.any? && snapshots.keys.sort != expected.sort
       raise "For replay, all four contemporaneous EN/FR page 0/1 HTML snapshots are required"
@@ -181,6 +182,12 @@ module MeridianLivePaginationAudit
         )
       end
       report[:resume] = resumed.provenance if resumed
+      if blocked_snapshots.any?
+        unexpected = blocked_snapshots.keys - resumed.blocked_pages
+        raise "Operator HTML can replace only previously blocked pages: #{unexpected.inspect}" if unexpected.any?
+        report[:operator_supplied_pages] = blocked_snapshots.keys.map { |lang, number| { language: lang, page: number, path: blocked_snapshots[[lang, number]] } }
+        report[:input_mode] = "mixed_live_and_operator_html"
+      end
 
       PATHS.each do |language, path|
         report[:pages][language] = {}
@@ -202,7 +209,7 @@ module MeridianLivePaginationAudit
             next
           end
           begin
-            snapshot_path = snapshots[[language, number]]
+            snapshot_path = snapshots[[language, number]] || blocked_snapshots[[language, number]]
             source = source_by_language.fetch(language)
             fetched = if snapshot_path
               snapshot_page(snapshot_path)
@@ -294,12 +301,14 @@ module MeridianLivePaginationAudit
       terminal_verified = full && report[:terminal_evidence].is_a?(Hash) &&
         report[:terminal_evidence].keys.sort == PATHS.keys.sort
       report[:pairing_review] = {
-        terminal_verified: terminal_verified,
-        existing_pairs_verified: terminal_verified && report[:errors].empty? &&
+        terminal_verified: terminal_verified && blocked_snapshots.empty?,
+        terminal_coverage: terminal_verified,
+        existing_pairs_verified: terminal_verified && blocked_snapshots.empty? && report[:errors].empty? &&
           unmatched.empty? && new_urls.empty? && !paired.empty?,
         unmapped_urls: new_urls.length,
         unmatched_existing_identities: unmatched.length,
-        note: "Existing RDF identities only. New-event keys and URI minting remain unverified."
+        note: blocked_snapshots.any? ? "Operator HTML: diagnostic pairing only, not verified live inventory." :
+          "Existing RDF identities only. New-event keys and URI minting remain unverified."
       }
       report[:status] = report[:errors].empty? ? "diagnostic_only" : "blocked"
     end
@@ -328,11 +337,19 @@ full = false
 qa_copy = false
 resume_path = nil
 snapshots = {}
+blocked_snapshots = {}
 OptionParser.new do |opts|
   opts.on("--json PATH") { |path| output = path }
   opts.on("--full", "Follow the explicit last-page link, max 25 pages per language") { full = true }
   opts.on("--qa-copy", "Use the single unscheduled Meridian QA copy and its selected Sources") { qa_copy = true }
   opts.on("--resume PATH", "Reuse fresh validated receipts; retry failed pages only (max 30 minutes)") { |path| resume_path = path }
+  opts.on("--blocked-html LANG:PAGE:PATH", "Use manually saved HTML for a previously blocked page") do |spec|
+    lang, number, path = spec.split(":", 3)
+    abort "Invalid --blocked-html: #{spec}" unless MeridianLivePaginationAudit::PATHS.key?(lang) &&
+      number.to_s.match?(/\A(?:0|[1-9]\d*)\z/) && number.to_i < MeridianLivePaginationAudit::MAX_PAGES &&
+      path.present? && !blocked_snapshots.key?([lang, number.to_i])
+    blocked_snapshots[[lang, number.to_i]] = path
+  end
   opts.on("--html LANG:PAGE:PATH", "Read-only replay of all 4 contemporaneous HTML captures") do |spec|
     lang, number, path = spec.split(":", 3)
     abort "Invalid --html: #{spec}" unless MeridianLivePaginationAudit::PATHS.key?(lang) &&
@@ -341,4 +358,4 @@ OptionParser.new do |opts|
   end
 end.parse!(ARGV)
 abort "Unexpected arguments" unless ARGV.empty?
-MeridianLivePaginationAudit.run(output: output, snapshots: snapshots, full: full, qa_copy: qa_copy, resume_path: resume_path)
+MeridianLivePaginationAudit.run(output: output, snapshots: snapshots, full: full, qa_copy: qa_copy, resume_path: resume_path, blocked_snapshots: blocked_snapshots)
