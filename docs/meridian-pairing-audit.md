@@ -19,8 +19,7 @@ generic `Distillator::PageEvidence` and a lightweight calendar identity/DOM
 check; URLs are still extracted by the currently selected Source XPath,
 **not** by executing its Ruby/URL DSL steps.
 
-The report matches already-known EN/FR Webpage URLs using the original
-website's **existing RDF identities**. This is a trustworthy way to compare
+The report matches already-known EN/FR Webpage URLs using the **selected website's existing RDF identities** (original or QA copy). This is a trustworthy way to compare
 pairs on different calendar pages. New/unmapped URLs are reported, not minted
 or guessed into bilingual pairs. A complete new-event pairing algorithm,
 stable site-specific key and reconciliation/archival policy remain separate work.
@@ -40,14 +39,29 @@ bin/condenser --db footlight_condenser_staging_work --rails-env development \
 bin/condenser --db footlight_condenser_staging_work --rails-env development \
   runner script/meridian_resource_list_preflight.rb --json /tmp/meridian-preflight.json
 
-# Main test: follow the explicitly advertised last-page link, up to 25
-# distinct page numbers per language. Keep returned HTML evidence digests.
+# QA pairing: use the copied site's selected Sources, not the original
+# site's render_js setting. Does not change either site's Sources.
 bin/condenser --db footlight_condenser_staging_work --rails-env development \
-  runner script/meridian_live_pagination_audit.rb --full --json /tmp/meridian-full.json
+  runner script/meridian_live_pagination_audit.rb --qa-copy --full \
+  --json /tmp/meridian-qa-full.json
+
+# Optional comparison against the original configured Sources (separate
+# report; it may require a renderer because the original has render_js=true):
+bin/condenser --db footlight_condenser_staging_work --rails-env development \
+  runner script/meridian_live_pagination_audit.rb --full \
+  --json /tmp/meridian-original-full.json
 ```
 
 Do not overwrite existing report files; choose different filenames for
 subsequent runs.
+
+The `--qa-copy` option requires **exactly one** unscheduled Meridian
+copy associated with the original `meridiancentrepointe-com`; its Sources
+and Webpage/RDF ownership are used throughout the audit. The original
+remains unchanged. The audit reads each selected URL Source's `render_js`
+flag: false uses HTTP-only fetching, true uses the existing guarded native
+rendering pipeline without writing to the cache. A rendered-fetch failure
+is reported, not silently retried through static HTTP or Wringer.
 
 If either page returns an Imperva or unknown challenge, or if the first
 page does not expose an explicit last-page link, the full mode fails closed.
@@ -92,9 +106,12 @@ filename alone. The audit records only sample-page pairing and keeps
 ```bash
 bin/condenser --db footlight_condenser_keyed_qa_test --rails-env test test \
   test/services/resource_lists/meridian_page_validation_test.rb \
-  test/services/resource_lists/meridian_pager_test.rb
+  test/services/resource_lists/meridian_pager_test.rb \
+  test/services/resource_lists/meridian_rendered_page_test.rb
 ```
 
 **Verification status:** changes committed to draft PR. Local Ruby and
 PostgreSQL test execution has not yet been reported for these new files.
 The earlier passing 62-test/874-assertion suite predates this audit change.
+
+**2026-11-28 correction:** the first audit run stopped on original RL #10684 because its selected Source has `render_js=true`. The operator had set `render_js=false` **only on the QA copy**. Use `--qa-copy` for pairing validation. The first attempt did not fetch pages or establish parity. The corrected path and renderer tests await local execution.
