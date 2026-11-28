@@ -1,6 +1,10 @@
 require "test_helper"
 
 class Distillator::RenderedFetchTest < ActiveSupport::TestCase
+  # No database records are used here. Loading globally inherited fixtures
+  # requires privileged FK-trigger changes in PostgreSQL 17 and masks test results.
+  self.fixture_table_names = []
+
   setup do
     @old_renderer = ENV["DISTILLATOR_RENDERER"]
   end

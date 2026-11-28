@@ -1,6 +1,10 @@
 require "test_helper"
 
 class Distillator::PhantomjsFetcherTest < ActiveSupport::TestCase
+  # No database records are used here. Loading globally inherited fixtures
+  # requires privileged FK-trigger changes in PostgreSQL 17 and masks test results.
+  self.fixture_table_names = []
+
   setup do
     @old_phantomjs_api_key = ENV["PHANTOMJS_API_KEY"]
     @old_direct_fallback = ENV["DISTILLATOR_ALLOW_RENDERED_DIRECT_FALLBACK"]
@@ -42,6 +46,53 @@ class Distillator::PhantomjsFetcherTest < ActiveSupport::TestCase
     refute_includes logs.string, key
     refute_includes result.inspect, key
     assert_equal "[FILTERED]", result.dig(:headers, :x_request_echo)
+  end
+
+  test "renderer request preserves the exact filtered calendar URL" do
+    ENV["PHANTOMJS_API_KEY"] = "fake-filtered-key"
+    urls = [
+      "https://www.chasse-galerie.ca/fr/calendrier?page=2&number_items=48&categ=concert",
+      "https://ccat.qc.ca/vitrine/calendrier-culturel/?pag=3&typeevenement%5B%5D=389&typeevenement%5B%5D=252&mrc=&du=2022-08-01",
+      "https://www.ovation.ca/00000P/fr/Search/AllEvents/?pageNumber=2",
+      "https://example.com/events?category=theatre%20jeunesse&category=musique&date=2026-11-27"
+    ]
+
+    urls.each do |url|
+      renderer_url = Distillator::PhantomjsFetcher.request_url(url: url, iframe: false)
+      params = URI.decode_www_form(URI.parse(renderer_url).query).to_h
+      assert_equal ["request"], params.keys, "renderer must not split off calendar filters"
+      payload = JSON.parse(params.fetch("request"))
+      assert_equal url, payload.fetch("url")
+      assert_equal "html", payload.fetch("renderType")
+      assert_equal false, payload.fetch("outputAsJson")
+      assert_equal({ "ignoreImages" => true, "waitInterval" => 2500 }, payload.fetch("requestSettings"))
+    end
+
+    iframe_url = Distillator::PhantomjsFetcher.request_url(url: urls.first, iframe: true)
+    assert_equal true, JSON.parse(URI.decode_www_form(URI.parse(iframe_url).query).to_h.fetch("request")).fetch("outputAsJson")
+  end
+
+  test "active rendered fetch sends preserved filters through PhantomJSCloud transport" do
+    ENV["PHANTOMJS_API_KEY"] = "fake-filtered-key"
+    target = "https://ccat.qc.ca/vitrine/calendrier-culturel/?pag=2&typeevenement%5B%5D=389&typeevenement%5B%5D=252&mrc="
+    expected = Distillator::PhantomjsFetcher.request_url(url: target, iframe: false)
+    rendered_html = '<html><body><a href="/spectacle/1">Spectacle</a></body></html>'
+    response = Struct.new(:code, :body, :uri, :response).new(
+      200, rendered_html, URI(expected), { "Content-Type" => "text/html" }
+    )
+    agent = mock("filtered renderer transport")
+    agent.expects(:get).with(expected).returns(response)
+    agent.stubs(:history).returns([])
+    Resolv.stubs(:getaddresses).with("ccat.qc.ca").returns(["93.184.216.34"])
+    Resolv.stubs(:getaddresses).with("phantomjscloud.com").returns(["8.8.8.8"])
+
+    result = Distillator::FetchService.fetch_result(url: target, mode: :internal, render_js: true,
+      agent: agent, logger: Logger.new(StringIO.new))
+    assert_equal :ok, result[:status]
+    assert_equal rendered_html, result[:body]
+    assert_equal "legacy_phantomjs", result.dig(:wringer, :signals, :renderer)
+    assert_equal "phantomjs", result.dig(:wringer, :signals, :fetch_backend)
+    assert_equal target, result[:final_url]
   end
 
   test "redacts renderer network failures before they enter downstream evidence" do

@@ -1,0 +1,102 @@
+{
+  "note": "Observed 2026-11-27 AJAX summaries and 28 Prestige URLs from one supplied 48-item JSON response. Page-sized HTML in the test is RECONSTRUCTED, not an original page-by-page HTTP capture.",
+  "endpoint": "https://www.chasse-galerie.ca/fetch-front-end-events",
+  "calendar_url": "https://www.chasse-galerie.ca/fr/calendrier",
+  "reference_id": "3c89774c-cc36-11ea-ac26-bd56de685bd0",
+  "empty_text": "Il n'y a aucun événement",
+  "jeunesse": {
+    "category_id": "c2168f58-e0cb-11eb-b46f-f57f05f7639a",
+    "category_label": "Jeunesse",
+    "page_size": 1,
+    "expected_total": 2,
+    "observed_pages": [
+      {
+        "page": 1,
+        "count": 1,
+        "max": 2,
+        "event_urls": [
+          "https://www.chasse-galerie.ca/fr/calendrier/les-voisines"
+        ]
+      },
+      {
+        "page": 2,
+        "count": 1,
+        "max": 2,
+        "event_urls": [
+          "https://www.chasse-galerie.ca/fr/calendrier/l-expedition-de-la-rythmobile"
+        ]
+      },
+      {
+        "page": 3,
+        "count": 0,
+        "max": 2,
+        "event_urls": [],
+        "exact_empty_message": true
+      }
+    ]
+  },
+  "prestige": {
+    "category_id": "f91c4074-e0cb-11eb-9f3f-1198075da4fa",
+    "category_label": "Prestige",
+    "page_size": 10,
+    "expected_total": 28,
+    "single_page_capture": {
+      "count": 28,
+      "current_page": 1,
+      "max": 27,
+      "event_urls": [
+        "https://www.chasse-galerie.ca/fr/calendrier/123punk",
+        "https://www.chasse-galerie.ca/fr/calendrier/bernard-adamus-2",
+        "https://www.chasse-galerie.ca/fr/calendrier/alexandre-desilets",
+        "https://www.chasse-galerie.ca/fr/calendrier/damien-robitaille",
+        "https://www.chasse-galerie.ca/fr/calendrier/jeannot-bournival",
+        "https://www.chasse-galerie.ca/fr/calendrier/bleu-jeans-bleu",
+        "https://www.chasse-galerie.ca/fr/calendrier/lydia-kepinski",
+        "https://www.chasse-galerie.ca/fr/calendrier/rita-baga",
+        "https://www.chasse-galerie.ca/fr/calendrier/violett-pi-zouz",
+        "https://www.chasse-galerie.ca/fr/calendrier/fred-dionne",
+        "https://www.chasse-galerie.ca/fr/calendrier/flore-laurentienne-2",
+        "https://www.chasse-galerie.ca/fr/calendrier/luc-de-larochelliere",
+        "https://www.chasse-galerie.ca/fr/calendrier/little-misty-2",
+        "https://www.chasse-galerie.ca/fr/calendrier/sous-les-ciels-du-monde",
+        "https://www.chasse-galerie.ca/fr/calendrier/koriass",
+        "https://www.chasse-galerie.ca/fr/calendrier/alexandre-poulin-2",
+        "https://www.chasse-galerie.ca/fr/calendrier/king-melrose",
+        "https://www.chasse-galerie.ca/fr/calendrier/violette-jordan",
+        "https://www.chasse-galerie.ca/fr/calendrier/les-shirley-2",
+        "https://www.chasse-galerie.ca/fr/calendrier/les-louanges-3",
+        "https://www.chasse-galerie.ca/fr/calendrier/boogat",
+        "https://www.chasse-galerie.ca/fr/calendrier/geoffroy-2",
+        "https://www.chasse-galerie.ca/fr/calendrier/nobro",
+        "https://www.chasse-galerie.ca/fr/calendrier/caracol",
+        "https://www.chasse-galerie.ca/fr/calendrier/jonathan-roy-2",
+        "https://www.chasse-galerie.ca/fr/calendrier/dubmatique-2",
+        "https://www.chasse-galerie.ca/fr/calendrier/patrice-michaud",
+        "https://www.chasse-galerie.ca/fr/calendrier/shaina-hayes-2"
+      ]
+    },
+    "observed_pages": [
+      {
+        "page": 1,
+        "count": 10,
+        "max": 27
+      },
+      {
+        "page": 2,
+        "count": 10,
+        "max": 27
+      },
+      {
+        "page": 3,
+        "count": 8,
+        "max": 27
+      },
+      {
+        "page": 4,
+        "count": 0,
+        "max": 27,
+        "exact_empty_message": true
+      }
+    ]
+  }
+}
