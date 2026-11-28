@@ -178,3 +178,30 @@ of silently resetting the database.
 **Verification status:** committed code; the bash script has been
 syntax-checked with `bash -n`, but the actual PostgreSQL reset and the
 Rails suites require a run in the user's WSL environment.
+
+## Legacy controller fixtures versus isolated preview tests (2026-11-28)
+
+A local run of the original four-suite command reached **118 runs, 55 assertions,
+0 failures, 103 errors**. The dominant failure occurred **before test setup**:
+Rails 8.0.2 `ActiveRecord::FixtureSet` inserted legacy fixtures containing
+`properties.rdfs_class_id=980190962`, while the corresponding
+`rdfs_classes` parent was not yet loaded. On PostgreSQL 17, Rails' usual
+`DISABLE TRIGGER ALL` around fixture insertion requires superuser privilege.
+The existing app user is deliberately not granted that privilege.
+
+The 3 *new* pairing UI checks have therefore been moved out of
+`test/controllers/websites_controller_test.rb` into
+`test/integration/danse_danse_pairing_preview_test.rb`, with
+`self.fixture_table_names = []` and a small FK-valid ActiveRecord-built
+setup. The QA-only runner now executes this file together with the three
+ResourceList-specific suites, **not the entire legacy controller test file**.
+
+This isolates and unblocks *new feature verification*; it does not fix the
+preexisting global legacy fixture dependency. The remaining legacy controller
+suite must be repaired separately with FK-valid fixture creation/loading,
+without granting superuser privileges, disabling actual database FK constraints,
+or changing the Artsdata export contract.
+
+**Verification:** this revised test selection was committed but has **not yet**
+been run successfully in the user's WSL checkout. Do not interpret it as
+passing until the local test result has been supplied.
