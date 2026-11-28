@@ -1,5 +1,8 @@
 class ExportGraphToDatabus
   def self.export_events(seedurl, root_url)
+    site = Website.find_by(seedurl: seedurl)
+    raise ArgumentError, "Artsdata publishing is disabled for QA website copies" if site&.test_copy_of_website_id.present?
+
     # Create Graph
     event_controller = EventsController.new
     publishable = event_controller.publishable_events(seedurl)

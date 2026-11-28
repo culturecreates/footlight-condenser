@@ -66,3 +66,6 @@ test/fixtures/*.yml.old
 *.gz
 *.txt
 env.sh
+
+# Local Condenser database selection (never check in machine-specific DB names)
+.condenser.local

@@ -41,8 +41,9 @@ class GraphsController < ApplicationController
   # GET /graphs/webpage/event-artsdata?rdf_uri=
   def webpage_event_artsdata 
     @dump = if params[:url]
-              webpage = Webpage.where(url: CGI.unescape(params[:url]))
-              JsonldGenerator.dump_events([webpage&.first&.rdf_uri])
+              webpage = pages_for_source_url(CGI.unescape(params[:url]))
+              return head :conflict if webpage.size > 1
+              JsonldGenerator.dump_events([webpage.first&.rdf_uri])
             elsif params[:rdf_uri]
               JsonldGenerator.dump_events([params[:rdf_uri]])
             else
@@ -54,7 +55,8 @@ class GraphsController < ApplicationController
   # GET /graphs/webpage/event?url=
   # Used by Footlight Code Snippet installed on client webpages
   def webpage_event
-    webpage = Webpage.includes(:jsonld_output).where(url: CGI.unescape(params[:url]))
+    webpage = pages_for_source_url(CGI.unescape(params[:url]))
+    return head :conflict if webpage.size > 1
     
     if webpage.first&.jsonld_output_id != 1
       frame = webpage.first&.jsonld_output&.frame
@@ -91,4 +93,18 @@ class GraphsController < ApplicationController
     end
   end
 
+  private
+
+  # Public URL-only lookups keep returning the original live website when a
+  # QA copy shares the same URL. Explicit website_id enables QA inspections.
+  # A URL ambiguous across *live* sites must not silently choose .first.
+  def pages_for_source_url(url)
+    scope = Webpage.includes(:jsonld_output).joins(:website).where(url: url)
+    if params[:website_id].present?
+      scope = scope.where(website_id: params[:website_id])
+    else
+      scope = scope.where(websites: { test_copy_of_website_id: nil })
+    end
+    scope.limit(2).to_a
+  end
 end

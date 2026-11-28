@@ -69,6 +69,14 @@ class AddWebpagesJob < ApplicationJob
       webpage = Webpage.lock.find(webpage.id)
       linked = rdfs_class_name == "Event" && webpage.discovery_target_website_id.present?
       target = linked ? webpage.discovery_target_website : webpage.website
+      # The original ResourceList DSL may still mint original-site URIs.
+      # A cloned website must never import those into its independent graph.
+      if target.test_copy_of_website_id.present?
+        expected_prefix = "http://kg.footlight.io/resource/#{target.seedurl}_"
+        unless rdf_uris.all? { |uri| uri.is_a?(String) && uri.start_with?(expected_prefix) }
+          raise InvalidResourceListError, "QA ResourceList contains RDF URIs outside the copied website namespace"
+        end
+      end
       if expected_discovery && (rdfs_class_name != "Event" || target.id != expected_discovery.fetch(:website_id) ||
           expected_discovery.fetch(:contents_digest) != Distillator::TransitionEventInventory.list_digest(urls, rdf_uris))
         raise InvalidResourceListError, "ResourceList destination or contents changed during discovery"
@@ -93,7 +101,7 @@ class AddWebpagesJob < ApplicationJob
     end
     return created_pages.map(&:id) unless refresh_new
 
-    created_pages.each { |page| RefreshWebpageJob.perform_later(linked ? page.id : page.url) }
+    created_pages.each { |page| RefreshWebpageJob.perform_later(page.id) }
   rescue StandardError => error
     if monitoring_observation
       Monitoring::ResourceListRefresh.failed(webpage, scheduled_at: Time.iso8601(monitoring_observation.fetch(:scheduled_at)),

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_25_000300) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_27_000100) do
   create_schema "heroku_ext"
 
   # These are extensions that must be enabled in order to support this database
@@ -448,10 +448,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_25_000300) do
     t.string "distillator_mode", default: "legacy", null: false
     t.datetime "transition_check_requested_at"
     t.boolean "preferred", default: false, null: false
+    t.bigint "test_copy_of_website_id"
+    t.index "lower((seedurl)::text)", name: "index_websites_on_lower_seedurl_unique", unique: true
+    t.index ["test_copy_of_website_id"], name: "index_websites_on_test_copy_of_website_id"
     t.index ["distillator_mode"], name: "index_websites_on_distillator_mode"
     t.index ["transition_check_requested_at"], name: "index_websites_on_transition_check_requested_at"
   end
 
+  add_foreign_key "websites", "websites", column: "test_copy_of_website_id"
   add_foreign_key "distillator_migration_baselines", "websites", on_delete: :cascade
   add_foreign_key "distillator_rollout_events", "websites"
   add_foreign_key "distillator_site_transitions", "distillator_transition_batches", column: "batch_id"

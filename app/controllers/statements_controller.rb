@@ -14,7 +14,10 @@ class StatementsController < ApplicationController
   # GET /statements/webpage.json?url=http://
   def webpage
     @statements = []
-    webpage = Webpage.where(url: params[:url]).first
+    matches = Webpage.where(url: params[:url])
+    matches = matches.where(website_id: params[:website_id]) if params[:website_id].present?
+    return head :conflict if matches.limit(2).count > 1
+    webpage = matches.first
     return render_missing_webpage_listing if webpage.blank?
 
     webpage.statements.each do |statement|
@@ -25,11 +28,14 @@ class StatementsController < ApplicationController
 
   # PATCH /statements/refresh_webpage.json?url=http://
   def refresh_webpage
-    webpage = Webpage.includes(:website).where(url: params[:url]).first
+    matches = Webpage.includes(:website).where(url: params[:url])
+    matches = matches.where(website_id: params[:website_id]) if params[:website_id].present?
+    return head :conflict if matches.limit(2).count > 1
+    webpage = matches.first
     return render_missing_refresh_webpage if webpage.blank?
 
     error_list = refresh_webpage_statements(webpage,  webpage.website.default_language)
-    redirect_path = safe_return_to_param || webpage_statements_path(url: params[:url])
+    redirect_path = safe_return_to_param || webpage_statements_path(url: params[:url], website_id: webpage.website_id)
     respond_to do |format|
         format.html { redirect_to redirect_path, notice: refresh_summary_notice(success_message: "Webpage statements refreshed.", errors: error_list, error_prefix: "Refresh completed") }
         format.json { render json: { message: refresh_summary_notice(success_message: "Webpage statements refreshed.", errors: error_list, error_prefix: "Refresh completed"), errors: compact_refresh_error_list(error_list) }.to_json }

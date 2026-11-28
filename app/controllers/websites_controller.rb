@@ -7,7 +7,35 @@ class WebsitesController < ApplicationController
   DASHBOARDS = %w[action information].freeze
   INDEX_VIEWS = %w[all preferred].freeze
 
-  before_action :set_website, only: [:show, :edit, :update, :destroy, :delete_all_statements, :activate_after_review, :activate_anyway, :confirm_cutover, :preference]
+  before_action :set_website, only: [:copy_for_qa, :preview_multilingual_pairing, :show, :edit, :update, :destroy, :delete_all_statements, :activate_after_review, :activate_anyway, :confirm_cutover, :preference]
+
+  # POST /websites/:id/copy_for_qa — creates a disabled, unpublished website.
+  def copy_for_qa
+    unless Rails.env.development? || Rails.env.test? || Distillator::TransitionRuntime.staging?
+      return head :forbidden
+    end
+
+    begin
+      copy = Websites::CreateTestCopy.call(source: @website, seedurl: params[:test_copy_seedurl].presence ||
+        Websites::CreateTestCopy.suggest_seedurl(@website.seedurl)).website
+      redirect_to website_path(copy), notice: "QA copy created; scheduling and publishing are disabled.", status: :see_other
+    rescue Websites::CreateTestCopy::InvalidCopy, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => error
+      redirect_to website_path(@website), alert: "Copy failed: #{error.message}", status: :see_other
+    end
+  end
+
+  # POST /websites/:id/preview_multilingual_pairing — no persistence or event import.
+  def preview_multilingual_pairing
+    unless Rails.env.development? || Rails.env.test? || Distillator::TransitionRuntime.staging?
+      return head :forbidden
+    end
+    return head :forbidden unless ResourceLists::DanseDanseKeyedPreview.eligible?(@website)
+
+    @pairing_preview = ResourceLists::DanseDanseKeyedPreview.call(website: @website)
+    render :preview_multilingual_pairing
+  rescue ResourceLists::DanseDanseKeyedPreview::Invalid => error
+    redirect_to website_path(@website), alert: "Pairing preview unavailable: #{error.message}", status: :see_other
+  end
 
   def test_api
     @websites = Website.all.order(:name)

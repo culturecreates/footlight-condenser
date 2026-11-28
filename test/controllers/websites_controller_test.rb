@@ -43,6 +43,43 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     ENV["HEROKU_APP_NAME"] = @old_heroku_app_name
   end
 
+  test "Website page exposes QA copy on original sites and hides it on QA copies" do
+    get website_path(@website)
+    assert_response :success
+    assert_select 'a[href="#website-qa-copy"]', text: "Create QA copy", count: 1
+    assert_select '#website-qa-copy form[action="#{copy_for_qa_website_path(@website)}"]', count: 1
+    assert_select '#website-qa-copy input[name="test_copy_seedurl"]', count: 1
+
+    copy = Websites::CreateTestCopy.call(source: @website).website
+    get website_path(copy)
+    assert_response :success
+    assert_select 'a[href="#website-qa-copy"]', count: 0
+    assert_select '#website-qa-copy', count: 0
+  end
+
+  test "QA copy action clones the original as an unscheduled test site" do
+    @website.update!(seedurl: "dansedanse-ca")
+    assert_difference("Website.count", 1) do
+      post copy_for_qa_website_path(@website), params: { test_copy_seedurl: "dansedansetest-ca" }
+      assert_response :see_other
+    end
+    copy = Website.find_by!(seedurl: "dansedansetest-ca")
+    assert_redirected_to website_path(copy)
+    assert_equal @website.id, copy.test_copy_of_website_id
+    assert_nil copy.schedule_every_days
+    assert_not copy.refresh_scheduled?
+    assert_equal @website.webpages.count, copy.webpages.count
+    assert_equal @website.sources.count, copy.sources.count
+  end
+
+  test "QA copy action rejects an existing seedurl without creating a partial clone" do
+    assert_no_difference("Website.count") do
+      post copy_for_qa_website_path(@website), params: { test_copy_seedurl: @website.seedurl }
+      assert_response :see_other
+      assert_redirected_to website_path(@website)
+    end
+  end
+
   test "should get index" do
     assert_read_only_page_does_not_fetch
     @website.update!(distillator_mode: "legacy")

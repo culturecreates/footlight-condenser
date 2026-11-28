@@ -392,6 +392,22 @@ module Dsl
 
         result
 
+      when 'get_sorted_calendars'
+        # Explicit QA-only shared bilingual context. This step never fetches or
+        # performs positional joins: the coordinator validates both languages
+        # before the first per-language value can be read.
+        context = @scrape_opts[:keyed_calendar_context]
+        website = @scrape_opts[:website]
+        unless context.is_a?(ResourceLists::DanseDanseKeyedQaRefresh::Context) &&
+            website&.persisted? && website.id == context.website_id &&
+            website.seedurl == "dansedansetest-ca" &&
+            website.test_copy_of_website&.seedurl == "dansedanse-ca"
+          return abort_update(error: "Keyed bilingual calendar context is missing or unauthorized",
+            error_type: "KeyedCalendarContextError", step: 'get_sorted_calendars')
+        end
+        kind, language = code.to_s.split(",", 2).map(&:strip)
+        context.read(kind, language)
+
       when 'manual'
         [code]
 
@@ -829,6 +845,11 @@ module Dsl
 
     def use_wringer_compatibility_client?(scrape_options)
       options = scrape_options.respond_to?(:symbolize_keys) ? scrape_options.symbolize_keys : {}
+      # Never bypass the QA-scoped cache and native fetch path. The fetch store
+      # will reject an explicit legacy client; QA DSL requests always stay local.
+      return false if Distillator::QaFetchIsolation.website_id(
+        website: options[:website], website_id: options[:website_id], log_context: options[:log_context]
+      )
       Distillator::BooleanParam.parse(options[:wringer_compatibility] || options["wringer_compatibility"]) == true
     end
 

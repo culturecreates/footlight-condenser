@@ -2,6 +2,8 @@
 class RefreshWebpageJob < ApplicationJob
   queue_as :default
 
+  AmbiguousWebpageUrlError = Class.new(ArgumentError)
+
   after_perform do |job|
     if job.arguments[1] == "resource_list"
       if @resource_list_observation
@@ -14,7 +16,17 @@ class RefreshWebpageJob < ApplicationJob
 
   def perform(webpage_id_or_url, options = nil, schedule_stamp = nil)
     scope = Webpage.includes(:website)
-    webpages = webpage_id_or_url.is_a?(Integer) ? scope.where(id: webpage_id_or_url) : scope.where(url: webpage_id_or_url)
+    # A URL may belong to the original website and one or more QA copies.
+    # Refuse unscoped ambiguous refreshes rather than refreshing every match.
+    webpages = if webpage_id_or_url.is_a?(Integer)
+      scope.where(id: webpage_id_or_url)
+    else
+      ids = scope.where(url: webpage_id_or_url).limit(2).pluck(:id)
+      if ids.size > 1
+        raise AmbiguousWebpageUrlError, "URL identifies multiple webpages. Queue refresh with webpage ID or (website_id, URL)."
+      end
+      scope.where(id: ids)
+    end
     scheduled_at = Time.iso8601(schedule_stamp) if schedule_stamp
     webpages.each do |webpage|
       started_at = Time.current.floor(6)
