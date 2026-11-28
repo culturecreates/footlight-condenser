@@ -124,7 +124,7 @@ module MeridianLivePaginationAudit
     raise "invalid selected Source XPath: #{error.message}"
   end
 
-  def run(output: nil, snapshots: {}, full: false, qa_copy: false)
+  def run(output: nil, snapshots: {}, full: false, qa_copy: false, resume_path: nil)
     connection = ActiveRecord::Base.connection
     raise "Refusing production" if Rails.env.production?
     allowed = connection.current_database == "footlight_condenser_staging_work" ||
@@ -137,6 +137,7 @@ module MeridianLivePaginationAudit
         "Do not reset or migrate a restored baseline just to run this read-only audit."
     end
     raise "Full live pagination cannot use four-page snapshots" if full && snapshots.any?
+    raise "--resume requires --qa-copy --full without --html" if resume_path && (!qa_copy || !full || snapshots.any?)
     expected = PATHS.keys.product(AUDIT_PAGES.to_a)
     if snapshots.any? && snapshots.keys.sort != expected.sort
       raise "For replay, all four contemporaneous EN/FR page 0/1 HTML snapshots are required"
@@ -174,15 +175,32 @@ module MeridianLivePaginationAudit
       report[:sources] = source_by_language.transform_values do |source|
         source.slice(:source_id, :source_sha256, :render_js, :note)
       end
+      resumed = if resume_path
+        ResourceLists::MeridianAuditResume.call(
+          path: resume_path, database: connection.current_database, website: site, sources: source_by_language
+        )
+      end
+      report[:resume] = resumed.provenance if resumed
 
       PATHS.each do |language, path|
         report[:pages][language] = {}
-        numbers = full ? [0] : AUDIT_PAGES.to_a
-        last_page = nil
+        prior_pages = resumed&.pages&.fetch(language) || {}
+        if resumed
+          last_page = prior_pages.fetch(0).fetch(:pager_last_page)
+          numbers = (0..last_page).to_a
+        else
+          numbers = full ? [0] : AUDIT_PAGES.to_a
+          last_page = nil
+        end
         position = 0
         while position < numbers.length
           number = numbers.fetch(position)
           url = "#{ROOT}#{path}?page=#{number}"
+          if prior_pages.key?(number)
+            report[:pages][language][number] = prior_pages.fetch(number)
+            position += 1
+            next
+          end
           begin
             snapshot_path = snapshots[[language, number]]
             source = source_by_language.fetch(language)
@@ -231,7 +249,8 @@ module MeridianLivePaginationAudit
           report[:terminal_evidence] = {} if report[:terminal_evidence].is_a?(String)
           report[:terminal_evidence][language] = { last_page: last_page, expected_pages: last_page + 1,
             verified_pages: report[:pages][language].size,
-            note: "Explicit last-page link plus all numbered responses. Not an atomic snapshot." }
+            note: resumed ? "Mixed-time validated receipts, not an atomic snapshot." :
+              "Explicit last-page link plus all numbered responses. Not an atomic snapshot." }
         end
       end
 
@@ -307,11 +326,13 @@ end
 output = nil
 full = false
 qa_copy = false
+resume_path = nil
 snapshots = {}
 OptionParser.new do |opts|
   opts.on("--json PATH") { |path| output = path }
   opts.on("--full", "Follow the explicit last-page link, max 25 pages per language") { full = true }
   opts.on("--qa-copy", "Use the single unscheduled Meridian QA copy and its selected Sources") { qa_copy = true }
+  opts.on("--resume PATH", "Reuse fresh validated receipts; retry failed pages only (max 30 minutes)") { |path| resume_path = path }
   opts.on("--html LANG:PAGE:PATH", "Read-only replay of all 4 contemporaneous HTML captures") do |spec|
     lang, number, path = spec.split(":", 3)
     abort "Invalid --html: #{spec}" unless MeridianLivePaginationAudit::PATHS.key?(lang) &&
@@ -320,4 +341,4 @@ OptionParser.new do |opts|
   end
 end.parse!(ARGV)
 abort "Unexpected arguments" unless ARGV.empty?
-MeridianLivePaginationAudit.run(output: output, snapshots: snapshots, full: full, qa_copy: qa_copy)
+MeridianLivePaginationAudit.run(output: output, snapshots: snapshots, full: full, qa_copy: qa_copy, resume_path: resume_path)
