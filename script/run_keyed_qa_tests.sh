@@ -68,6 +68,37 @@ if ! ready_db; then
   exit 1
 fi
 
+# The Rails layout includes separate JS entrypoints. jsbundling-rails generates
+# app/assets/builds/ locally (gitignored), so a fresh worktree has no assets
+# until esbuild runs. Build before integration tests render the full layout.
+ensure_test_assets() {
+  if [[ -s app/assets/builds/color_theme.js && -s app/assets/builds/application.js &&
+        ! app/javascript/color_theme.js -nt app/assets/builds/color_theme.js &&
+        ! app/javascript/application.js -nt app/assets/builds/application.js ]]; then
+    return 0
+  fi
+
+  printf '\nCompiling local JavaScript assets for Rails view tests...\n'
+  command -v yarn >/dev/null || {
+    echo 'Yarn is required. Install/use the repository Node + Yarn versions, then rerun.' >&2
+    exit 1
+  }
+  if [[ ! -x node_modules/.bin/esbuild ]]; then
+    echo 'Installing locked JS dependencies (node_modules is missing)...'
+    yarn install --frozen-lockfile
+  fi
+  yarn build
+
+  for asset in color_theme.js application.js; do
+    [[ -s "app/assets/builds/$asset" ]] || {
+      echo "JS build did not produce app/assets/builds/$asset" >&2
+      exit 1
+    }
+  done
+}
+
+ensure_test_assets
+
 printf '\nRunning focused tests against %s only...\n' "$DB"
 rails test \
   test/services/resource_lists/danse_danse_keyed_preview_test.rb \
