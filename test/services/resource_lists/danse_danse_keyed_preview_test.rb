@@ -79,6 +79,22 @@ module ResourceLists
       assert result.errors.any? { |error| error.include?("fr: calendar fetch failed") }
     end
 
+    test "network exceptions fail closed instead of returning partial pairs" do
+      copy = qa_site
+      Distillator::FetchService.stubs(:fetch_result).with(
+        url: "https://www.dansedanse.ca/en/shows", render_js: false,
+        scrape_options: {}, mode: :internal
+      ).raises(Net::ReadTimeout)
+      Distillator::FetchService.stubs(:fetch_result).with(
+        url: "https://www.dansedanse.ca/fr/spectacles", render_js: false,
+        scrape_options: {}, mode: :internal
+      ).returns(response("fr", "alpha"))
+      result = DanseDanseKeyedPreview.call(website: copy)
+      assert_equal "blocked", result.status
+      assert_empty result.rows
+      assert result.errors.any? { |error| error.include?("en: preview failed") }
+    end
+
     test "unmatched translations are reported without hiding the discovered key" do
       copy = qa_site
       Distillator::FetchService.stubs(:fetch_result).with(
