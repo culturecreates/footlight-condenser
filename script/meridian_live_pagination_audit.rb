@@ -43,16 +43,15 @@ module MeridianLivePaginationAudit
     raise "RL #{page.id}: expected one selected Webpage URL List, got #{selected.size}" unless selected.one?
 
     source = selected.first.source
-    raise "RL #{page.id}: render_js=true; HTML-only extraction cannot claim parity" if source.render_js
 
     steps = source.algorithm_value.to_s.split(";").map { |step| step.strip.partition("=") }
     xpaths = steps.filter_map { |kind, separator, value| value if kind == "xpath" && separator == "=" }
     raise "RL #{page.id}: expected one xpath= step, got #{xpaths.size}" unless xpaths.one?
     raise "RL #{page.id}: XPath must select URL attributes" unless xpaths.first.match?(%r{/(?:@href|@src)\s*\z})
 
-    { xpath: xpaths.first, source_id: source.id,
+    { xpath: xpaths.first, source_id: source.id, render_js: Distillator::BooleanParam.parse(source.render_js) == true,
       source_sha256: Digest::SHA256.hexdigest(source.algorithm_value.to_s),
-      note: "XPath only; url= and ruby= processing are NOT executed" }
+      note: "Selected Source XPath only; url= and ruby= processing are NOT executed" }
   end
 
   def canonical_event_url(value, page_url, language)
@@ -153,6 +152,9 @@ module MeridianLivePaginationAudit
         raise "Expected one original #{language} ResourceList, got #{pages.size}" unless pages.one?
         [language, selected_url_source(site, pages.first)]
       end
+      report[:sources] = source_by_language.transform_values do |source|
+        source.slice(:source_id, :source_sha256, :render_js, :note)
+      end
 
       PATHS.each do |language, path|
         report[:pages][language] = {}
@@ -164,7 +166,14 @@ module MeridianLivePaginationAudit
           url = "#{ROOT}#{path}?page=#{number}"
           begin
             snapshot_path = snapshots[[language, number]]
-            fetched = snapshot_path ? snapshot_page(snapshot_path) : fetch_page(url)
+            source = source_by_language.fetch(language)
+            fetched = if snapshot_path
+              snapshot_page(snapshot_path)
+            elsif source.fetch(:render_js)
+              ResourceLists::MeridianRenderedPage.call(url: url)
+            else
+              fetch_page(url)
+            end
             identity = validate_calendar_html!(fetched.fetch(:html), url, language)
             pager = ResourceLists::MeridianPager.call(html: fetched.fetch(:html), url: url)
             extracted = extract_page(fetched.fetch(:html), url, language, source_by_language.fetch(language).fetch(:xpath))
@@ -187,6 +196,7 @@ module MeridianLivePaginationAudit
               bytes: fetched.fetch(:bytes), final_url: fetched.fetch(:final_url), capture_mode: fetched[:capture_mode] || "live_http",
               source_id: source_by_language.fetch(language).fetch(:source_id),
               source_sha256: source_by_language.fetch(language).fetch(:source_sha256),
+              source_render_js: source.fetch(:render_js),
               captured_at: Time.current.utc.iso8601, **identity, **extracted,
               pager_last_page: pager.last_page, pager_next_page: pager.next_page }
           rescue StandardError => error
