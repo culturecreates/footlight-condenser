@@ -221,3 +221,30 @@ button presence and eligibility, but use mocked calendar fetches; the browser/UI
 smoke test against live Danse Danse pages on QA Website #584 remains pending.
 The existing legacy `WebsitesControllerTest` fixture-loader FK failure is
 separately unresolved and is not claimed as passing by this focused result.
+
+
+## Live browser preview evidence — 2026-11-28 (user-run WSL)
+
+On the development Rails server pointed at the isolated PostgreSQL database
+`footlight_condenser_dansedanse_qa`, the user opened QA Website #584
+(`dansedansetest-ca`) and ran **Preview multilingual pairing**.
+
+The rendered result reported **Preview only**, **English: 8**, **French: 8**,
+**Keys inspected: 8**, all eight classified **Existing pair**. Every EN/FR
+URL pair had the same existing QA-scoped RDF URI; the page displayed no
+errors, unmatched translations, conflicts, or new/missing webpage flags.
+
+Result digest:
+`685c429fbe9b9420d815329ab094bea81dc8ec2a6c2302a6e2c74545f2cb66db`.
+
+The UI reported pagination **UNVERIFIED** and first-page-only discovery.
+The header displayed `Wringer · Unreachable`, while the preview still
+reported successfully extracted calendar pairs; the preview uses
+`Distillator::FetchService` in read-only `:internal` mode.
+
+**What this does not establish:** complete live pagination inventory,
+cross-page duplicate handling, changed/mismatched slugs, new-event RDF URI
+minting, absence of every possible incidental DB write, unattended
+scheduling, or Artsdata export parity after this specific browser run.
+The screenshot/pasted rendered report is observational evidence; an
+independent post-preview baseline comparison is still advisable.
