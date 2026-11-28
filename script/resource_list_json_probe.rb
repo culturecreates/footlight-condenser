@@ -3,8 +3,8 @@
 # Read-only, schema-neutral JSON ResourceList endpoint diagnostic. No imports,
 # source edits or completeness claims. Use a small set of pages as samples:
 # bundle exec ruby script/resource_list_json_probe.rb \
-#   'https://signelaval.com/fr/evenements/liste.json?page=1' \
-#   1,2,14,15 /tmp/resource-list-trials/signelaval-json
+#   'https://signelaval.com/api/events?count=12&lavalOnly=true&page=1&type=events' \
+#   1,2,16 /tmp/resource-list-trials/signelaval-current-json
 require "fileutils"
 require "json"
 require "net/http"

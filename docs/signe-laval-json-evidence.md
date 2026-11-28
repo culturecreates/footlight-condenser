@@ -1,36 +1,38 @@
-# Signé Laval JSON ResourceList — read-only inspection
+# Signé Laval current events API — cumulative-response investigation (read-only)
 
-Scope: `signelaval-com`, historical Condenser ResourceList Webpages:
-`https://signelaval.com/fr/evenements/liste.json?page=1` through `?page=14`.
-These are historical configurations, **not evidence of a currently valid 14-page calendar**.
+**Scope correction (2026-11-27):** the historical `/fr/evenements/liste.json?page=N` URLs are no longer used for current event ResourceList discovery. The site's historical Footlight entries are retained for Place and Person purposes; **do not** recreate a dynamic event pagination chain from those old URLs.
 
-The public calendar returned a browser-verification response when opened through external web tooling on 2026-11-27. Direct access to the `.json` URL was unavailable from the review environment. An archived Condenser cassette references an older individual-event URL format; that does not establish whether the current JSON endpoint is active.
+The current event endpoint supplied by the operator is:
 
-`ResourceLists::JsonPageObservation` reports HTTP/content-type/parse validity,
-JSON envelope shape and arrays without assuming event identities or terminal status.
-`script/resource_list_json_probe.rb` issues only a few explicitly enumerated GETs,
-preserves the configured query filters and stores raw bodies plus a compact
-`probe.json` diagnostic. It stops on any untrusted response. It does not
-change Sources, Webpages or Statements.
+`https://signelaval.com/api/events?count=12&lavalOnly=true&page=16&type=events`
 
-Try pages 1, 2, 14 and an out-of-range boundary candidate 15:
+The operator suspects the response is **cumulative** as `page` increases. This has **not yet been verified**. A cumulative response may make automatic page-by-page ResourceList discovery unnecessary, provided its configured depth covers the inventory and this is validated. A single `page=16` response is *not* automatically proof of an untruncated inventory.
 
-```bash
-bundle exec ruby script/resource_list_json_probe.rb \
-  'https://signelaval.com/fr/evenements/liste.json?page=1' \
-  1,2,14,15 /tmp/resource-list-trials/signelaval-json
-jq '{stop_reason, verified_completeness, captures: [.captures[] | {page,http_status,content_type,status,errors,top_keys,array_candidates}]}' \
-  /tmp/resource-list-trials/signelaval-json/probe.json
-```
+The public calendar returned a browser-verification response and the API could not be retrieved through the review environment. Use read-only local sampling of the actual endpoint before implementing any collector.
 
-A 200 response with an empty array **cannot** establish the last page; a 200 HTML
-challenge or unexpected effective URL is a hard diagnostic failure. The
-payload's real event-list and pagination metadata fields must be identified
-before designing a JSON-aware collection/termination contract. No last-good
-retirement, archiving or export updates are allowed from these receipts.
+`ResourceLists::JsonPageObservation` reports HTTP/content-type/parse validity, JSON envelope shape and arrays, without assuming event identities or terminal status. `script/resource_list_json_probe.rb` performs at most six explicitly numbered GETs, preserves **all other query parameters** and stores response bodies plus compact metadata; it makes no changes to Sources, Webpages or Statements.
 
-Standalone tests:
+Run:
 
 ```bash
 bundle exec ruby test/services/resource_lists/json_page_observation_test.rb
+
+bundle exec ruby script/resource_list_json_probe.rb \
+  'https://signelaval.com/api/events?count=12&lavalOnly=true&page=1&type=events' \
+  1,2,16 /tmp/resource-list-trials/signelaval-current-json
+
+jq '{stop_reason, verified_completeness, captures: [.captures[] |
+  {page,http_status,content_type,status,errors,top_keys,array_candidates}]}' \
+  /tmp/resource-list-trials/signelaval-current-json/probe.json
 ```
+
+After identifying the event array and stable identity key (ID or event URL), compare
+the actual **sets and ordered prefixes** from page 1 to page 2 to page 16:
+
+- Cumulative candidate: each larger response includes every event ID/URL from smaller responses, and the inventories grow with the requested page.
+- Distinct pages: items are primarily disjoint or advance rather than include all earlier items.
+- Static/capped/ignored `page`: responses are equal or reach a ceiling; inspect API metadata before treating this as terminal.
+- Changes during the run: inconsistent identities or ordering make the result **inconclusive**. Stable prefix and count alone are not authoritative completeness evidence.
+
+**Do not** assume `page=16` is the final page, infer completeness from an empty JSON array, replace the existing historical Place/Person source URLs, or archive existing events. If truly cumulative, prefer the working single-endpoint existing extraction rather than implementing unnecessary dynamic ResourceList pagination.
+
