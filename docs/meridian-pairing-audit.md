@@ -332,3 +332,48 @@ insufficient. Before enabling QA import, agree on canonical expansion
 and stable existing QA RDF identity reuse; then add integration tests.
 No production import, graph changes or Webpage corrections have been
 made by these diagnostics.
+
+## Explicit translation evidence for two missing events
+
+The cached lists include these candidate pairs, but no shared key has been
+validated:
+
+- Solitary Man: EN `/en/solitary-man-neil-diamond-postponed` and FR
+  `/fr/solitary-man-neil-diamond-REPORTE`
+- Scaramouche: EN `/en/scaramouche-queen-tribute-postponed` and FR
+  `/fr/scaramouche-hommage-queen-REPORTE`
+
+RL #233317 generates QA-prefixed EN slug URIs; RL #233318 generates
+original-prefixed FR slug URIs. Prefix rewriting alone would retain
+different EN/FR RDF keys. Never pair or mint by translated title, page
+position or language-specific slug.
+
+A read-only event-page audit now checks for reciprocal head
+`link[rel=alternate][hreflang]` pointing to the exact counterpart URL,
+valid page identity, canonical links and optional Drupal `node/<id>`
+shortlinks. *Reciprocal head alternates* are evidence of the translation
+relationship, but the results do not authorize import or establish
+live calendar completeness.
+
+Run with ordinary independent HTTP GETs (may fail if the site blocks them):
+
+```bash
+bin/condenser --db footlight_condenser_dansedanse_qa --rails-env development \
+  runner script/meridian_event_translation_audit.rb --live \
+  --json /tmp/meridian-translations-live.json
+```
+
+Alternatively save the four actual event documents in the browser and pass
+one `--html PAIR:LANG:PATH` for each. This is operator-supplied evidence,
+not proof the server delivered the HTML under the stated URL.
+
+Focused tests:
+
+```bash
+bin/condenser --db footlight_condenser_keyed_qa_test --rails-env test test \
+  test/services/resource_lists/meridian_event_translation_evidence_test.rb
+```
+
+**Status:** Implemented on draft PR #14; the new tests and live event
+fetch have not been run in the operator's WSL environment. No
+database writes, imports or RDF minting were performed by this audit.
