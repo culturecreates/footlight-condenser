@@ -51,4 +51,32 @@ class NumberedPageQueryTest < Minitest::Test
     refute q.matches_page?("https://example.org/calendar?page=3&category=A", page: 2)
     refute q.matches_page?("https://example.org/calendar?page=2&category=A&extra=1", page: 2)
   end
+  def test_le_point_de_vente_preserves_encoded_json_categories_and_selected_radius
+    url = "https://lepointdevente.com/?q=&type=physical&locality=2234&radius=30&categories=%7B%221%22%3A0%7D&lang=fr&page=2"
+    query = ResourceLists::NumberedPageQuery.new(start_url: url)
+    assert_equal 2, query.first_page
+    [1, 2, 3].each { |page| assert query.matches_page?(query.url_for(page), page: page) }
+    params = URI.decode_www_form(URI.parse(query.url_for(3)).query).to_h
+    assert_equal "30", params.fetch("radius")
+    assert_equal '{"1":0}', params.fetch("categories")
+  end
+
+  def test_le_point_de_vente_never_merges_different_filter_chains
+    base = "https://lepointdevente.com/?q=&type=physical&locality=2234&radius=30&categories=%7B%221%22%3A0%7D&lang=fr&page=2"
+    query = ResourceLists::NumberedPageQuery.new(start_url: base)
+    refute query.matches_page?(base.sub("radius=30", "radius=31"), page: 2)
+    refute query.matches_page?(base.sub("%221%22", "%2211%22"), page: 2)
+    refute query.matches_page?(base.sub("locality=2234", "locality=2235"), page: 2)
+    refute query.matches_page?(base.sub("lang=fr", "lang=en"), page: 2)
+    refute query.matches_page?(base.sub("q=&", ""), page: 2)
+  end
+
+  def test_le_point_de_vente_ambiguous_p_key_requires_page_parameter
+    base = "https://lepointdevente.com/?q=&type=physical&locality=2234&radius=30&categories=%7B%221%22%3A0%7D&lang=fr&p=156&page=2"
+    assert_raises(ArgumentError) { ResourceLists::NumberedPageQuery.new(start_url: base) }
+    query = ResourceLists::NumberedPageQuery.new(start_url: base, parameter: "page")
+    assert query.matches_page?(query.url_for(3), page: 3)
+    refute query.matches_page?(query.url_for(3).sub("p=156", "p=157"), page: 3)
+  end
+
 end

@@ -17,6 +17,7 @@ require "time"
 require "uri"
 require_relative "../app/services/resource_lists/short_page_stop"
 require_relative "../app/services/resource_lists/numbered_probe_stop"
+require_relative "../app/services/resource_lists/numbered_page_label"
 require_relative "../app/services/resource_lists/numbered_page_query"
 require_relative "../app/services/resource_lists/link_inventory"
 require_relative "../app/services/resource_lists/ajax_pagination_shell"
@@ -77,6 +78,7 @@ limit.times do |offset|
   raise "Page #{number}: oversized HTML response" if content.bytesize > 8_000_000
   doc = Nokogiri::HTML(content)
   ajax_shell = ResourceLists::AjaxPaginationShell.inspect(doc)
+  page_label = ResourceLists::NumberedPageLabel.call(text: doc.text, expected_page: number)
   all_link_count = doc.xpath("//a[@href]").length
   hrefs = doc.xpath("//a[@href]").filter_map do |anchor|
     begin
@@ -111,6 +113,8 @@ limit.times do |offset|
   captures << { page: number, url: url.to_s, final_url: final_url.to_s,
     fetched_at: requested_at, status: response.code.to_i, bytes: content.bytesize,
     sha256: Digest::SHA256.hexdigest(content), all_link_count: all_link_count,
+    page_label: { status: page_label.status, page: page_label.page,
+      last_page: page_label.last_page, errors: page_label.errors },
     link_inventory_sha256: link_fingerprint,
     event_link_count: events.length,
     sample_events: events.first(3), numbered_links: pager,
@@ -127,7 +131,7 @@ limit.times do |offset|
   captures.last[:repeated_content] = !!same_content
   captures.last[:repeated_links] = !!same_links
   puts "page=#{number} status=#{response.code} all_links=#{all_link_count} candidate_event_urls=#{events.length} " \
-    "pager_links=#{pager.length} next_link=#{captures.last[:next_link_observed]} bytes=#{content.bytesize} challenge_hint=#{captures.last[:challenge_hint]} short_page_stop=#{!!short_page} repeated_content=#{!!same_content} repeated_links=#{!!same_links} ajax_shell=#{ajax_shell.shell_only?}"
+    "pager_links=#{pager.length} page_label=#{page_label.page}/#{page_label.last_page} next_link=#{captures.last[:next_link_observed]} bytes=#{content.bytesize} challenge_hint=#{captures.last[:challenge_hint]} short_page_stop=#{!!short_page} repeated_content=#{!!same_content} repeated_links=#{!!same_links} ajax_shell=#{ajax_shell.shell_only?}"
   stop_reason = ResourceLists::NumberedProbeStop.reason(
     ajax_shell: ajax_shell.shell_only?, challenge: captures.last[:challenge_hint],
     repeated_content: same_content, repeated_links: same_links,
