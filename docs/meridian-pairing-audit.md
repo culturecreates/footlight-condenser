@@ -160,3 +160,42 @@ bin/condenser --db footlight_condenser_keyed_qa_test --rails-env test test \
 
 **Status:** Committed to draft PR #14; this additional resume code and tests
 have not been run on the user's WSL machine. No local database was changed.
+
+## FR page 2 remains blocked on resume — diagnostic HTML option
+
+A second resumed run still rejected `/fr/evenements?page=2` with an
+HTTP-200 challenge. No new live inventory evidence was produced. The
+read-only audit can now inspect **only an explicitly blocked page** using
+operator-supplied HTML, with `--blocked-html` and `--resume` together.
+
+Open `https://meridiancentrepointe.com/fr/evenements?page=2` in a normal
+browser. If it displays the genuine calendar rather than the security
+interstitial, save the resulting document HTML (containing the event links
+and pagination markup) as `/tmp/meridian-fr2.html`. Do **not** save or
+supply an Imperva page, credentials, cookies, or security tokens. Then,
+if the prior report is still within 30 minutes:
+
+```bash
+bin/condenser --db footlight_condenser_dansedanse_qa --rails-env development \
+  runner script/meridian_live_pagination_audit.rb --qa-copy --full \
+  --resume /tmp/meridian-qa-full-resumed.json \
+  --blocked-html fr:2:/tmp/meridian-fr2.html \
+  --json /tmp/meridian-qa-browser-diagnostic.json
+```
+
+The audit checks that FR page 2 was genuinely blocked in the prior report
+and verifies the supplied HTML with the same page-evidence, pager and
+selected Source XPath validators used for network content. It preserves
+page hashes, Source identity and origin metadata. All other pages must
+already be valid, matching, fresh receipts.
+
+**Never interpret this as live fetch success or verified current inventory.**
+`input_mode=mixed_live_and_operator_html`, `terminal_coverage` and
+`terminal_verified` are distinct; existing-pair verification remains
+false when operator HTML contributes to the report. This workflow is
+suitable for investigating cross-page pairs and unmapped URLs, not as
+authorization for imports, archival, publishing, or production changes.
+
+If the previous report is older than 30 minutes, run a new read-only
+`--qa-copy --full` audit with a fresh JSON name first and use that
+report as the resume input. No database reset is needed.
