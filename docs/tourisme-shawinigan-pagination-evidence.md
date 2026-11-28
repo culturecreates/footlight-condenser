@@ -206,3 +206,46 @@ The next implementation-level proof is to distinguish the actual
 captured pages, and then replay the **existing Source DSL** against
 the saved pages. Preserve last-good state on inconclusive or failed
 refreshes. Do not encode 9 and 11 as permanent page limits.
+
+
+## Offline semantic Next audit (new diagnostic, no HTTP or DSL changes)
+
+The numbered probe's `next_page_number_link_observed` is not evidence
+that a **labeled Next** control was found. To inspect actual saved HTML
+rather than introduce another extraction XPath or send new requests,
+run:
+
+```bash
+git pull --ff-only origin feat/resource-list-capture-proof
+bundle exec ruby test/services/resource_lists/labeled_next_evidence_test.rb
+
+bundle exec ruby script/resource_list_semantic_next_audit.rb /tmp/resource-list-trials/shawinigan-numbered
+bundle exec ruby script/resource_list_semantic_next_audit.rb /tmp/resource-list-trials/shawinigan-culture
+
+jq -r '.captures[] | "page=\(.page) status=\(.status) label_target=\(.labeled_next_url // "-") conflicts=\(.invalid_labeled_targets | length)"' \
+  /tmp/resource-list-trials/shawinigan-culture/semantic-next-audit.json
+```
+
+The audit uses anchor text/accessible labels, `title` or
+`rel="next"` to recognize semantic navigation, and requires
+the target to be same-origin, same-path, next-page and **same filters**
+via `NumberedPageQuery`. It verifies the SHA-256 of every saved
+`pageN.html` against the probe before analysis, detects contradictory
+or changed-filter labels, and saves `semantic-next-audit.json`.
+
+Expected **only if** the actual Next control's text or accessible
+attributes is on its `<a>` element:
+- Unfiltered pages 1–10: `labeled_forward_observed`; page 11:
+  `no_forward_observed`.
+- Culture pages 1–8: `labeled_forward_observed`; page 9:
+  `no_forward_observed`.
+
+If the label is not exposed in the anchor, the audit will report
+`numbered_forward_only`; inspect the saved pager DOM manually before
+promoting semantic Next evidence. A missing, invalid, or conflicting
+label **never** certifies completeness. Out-of-range pages can also
+have no forward links; the final page must be established by an
+independent full-chain and existing-DSL parity check.
+
+The diagnostic extracts **no events**, does not change the DSL, and
+does not import, publish, archive or mutate ResourceLists or Artsdata.
