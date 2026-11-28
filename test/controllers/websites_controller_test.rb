@@ -58,6 +58,51 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @website.sources.count, copy.sources.count
   end
 
+  test "multilingual pairing preview is only offered for the Danse Danse QA copy" do
+    @website.update!(seedurl: "dansedanse-ca")
+    get website_path(@website)
+    assert_select "#qa-multilingual-pairing", count: 0
+
+    post copy_for_qa_website_path(@website), params: { test_copy_seedurl: "dansedansetest-ca" }
+    copy = Website.find_by!(seedurl: "dansedansetest-ca")
+    get website_path(copy)
+    assert_response :success
+    assert_select "#qa-multilingual-pairing form[action='#{preview_multilingual_pairing_website_path(copy)}']", count: 1
+    assert_select "#qa-multilingual-pairing button", text: /Preview multilingual pairing/
+  end
+
+  test "multilingual pairing preview rejects original site without fetching" do
+    @website.update!(seedurl: "dansedanse-ca")
+    ResourceLists::DanseDanseKeyedPreview.expects(:call).never
+    post preview_multilingual_pairing_website_path(@website)
+    assert_response :forbidden
+  end
+
+  test "multilingual pairing preview displays a read-only result for an eligible QA copy" do
+    @website.update!(seedurl: "dansedanse-ca")
+    post copy_for_qa_website_path(@website), params: { test_copy_seedurl: "dansedansetest-ca" }
+    copy = Website.find_by!(seedurl: "dansedansetest-ca")
+    preview = ResourceLists::DanseDanseKeyedPreview::Result.new(
+      status: "needs_review",
+      rows: [{ key: "sample", en: "https://www.dansedanse.ca/en/shows/sample",
+        fr: "https://www.dansedanse.ca/fr/spectacles/sample",
+        rdf_uri: "http://kg.footlight.io/resource/dansedansetest-ca_sample",
+        condition: "existing_pair" }],
+      errors: ["Unmatched translation key: extra"], counts: { "en" => 2, "fr" => 1 },
+      digest: "sample-digest", unmatched_keys: ["extra"], fetch_paths: { "en" => "native", "fr" => "native" }
+    )
+    ResourceLists::DanseDanseKeyedPreview.expects(:call).with(website: copy).returns(preview)
+
+    assert_no_difference ["Website.count", "Webpage.count", "Statement.count"] do
+      post preview_multilingual_pairing_website_path(copy)
+    end
+    assert_response :success
+    assert_select "h1", text: /multilingual pairing preview/
+    assert_select "strong", text: /UNVERIFIED/
+    assert_select "td", text: "sample"
+    assert_select "li", text: "Unmatched translation key: extra"
+  end
+
   test "QA copy action rejects an existing seedurl without creating a partial clone" do
     assert_no_difference("Website.count") do
       post copy_for_qa_website_path(@website), params: { test_copy_seedurl: @website.seedurl }
