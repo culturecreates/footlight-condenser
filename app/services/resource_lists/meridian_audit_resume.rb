@@ -17,7 +17,7 @@ module ResourceLists
     ROOT = "https://meridiancentrepointe.com"
     PATHS = { "en" => "/en/events", "fr" => "/fr/evenements" }.freeze
 
-    Result = Struct.new(:pages, :provenance, keyword_init: true)
+    Result = Struct.new(:pages, :provenance, :blocked_pages, keyword_init: true)
 
     def self.call(path:, database:, website:, sources:, now: Time.current)
       raise Invalid, "Report too large or missing" unless File.file?(path) && File.size(path).between?(1, MAX_REPORT_BYTES)
@@ -38,6 +38,7 @@ module ResourceLists
       raise Invalid, "Previous audit too old or dated in the future; run a fresh audit" unless age.between?(-30, MAX_AGE_SECONDS)
       raise Invalid, "Expected both language reports" unless report.fetch("pages").keys.sort == PATHS.keys.sort
 
+      blocked_pages = []
       pages = PATHS.to_h do |lang, root_path|
         source = sources.fetch(lang)
         recorded_source = report.fetch("sources").fetch(lang)
@@ -58,7 +59,12 @@ module ResourceLists
         end
 
         usable = received.each_with_object({}) do |(number, row), hash|
-          next if row["status"] == "blocked" # only this page may be retried
+          if row.is_a?(Hash) && row["status"] == "blocked"
+            expected_url = "#{ROOT}#{root_path}?page=#{number}"
+            raise Invalid, "#{lang} page #{number}: blocked URL changed" unless row["url"] == expected_url
+            blocked_pages << [lang, number.to_i]
+            next
+          end
           raise Invalid, "#{lang} page #{number}: invalid prior receipt" unless
             row["status"].nil? && row["http"] == 200 && row["sha256"].to_s.match?(/\A[0-9a-f]{64}\z/) &&
             row["bytes"].is_a?(Integer) && row["bytes"].positive? &&
@@ -82,7 +88,7 @@ module ResourceLists
         raise Invalid, "#{lang}: first page is not usable" unless usable.key?(0)
         [lang, usable]
       end
-      Result.new(pages: pages, provenance: {
+      Result.new(pages: pages, blocked_pages: blocked_pages, provenance: {
         input: path, sha256: Digest::SHA256.hexdigest(bytes),
         generated_at: report.fetch("generated_at"), maximum_age_seconds: MAX_AGE_SECONDS,
         note: "Successful page receipts reused; this is NOT an atomic live capture."
