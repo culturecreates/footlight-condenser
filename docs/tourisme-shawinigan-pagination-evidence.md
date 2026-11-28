@@ -249,3 +249,39 @@ independent full-chain and existing-DSL parity check.
 
 The diagnostic extracts **no events**, does not change the DSL, and
 does not import, publish, archive or mutate ResourceLists or Artsdata.
+
+
+## Semantic Next audit: confirmed results (operator run, 2026-11-27)
+
+The operator ran `labeled_next_evidence_test.rb`: **14 runs,
+26 assertions, 0 failures, 0 errors, 0 skips**. Both offline audits
+completed successfully against the saved captures with no reported
+labeled-target conflict.
+
+| Selection | Pages with `labeled_forward_observed` | First `no_forward_observed` | Additional `no_forward_observed` |
+|---|---|---|---|
+| Unfiltered (`?page=N`) | **1–10**, each targets precisely `page+1` | **11** | 12–15 |
+| Culture (`search_query&categories%5B0%5D=culture&page=N`) | **1–8**, each targets precisely `page+1` and preserves filters | **9** | 10 |
+
+The offline audit compared saved file SHA-256 hashes against the original
+read-only probe captures before interpreting navigation. The observed
+Next links matched the expected same-origin, same-path, same-filter
+`NumberedPageQuery` contract. The report status remains
+`complete=UNVERIFIED` by design; the audit does not run the extraction DSL.
+
+**Interpretation:** This confirms the intended **semantic Next-link
+navigation strategy**, including filtered query preservation, and
+strongly supports terminal-page **candidates** 11 and 9 for the two
+independent selections. It also confirms that **no forward control
+exists on out-of-range responses**, so `no_forward_observed` in isolation
+is **not a terminal proof**. A future bounded collector must start from
+the selected first page, maintain an unbroken verified navigation chain,
+and then evaluate candidate terminal and failure evidence rather than
+guess a fixed maximum or stop on the 90% HTML-link heuristic.
+
+**Remaining migration gate:** Replay the **existing configured DSL** on
+the saved pages, compare the resulting inventory and export identities
+with last-good/Artsdata baselines, and verify that incomplete refreshes
+cannot remove existing statements. Do not add an event XPath to the
+pagination collector. No production fetch/import/archival behavior
+changed in this PR.
