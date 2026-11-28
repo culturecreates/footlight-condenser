@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Bounded, read-only collection of known ?page=N calendar URLs for local QA.
+# Bounded, read-only collection of known numbered calendar URLs (query or trailing Page-N path) for local QA.
 # It collects evidence; it does NOT infer a complete calendar or run imports.
 #
 # Default: at most 25 pages. Optional explicit limit: 1..50 pages.
@@ -19,7 +19,7 @@ require_relative "../app/services/resource_lists/short_page_stop"
 require_relative "../app/services/resource_lists/numbered_probe_stop"
 require_relative "../app/services/resource_lists/numbered_page_label"
 require_relative "../app/services/resource_lists/numbered_pager_window"
-require_relative "../app/services/resource_lists/numbered_page_query"
+require_relative "../app/services/resource_lists/numbered_page_url"
 require_relative "../app/services/resource_lists/link_inventory"
 require_relative "../app/services/resource_lists/ajax_pagination_shell"
 
@@ -30,7 +30,7 @@ output = File.expand_path(ARGV.last)
 abort "Expected HTTPS URL without credentials or fragment" unless
   start.scheme == "https" && start.host && !start.userinfo && !start.fragment
 abort "Expected MAX_PAGES between 1 and 50" unless (1..50).cover?(limit)
-pagination = ResourceLists::NumberedPageQuery.new(start_url: start.to_s, parameter: ENV["PAGE_PARAMETER"])
+pagination = ResourceLists::NumberedPageURL.build(start_url: start.to_s, parameter: ENV["PAGE_PARAMETER"])
 first_page = pagination.first_page
 FileUtils.mkdir_p(output)
 

@@ -55,4 +55,35 @@ class NumberedPageLabelTest < Minitest::Test
   def test_does_not_claim_authoritative_completeness
     refute check("Page 2 de 9").respond_to?(:complete?)
   end
+
+  def test_newegg_page_three_of_twenty
+    result = check("Page 3/20 Previous Page Next Page", page: 3)
+    assert result.observed?
+    assert_equal 3, result.page
+    assert_equal 20, result.last_page
+  end
+
+  def test_newegg_page_twenty_of_twenty_is_observed_not_complete
+    result = check("Page 20/20 Previous Page Next Page", page: 20)
+    assert result.observed?
+    refute result.respond_to?(:complete?)
+  end
+
+  def test_english_page_label
+    assert_equal 9, check("Page 2 of 9").last_page
+  end
+
+  def test_conflicting_mixed_language_page_labels
+    result = check("Page 2/20 ... Page 2 de 19")
+    assert_includes result.errors, "ambiguous_page_labels"
+  end
+
+  def test_slash_label_wrong_page
+    assert_includes check("Page 3/20", page: 4).errors, "requested_page_mismatch"
+  end
+
+  def test_unlabeled_fraction_is_not_a_page_label
+    assert_includes check("3/20 USB cables", page: 3).errors, "missing_page_label"
+  end
+
 end

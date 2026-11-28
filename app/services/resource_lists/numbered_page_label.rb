@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module ResourceLists
-  # Read-only observation of a textual "Page X de Y" label in saved HTML.
+  # Read-only observation of a textual "Page X de Y", "Page X/Y" or "Page X of Y" label in saved HTML.
   # Matching text is not proof that the label belongs to the calendar pager;
   # an authenticated selector and full capture must verify it independently.
   class NumberedPageLabel
@@ -13,7 +13,7 @@ module ResourceLists
       return inconclusive("invalid_expected_page") unless expected_page.is_a?(Integer) && expected_page.positive?
       return inconclusive("missing_text") unless text.is_a?(String)
 
-      candidates = text.scan(/\bPage\s+(\d+)\s+de\s+(\d+)\b/i).uniq
+      candidates = text.scan(/\bPage\s+(\d+)\s*(?:de\s+|of\s+|\/\s*)(\d+)\b/i).uniq
       return inconclusive("missing_page_label") if candidates.empty?
       return inconclusive("ambiguous_page_labels") unless candidates.one?
 

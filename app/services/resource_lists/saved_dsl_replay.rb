@@ -3,7 +3,7 @@
 require "digest"
 require "json"
 require "uri"
-require_relative "numbered_page_query"
+require_relative "numbered_page_url"
 
 module ResourceLists
   # Offline QA of saved numbered pages, using a caller-supplied *existing DSL*
@@ -27,7 +27,7 @@ module ResourceLists
       observations = audit.fetch("captures")
       return fail_result("missing_or_mismatched_capture_rows") unless captures.is_a?(Array) &&
         captures.any? && observations.is_a?(Array) && captures.length == observations.length
-      query = NumberedPageQuery.new(start_url: captures.first.fetch("url"), parameter: probe.fetch("page_parameter"))
+      query = NumberedPageURL.build(start_url: captures.first.fetch("url"), parameter: probe.fetch("page_parameter"))
       return fail_result("invalid_algorithm") unless @algorithm.is_a?(String) && !@algorithm.strip.empty?
 
       pages = []

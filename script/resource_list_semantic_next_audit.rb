@@ -7,7 +7,7 @@ require "digest"
 require "json"
 require "nokogiri"
 require "uri"
-require_relative "../app/services/resource_lists/numbered_page_query"
+require_relative "../app/services/resource_lists/numbered_page_url"
 require_relative "../app/services/resource_lists/labeled_next_evidence"
 
 abort "Usage: resource_list_semantic_next_audit.rb PROBE_DIRECTORY" unless ARGV.length == 1
@@ -15,7 +15,7 @@ dir = File.expand_path(ARGV.fetch(0))
 probe = JSON.parse(File.read(File.join(dir, "probe.json")))
 captures = probe.fetch("captures")
 abort "No captured pages" if captures.empty?
-query = ResourceLists::NumberedPageQuery.new(start_url: captures.first.fetch("url"),
+query = ResourceLists::NumberedPageURL.build(start_url: captures.first.fetch("url"),
   parameter: probe.fetch("page_parameter"))
 
 observations = captures.map do |capture|

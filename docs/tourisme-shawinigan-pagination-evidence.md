@@ -315,3 +315,45 @@ read-more links as pagination, and no new extraction XPath is introduced.
 This proof is **about pagination detection only**: it is not a saved
 SHA-verified full-chain probe, not a DSL extraction replay, and not a
 claim that page 31 (or any higher page) is the terminal page.
+
+## Unknown-site example: Newegg Canada USB Cables `Page-3` (2026-11-27)
+
+Input: `https://www.newegg.ca/USB-Cables/SubCategory/ID-2840/Page-3`.
+The independently indexed page 3 advertises `Page 3/20` and page 20
+advertises `Page 20/20` with product results. Direct fresh page fetch
+was unavailable, so **20 is the advertised last page, not a verified
+complete sequence**. Some Newegg listings may cap browseable pages at
+20; this signal must not be treated as evidence of full inventory coverage.
+Plain `Next Page` text is not proof of a valid forward hyperlink.
+
+New generic read-only diagnostics:
+
+- `NumberedPagePath` changes the trailing `Page-N` path segment,
+  preserving the route and any selected query filters.
+- `NumberedPageURL.build` selects this path grammar or the existing
+  query-parameter grammar, rejecting ambiguous path+query page keys.
+- `NumberedPageLabel` accepts `Page X/Y` and `Page X of Y` in
+  addition to the existing `Page X de Y` format. It **observes** a
+  declared last page; it does **not** certify it.
+- The numbered probe, semantic Next audit and saved DSL replay can now
+  accept the path grammar, but **no Newegg saved HTML chain was produced
+  or DSL executed**. The product-record extractor remains outside the
+  pagination layer.
+
+To try a strictly bounded, read-only 18-page diagnostic from page 3
+through advertised page 20, use only if authorized and respectful of
+site rate limits. A challenge, HTTP 403/429, redirect or missing page
+is **inconclusive**, not a successful terminal. Existing query-style
+ResourceList probes and extraction code are unchanged.
+
+```bash
+bundle exec ruby test/services/resource_lists/numbered_page_path_test.rb
+bundle exec ruby test/services/resource_lists/numbered_page_label_test.rb
+bundle exec ruby script/resource_list_numbered_probe.rb \
+  'https://www.newegg.ca/USB-Cables/SubCategory/ID-2840/Page-3' \
+  18 /tmp/resource-list-trials/newegg-usb-cables
+```
+
+The last command is an **optional diagnostic**, not a full-catalog
+collection, not a certified completeness claim and not a production
+feature. No change to existing Source DSL/Artsdata exports.
