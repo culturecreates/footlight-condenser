@@ -16,6 +16,22 @@ module ResourceLists
       assert_equal %w[/en/a /en/b /en/c], result.paired_urls_for(:en)
     end
 
+    test "Meridian cached ResourceLists keep Christmas Carol and Jersey Nights paired despite swapped positions and duplicate URLs" do
+      # The selected EN/FR URL/URI lists on QA Website #585 (2026-11-28)
+      # differ at positions 5 and 6. Both also repeat later-page URLs.
+      # This is a concrete regression against cross-language array zipping.
+      keys = %w[christmas-carol-solo-performed-pierre-brault jersey-nights-before-christmas hotel-california]
+      en = [keys[0], keys[1], keys[2], keys[2]].map { |key| { key: key, url: "https://meridiancentrepointe.com/en/#{key}" } }
+      fr = [keys[1], keys[0], keys[2], keys[2]].map { |key| { key: key, url: "https://meridiancentrepointe.com/fr/#{key}" } }
+      result = KeyedCalendarAlignment.call(streams: { en: en, fr: fr })
+      assert result.complete?, result.errors.inspect
+      assert_equal keys.sort, result.pairs.map(&:key)
+      result.pairs.each do |pair|
+        assert_equal pair.urls.fetch(:en).sub("/en/", "/fr/"), pair.urls.fetch(:fr)
+      end
+      assert_equal 3, result.pairs.length
+    end
+
     test "unmatched translations cannot be exported as aligned arrays" do
       result = KeyedCalendarAlignment.call(streams: {
         fr: [{key: "A", url: "/fr/a"}, {key: "B", url: "/fr/b"}],
