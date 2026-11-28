@@ -285,3 +285,50 @@ records the request URL, response URL, HTML digest and extracted links
 is needed to make such a claim.
 
 **Code committed but local regression tests still need to be run.**
+
+## QA-copy namespace and identity audit (2026-11-28)
+
+QA copy `meridiancentrepointetest-com` yielded 60 selected URL/RDF
+list positions across four ResourceLists, including 15 identifiers in the
+original website namespace, all on French RL #233318; 3 URLs with mixed
+original/QA namespace IDs (`hotel-california`, `cinderella-classical-arts`,
+`abbamania`); and 4 not-yet-imported URL entries representing
+`Solitary Man` and `Scaramouche` in English and French.
+
+**Do not assume the 47 cached-versus-Webpage mismatch rows represent
+47 wrong event pairs.** QA cloning hashes original Webpage RDF URIs;
+the refreshed DSL caches contain slug-based `footlight:` CURIEs. They
+are distinct URI identities even if they refer to the same named event.
+A CURIE can be expanded to an HTTP URI without changing identity; a
+slug-based QA URI cannot be changed into a hashed QA URI by ordinary
+prefix normalization.
+
+The read-only `MeridianCacheIdentityDiagnostics` separates exact
+matches, CURIE expansions, original-vs-QA namespace contamination,
+distinct QA-namespace identities, and missing Webpages. It groups
+conflicts by canonical expanded RDF URI so syntax alone doesn't
+inflate conflict counts. Run the QA baseline again with a new JSON name:
+
+```bash
+bin/condenser --db footlight_condenser_dansedanse_qa --rails-env development \
+  runner script/meridian_resource_list_baseline_audit.rb --qa-copy \
+  --json /tmp/meridian-qa-baseline-identities.json
+```
+
+And the focused regression:
+
+```bash
+bin/condenser --db footlight_condenser_keyed_qa_test --rails-env test test \
+  test/services/resource_lists/meridian_cache_identity_diagnostics_test.rb
+```
+
+**Extra importer issue requiring a separate verified design:** Current
+`AddWebpagesJob` QA namespace guard requires a literal absolute
+`http://kg.footlight.io/resource/<copy-seedurl>_` prefix. A valid
+`footlight:<copy-seedurl>_…` CURIE will fail this guard as written,
+even when the seedurl is correct. This is safe fail-closed behavior,
+but it means repairing the 15 original-namespace entries alone is
+insufficient. Before enabling QA import, agree on canonical expansion
+and stable existing QA RDF identity reuse; then add integration tests.
+No production import, graph changes or Webpage corrections have been
+made by these diagnostics.
