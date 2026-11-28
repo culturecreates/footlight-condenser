@@ -1862,6 +1862,67 @@ class Distillator::FetchCacheStoreTest < ActiveSupport::TestCase
     assert_equal "Concert --!^!-- Server Error", Distillator::FetchCacheStore.lookup_by_term(cache.uri_key).first[:name]
   end
 
+  test "a generic HTTP 200 challenge is not accepted into an empty fetch cache" do
+    url = "https://meridiancentrepointe.com/fr/evenements?page=1"
+    challenge = <<~HTML
+      <!DOCTYPE html><html><head><noscript><title>Pardon Our Interruption</title></noscript>
+      <meta name="robots" content="noindex, nofollow"></head>
+      <body><h1>Pardon Our Interruption</h1>
+      <p>As you were browsing something about your browser made us think you were a bot.</p>
+      <p>Please make sure that cookies and JavaScript are enabled.</p></body></html>
+    HTML
+    Distillator::FetchService.expects(:fetch_result).returns(success_result(body: challenge, fetch_path: "native"))
+    fetched = Distillator::FetchCacheStore.fetch(uri: url, mode: :internal)
+    cache = Distillator::FetchCache.find_by!(uri_key: fetched.uri_key)
+
+    refute fetched.content_success?
+    assert_equal "rejected", fetched.signals["page_validation_status"]
+    assert_equal "generic_page_challenge", fetched.signals["blocking_issue_key"]
+    assert_nil cache.successful_refresh
+    assert_nil cache.html
+    assert_equal "blocked", cache.health_status
+    refute cache.delete_candidate
+  end
+
+  test "generic challenge preserves existing last-good HTML and blocks extraction" do
+    url = "https://example.org/event/valid"
+    body = "<html><head><title>Actual event</title></head><body><nav>Events</nav><main><h1>Actual event</h1><time datetime='2026-12-01'>2026-12-01</time></main><footer>More</footer></body></html>"
+    previous_success = 2.days.ago
+    cache = create_cache(uri: url, name: "Actual event", html: body, body: body,
+      scrape_date: previous_success, successful_refresh: previous_success)
+    challenge = '<html><head><title>Security check</title><meta name="robots" content="noindex"></head><body><h1>Verify you are human</h1><p>Unusual traffic. Please complete the captcha.</p></body></html>'
+    Distillator::FetchService.expects(:fetch_result).returns(success_result(body: challenge, fetch_path: "native"))
+    result = Distillator::FetchCacheStore.fetch(uri: url, mode: :legacy, force_scrape: true)
+    cache.reload
+
+    refute result.content_success?
+    assert_equal "rejected", cache.signals["page_validation_status"]
+    assert_equal body, cache.body
+    assert_equal previous_success.to_i, cache.successful_refresh.to_i
+    assert_equal "blocked", cache.health_status
+    refute cache.delete_candidate
+  end
+
+  test "an unrecognized drastic redesign preserves last-good HTML as unverified" do
+    url = "https://example.org/calendar"
+    links = (1..25).map { |n| %(<a href="/event-#{n}">Show #{n}</a>) }.join
+    body = "<html><head><title>Calendar</title></head><body><nav>Events</nav><main>#{links}#{'Upcoming shows. ' * 1400}</main><footer>Contact</footer></body></html>"
+    previous_success = 1.day.ago
+    cache = create_cache(uri: url, name: "Calendar", html: body, body: body,
+      scrape_date: previous_success, successful_refresh: previous_success)
+    changed = '<html><head><title>New site</title></head><body><h1>New site</h1><p>Updates coming soon.</p></body></html>'
+    Distillator::FetchService.expects(:fetch_result).returns(success_result(body: changed, fetch_path: "native"))
+    result = Distillator::FetchCacheStore.fetch(uri: url, mode: :legacy, force_scrape: true)
+    cache.reload
+
+    assert_equal "unverified", result.signals["page_validation_status"]
+    assert_equal "page_structure_anomaly", result.signals["blocking_issue_key"]
+    refute result.content_success?
+    assert_equal body, cache.body
+    assert_equal previous_success.to_i, cache.successful_refresh.to_i
+    refute cache.delete_candidate
+  end
+
   private
 
   def create_cache(profile: {}, uri: "http://example.org/cached", html: "<html>cached</html>", body: html, name: "Cached", scrape_date:, successful_refresh:, http_response_code: 200, headers: {}, signals: { "network_status" => "ok", "content_type" => "html" }, hints: [], final_url: nil, redirect_chain: [])
