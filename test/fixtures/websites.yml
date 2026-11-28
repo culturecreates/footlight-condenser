@@ -13,14 +13,14 @@ two:
 
 three:
   name: Never been crawled
-  seedurl: one
+  seedurl: fixture-never-crawled
   last_refresh: 
   schedule_time: <%= Time.now - 10.minutes %>
   schedule_every_days: 0
 
 four:
   name: Schedule 10 minutes in future
-  seedurl: one
+  seedurl: fixture-future-schedule
   last_refresh: <%= Time.now - 2.days %>
   schedule_time: <%= Time.now + 10.minutes %>
   schedule_every_days: 1
