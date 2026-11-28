@@ -286,3 +286,28 @@ yet** been run in the user's WSL environment. Run the existing local
 `bash script/run_keyed_qa_tests.sh` (no DB reset) and inspect the resulting
 live preview on Website #584. Do not merge or enable scheduled refresh until
 full live terminal-page proof, new-event identity policy and graph parity pass.
+
+
+## Configured multi-page preview focused test verification (2026-11-28)
+
+The user reran `bash script/run_keyed_qa_tests.sh` after the fail-closed
+configuration preflight and page-specific error assertion corrections.
+Reported result: **22 runs, 110 assertions, 0 failures, 0 errors, 0 skips**,
+0.871110 seconds. Loaded-code coverage: line **42.48%** (2712/6384),
+branch **12.73%** (438/3442). The test database was reused; no
+schema reset or superuser trigger changes were required.
+
+The passing suite exercises the configured-pages design, including 3 FR
+versus 4 EN pages, deduplication, key matching across unrelated pagination
+positions, missing configured pages, later fetch errors, duplicate keys,
+and the UI integration tests. It does **not** by itself establish
+site-terminal evidence.
+
+A concurrent public HTML inspection of the EN and FR Danse Danse
+`/en/shows` and `/fr/spectacles` roots showed eight current
+show entries in each language followed by a visually separate
+"Past shows"/"Spectacles passés" section; the rendered text
+did not expose a numbered pager or next-link. This suggests a
+possible one-page current-inventory design but **is not a DOM-level
+terminal proof**, so do not use it as authorization for creation,
+retirement, archival, or unattended scheduled refresh.
