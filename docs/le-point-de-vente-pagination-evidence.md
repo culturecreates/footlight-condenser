@@ -81,3 +81,46 @@ jq '.captures[] | {page, pager_window_numbers,
   short_page_stop}' /tmp/resource-list-trials/lepointdevente-windowed/probe.json
 ```
 
+
+## Five-page trial: page 4 terminal candidate, page 5 empty (2026-11-27)
+
+The operator extended the **same** selected `radius=30`, `categories={"1":0}`,
+`locality=2234`, `lang=fr` chain to pages 1–5 using the read-only probe.
+All five responses were HTTP 200 with no challenge, repeated-content,
+repeated-link-inventory or AJAX-shell signal.
+
+| Page | Candidate `/billets/` URLs | Valid numbered window | Next-number link | All HTML anchors |
+|---|---:|---|---|---:|
+| 1 | 40 | [2] | yes | 143 |
+| 2 | 40 | [3, 4] | yes | 145 |
+| 3 | 40 | [2, 4] | yes | 145 |
+| 4 | 34 | [2, 3] | no | 139 |
+| 5 | 0 | [] | no | 100 |
+
+The event-link counts came from **offline reprocessing of the saved HTML** with
+`//a[contains(@href, "/billets/")]/@href`, requiring same-domain absolute URLs
+under `/billets/` and stripping fragments. Pages 1–4 yielded **154 distinct
+candidate URLs**, exactly `40 + 40 + 40 + 34`, so no candidate URL was repeated
+across those pages. Page 5 yielded **zero** candidate URLs, and no additional
+new candidate URL. Note that the live probe's `candidate_event_urls=0` reflects
+`EVENT_LINK_XPATH` being unset during collection; it is **not** the real
+offline event URL count.
+
+**Conclusion:** Page **4** is a strong **terminal candidate** for this one
+filtered chain. Page 5 appears out of range: it returns HTTP 200 but with
+no recognized event URLs or valid numbered pager links. This is compatible
+with a sliding pager rather than an advertised total-page count.
+
+The 90% all-anchor rule does **not** trigger on page 4
+(`139/145 = 95.9%`), but does on page 5 (`100/139 = 71.9%`).
+Allowing one extra diagnostic fetch is intentional; neither short-page signal
+nor absent forward-number link alone establishes completeness.
+
+**Before activation or archival decisions**, independently verify that
+`/billets/` links in the saved pages belong to the selected calendar event
+cards and not unrelated promoted links, confirm the saved Source's actual
+event XPath and selection contract, check a coherent capture against
+last-good identities and Artsdata outputs, and exercise the terminal boundary
+with an end-to-end read-only collector. No production ResourceList membership
+change is authorized by this evidence alone.
+
