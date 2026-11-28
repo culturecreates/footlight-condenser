@@ -357,3 +357,50 @@ bundle exec ruby script/resource_list_numbered_probe.rb \
 The last command is an **optional diagnostic**, not a full-catalog
 collection, not a certified completeness claim and not a production
 feature. No change to existing Source DSL/Artsdata exports.
+
+
+## Unknown-site challenge: Amazon.ca Black Friday D2B JSON offset pagination
+
+URL shape: `/d2b/api/v1/products/search?pageSize=30&startIndex=0&...`.
+The supplied URL includes encoded JSON `rankingContext` and `filters`
+(selected promotions, exclusions, CAD $0–25). Only `startIndex` should
+change between candidate requests: 0, 30, 60, 90, and so on.
+
+**No usable response from this endpoint was verified.** Its JSON body
+schema, actual item count, whether it reports a total or `has_more`,
+whether it has rate limits, and its terminal offset remain **unknown**.
+Do not infer endpoint response fields from a different Amazon API.
+
+`OffsetPageQuery` is a read-only, independent URL grammar. It keeps the
+raw non-offset query syntax untouched, including JSON encoding,
+repeated filter keys and bare keys, and rejects changed page size,
+query filters, origin, path or ambiguous offset keys.
+
+`OffsetJsonTerminalEvidence` consumes only caller-verified response
+facts; the caller must authenticate the JSON schema separately:
+
+| Evidence from an authenticated response | Diagnostic decision |
+|---|---|
+| HTTP 200 + verified JSON + explicit `has_more=true` | Follow next offset |
+| HTTP 200 + verified JSON + explicit `has_more=false` | Terminal candidate |
+| Verified reported total reached | Terminal candidate |
+| Full batch with no terminal metadata | Forward candidate only |
+| Short/empty batch without metadata | Inconclusive |
+| HTTP 403/429, HTML challenge, malformed JSON, unknown schema, contradictions | Inconclusive |
+
+Terminal candidates are **not** completeness certification. A changing
+live ranking during a crawl may cause gaps or overlap even when each
+response is valid; snapshot consistency and identity checks must be
+separate evidence. Do not assume that a short page ends a changing feed.
+
+The offset grammar and evidence evaluator have unit tests with synthetic
+data. No Amazon page fetch, DSL execution, product extraction, import,
+cache refresh, or Artsdata export modification was performed. This is
+kept separate from query-page and path-page ResourceList collector code.
+
+Focused commands:
+
+```bash
+bundle exec ruby test/services/resource_lists/offset_page_query_test.rb
+bundle exec ruby test/services/resource_lists/offset_json_terminal_evidence_test.rb
+```
