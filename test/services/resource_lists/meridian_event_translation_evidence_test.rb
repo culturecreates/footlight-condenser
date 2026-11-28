@@ -31,6 +31,28 @@ class ResourceLists::MeridianEventTranslationEvidenceTest < ActiveSupport::TestC
     assert_equal ["#{ROOT}/node/123"], result.dig(:pages, "en", :drupal_shortlinks)
   end
 
+  test "matching Drupal currentPath IDs strengthen reciprocal translation evidence" do
+    documents = %w[en fr].to_h do |lang|
+      settings = '<script type="application/json" data-drupal-selector="drupal-settings-json">{"path":{"currentPath":"node/2811"}}</script>'
+      [lang, html(lang).sub("</head>", "#{settings}</head>")]
+    end
+    result = ResourceLists::MeridianEventTranslationEvidence.call(urls: URLS, documents: documents)
+    assert_equal "verified_reciprocal_translation", result[:status]
+    assert_equal "drupal-node:2811", result[:verified_shared_key]
+    assert_equal "2811", result.dig(:pages, "fr", :drupal_node_id)
+  end
+
+  test "different Drupal node IDs block an otherwise reciprocal translation" do
+    documents = { "en" => html("en"), "fr" => html("fr") }.transform_values.with_index do |body, i|
+      settings = %(<script type="application/json" data-drupal-selector="drupal-settings-json">{"path":{"currentPath":"node/#{2811 + i}"}}</script>)
+      body.sub("</head>", "#{settings}</head>")
+    end
+    result = ResourceLists::MeridianEventTranslationEvidence.call(urls: URLS, documents: documents)
+    assert_equal "blocked_identity_conflict", result[:status]
+    assert result[:node_id_conflict]
+    assert_nil result[:verified_shared_key]
+  end
+
   test "one-way translation link is not sufficient" do
     result = ResourceLists::MeridianEventTranslationEvidence.call(urls: URLS,
       documents: { "en" => html("en"), "fr" => html("fr", reciprocal: false) })
