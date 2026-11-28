@@ -136,3 +136,45 @@ bin/rails test test/services/resource_lists/danse_danse_keyed_preview_test.rb \
 These new tests have **not** been run in the user's WSL Rails environment and
 the local UI has **not** yet been manually exercised. Existing 63/245 passing
 results predate the preview feature and must not be misrepresented as coverage.
+
+
+## Local PostgreSQL test bootstrap: reusable command (2026-11-28)
+
+Repeated PG17 attempts in both keyed QA and pagination worktrees encountered
+test schema purging `pg_stat_statements` (superuser extension), followed by
+partial-load `heroku_ext` duplication. The keyed QA worktree now has
+`script/run_keyed_qa_tests.sh`. It is **local-only**, tied to PostgreSQL
+socket `/var/run/postgresql`, port `5433`, branch
+`feat/keyed-resource-list-alignment`, and **only** the disposable database
+`footlight_condenser_keyed_qa_test`. It does **not** use either the Danse
+Danse development QA copy or any staging database.
+
+First use: inspect the script, then run:
+
+```bash
+git pull --ff-only
+bash script/run_keyed_qa_tests.sh --status
+bash script/run_keyed_qa_tests.sh --reset
+```
+
+`--reset` intentionally **deletes and recreates the named test database**,
+creates the required extension as PostgreSQL superuser, loads the Rails schema
+once as the normal OS/database user, validates readiness, then runs the
+four focused pairing preview suites. No `pg_stat_statements` privilege
+grant or disabled foreign keys is needed. This mode is an explicit one-time
+bootstrap, **not** the default.
+
+Subsequent runs leave the test database intact and only execute tests:
+
+```bash
+bash script/run_keyed_qa_tests.sh
+```
+
+The script refuses wrong branch, overridden database URLs, nonlocal
+PostgreSQL host, unexpected port, and non-test Rails environment. If
+the schema isn't ready, the default mode fails with instructions instead
+of silently resetting the database.
+
+**Verification status:** committed code; the bash script has been
+syntax-checked with `bash -n`, but the actual PostgreSQL reset and the
+Rails suites require a run in the user's WSL environment.
