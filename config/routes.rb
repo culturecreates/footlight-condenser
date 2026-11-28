@@ -14,6 +14,7 @@ Rails.application.routes.draw do
     # API: get /websites 
     member do
       post :copy_for_qa
+      post :preview_multilingual_pairing
       patch :preference
       post :activate_after_review
       post :confirm_cutover
