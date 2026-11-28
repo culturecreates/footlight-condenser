@@ -124,7 +124,7 @@ module MeridianLivePaginationAudit
     raise "invalid selected Source XPath: #{error.message}"
   end
 
-  def run(output: nil, snapshots: {}, full: false)
+  def run(output: nil, snapshots: {}, full: false, qa_copy: false)
     connection = ActiveRecord::Base.connection
     raise "Refusing production" if Rails.env.production?
     allowed = connection.current_database == "footlight_condenser_staging_work" ||
@@ -141,10 +141,23 @@ module MeridianLivePaginationAudit
       site: "meridiancentrepointe-com", read_only: true, pages: {}, errors: [],
       inventory_authoritative: false, terminal_evidence: "NOT_ESTABLISHED",
       execution: "Selected Source XPath only; no Ruby DSL, imports, cache writes, or new RDF identities",
-      input_mode: snapshots.empty? ? (full ? "live_full_bounded" : "live_four_page_sample") : "operator_snapshots_not_live_proof" }
+      input_mode: snapshots.empty? ? (full ? "live_full_bounded" : "live_four_page_sample") : "operator_snapshots_not_live_proof",
+      website_selection: qa_copy ? "unscheduled_qa_copy" : "original" }
     connection.transaction do
       connection.execute("SET TRANSACTION READ ONLY")
-      site = Website.find_by!(seedurl: report.fetch(:site))
+      original = Website.find_by!(seedurl: report.fetch(:site))
+      site = if qa_copy
+        copies = Website.where(test_copy_of_website_id: original.id).to_a
+        raise "Expected exactly one Meridian QA copy, found #{copies.length}" unless copies.one?
+        copy = copies.first
+        raise "Meridian QA copy must be unscheduled and in shadow mode" if copy.refresh_scheduled? ||
+          copy.distillator_mode != "shadow"
+        copy
+      else
+        original
+      end
+      report[:website] = { id: site.id, seedurl: site.seedurl,
+        test_copy_of_website_id: site.test_copy_of_website_id }
       rlist = RdfsClass.find_by!(name: "ResourceList")
       existing_lists = site.webpages.where(rdfs_class_id: rlist.id).includes(:statements).to_a
       source_by_language = PATHS.to_h do |language, path|
@@ -265,7 +278,7 @@ module MeridianLivePaginationAudit
       }
       report[:status] = report[:errors].empty? ? "diagnostic_only" : "blocked"
     end
-    puts "Database: #{report[:database]} | #{report[:site]} | READ-ONLY | #{report[:status]}"
+    puts "Database: #{report[:database]} | #{report.dig(:website, :seedurl)} (#{report[:website_selection]}) | READ-ONLY | #{report[:status]}"
     report[:pages].each do |language, pages|
       pages.each do |number, row|
         puts "#{language.upcase} page #{number}: #{row[:status] || '200'} XPath hits=#{row[:xpath_hits] || '?'} URLs=#{row[:urls]&.size || '?'} pager=#{row[:pager_page_numbers]&.inspect || '?'}"
@@ -287,10 +300,12 @@ end
 
 output = nil
 full = false
+qa_copy = false
 snapshots = {}
 OptionParser.new do |opts|
   opts.on("--json PATH") { |path| output = path }
   opts.on("--full", "Follow the explicit last-page link, max 25 pages per language") { full = true }
+  opts.on("--qa-copy", "Use the single unscheduled Meridian QA copy and its selected Sources") { qa_copy = true }
   opts.on("--html LANG:PAGE:PATH", "Read-only replay of all 4 contemporaneous HTML captures") do |spec|
     lang, number, path = spec.split(":", 3)
     abort "Invalid --html: #{spec}" unless MeridianLivePaginationAudit::PATHS.key?(lang) &&
@@ -299,4 +314,4 @@ OptionParser.new do |opts|
   end
 end.parse!(ARGV)
 abort "Unexpected arguments" unless ARGV.empty?
-MeridianLivePaginationAudit.run(output: output, snapshots: snapshots, full: full)
+MeridianLivePaginationAudit.run(output: output, snapshots: snapshots, full: full, qa_copy: qa_copy)
