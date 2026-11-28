@@ -19,23 +19,11 @@ module MeridianLivePaginationAudit
 
   module_function
 
-  # The fetched content is not automatically a calendar merely because HTTP
-  # returned 200. Reject identifiable challenges and suspicious structure
-  # before applying the selected URL XPath.
+  # Pure testable content-evidence gate; the selected Source XPath is checked
+  # separately to establish that this page actually contains event URLs.
   def validate_calendar_html!(html, _page_url, _language)
-    evidence = Distillator::PageEvidence.call(body: html)
-    raise "Content #{evidence.status}: #{evidence.reasons.join(', ')}" if evidence.flagged?
-    document = Nokogiri::HTML(html)
-    title = document.at_css("head title")&.text.to_s.squish
-    raise "Missing HTML page identity" if title.empty?
-    # Strong page-identity checks are local to a calendar, not an event detail.
-    unless title.match?(/\b(?:events|événements|evenements)\b/i) ||
-        document.at_css("main h1, h1")&.text.to_s.match?(/\b(?:events|événements|evenements|à venir|coming up)\b/i)
-      raise "Unexpected calendar title/heading: #{title.first(90)}"
-    end
-    raise "HTML lacks navigation and event link structure" unless
-      document.css("a[href]").length >= 5
-    { title: title, page_evidence: evidence.to_signals }
+    validated = ResourceLists::MeridianPageValidation.call(html: html)
+    { title: validated.title, page_evidence: validated.page_evidence }
   end
 
   def snapshot_page(path)
