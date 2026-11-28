@@ -55,7 +55,7 @@ class ResourceLists::MeridianSavedPagesComparisonTest < ActiveSupport::TestCase
       { label: "calendar", page: 1, html: html("a") }
     ], xpath: XPATH)
     assert_equal "rejected", result[:snapshots].first[:state]
-    assert_equal [1], result[:unstable_page_numbers]
+    assert_equal [1], result[:inconsistent_assigned_page_numbers]
   end
 
   test "flags identical HTML assigned to different URLs and mismatched active page" do
