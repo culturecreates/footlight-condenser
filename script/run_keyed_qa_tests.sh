@@ -71,6 +71,6 @@ fi
 printf '\nRunning focused tests against %s only...\n' "$DB"
 rails test \
   test/services/resource_lists/danse_danse_keyed_preview_test.rb \
-  test/controllers/websites_controller_test.rb \
+  test/integration/danse_danse_pairing_preview_test.rb \
   test/services/resource_lists/keyed_calendar_alignment_test.rb \
   test/services/resource_lists/keyed_calendar_extractor_test.rb
