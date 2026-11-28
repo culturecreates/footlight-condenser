@@ -43,6 +43,20 @@ class WebsitesControllerTest < ActionDispatch::IntegrationTest
     ENV["HEROKU_APP_NAME"] = @old_heroku_app_name
   end
 
+  test "Website page exposes QA copy on original sites and hides it on QA copies" do
+    get website_path(@website)
+    assert_response :success
+    assert_select 'a[href="#website-qa-copy"]', text: "Create QA copy", count: 1
+    assert_select '#website-qa-copy form[action="#{copy_for_qa_website_path(@website)}"]', count: 1
+    assert_select '#website-qa-copy input[name="test_copy_seedurl"]', count: 1
+
+    copy = Websites::CreateTestCopy.call(source: @website).website
+    get website_path(copy)
+    assert_response :success
+    assert_select 'a[href="#website-qa-copy"]', count: 0
+    assert_select '#website-qa-copy', count: 0
+  end
+
   test "QA copy action clones the original as an unscheduled test site" do
     @website.update!(seedurl: "dansedanse-ca")
     assert_difference("Website.count", 1) do
