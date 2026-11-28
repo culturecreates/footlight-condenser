@@ -226,3 +226,59 @@ The production listing and the replay are user-supplied local evidence;
 PR #15 remains **read-only and draft**. This section records observations
 only and does not create a Source, add page URLs, schedule refreshes, import
 Events, change archive dates, or modify Artsdata exports.
+
+
+## Follow-up: page-4 discovery discrepancy (read-only)
+
+Of the 26 replay-only unfiltered discovery candidates, **25** were
+replayed from pages **5–11**, which production does not configure.
+Only `emilie-perreault-theatre` was seen in the saved **page 4**
+capture; production's supplied Webpages inventory has no matching
+Event record. This does not prove an import failure.
+
+**First, run the existing positional URL/URI pairing audit** on
+both local captures; do not treat equal counts as identity parity:
+
+```bash
+for selection in shawinigan-numbered shawinigan-culture; do
+  bundle exec ruby script/resource_list_saved_dsl_pair_audit.rb \
+    "/tmp/resource-list-trials/${selection}" || exit 1
+done
+```
+
+**Second, check the saved page-4 DSL values and compare with the November
+11 staging snapshot's cached Statements.** The SQL is read-only:
+
+```bash
+jq -r '.pages[] | select(.page == 4) |
+  .values[] | select(contains("emilie-perreault-theatre"))' \
+  /tmp/resource-list-trials/shawinigan-numbered/dsl-snapshot-replay-source-9102.json
+
+PGOPTIONS='-c default_transaction_read_only=on' \
+psql -X -P pager=off -v ON_ERROR_STOP=1 \
+  -d footlight_condenser_staging_snapshot -c "
+SELECT wp.id AS webpage_id, s.id AS source_id, p.label,
+       st.id AS statement_id, st.status, st.selected_individual,
+       st.cache_refreshed,
+       position('emilie-perreault-theatre' in coalesce(st.cache, '')) > 0
+         AS cached_emilie,
+       length(st.cache) AS cached_bytes
+FROM statements st
+JOIN webpages wp ON wp.id = st.webpage_id
+JOIN sources s ON s.id = st.source_id
+JOIN properties p ON p.id = s.property_id
+WHERE wp.id = 111500 AND s.id IN (9098, 9102)
+ORDER BY s.id;"
+```
+
+If `cached_emilie=false` on both Sources, the Nov 11 snapshot
+did not contain this candidate in the page-4 cache. This could be
+normal date-sorted calendar drift, or a refresh lag—not proof of
+an import defect. If it is true on both, inspect the original
+discovery/import job outcome and production capture time. Divergent
+Sources or missing rows are inconclusive.
+
+The local snapshot cannot establish what happened afterward in
+production. Neither current discovery nor absence from production
+authorizes deleting historical Event webpages or changing Artsdata
+export identities.
