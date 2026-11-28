@@ -135,3 +135,74 @@ limits, or treat HTTP 200 beyond either page as proof of additional events.
 Only a coherent response chain, actual site navigation semantics, and
 existing-DSL replay can support a last-good-preserving migration.
 
+
+
+## Two bounded capture results (operator captures, 2026-11-27)
+
+The operator completed two independent read-only captures. These are
+**different Source/filter inventories**; do not merge their event counts,
+terminal pages, page URLs, or last-good refresh results.
+
+### Unfiltered calendar — pages 1–15
+
+The run saved to `/tmp/resource-list-trials/shawinigan-numbered` followed
+the unfiltered calendar probe discussed above. Verify the exact input URL
+in `captures[0].url` before treating it as a fully specified Source contract.
+
+| Page range | Valid numbered page anchors | Forward anchor to page+1 | Total HTML links |
+|---|---|---|---:|
+| 1 | [2] | yes | 82 |
+| 2–10 | [page-1, page+1] | yes | 85 |
+| **11** | [10] | **no** | **82** |
+| **12** | [11] | no | 47 |
+| 13–15 | [page-1] | no | 47 |
+
+HTTP 200 was observed for all fifteen pages, including 12–15.
+The pages 12–15 all had 197955 bytes, but the probe flagged neither
+repeated content nor repeated link inventories. **Same byte count does
+not prove same body**. The 90%-threshold short-page hint first fires
+at page 12 (47/82 = 57.3%), not on page 11.
+
+**Assessment:** Page 11 is a strong terminal **candidate**; page 12 is
+apparently out-of-range. The observation does not establish semantic
+Next-link identity or verify existing DSL extraction.
+
+### Culture category — pages 1–10
+
+The second capture used `/tmp/resource-list-trials/shawinigan-culture`
+with the category-specific query:
+
+`https://www.tourismeshawinigan.com/evenements/?search_query&categories%5B0%5D=culture&page=1`
+
+| Page range | Valid numbered page anchors | Forward anchor to page+1 | Total HTML links |
+|---|---|---|---:|
+| 1 | [2] | yes | 82 |
+| 2–8 | [page-1, page+1] | yes | 85 |
+| **9** | [8] | **no** | **70** |
+| **10** | [9] | no | 47 |
+
+All ten responses returned HTTP 200, with no challenge, repeated-content,
+repeated-link-inventory, or AJAX-shell flag. The 90%-threshold hint
+fires on page 9 (70/85 = **82.4%**) and again on page 10
+(47/70 = **67.1%**). This shows that **a genuine final-page
+candidate may itself be short**. Short-page detection must remain
+advisory and never be used to claim complete discovery.
+
+**Assessment:** Page 9 is a strong terminal **candidate** for this
+particular culture selection; page 10 appears out-of-range. It must
+not inherit the unfiltered page-11 boundary.
+
+### Architectural implication
+
+Both probes reported `stop_reason=max_pages_reached` and
+`complete=UNVERIFIED`. Their `candidate_event_urls=0` is expected,
+because `EVENT_LINK_XPATH` was not configured and **the probe is not
+the event extractor**. The existing Source DSL remains responsible
+for event extraction, while the pagination collector verifies only
+navigation and terminal evidence.
+
+The next implementation-level proof is to distinguish the actual
+`PROCHAINS ÉVÉNEMENTS` control from arbitrary numeric links on
+captured pages, and then replay the **existing Source DSL** against
+the saved pages. Preserve last-good state on inconclusive or failed
+refreshes. Do not encode 9 and 11 as permanent page limits.
