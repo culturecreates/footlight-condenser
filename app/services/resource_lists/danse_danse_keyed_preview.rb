@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "uri"
+
 module ResourceLists
   # Read-only, one-click diagnostic for the isolated Danse Danse QA copy.
   # Fetches exactly the two configured first calendar pages, without writing
@@ -67,6 +69,10 @@ module ResourceLists
         fetch_paths[language] = fetched[:fetch_path].to_s
       rescue URI::InvalidURIError => error
         errors << "#{language}: invalid redirect URL: #{error.message}"
+      rescue StandardError => error
+        Rails.logger.warn(event: "resource_list.keyed_preview_fetch_failed", website_id: @website.id,
+          language: language, error_class: error.class.name)
+        errors << "#{language}: preview failed (#{error.class.name})"
       end
 
       return result("blocked", [], errors, counts, nil, [], fetch_paths) if errors.any? || streams.keys.sort != LANGUAGES.keys.sort
