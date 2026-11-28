@@ -379,3 +379,40 @@ bin/condenser --db footlight_condenser_keyed_qa_test --rails-env test \
 
 The QA copy must continue to be unscheduled and non-publishing. No change
 to Artsdata, event identity or ResourceList import contracts is intended.
+
+## Generic page evidence gate (2026-11-28; focused tests not yet run)
+
+`Distillator::PageEvidence` runs on fetched HTML **before** `FetchCacheStore`
+accepts a refreshed body. Rather than adding one rule per anti-bot vendor,
+it checks the primary document identity, visible verification text, navigation
+sparsity, and noindex metadata. A clear browser-verification interstitial
+is **rejected**, even when HTTP is 200; existing last-good content is preserved
+and the failure appears in cache-health signals.
+
+When a previously accepted HTML body exists, a much smaller response with
+missing links/navigation and a different title becomes **unverified** rather
+than being accepted as a successful rewrite. This could represent a redesign,
+not necessarily a bot. The evidence reasons and compact metrics are stored
+in `signals.page_validation_*`, with `abort_update` for rejected/unverified
+responses. Normal page/title changes alone are not blocked.
+
+**Limitations:** This initial gate does not verify ResourceList pagination or
+prove a legitimate empty page, does not retroactively reclassify already
+cached HTML until re-fetched, and currently gates the `FetchCacheStore`
+path (not every standalone `FetchService`/Wringer entrypoint). Page-size
+comparisons require a previously accepted baseline and are deliberately
+conservative. No production/staging data is modified by this change.
+
+Run in the disposable Rails test database:
+
+```bash
+bin/condenser --db footlight_condenser_keyed_qa_test --rails-env test \
+  test test/services/distillator/page_evidence_test.rb \
+       test/services/distillator/fetch_cache_store_test.rb \
+       test/services/distillator/qa_fetch_isolation_test.rb
+```
+
+Do not use the existing Meridian cache #2742 as a trusted baseline: the
+stored response is an HTTP-200 verification challenge, not a calendar.
+First fetch new content in the QA copy, then validate the resulting
+ResourceList before performing discovery/reconciliation.
