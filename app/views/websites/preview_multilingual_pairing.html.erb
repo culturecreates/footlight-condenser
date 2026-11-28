@@ -1,13 +1,25 @@
 <section class="website-show-section">
   <h1>Danse Danse — multilingual pairing preview</h1>
   <p><%= link_to "Back to QA website", website_path(@website) %></p>
-  <p><strong>Read-only diagnostic.</strong> Only the first English and French calendar pages were fetched.
-    Pagination completeness is <strong>UNVERIFIED</strong>. Nothing was imported, scheduled, published or changed.</p>
+  <p><strong>Read-only diagnostic.</strong> Every explicitly configured English and French
+    ResourceList page is checked. Site-wide pagination completeness remains <strong>UNVERIFIED</strong>
+    without independent terminal-page evidence. Nothing was imported, scheduled, published or changed.</p>
 
   <p><strong>Result:</strong> <%= @pairing_preview.status.humanize %> ·
     English: <%= @pairing_preview.counts.fetch("en", "not fetched") %> ·
     French: <%= @pairing_preview.counts.fetch("fr", "not fetched") %> ·
-    Keys inspected: <%= @pairing_preview.rows.size %></p>
+    Keys inspected: <%= @pairing_preview.rows.size %> ·
+    Configured pages: EN <%= @pairing_preview.page_counts&.fetch("en", 0) || 0 %>,
+    FR <%= @pairing_preview.page_counts&.fetch("fr", 0) || 0 %></p>
+  <% if @pairing_preview.page_details.present? %>
+    <h2>Configured page coverage</h2>
+    <% @pairing_preview.page_details.each do |lang, pages| %>
+      <p><strong><%= lang.upcase %></strong>:
+        <% if pages.empty? %>None validated
+        <% else %><%= pages.map { |page| "page #{page.fetch(:number)} (#{page.fetch(:count)} cards)" }.join(", ") %><% end %>
+      </p>
+    <% end %>
+  <% end %>
   <% if @pairing_preview.digest.present? %>
     <p>Pairing digest: <code><%= @pairing_preview.digest %></code></p>
   <% end %>
@@ -18,7 +30,7 @@
     </ul>
   <% end %>
   <% if @pairing_preview.rows.any? %>
-    <h2>Discovered pairs (first pages only)</h2>
+    <h2>Discovered pairs (configured pages only)</h2>
     <table>
       <thead><tr><th>Key</th><th>English URL</th><th>French URL</th><th>Existing QA RDF URI</th><th>Assessment</th></tr></thead>
       <tbody>
@@ -34,6 +46,6 @@
       </tbody>
     </table>
   <% end %>
-  <p>Even a fully matched first page is not evidence that all calendar pages have been discovered.
+  <p>Even complete alignment of configured pages is not evidence that all live calendar pages have been discovered.
     The existing ResourceList statements and original website remain authoritative.</p>
 </section>
