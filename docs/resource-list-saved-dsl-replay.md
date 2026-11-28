@@ -172,3 +172,57 @@ matching page/Source identity, value digests, duplicates and pair ordering.
 A `url_uri_pairing_verified_last_good_unverified` result certifies only
 **local pairing of recorded DSL outputs**. It does not establish pagination
 completeness, last-good Statement-cache parity, or Artsdata/Databus invariants.
+
+## Production Webpages inventory compared with the unfiltered replay
+
+A separately supplied production Webpages listing for `tourismeshawinigan-com`
+contains **48 Event webpages**, **4 ResourceLists** (pages 1–4), and
+historical Place/EventType records. The earlier local **staging snapshot**
+contained **31 Event webpages**; these are different snapshots, not an
+authoritative before/after delta.
+
+An operator ran a **read-only exact URL-set comparison** of the production
+listing with the unfiltered saved-HTML Source replays
+(`9102` URL List, `9098` URI List). Results:
+
+| Set | Unique URLs |
+|---|---:|
+| Replayed unfiltered calendar (86 occurrences, 35 duplicates) | **51** |
+| Production Event webpages | **48** |
+| Exact URL matches | **25** |
+| Replay-only discovery candidates | **26** |
+| Production-only historical/unlisted records | **23** |
+
+**Crucial location evidence:** Of 26 replay-only candidates, **25 appear
+on calendar pages 5–11**, outside production's four configured ResourceList
+pages. The **one candidate on page 4** is
+`https://www.tourismeshawinigan.com/evenements/emilie-perreault-theatre/`.
+It requires separate investigation of refresh/import timing and existing
+Source Statement state; adding pagination does not explain it.
+
+The 23 production-only Event webpages have supplied `archive_date` values
+**no later than 2026-11-26**, preceding the current capture. Their absence
+from a current calendar is consistent with normal historical retention,
+**not** evidence for deletion or forced archiving. A production `Publishable`
+flag alone is not evidence that the event is currently active.
+
+For the **25 exact URL overlaps**, the supplied comparator reported **zero
+RDF identifier mismatches**. This confirms compatibility on existing
+identities, but not the untouched 26 replay-only candidate identities, nor
+full positional URL/URI pairing. Run
+`script/resource_list_saved_dsl_pair_audit.rb` on both saved chains
+before calling pairing verified.
+
+**Interpretation:** The fixed production page-1–4 inventory is strongly
+associated with substantial current-event discovery undercoverage;
+the evidence does **not** imply that 26 events should be immediately
+imported or that 23 historical pages should be removed. Source pages,
+calendar contents, snapshot dates and event archive dates are distinct
+dimensions. Compare against *contemporaneous* last-good statements,
+then verify URL/URI pairing and Artsdata/Databus identity invariants
+before any production collector/refresh changes.
+
+The production listing and the replay are user-supplied local evidence;
+PR #15 remains **read-only and draft**. This section records observations
+only and does not create a Source, add page URLs, schedule refreshes, import
+Events, change archive dates, or modify Artsdata exports.
