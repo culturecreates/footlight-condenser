@@ -37,7 +37,7 @@
         ResourceLists::DanseDanseKeyedPreview.eligible?(@website) %>
     <section class="website-show-section" id="qa-multilingual-pairing">
       <h2>Multilingual ResourceList pairing (QA)</h2>
-      <p>Compare the first English and French calendar pages. Read-only; pagination completeness is not verified.</p>
+      <p>Compare all explicitly configured English and French ResourceList pages. Read-only; live-site pagination completeness remains unverified.</p>
       <%= button_to "Preview multilingual pairing", preview_multilingual_pairing_website_path(@website), method: :post %>
     </section>
   <% end %>
