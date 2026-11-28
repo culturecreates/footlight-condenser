@@ -6,7 +6,7 @@ Wringer/Condenser caches, scheduling, or Artsdata exports.
 
 ## What the audit can and cannot prove
 
-The existing Mermaid/Meridian ResourceList mapping has EN
+The existing Meridian ResourceList mapping has EN
 `/en/events?page=N` and FR `/fr/evenements?page=N`, numbered from zero.
 The original proof of concept sampled pages 0 and 1 in each language.
 Those four URLs alone are **not** a complete inventory: an indexed historical
