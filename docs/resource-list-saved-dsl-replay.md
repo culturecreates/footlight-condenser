@@ -9,8 +9,8 @@ an Artsdata parity certification, or evidence for archiving.
 ## Requirements
 
 - Local **development or test** Rails environment, using a disposable
-  PostgreSQL database containing the **actual** Shawinigan Source
-  configuration. Do not run this against staging or production.
+  PostgreSQL database; it can be **empty** when using an exported Source
+  JSON file. Do not run against staging or production.
 - A previously saved `probe.json`, matching `pageN.html` files and
   `semantic-next-audit.json` in the same directory.
 - The ID of the existing selected Source whose Property label is
@@ -84,3 +84,56 @@ expected DSL feature, not necessarily an error.
   with fresh network data or a synthetic XPath extraction.
 - Keep PR #15 draft and production ResourceList/import/archive code
   unchanged until these checks and full integration tests pass.
+
+## Replay using real exported Sources 9098 and 9102 (Shawinigan)
+
+The staging snapshot has the selected original `URI List` Source 9098 and
+`Webpage URL List` Source 9102, shared across the four configured unfiltered
+ResourceLists. The local development database has zero Sources and is used
+only for its read-only transaction guard. This command does **not** create
+Source records, import data or change the DSL.
+
+Export each Source from the **local snapshot database** using read-only SQL:
+
+```bash
+mkdir -p /tmp/resource-list-trials/shawinigan-sources
+for id in 9098 9102; do
+  PGOPTIONS='-c default_transaction_read_only=on' \
+  psql -X -At -v ON_ERROR_STOP=1 \
+    -d footlight_condenser_staging_snapshot \
+    -c "SELECT json_build_object(
+      'source_id', s.id, 'website_id', s.website_id,
+      'website_seedurl', w.seedurl,
+      'property_label', p.label, 'selected', s.selected,
+      'render_js', s.render_js, 'algorithm_value', s.algorithm_value
+    )::text
+    FROM sources s
+    JOIN properties p ON p.id = s.property_id
+    JOIN websites w ON w.id = s.website_id
+    WHERE s.id = ${id} AND s.selected = true
+      AND w.seedurl = 'tourismeshawinigan-com'
+      AND p.label IN ('URI List', 'Webpage URL List')" \
+    > "/tmp/resource-list-trials/shawinigan-sources/source-${id}.json" || exit 1
+  test -s "/tmp/resource-list-trials/shawinigan-sources/source-${id}.json" || exit 1
+done
+```
+
+Run the fixture validator and both selected-source replays (development only):
+
+```bash
+bundle exec ruby test/services/resource_lists/replay_source_config_test.rb
+for selection in shawinigan-numbered shawinigan-culture; do
+  for id in 9098 9102; do
+    RAILS_ENV=development bundle exec ruby \
+      script/resource_list_existing_dsl_replay.rb \
+      "/tmp/resource-list-trials/${selection}" \
+      "/tmp/resource-list-trials/shawinigan-sources/source-${id}.json" || exit 1
+  done
+done
+```
+
+Export files are private local QA inputs and must not be committed.
+Report status remains `dsl_replayed_parity_unverified`; verify URL/URI
+pairing and compare with last-good statements separately.
+Existing source configuration is trusted input; `ruby=` expressions are
+not process- or filesystem-sandboxed. Do not point the runner to staging.

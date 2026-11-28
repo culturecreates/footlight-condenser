@@ -2,7 +2,7 @@
 
 # Local-only QA replay. Executes the configured ResourceList Source DSL on
 # SHA-verified HTML snapshots, without fetching or refreshing Statements.
-# RAILS_ENV=development bundle exec ruby script/resource_list_existing_dsl_replay.rb PROBE_DIR SOURCE_ID
+# RAILS_ENV=development bundle exec ruby script/resource_list_existing_dsl_replay.rb PROBE_DIR SOURCE_ID_OR_SOURCE_JSON
 # WARNING: a trusted DSL may contain arbitrary Ruby; run only against a disposable
 # local database, never against staging/production or untrusted Source code.
 ENV["RAILS_ENV"] ||= "development"
@@ -11,23 +11,35 @@ require "digest"
 require "json"
 
 abort "Local development/test environment only" unless Rails.env.development? || Rails.env.test?
-abort "Usage: ... resource_list_existing_dsl_replay.rb PROBE_DIR SOURCE_ID" unless ARGV.length == 2
+abort "Usage: ... resource_list_existing_dsl_replay.rb PROBE_DIR SOURCE_ID_OR_SOURCE_JSON" unless ARGV.length == 2
 require "webmock"
 require_relative "../app/services/resource_lists/saved_dsl_replay"
 
 WebMock.enable!
 WebMock.disable_net_connect!(allow_localhost: false)
-source_id = Integer(ARGV.fetch(1), 10)
-source = Source.includes(:property, :website).find(source_id)
-abort "Use an enabled, selected ResourceList list Source" unless
-  source.selected? && ["Webpage URL List", "URI List"].include?(source.property.label)
+require_relative "../app/services/resource_lists/replay_source_config"
+
+config = if ARGV.fetch(1).match?(/\A[1-9]\d*\z/)
+  # Original mode: retrieve an existing selected Source from the local DB.
+  source = Source.includes(:property, :website).find(Integer(ARGV.fetch(1), 10))
+  ResourceLists::ReplaySourceConfig.new(
+    "source_id" => source.id, "website_id" => source.website_id,
+    "website_seedurl" => source.website.seedurl,
+    "property_label" => source.property.label, "selected" => source.selected?,
+    "render_js" => source.render_js?, "algorithm_value" => source.algorithm_value
+  )
+else
+  # Exported Source JSON: no Source database lookup is needed.
+  ResourceLists::ReplaySourceConfig.from_file(File.expand_path(ARGV.fetch(1)))
+end
+source_id = config.source_id
 abort "Expected PostgreSQL read-only transaction protection" unless
   ActiveRecord::Base.connection.adapter_name.downcase.include?("postgresql")
 
 folder = File.expand_path(ARGV.fetch(0))
 runner = lambda do |algorithm:, url:, html:|
   executor = Dsl::Core::AlgorithmRunner.new(
-    url:, render_js: source.render_js, scrape_options: {},
+    url:, render_js: config.render_js, scrape_options: {},
     tracer: Dsl::Tracing::NullTracer.new
   )
   executor.define_singleton_method(:fetch_result_for) do |url:, render_js:, scrape_options:, **|
@@ -46,13 +58,13 @@ result = nil
 ActiveRecord::Base.transaction do
   ActiveRecord::Base.connection.execute("SET TRANSACTION READ ONLY")
   result = ResourceLists::SavedDslReplay.call(directory: folder,
-    algorithm: source.algorithm_value, run_dsl: runner)
+    algorithm: config.algorithm_value, run_dsl: runner)
   raise ActiveRecord::Rollback
 end
 report = {
   purpose: "offline_existing_source_dsl_replay",
-  source_id:, website_id: source.website_id, property_label: source.property.label,
-  algorithm_sha256: Digest::SHA256.hexdigest(source.algorithm_value.to_s),
+  source_id:, website_id: config.website_id, website_seedurl: config.website_seedurl, property_label: config.property_label,
+  algorithm_sha256: Digest::SHA256.hexdigest(config.algorithm_value),
   executed_on_saved_html: true, network_disabled: true, db_transaction_read_only: true,
   verified_completeness: false, extraction_parity_verified: false,
   status: result.status, errors: result.errors,
