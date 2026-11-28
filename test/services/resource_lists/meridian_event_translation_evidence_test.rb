@@ -17,7 +17,7 @@ class ResourceLists::MeridianEventTranslationEvidenceTest < ActiveSupport::TestC
       <link rel="canonical" href="#{canonical || URLS.fetch(lang)}">
       <link rel="shortlink" href="/node/123"></head>
       <body><nav><a href="/">Home</a><a href="/events">Events</a>
-      <a href="/about">About</a><a href="/contact">Contact</a></nav>
+      <a href="/about">About</a><a href="/contact">Contact</a><a href="/calendar">Calendar</a></nav>
       <h1>Solitary Man</h1><p>Event</p></body></html>
     HTML
   end
