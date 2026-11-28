@@ -142,7 +142,7 @@ module ResourceLists
       observed.scheme == "https" && configured.scheme == "https" &&
         observed.host == configured.host && observed.port == configured.port &&
         observed.userinfo.nil? && configured.userinfo.nil? &&
-        observed.path.sub(%r{/+\\z}, "") == configured.path.sub(%r{/+\\z}, "") &&
+        observed.path.sub(%r{/+\z}, "") == configured.path.sub(%r{/+\z}, "") &&
         URI.decode_www_form(observed.query.to_s).sort == URI.decode_www_form(configured.query.to_s).sort
     rescue URI::InvalidURIError, ArgumentError
       false
