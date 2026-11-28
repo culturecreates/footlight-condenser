@@ -341,3 +341,41 @@ No authoritative live-site end-of-inventory proof. The clone's original
 Source/Statement counts, no-write snapshot and normalized Artsdata graph
 parity must be checked again before proceeding beyond preview.
 Do not change scheduling, publishing, archival, import, or RDF minting.
+
+## QA copy fetch-cache isolation (2026-11-28; awaiting local regression)
+
+QA copies created through **Copy website for QA** now have separate local
+`Distillator::FetchCache` entries for their fetches. The entry key consists
+of a QA Website ID and a SHA-256 digest of the regular normalized URL key.
+The original public URL remains the fetched URL and stored `normalized_url`.
+Regular sites retain the existing Wringer-compatible URL-key cache behavior.
+
+For a QA-copy context, `Distillator::FetchService` uses guarded native
+Condenser fetching even when the copied website's rollout mode is `shadow`.
+It will not read or refresh Wringer's shared cache for normal QA fetches,
+and explicitly supplied legacy/compatibility clients are rejected or
+blocked. Failed QA fetches retain the QA copy's own last-good cache;
+neither site's cache refresh replaces the other site's record. Different
+QA copies do not share their local entries either.
+
+This is **not** a frozen document snapshot. A QA refresh can replace that
+QA copy's own content; strict differential QA still requires captured,
+contemporaneous HTML. Existing QA copies will populate their isolated
+cache on their next fetch. The old shared URL-cache entry is not moved.
+
+The QA cache key is opaque and not a public URL; cache inspection and
+metrics should use `normalized_url` and a QA-specific scope where relevant.
+Wringer HTML / browser snapshots for QA comparison are not automatically
+reused; independent native retrieval can expose different site anti-bot or
+rendering behavior from the original legacy Wringer path. That difference
+must be reported rather than silently hidden.
+
+Focused regression (not yet run in WSL):
+
+```bash
+bin/condenser --db footlight_condenser_keyed_qa_test --rails-env test \
+  test test/services/distillator/qa_fetch_isolation_test.rb
+```
+
+The QA copy must continue to be unscheduled and non-publishing. No change
+to Artsdata, event identity or ResourceList import contracts is intended.
