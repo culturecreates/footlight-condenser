@@ -89,6 +89,18 @@ class ResourceLists::MeridianAuditResumeTest < ActiveSupport::TestCase
     assert_raises(ResourceLists::MeridianAuditResume::Invalid) { examine(broken) }
   end
 
+  test "exposes only the rejected page as eligible for manual inspection" do
+    reviewed = examine(report)
+    assert_equal [["fr", 2]], reviewed.blocked_pages
+    assert_equal [0, 1, 2], reviewed.pages.fetch("en").keys.sort
+  end
+
+  test "refuses altered blocked-page URL" do
+    tampered = report
+    tampered["pages"]["fr"]["2"]["url"] = "#{ROOT}/fr/evenements?page=1"
+    assert_raises(ResourceLists::MeridianAuditResume::Invalid) { examine(tampered) }
+  end
+
   test "rejects attempts to reuse snapshot replay as live evidence" do
     broken = report
     broken["input_mode"] = "operator_snapshots_not_live_proof"
