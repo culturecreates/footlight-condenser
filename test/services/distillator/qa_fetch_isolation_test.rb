@@ -69,6 +69,8 @@ class Distillator::QaFetchIsolationTest < ActiveSupport::TestCase
   end
 
   test "QA fetch cannot fall back to Wringer even when its rollout mode is shadow" do
+    eligible = Struct.new(:eligible?, :details).new(true, {})
+    Distillator::FetchService.stubs(:fetch_eligibility).returns(eligible)
     Distillator::FetchService.expects(:legacy_fetch).never
     Distillator::FetchService.expects(:guarded_internal_fetch).once.returns(response("Native QA"))
     result = Distillator::FetchService.fetch_result(url: @url, website: @copy)
