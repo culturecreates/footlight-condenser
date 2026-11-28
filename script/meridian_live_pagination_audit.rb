@@ -15,8 +15,36 @@ module MeridianLivePaginationAudit
   ROOT = "https://meridiancentrepointe.com"
   PATHS = { "en" => "/en/events", "fr" => "/fr/evenements" }.freeze
   MAX_HTML_BYTES = 5 * 1024 * 1024
+  AUDIT_PAGES = (0..1).freeze
 
   module_function
+
+  # The fetched content is not automatically a calendar merely because HTTP
+  # returned 200. Reject identifiable challenges and suspicious structure
+  # before applying the selected URL XPath.
+  def validate_calendar_html!(html, _page_url, _language)
+    evidence = Distillator::PageEvidence.call(body: html)
+    raise "Content #{evidence.status}: #{evidence.reasons.join(', ')}" if evidence.flagged?
+    document = Nokogiri::HTML(html)
+    title = document.at_css("head title")&.text.to_s.squish
+    raise "Missing HTML page identity" if title.empty?
+    # Strong page-identity checks are local to a calendar, not an event detail.
+    unless title.match?(/\b(?:events|événements|evenements)\b/i) ||
+        document.at_css("main h1, h1")&.text.to_s.match?(/\b(?:events|événements|evenements|à venir|coming up)\b/i)
+      raise "Unexpected calendar title/heading: #{title.first(90)}"
+    end
+    raise "HTML lacks navigation and event link structure" unless
+      document.css("a[href]").length >= 5
+    { title: title, page_evidence: evidence.to_signals }
+  end
+
+  def snapshot_page(path)
+    raise "Snapshot missing: #{path}" unless File.file?(path)
+    html = File.binread(path)
+    raise "Empty or oversized snapshot" unless html.bytesize.between?(1, MAX_HTML_BYTES)
+    { html: html, sha256: Digest::SHA256.hexdigest(html), final_url: nil,
+      content_type: "text/html (operator-supplied)", bytes: html.bytesize, capture_mode: "operator_snapshot" }
+  end
 
   def selected_url_source(website, page)
     selected = page.statements.joins(source: :property)
@@ -107,16 +135,23 @@ module MeridianLivePaginationAudit
     raise "invalid selected Source XPath: #{error.message}"
   end
 
-  def run(output: nil)
+  def run(output: nil, snapshots: {})
     connection = ActiveRecord::Base.connection
     raise "Refusing production" if Rails.env.production?
-    raise "Expected the local staging working DB" unless connection.current_database == "footlight_condenser_staging_work"
+    allowed = connection.current_database == "footlight_condenser_staging_work" ||
+      connection.current_database.match?(/\Afootlight_condenser_[a-z0-9_]*qa\z/)
+    raise "Expected a local staging working or QA database" unless allowed
+    expected = PATHS.keys.product(AUDIT_PAGES.to_a)
+    if snapshots.any? && snapshots.keys.sort != expected.sort
+      raise "For replay, all four contemporaneous EN/FR page 0/1 HTML snapshots are required"
+    end
     raise "Refusing overwrite: #{output}" if output && File.exist?(output)
 
     report = { generated_at: Time.current.utc.iso8601, database: connection.current_database,
       site: "meridiancentrepointe-com", read_only: true, pages: {}, errors: [],
       inventory_authoritative: false, terminal_evidence: "NOT_ESTABLISHED",
-      execution: "Selected Source XPath only; no Ruby DSL, imports, cache writes, or new RDF identities" }
+      execution: "Selected Source XPath only; no Ruby DSL, imports, cache writes, or new RDF identities",
+      input_mode: snapshots.empty? ? "live_http" : "operator_snapshots_not_live_proof" }
     connection.transaction do
       connection.execute("SET TRANSACTION READ ONLY")
       site = Website.find_by!(seedurl: report.fetch(:site))
@@ -130,18 +165,20 @@ module MeridianLivePaginationAudit
 
       PATHS.each do |language, path|
         report[:pages][language] = {}
-        (0..1).each do |number|
+        AUDIT_PAGES.each do |number|
           url = "#{ROOT}#{path}?page=#{number}"
           begin
-            fetched = fetch_page(url)
+            snapshot_path = snapshots[[language, number]]
+            fetched = snapshot_path ? snapshot_page(snapshot_path) : fetch_page(url)
+            identity = validate_calendar_html!(fetched.fetch(:html), url, language)
             extracted = extract_page(fetched.fetch(:html), url, language, source_by_language.fetch(language).fetch(:xpath))
             raise "no event links from selected XPath" if extracted.fetch(:urls).empty?
             raise "out-of-scope or malformed XPath values" if extracted.fetch(:rejected_xpath_values).any?
-            report[:pages][language][number] = { url: url, http: 200, sha256: fetched.fetch(:sha256),
-              bytes: fetched.fetch(:bytes), final_url: fetched.fetch(:final_url),
+            report[:pages][language][number] = { url: url, http: snapshot_path ? nil : 200, sha256: fetched.fetch(:sha256),
+              bytes: fetched.fetch(:bytes), final_url: fetched.fetch(:final_url), capture_mode: fetched[:capture_mode] || "live_http",
               source_id: source_by_language.fetch(language).fetch(:source_id),
               source_sha256: source_by_language.fetch(language).fetch(:source_sha256),
-              captured_at: Time.current.utc.iso8601, **extracted }
+              captured_at: Time.current.utc.iso8601, **identity, **extracted }
           rescue StandardError => error
             report[:errors] << "#{language} page #{number}: #{error.class}: #{error.message}"
             report[:pages][language][number] = { url: url, status: "blocked", error: error.class.name }
@@ -208,6 +245,15 @@ module MeridianLivePaginationAudit
 end
 
 output = nil
-OptionParser.new { |opts| opts.on("--json PATH") { |path| output = path } }.parse!(ARGV)
+snapshots = {}
+OptionParser.new do |opts|
+  opts.on("--json PATH") { |path| output = path }
+  opts.on("--html LANG:PAGE:PATH", "Read-only replay of all 4 contemporaneous HTML captures") do |spec|
+    lang, number, path = spec.split(":", 3)
+    abort "Invalid --html: #{spec}" unless MeridianLivePaginationAudit::PATHS.key?(lang) &&
+      %w[0 1].include?(number) && path.present? && !snapshots.key?([lang, number.to_i])
+    snapshots[[lang, number.to_i]] = path
+  end
+end.parse!(ARGV)
 abort "Unexpected arguments" unless ARGV.empty?
-MeridianLivePaginationAudit.run(output: output)
+MeridianLivePaginationAudit.run(output: output, snapshots: snapshots)
