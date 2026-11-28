@@ -208,6 +208,17 @@ module Distillator
         log_context: log_context
       )
 
+      # A successful HTTP status is not sufficient evidence that this is the
+      # intended document. Use an accepted last-good body as the comparison
+      # baseline; never replace it with a suspected challenge or redesign.
+      if fetch_result[:status] == :ok
+        evidence = Distillator::PageEvidence.call(
+          body: fetch_result[:raw_body].is_a?(String) ? fetch_result[:raw_body] : fetch_result[:body],
+          baseline_html: cache&.body
+        )
+        fetch_result = Distillator::PageEvidence.annotate_result(fetch_result, evidence)
+      end
+
       wrote_body = write_fetch_result(cache, key, fetch_result)
 
       # Retain last-good cache history on failure, but never serve a body from a
