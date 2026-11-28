@@ -33,6 +33,14 @@
       <% end %>
     </details>
   <% end %>
+  <% if (Rails.env.development? || Rails.env.test? || Distillator::TransitionRuntime.staging?) &&
+        ResourceLists::DanseDanseKeyedPreview.eligible?(@website) %>
+    <section class="website-show-section" id="qa-multilingual-pairing">
+      <h2>Multilingual ResourceList pairing (QA)</h2>
+      <p>Compare the first English and French calendar pages. Read-only; pagination completeness is not verified.</p>
+      <%= button_to "Preview multilingual pairing", preview_multilingual_pairing_website_path(@website), method: :post %>
+    </section>
+  <% end %>
 </section>
 
 <% transition_contract = website_transition_contract(@website) %>
