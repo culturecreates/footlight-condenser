@@ -37,3 +37,47 @@ jq '{stop_reason, verified_completeness, captures: [
 Save snapshots and inspect the exact markup around the pagination summary before assuming it is part of the actual filtered pager. The generic probe's `event_link_count=0` is expected unless `EVENT_LINK_XPATH` is explicitly set. A full capture must compare event IDs/URLs and selected-filter correctness, including any differences between the `radius=30` and `radius=31` chains.
 
 **No writes:** This trial cannot alter selected Sources, refresh Statements, retire ResourceList Webpages, archive events, or change Artsdata exports. The PR still lacks a production collector and an atomic last-good-preserving membership update.
+
+## Verified filtered sliding-page window (local read-only trial)
+
+The operator's filtered `radius=30`, `categories={"1":0}` capture returned HTTP 200 on pages 1–3, with
+unchanged selected filters and a visible numbered-page window:
+
+| Current page | Raw same-filter page targets | Accessible next-number link |
+|---|---|---|
+| 1 | 1#skip-content-anchor, 1#, 2 | 2 |
+| 2 | 2#skip-content-anchor, 3, 4 | 3 |
+| 3 | 3#skip-content-anchor, 2, 4 | 4 |
+
+The fragment-bearing URLs are not pagination. Thus genuine numeric windows are
+`[2]`, `[3,4]`, `[2,4]`. The changing page-label observations
+(`1/2`, `2/4`, `3/4`) **must not be used as final-page totals**:
+this source uses a sliding window and the label's DOM provenance is not yet established.
+
+`ResourceLists::NumberedPagerWindow` now excludes fragment links, validates
+the origin/path and exact selected filters using `NumberedPageQuery`, and records
+`pager_window_numbers` plus `next_page_number_link_observed`. The legacy
+`next_link_observed` field remains as a compatibility alias, **meaning only that
+a numbered anchor to current+1 exists, not that a semantic Next control exists**.
+The old `NumberedPagerEvidence` validator rejects sliding windows and must
+not be applied to this site as an end-of-list proof.
+
+The probe remains read-only and bounded; absent next-number links, apparent
+page-label totals, 90% short-page hints, and its page cap are all **inconclusive**
+without verified terminal evidence. Do not mutate Source/ResourceList records
+or assume completeness from pages 1–3.
+
+After updating the branch, rerun the short local capture and inspect:
+
+```bash
+bundle exec ruby test/services/resource_lists/numbered_pager_window_test.rb
+
+bundle exec ruby script/resource_list_numbered_probe.rb \
+  'https://lepointdevente.com/?q=&type=physical&locality=2234&radius=30&categories=%7B%221%22%3A0%7D&lang=fr&page=1' \
+  5 /tmp/resource-list-trials/lepointdevente-windowed
+
+jq '.captures[] | {page, pager_window_numbers,
+  next_page_number_link_observed, page_label,
+  short_page_stop}' /tmp/resource-list-trials/lepointdevente-windowed/probe.json
+```
+

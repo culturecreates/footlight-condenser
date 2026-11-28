@@ -18,6 +18,7 @@ require "uri"
 require_relative "../app/services/resource_lists/short_page_stop"
 require_relative "../app/services/resource_lists/numbered_probe_stop"
 require_relative "../app/services/resource_lists/numbered_page_label"
+require_relative "../app/services/resource_lists/numbered_pager_window"
 require_relative "../app/services/resource_lists/numbered_page_query"
 require_relative "../app/services/resource_lists/link_inventory"
 require_relative "../app/services/resource_lists/ajax_pagination_shell"
@@ -106,8 +107,9 @@ limit.times do |offset|
       end
     end.uniq
   end
-  pager = hrefs.select { |link| link.path == start.path &&
-    URI.decode_www_form(link.query.to_s).any? { |key, _| key == pagination.parameter } }.map(&:to_s).uniq
+  pager_window = ResourceLists::NumberedPagerWindow.call(
+    links: hrefs, pagination:, page: number)
+  pager = pager_window.urls
   path = File.join(output, "page#{number}.html")
   File.binwrite(path, content)
   captures << { page: number, url: url.to_s, final_url: final_url.to_s,
@@ -118,11 +120,13 @@ limit.times do |offset|
     link_inventory_sha256: link_fingerprint,
     event_link_count: events.length,
     sample_events: events.first(3), numbered_links: pager,
+    pager_window_numbers: pager_window.numbers,
+    next_page_number_link_observed: pager_window.next_page_number_link_observed,
     event_link_xpath: event_xpath, numbered_link_urls: pager, title: doc.at_xpath("//title")&.text.to_s.strip,
     ajax_shell_only: ajax_shell.shell_only?, ajax_endpoint: ajax_shell.endpoint,
     challenge_hint: !!(doc.at_xpath("//title")&.text.to_s.match?(/just a moment|attention required|access denied|verify you are human|checking your browser/i) ||
       doc.at_css("#challenge-stage, #challenge-form, [id^='cf-chl-']")),
-    next_link_observed: pager.any? { |link| pagination.matches_page?(link.to_s, page: number + 1) } }
+    next_link_observed: pager_window.next_page_number_link_observed }
   short_page = previous_link_count && ResourceLists::ShortPageStop.stop?(
     previous_count: previous_link_count, current_count: all_link_count)
   same_content = previous_fingerprint == Digest::SHA256.hexdigest(content)
@@ -131,7 +135,7 @@ limit.times do |offset|
   captures.last[:repeated_content] = !!same_content
   captures.last[:repeated_links] = !!same_links
   puts "page=#{number} status=#{response.code} all_links=#{all_link_count} candidate_event_urls=#{events.length} " \
-    "pager_links=#{pager.length} page_label=#{page_label.page}/#{page_label.last_page} next_link=#{captures.last[:next_link_observed]} bytes=#{content.bytesize} challenge_hint=#{captures.last[:challenge_hint]} short_page_stop=#{!!short_page} repeated_content=#{!!same_content} repeated_links=#{!!same_links} ajax_shell=#{ajax_shell.shell_only?}"
+    "pager_links=#{pager.length} pager_window=#{pager_window.numbers.join(',')} page_label=#{page_label.page}/#{page_label.last_page} next_link=#{captures.last[:next_link_observed]} bytes=#{content.bytesize} challenge_hint=#{captures.last[:challenge_hint]} short_page_stop=#{!!short_page} repeated_content=#{!!same_content} repeated_links=#{!!same_links} ajax_shell=#{ajax_shell.shell_only?}"
   stop_reason = ResourceLists::NumberedProbeStop.reason(
     ajax_shell: ajax_shell.shell_only?, challenge: captures.last[:challenge_hint],
     repeated_content: same_content, repeated_links: same_links,
