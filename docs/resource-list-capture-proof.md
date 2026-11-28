@@ -29,6 +29,15 @@ raise "Discovery incomplete" unless proof.complete?
 
 **Important trust boundary:** A caller could incorrectly claim that it observed no next link. This validator checks the **consistency of evidence supplied by the collector**, not the truthfulness/completeness of the HTML parser or hidden AJAX/network pagination. Do not treat `proof.complete?` alone as production migration evidence.
 
+**Separation of concerns:** Pagination is responsible only for discovering
+which pages should be fetched, preserving URL/filter identity, and recording
+capture/terminal evidence. Event URLs, records, and event fields are extracted
+by the **existing configured DSL**, not a new pagination-specific XPath
+extractor. Optional `EVENT_LINK_XPATH` fields in QA probes are for
+deliberate offline page analysis only; they are not a production requirement.
+End-to-end extraction parity must replay the actual DSL and compare its
+outputs against last-good data and Artsdata contracts.
+
 **Next integration:** Implement an explicitly configured, bounded, fetch-once collector that derives link/terminal evidence from actual snapshots; include SSR/JS and query pagination examples. For bilingual calendars, require both independent pagination chains to pass, then align keys and verify existing RDF identities. Complete selected-list refreshes atomically; preserve last-good evidence on any partial failure. Never auto-remove events because a page is empty or missing.
 
 No changes to Jobs, selected Statements, Webpages, RDF URI minting or Artsdata exports are part of this PR.

@@ -116,12 +116,9 @@ The 90% all-anchor rule does **not** trigger on page 4
 Allowing one extra diagnostic fetch is intentional; neither short-page signal
 nor absent forward-number link alone establishes completeness.
 
-**Before activation or archival decisions**, independently verify that
-`/billets/` links in the saved pages belong to the selected calendar event
-cards and not unrelated promoted links, confirm the saved Source's actual
-event XPath and selection contract, check a coherent capture against
-last-good identities and Artsdata outputs, and exercise the terminal boundary
-with an end-to-end read-only collector. No production ResourceList membership
+**Before activation or archival decisions**, validate the **existing Source DSL**
+outputs on the saved pages, compare with last-good event identities and Artsdata
+outputs, and exercise the terminal boundary with a read-only collector. No production ResourceList membership
 change is authorized by this evidence alone.
 
 
@@ -133,25 +130,18 @@ with an additional `has-tag` CSS class; page 5 has no such candidate links.
 Example link paths include `/billets/massonetsonband`,
 `/billets/tdd270326001`, and `/billets/quatuorcobalt`.
 
-Candidate event URL selector, anchored to the article class rather than
-unrelated `/billets/` links elsewhere on the page:
+The card-class XPath used during investigation is **not** an input to the
+pagination feature. It served only to corroborate the saved-HTML observation.
+There is no need to run another event-link XPath pass before continuing.
 
-```xpath
-//article[contains(concat(' ',normalize-space(@class),' '),' feature-canvas ')]//a[starts-with(@href,'/billets/')]/@href
-```
+**Responsibility boundary:** The pagination collector navigates pages,
+preserves configured filters, and records terminal evidence. Event links and
+other event data remain the responsibility of the **existing Source DSL**.
+For end-to-end validation, execute the already-configured DSL on captured
+pages and compare its outputs against the last-good inventory and exports.
+Do not install the investigative `/billets/` XPath as a second
+production extractor or require a separate XPath for pagination.
 
-This is evidence from **twelve sampled anchors**, not a full-card replay.
-Confirm on the already-saved HTML that this selector returns
-`40, 40, 40, 34, 0` links for pages 1–5 and 154 unique normalized
-event URLs. In the Condenser repository, without any HTTP calls:
-
-```bash
-EVENT_LINK_XPATH="//article[contains(concat(' ',normalize-space(@class),' '),' feature-canvas ')]//a[starts-with(@href,'/billets/')]/@href" \
-  bundle exec ruby script/resource_list_probe_analyze.rb \
-  /tmp/resource-list-trials/lepointdevente-windowed/probe.json
-```
-
-The generic `resource_list_probe_analyze.rb` reports `complete=UNVERIFIED`
-even when the selector matches all saved candidate event links. The Source's
-actual DSL, card identity, and downstream last-good / Artsdata parity remain
-separate requirements before any migration or archival changes.
+An optional, explicitly invoked **Analyze Page** diagnostic may show DOM
+structure or counts to investigate a specific anomaly. It is never a
+dependency for routine pagination, extraction, or archiving decisions.
