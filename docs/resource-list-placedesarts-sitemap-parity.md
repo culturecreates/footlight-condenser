@@ -44,3 +44,30 @@ until both shards and any index-listed successors are examined.
 
 This is documentation only. No source code, fetch, import, archive,
 cache, or production behavior changed.
+
+
+## Confirmed production Source DSL (operator-provided)
+
+| Source | ResourceList property | Algorithm | Selected | Render JS |
+|---|---|---|---|---|
+| 4600 | Webpage URL List | `xpath=//loc` | true | false |
+| 4598 | RDF Class | `manual=Event` | true | false |
+| 4601 | URI List | `xpath=//loc;ruby=$array.map{ \|uri\| "footlight:placedesarts-com_#{uri.split('/').last}" }` | true | false |
+
+These original Sources are shared by the two configured production XML
+ResourceLists. Source 4600 extracts XML sitemap `loc` elements; source
+4601 extracts the same `loc` elements and applies the existing explicit
+Footlight identity transformation. No Algolia query, JavaScript rendering,
+new event XPath, or generic URI synthesis is needed.
+
+**Architectural boundary:** a future dynamic sitemap ResourceList would
+discover the list of XML sitemap documents (prefer an observed sitemap
+index), then let the existing Source DSL extract event URLs/URIs from
+each XML document. The `p1`/`p2` filenames do **not** alone prove
+the number of shards or the existence of a `p3` endpoint.
+
+Online retrieval of the current p1/p2 XML and sitemap index was
+unavailable to this audit, so their fresh union remains unverified.
+Do not infer a 973-vs-466 discovery gap from the second shard alone.
+Changes to the original Sources and import/export contracts are out of
+scope for PR #15.
