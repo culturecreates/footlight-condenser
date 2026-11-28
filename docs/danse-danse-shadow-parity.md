@@ -311,3 +311,33 @@ did not expose a numbered pager or next-link. This suggests a
 possible one-page current-inventory design but **is not a DOM-level
 terminal proof**, so do not use it as authorization for creation,
 retirement, archival, or unattended scheduled refresh.
+
+
+## Repeated live browser verification — configured-page preview (2026-11-28)
+
+After the passing **22 runs / 110 assertions**, the user refreshed the
+Danse Danse **QA-copy Website #584** preview in their local development server.
+The current UI now reports:
+- `status: Preview only`; configured pages **EN 1 / FR 1**
+- Per-page extracted card counts **EN p1: 8 / FR p1: 8**
+- **8** discovered keys, **8** bilingual matches, all classified
+  **Existing pair**, with the same QA-scoped RDF identity per pair
+- Matching digest unchanged from the earlier first-page preview:
+  `685c429fbe9b9420d815329ab094bea81dc8ec2a6c2302a6e2c74545f2cb66db`.
+- No unmatched translations, conflicting identities or newly missing
+  Webpages displayed; header shows Wringer reachable at localhost:3009.
+
+Independent public page-text inspection of
+`https://www.dansedanse.ca/fr/spectacles` and
+`https://www.dansedanse.ca/en/shows` showed eight current
+"Spectacle"/"Show" entries followed by separately labeled **past shows**.
+No visible next-page/pagination text was found. This is **consistent**
+with, but does not prove, a one-page current inventory; a DOM-level
+pagination/JS-loading/terminal check has *not* been completed.
+
+**Acceptance status:** configured-pages, read-only bilingual matching
+verified on actual live input; multi-page asymmetry verified in tests.
+No authoritative live-site end-of-inventory proof. The clone's original
+Source/Statement counts, no-write snapshot and normalized Artsdata graph
+parity must be checked again before proceeding beyond preview.
+Do not change scheduling, publishing, archival, import, or RDF minting.
