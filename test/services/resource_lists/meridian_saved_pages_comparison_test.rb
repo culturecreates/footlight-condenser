@@ -26,7 +26,7 @@ class ResourceLists::MeridianSavedPagesComparisonTest < ActiveSupport::TestCase
       { label: "fr3-single", page: 2, html: html("scaramouch") }
     ]
     result = ResourceLists::MeridianSavedPagesComparison.call(snapshots: rows, xpath: XPATH)
-    assert_equal [1], result[:unstable_page_numbers]
+    assert_equal [1], result[:inconsistent_assigned_page_numbers]
     comparison = result.fetch(:same_url_comparisons).sole
     assert_equal [], comparison.fetch(:first_only)
     assert_equal ["#{ROOT}/fr/a", "#{ROOT}/fr/b"], comparison.fetch(:second_only)
@@ -40,7 +40,7 @@ class ResourceLists::MeridianSavedPagesComparisonTest < ActiveSupport::TestCase
       { label: "a", page: 1, html: html("a", "b") },
       { label: "b", page: 1, html: html("b", "a", "a") }
     ], xpath: XPATH)
-    assert_empty result[:unstable_page_numbers]
+    assert_empty result[:inconsistent_assigned_page_numbers]
     assert_equal true, result[:same_url_comparisons].first[:same_event_urls]
     assert_equal 1, result[:snapshots].last[:duplicate_xpath_urls]
   end
@@ -56,6 +56,22 @@ class ResourceLists::MeridianSavedPagesComparisonTest < ActiveSupport::TestCase
     ], xpath: XPATH)
     assert_equal "rejected", result[:snapshots].first[:state]
     assert_equal [1], result[:unstable_page_numbers]
+  end
+
+  test "flags identical HTML assigned to different URLs and mismatched active page" do
+    document1 = html("a").sub("<h1>Événements</h1>", '<h1>Événements</h1><span aria-current="page">Page actuelle 1</span>')
+    document3 = html("scaramouch").sub("<h1>Événements</h1>", '<h1>Événements</h1><span aria-current="page">Page actuelle 3</span>')
+    result = ResourceLists::MeridianSavedPagesComparison.call(snapshots: [
+      { label: "fr1", page: 0, html: document1 },
+      { label: "fr2b", page: 1, html: document1 },
+      { label: "fr2", page: 1, html: document3 },
+      { label: "fr3", page: 2, html: document3 }
+    ], xpath: XPATH)
+    assert_equal %w[fr2b fr2], result[:mismatched_active_page_labels].map { |row| row[:label] }
+    assert_equal [0, 2], result[:identical_documents_across_assigned_pages].map { |row| row[:assigned_pages].first }.sort
+    assert_equal [1], result[:inconsistent_assigned_page_numbers]
+    assert_equal "unverified_page_identity", result[:snapshots][1][:state]
+    assert_match(/not evidence that the server returned different bodies/, result[:interpretation])
   end
 
   test "rejects missing documents and invalid XPath" do
