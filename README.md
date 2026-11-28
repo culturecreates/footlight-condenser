@@ -8,6 +8,57 @@ For coding agents: start with [AGENTS.md](AGENTS.md); select only relevant backg
 
 
 # Local Development
+
+## Consistent local PostgreSQL database selection
+
+Use `bin/condenser` instead of repeating database connection flags for every
+Rails command. The launcher does **not** create, clone, reset, or restore databases.
+It always selects an explicitly named database and ignores inherited
+`DATABASE_URL` / `TEST_DATABASE_URL` values that could redirect Rails elsewhere.
+
+Optional one-time local config (ignored by Git):
+
+```bash
+cat > .condenser.local <<'EOF'
+CONDENSER_DB=footlight_condenser_dansedanse_qa
+CONDENSER_PGHOST=/var/run/postgresql
+CONDENSER_PGPORT=5433
+EOF
+```
+
+Then all these commands use the same configured database:
+
+```bash
+bin/condenser server -p 3000
+bin/condenser runner 'puts ActiveRecord::Base.connection.current_database'
+bin/condenser console
+bin/condenser db:migrate:status
+bin/condenser list-dbs
+```
+
+Choose **any existing local database** per invocation, without changing the defaults:
+
+```bash
+bin/condenser --db footlight_condenser_staging_work runner 'puts Website.count'
+bin/condenser --db footlight_condenser_staging_work db:migrate:status
+```
+
+A restored staging **dataset** normally runs under `RAILS_ENV=development`
+unless intentionally testing Rails' separate `test` behavior. Do **not**
+run Rails tests on a preserved staging snapshot: tests may clear or load fixtures.
+For a disposable test database, specify both `--rails-env test` and a database
+name ending in `_test`:
+
+```bash
+bin/condenser --db footlight_condenser_keyed_qa_test --rails-env test test test/models/website_test.rb
+```
+
+`script/run_keyed_qa_tests.sh` remains the **separate, deliberately guarded**
+test-bootstrap workflow for PR #14; it delegates its Rails calls to
+`bin/condenser`, and only its explicit `--reset` can drop/recreate the
+dedicated disposable test database. Neither command automatically creates a
+different database for each test.
+
 To setup for local development clone this repo.
 
 > `yarn intalll`
