@@ -23,15 +23,16 @@
 
   <p class="website-debug-id"><%= website_debug_id_label(@website) %></p>
   <% if (Rails.env.development? || Rails.env.test? || Distillator::TransitionRuntime.staging?) && !@website.test_copy_of_website_id %>
-    <details class="website-show-section">
-      <summary>Copy website for QA</summary>
-      <p>Create an unscheduled, non-publishing test site with separate RDF URIs and the same source URLs.</p>
+    <section class="website-show-section" id="website-qa-copy">
+      <h2>Copy website for QA</h2>
+      <p>Clone this site's Sources, Webpages and Statements into an unscheduled QA website with separate RDF identities.
+        The original is unchanged; the copy retains source URLs but does not automatically refresh, import or publish.</p>
       <%= form_with url: copy_for_qa_website_path(@website), method: :post, local: true do |form| %>
         <%= label_tag :test_copy_seedurl, "Test seedurl" %>
         <%= text_field_tag :test_copy_seedurl, Websites::CreateTestCopy.suggest_seedurl(@website.seedurl), required: true %>
         <%= form.submit "Create QA copy" %>
       <% end %>
-    </details>
+    </section>
   <% end %>
   <% if (Rails.env.development? || Rails.env.test? || Distillator::TransitionRuntime.staging?) &&
         ResourceLists::DanseDanseKeyedPreview.eligible?(@website) %>
@@ -215,6 +216,9 @@
   <h2>Operations</h2>
   <ul class="website-show-link-list">
     <li><%= link_to "Edit", edit_website_path(@website) %></li>
+    <% if (Rails.env.development? || Rails.env.test? || Distillator::TransitionRuntime.staging?) && !@website.test_copy_of_website_id %>
+      <li><%= link_to "Create QA copy", "#website-qa-copy" %></li>
+    <% end %>
     <li><%= link_to "View resources with lists", lists_path(seedurl: @website.seedurl) %></li>
     <li><%= link_to "Export step-by-step", graphs_website_path(seedurl: @website.seedurl) %></li>
     <% unless active %><li><%= link_to "Refresh upcoming events", refresh_upcoming_events_batch_jobs_path(seedurl: @website.seedurl) %></li><% end %>
