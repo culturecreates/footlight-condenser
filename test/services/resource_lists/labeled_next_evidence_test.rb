@@ -102,4 +102,41 @@ class LabeledNextEvidenceTest < Minitest::Test
     result = inspect([anchor(@pages.url_for(9), text: "Prochains événements")])
     assert_includes result.labeled_next_url, "?search_query&categories%5B0%5D=culture&page=9"
   end
+  def test_hacker_news_more_follows_numbered_page
+    hn = ResourceLists::NumberedPageQuery.new(start_url: "https://news.ycombinator.com/?p=3")
+    result = ResourceLists::LabeledNextEvidence.call(anchors: [
+      anchor("?p=4", text: "More")
+    ], pagination: hn, page: 3, base_url: hn.url_for(3))
+    assert_equal "labeled_forward_observed", result.status
+    assert_equal "https://news.ycombinator.com/?p=4", result.labeled_next_url
+    assert_equal 1, result.labeled_link_count
+  end
+
+  def test_hacker_news_more_not_recognized_on_unrelated_target
+    hn = ResourceLists::NumberedPageQuery.new(start_url: "https://news.ycombinator.com/?p=3")
+    result = ResourceLists::LabeledNextEvidence.call(anchors: [
+      anchor("item?id=123", text: "More")
+    ], pagination: hn, page: 3, base_url: hn.url_for(3))
+    assert_equal "no_forward_observed", result.status
+    assert_equal 0, result.labeled_link_count
+  end
+
+  def test_read_more_not_paginated_even_if_target_is_forward
+    hn = ResourceLists::NumberedPageQuery.new(start_url: "https://news.ycombinator.com/?p=3")
+    result = ResourceLists::LabeledNextEvidence.call(anchors: [
+      anchor("?p=4", text: "Read more")
+    ], pagination: hn, page: 3, base_url: hn.url_for(3))
+    assert_equal "numbered_forward_only", result.status
+    assert_equal 0, result.labeled_link_count
+  end
+
+  def test_unverified_more_target_does_not_create_terminal_claim
+    hn = ResourceLists::NumberedPageQuery.new(start_url: "https://news.ycombinator.com/?p=3")
+    result = ResourceLists::LabeledNextEvidence.call(anchors: [
+      anchor("?p=99", text: "More")
+    ], pagination: hn, page: 3, base_url: hn.url_for(3))
+    assert_equal "no_forward_observed", result.status
+    assert_nil result.labeled_next_url
+  end
+
 end

@@ -20,11 +20,13 @@ module ResourceLists
       labeled_count = 0
       anchors.each do |anchor|
         next unless anchor.is_a?(Hash)
-        labeled = next_label?(anchor)
-        labeled_count += 1 if labeled
+        explicit_next = next_label?(anchor)
         raw_href = anchor[:href].to_s
         if raw_href.empty?
-          invalid_labeled << "(missing href)" if labeled
+          if explicit_next
+            labeled_count += 1
+            invalid_labeled << "(missing href)"
+          end
           next
         end
         begin
@@ -32,11 +34,18 @@ module ResourceLists
           # No fragment navigation or cross-origin/changed-filter targets.
           valid_forward = !absolute.fragment && pagination.matches_page?(absolute.to_s, page: page + 1)
           forward ||= valid_forward
+          # A bare "More" is ambiguous (it may reveal details, not pages).
+          # Recognize it only when its target is the verified next numbered page.
+          labeled = explicit_next || (valid_forward && more_label?(anchor))
+          labeled_count += 1 if labeled
           if labeled
             valid_forward ? valid_labeled << absolute.to_s : invalid_labeled << raw_href
           end
         rescue ArgumentError, URI::InvalidURIError
-          invalid_labeled << raw_href if labeled
+          if explicit_next
+            labeled_count += 1
+            invalid_labeled << raw_href
+          end
         end
       end
       valid_labeled.uniq!
@@ -63,5 +72,12 @@ module ResourceLists
       end
     end
     private_class_method :next_label?
+
+    # Unlike explicit "Next", "More" is only navigation evidence when the
+    # already-validated target is exactly page+1 with unchanged filters.
+    def self.more_label?(anchor)
+      anchor[:text].to_s.strip.casecmp?("more")
+    end
+    private_class_method :more_label?
   end
 end

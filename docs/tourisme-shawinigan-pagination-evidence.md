@@ -291,3 +291,27 @@ changed in this PR.
 See [`docs/resource-list-saved-dsl-replay.md`](resource-list-saved-dsl-replay.md) for the
 bounded read-only harness. It uses the **actual existing configured Source DSL**
 on the saved HTML and intentionally leaves completeness/parity unverified.
+
+## Unknown-site challenge: Hacker News `?p=3` (2026-11-27)
+
+Hacker News uses `?p=N` and a text **More** anchor rather than a
+Next/Prochains événements control. Direct inspection of page 3 showed
+items 61–90 and `More` leading to `?p=4`. Page 31 also still
+showed `More`, while a page-32 request returned **HTTP 429**.
+Requests to higher numbered pages did not establish a contiguous
+verified chain, and some were old cached responses.
+
+**Outcome: incomplete / terminal unverified, not page 31.**
+HTTP 429 is a fetch/rate-limit failure, not a terminal marker;
+an empty old page cannot prove a fresh last page. Starting at `p=3`
+also cannot attest to completeness of the omitted pages 1–2.
+
+The reusable `LabeledNextEvidence` diagnostic now recognizes the
+literal link text `More` as a forward-navigation label **only when**
+the target is an already-validated exact page+1 URL, on the same origin
+and path with unchanged filters. It does not interpret arbitrary
+read-more links as pagination, and no new extraction XPath is introduced.
+
+This proof is **about pagination detection only**: it is not a saved
+SHA-verified full-chain probe, not a DSL extraction replay, and not a
+claim that page 31 (or any higher page) is the terminal page.
