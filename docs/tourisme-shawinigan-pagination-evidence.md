@@ -404,3 +404,53 @@ Focused commands:
 bundle exec ruby test/services/resource_lists/offset_page_query_test.rb
 bundle exec ruby test/services/resource_lists/offset_json_terminal_evidence_test.rb
 ```
+
+
+## Unknown-site challenge: Place des Arts Algolia InstantSearch filtered programme
+
+The supplied JavaScript calls `instantsearch` using `window.algoliaIndexName`
+and writes the whole UI state to a history-router URL. The supplied link
+uses the URL-encoded query key `PDA-production-fr-clone[page]=2`, a
+`range[datesTimestamp]` spanning 2026-11-27 to 2031-11-28 UTC,
+price ranges and 13 `refinementList[discipline][N]` selections.
+
+**Important:** A routed `index[page]=2` is a UI state, not a proven
+Algolia API `page=2`. Backend pages are zero-indexed; verify the actual
+request and returned `page` before mapping the routed page number.
+Source JS also changes `configure.hitsPerPage` between **21 and 250**
+under conditions not yet fully identified, and exposes both
+`showmorehits` and `load-next-week-events` controls. The latter might
+change the time window rather than merely increment the page; do not
+merge independent date/filter selections into one paging chain.
+
+`NumberedPageQuery` now accepts **one unambiguous index-scoped**
+`<index>[page]` key in addition to existing simple query keys. It
+modifies only that exact raw query component, preserving every selected
+date, price, discipline and tracking filter. Multiple page keys are
+ambiguous unless a specific `PAGE_PARAMETER` is explicitly selected.
+
+Algolia's documented search response fields include `page`,
+`nbPages`, `hitsPerPage`, and `nbHits`. New `AlgoliaPageEvidence`
+validates these fields **only after** the caller has verified the
+request index, response slot and successful HTTP/JSON decoding.
+It reports the **last accessible API page candidate** based on
+`nbPages`; it does not certify completeness. A smaller accessible
+window than `nbHits / hitsPerPage` indicates a likely search-result cap
+(`paginationLimitedTo`). The result may change during collection.
+
+The supplied `/1/indexes/*/queries` endpoint is a multi-query API
+whose results cannot be attributed to the filtered programme without
+its actual request payload and response slot. No authenticated
+Algolia response or complete filtered chain was obtained here,
+so **the last page number remains unknown**.
+
+No site-specific extraction XPath, event/URI synthesis,
+production collector change, import, cache refresh or Artsdata export
+modification is introduced. Focused local Ruby tests cover decoded
+scoped keys, all-filter preservation, ambiguous keys and conservative
+Algolia metadata interpretation.
+
+```bash
+bundle exec ruby test/services/resource_lists/numbered_page_query_test.rb
+bundle exec ruby test/services/resource_lists/algolia_page_evidence_test.rb
+```

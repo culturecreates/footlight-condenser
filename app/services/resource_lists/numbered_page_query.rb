@@ -8,6 +8,8 @@ module ResourceLists
   # Does not prove the server applies those filters to returned event records.
   class NumberedPageQuery
     PARAMETERS = %w[page pag p pageNumber p_numb].freeze
+    # InstantSearch-style index-scoped pagination key: index-name[page].
+    INDEX_SCOPED_PAGE = /\A[A-Za-z0-9_.:-]+\[page\]\z/
     attr_reader :parameter, :first_page
 
     def initialize(start_url:, parameter: nil)
@@ -15,9 +17,9 @@ module ResourceLists
       raise ArgumentError, "Expected HTTPS calendar URL" unless @start
 
       @pairs = URI.decode_www_form(@start.query.to_s)
-      found = PARAMETERS.select { |key| @pairs.any? { |k, _| k == key } }
+      found = @pairs.map(&:first).uniq.select { |key| self.class.page_key?(key) }
       @parameter = parameter || (found.one? && found.first)
-      raise ArgumentError, "Set PAGE_PARAMETER to one numeric pagination key" unless PARAMETERS.include?(@parameter)
+      raise ArgumentError, "Set PAGE_PARAMETER to one numeric pagination key" unless self.class.page_key?(@parameter)
 
       values = @pairs.filter_map { |key, value| value if key == @parameter }
       raise ArgumentError, "Expected exactly one numeric #{@parameter} parameter" unless
@@ -31,6 +33,11 @@ module ResourceLists
       raise ArgumentError, "Cannot locate #{@parameter} in raw query" unless @page_index
     rescue URI::InvalidURIError, ArgumentError => e
       raise ArgumentError, "Invalid pagination URL: #{e.message}"
+    end
+
+
+    def self.page_key?(key)
+      key.is_a?(String) && (PARAMETERS.include?(key) || key.match?(INDEX_SCOPED_PAGE))
     end
 
     def url_for(page)

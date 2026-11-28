@@ -103,4 +103,32 @@ class NumberedPageQueryTest < Minitest::Test
     assert query.matches_page?(query.url_for(2), page: 2)
   end
 
+
+  def test_algolia_index_scoped_page_preserves_refinements_and_raw_filters
+    base = "https://www.placedesarts.com/programmation?PDA-production-fr-clone%5Brange%5D%5BdatesTimestamp%5D=1795755600%3A1953608340&PDA-production-fr-clone%5Brange%5D%5BpriceLow%5D=0%3A500&PDA-production-fr-clone%5Bpage%5D=2&PDA-production-fr-clone%5BrefinementList%5D%5Bdiscipline%5D%5B0%5D=Musique%20Jazz&PDA-production-fr-clone%5BrefinementList%5D%5Bdiscipline%5D%5B1%5D=Musique%20classique"
+    query = ResourceLists::NumberedPageQuery.new(start_url: base)
+    assert_equal "PDA-production-fr-clone[page]", query.parameter
+    assert_equal 2, query.first_page
+    assert_equal base.sub("%5Bpage%5D=2", "%5Bpage%5D=3"), query.url_for(3)
+    assert query.matches_page?(query.url_for(3), page: 3)
+    refute query.matches_page?(query.url_for(3).sub("classique", "Jazz"), page: 3)
+    refute query.matches_page?(query.url_for(3).sub("1953608340", "1800000000"), page: 3)
+    refute query.matches_page?(query.url_for(3).sub("0%3A500", "0%3A100"), page: 3)
+    refute query.matches_page?(query.url_for(3).sub("placedesarts.com", "evil.example"), page: 3)
+  end
+
+  def test_algolia_multiple_page_states_require_explicit_parameter
+    base = "https://www.placedesarts.com/programmation?PDA-production-fr-clone%5Bpage%5D=2&PDA-production-en-clone%5Bpage%5D=3"
+    assert_raises(ArgumentError) { ResourceLists::NumberedPageQuery.new(start_url: base) }
+    query = ResourceLists::NumberedPageQuery.new(start_url: base, parameter: "PDA-production-fr-clone[page]")
+    assert query.matches_page?(query.url_for(3), page: 3)
+    refute query.matches_page?(query.url_for(3).sub("en-clone%5Bpage%5D=3", "en-clone%5Bpage%5D=4"), page: 3)
+  end
+
+  def test_algolia_duplicate_scoped_page_values_fail_closed
+    base = "https://www.placedesarts.com/programmation?PDA-production-fr-clone%5Bpage%5D=2&PDA-production-fr-clone%5Bpage%5D=3"
+    assert_raises(ArgumentError) { ResourceLists::NumberedPageQuery.new(start_url: base) }
+  end
+
+
 end
