@@ -160,6 +160,7 @@ module Distillator
     def fetch
       key = Distillator::WringerUrlKey.call(uri, include_fragment: include_fragment)
       qa_website_id = Distillator::QaFetchIsolation.website_id(website: website, website_id: website_id, log_context: log_context)
+      raise ArgumentError, "QA fetch cannot use a supplied legacy client" if qa_website_id && client
       cache_uri_key = Distillator::QaFetchIsolation.cache_key(uri_key: key.uri_key, website_id: qa_website_id)
       cache = Distillator::FetchCache.find_by(uri_key: cache_uri_key)
       stored_profile = stored_body_profile(cache)
@@ -359,8 +360,11 @@ module Distillator
       resolved_mode = Distillator::FetchMode.resolve(
         explicit_mode: mode, website: website, website_id: website_id, log_context: log_context
       )
+      qa_site = Distillator::QaFetchIsolation.website_id(website: website, website_id: website_id, log_context: log_context)
       backend = if resolved_mode == :replay
         "replay"
+      elsif qa_site
+        rendered_fetch_for_key?(key) ? "phantomjs" : "native"
       elsif resolved_mode == :active && client.nil?
         rendered_fetch_for_key?(key) ? "phantomjs" : "native"
       else
