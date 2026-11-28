@@ -845,6 +845,11 @@ module Dsl
 
     def use_wringer_compatibility_client?(scrape_options)
       options = scrape_options.respond_to?(:symbolize_keys) ? scrape_options.symbolize_keys : {}
+      # Never bypass the QA-scoped cache and native fetch path. The fetch store
+      # will reject an explicit legacy client; QA DSL requests always stay local.
+      return false if Distillator::QaFetchIsolation.website_id(
+        website: options[:website], website_id: options[:website_id], log_context: options[:log_context]
+      )
       Distillator::BooleanParam.parse(options[:wringer_compatibility] || options["wringer_compatibility"]) == true
     end
 
