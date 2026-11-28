@@ -11,7 +11,7 @@ class DanseDansePairingPreviewTest < ActionDispatch::IntegrationTest
     @website = Website.create!(
       name: "Danse Danse original", seedurl: "dansedanse-ca",
       graph_name: "https://example.org/dansedanse",
-      default_language: "fr", distillator_mode: "active"
+      default_language: "fr", distillator_mode: "legacy"
     )
   end
 
