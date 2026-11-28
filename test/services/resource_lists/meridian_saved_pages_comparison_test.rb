@@ -68,7 +68,7 @@ class ResourceLists::MeridianSavedPagesComparisonTest < ActiveSupport::TestCase
       { label: "fr3", page: 2, html: document3 }
     ], xpath: XPATH)
     assert_equal %w[fr2b fr2], result[:mismatched_active_page_labels].map { |row| row[:label] }
-    assert_equal [0, 2], result[:identical_documents_across_assigned_pages].map { |row| row[:assigned_pages].first }.sort
+    assert_equal [[0, 1], [1, 2]], result[:identical_documents_across_assigned_pages].map { |row| row[:assigned_pages] }.sort
     assert_equal [1], result[:inconsistent_assigned_page_numbers]
     assert_equal "unverified_page_identity", result[:snapshots][1][:state]
     assert_match(/not evidence that the server returned different bodies/, result[:interpretation])
