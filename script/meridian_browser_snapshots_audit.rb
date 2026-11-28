@@ -56,7 +56,10 @@ module MeridianBrowserSnapshotsAudit
     report[:same_url_comparisons].each do |comparison|
       puts "SAME-URL #{comparison[:page]} #{comparison[:first]}/#{comparison[:second]} same=#{comparison[:same_event_urls]} only_first=#{comparison[:first_only].length} only_second=#{comparison[:second_only].length}"
     end
-    puts "Page content unstable at: #{report[:unstable_page_numbers].inspect}"
+    puts "Different saved URL sets assigned to pages: #{report[:inconsistent_assigned_page_numbers].inspect} (browser observations only)"
+    puts "HTML active-page mismatches: #{report[:mismatched_active_page_labels].inspect}"
+    puts "Identical documents assigned to different pages: #{report[:identical_documents_across_assigned_pages].inspect}"
+    puts report[:interpretation]
     puts report[:completeness]
     if output
       File.write(output, JSON.pretty_generate(report) + "\n")
