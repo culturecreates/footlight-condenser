@@ -205,3 +205,19 @@ or changing the Artsdata export contract.
 **Verification:** this revised test selection was committed but has **not yet**
 been run successfully in the user's WSL checkout. Do not interpret it as
 passing until the local test result has been supplied.
+
+## QA preview focused regression result — 2026-11-28 (user-run WSL)
+
+After correcting the Rails 8 test exception setting, building the gitignored esbuild assets,
+and separating the preview UI integration tests from legacy FK-trigger fixture loading,
+`bash script/run_keyed_qa_tests.sh` completed **18 runs, 73 assertions,
+0 failures, 0 errors, 0 skips**, on PostgreSQL 17 port 5433 / Rails 8.0.2.
+Reported focused-run coverage: 41.99% line (2,646/6,302) and 12.05% branch
+(409/3,394), scoped to loaded files rather than all repository code.
+The dedicated test database was reused without resetting the Danse Danse QA clone.
+
+**Scope:** tests cover service parsing, alignment, read-only controller render,
+button presence and eligibility, but use mocked calendar fetches; the browser/UI
+smoke test against live Danse Danse pages on QA Website #584 remains pending.
+The existing legacy `WebsitesControllerTest` fixture-loader FK failure is
+separately unresolved and is not claimed as passing by this focused result.
