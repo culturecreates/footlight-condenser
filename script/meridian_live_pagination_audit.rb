@@ -130,6 +130,12 @@ module MeridianLivePaginationAudit
     allowed = connection.current_database == "footlight_condenser_staging_work" ||
       connection.current_database.match?(/\Afootlight_condenser_[a-z0-9_]*qa\z/)
     raise "Expected a local staging working or QA database" unless allowed
+    if qa_copy && !connection.column_exists?(:websites, :test_copy_of_website_id)
+      raise "Cannot select Meridian QA copy in #{connection.current_database}: " \
+        "websites.test_copy_of_website_id is absent. This DB predates the QA-copy migration; " \
+        "run the audit against the database that actually contains the QA copy. " \
+        "Do not reset or migrate a restored baseline just to run this read-only audit."
+    end
     raise "Full live pagination cannot use four-page snapshots" if full && snapshots.any?
     expected = PATHS.keys.product(AUDIT_PAGES.to_a)
     if snapshots.any? && snapshots.keys.sort != expected.sort
@@ -157,7 +163,7 @@ module MeridianLivePaginationAudit
         original
       end
       report[:website] = { id: site.id, seedurl: site.seedurl,
-        test_copy_of_website_id: site.test_copy_of_website_id }
+        test_copy_of_website_id: site.has_attribute?(:test_copy_of_website_id) ? site.test_copy_of_website_id : nil }
       rlist = RdfsClass.find_by!(name: "ResourceList")
       existing_lists = site.webpages.where(rdfs_class_id: rlist.id).includes(:statements).to_a
       source_by_language = PATHS.to_h do |language, path|
