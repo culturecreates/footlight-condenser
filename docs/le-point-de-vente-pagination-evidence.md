@@ -124,3 +124,34 @@ last-good identities and Artsdata outputs, and exercise the terminal boundary
 with an end-to-end read-only collector. No production ResourceList membership
 change is authorized by this evidence alone.
 
+
+## Card structure from saved HTML (operator observation)
+
+The operator inspected the first three `/billets/` links on each of pages 1–4.
+All twelve sampled links belong to `article.feature-canvas` cards, some
+with an additional `has-tag` CSS class; page 5 has no such candidate links.
+Example link paths include `/billets/massonetsonband`,
+`/billets/tdd270326001`, and `/billets/quatuorcobalt`.
+
+Candidate event URL selector, anchored to the article class rather than
+unrelated `/billets/` links elsewhere on the page:
+
+```xpath
+//article[contains(concat(' ',normalize-space(@class),' '),' feature-canvas ')]//a[starts-with(@href,'/billets/')]/@href
+```
+
+This is evidence from **twelve sampled anchors**, not a full-card replay.
+Confirm on the already-saved HTML that this selector returns
+`40, 40, 40, 34, 0` links for pages 1–5 and 154 unique normalized
+event URLs. In the Condenser repository, without any HTTP calls:
+
+```bash
+EVENT_LINK_XPATH="//article[contains(concat(' ',normalize-space(@class),' '),' feature-canvas ')]//a[starts-with(@href,'/billets/')]/@href" \
+  bundle exec ruby script/resource_list_probe_analyze.rb \
+  /tmp/resource-list-trials/lepointdevente-windowed/probe.json
+```
+
+The generic `resource_list_probe_analyze.rb` reports `complete=UNVERIFIED`
+even when the selector matches all saved candidate event links. The Source's
+actual DSL, card identity, and downstream last-good / Artsdata parity remain
+separate requirements before any migration or archival changes.
