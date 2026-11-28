@@ -84,6 +84,11 @@ ActiveRecord::Base.connection.transaction do
   current_events = site.webpages.event_pages.where(url: by_url.keys).pluck(:url, :language, :rdf_uri)
   events_by_url = current_events.group_by(&:first)
   missing_urls = by_url.keys - events_by_url.keys
+  identity_diagnostics = ResourceLists::MeridianCacheIdentityDiagnostics.call(
+    entries: entries,
+    events_by_url: events_by_url.transform_values { |rows| rows.map(&:last) },
+    original_seedurl: original.seedurl, qa_seedurl: site.seedurl
+  )
   mismatches = entries.filter_map do |row|
     matches = events_by_url.fetch(row[:url], [])
     next if matches.empty? || matches.any? { |_, _, rdf| rdf == row[:rdf_uri] }
@@ -119,6 +124,7 @@ ActiveRecord::Base.connection.transaction do
     qa_namespace_expected: namespace_prefix, qa_namespace_mismatches: qa_copy ? mismatched_namespace : [],
     rl_counts: rl_pages.group_by(&:language).transform_values(&:size),
     selected_sources: sources, rl_entries: entries, rl_errors: errors, url_rdf_conflicts: url_conflicts,
+    identity_diagnostics: identity_diagnostics,
     missing_event_webpage_urls: missing_urls, cache_to_webpage_rdf_mismatches: mismatches,
     title_rdf_identity_counts: identities,
     note: "Cached RL values are historical. No live page fetched, no terminal evidence, no DB mutation."
@@ -129,6 +135,9 @@ puts "Database: #{report[:database]} | #{report.dig(:website, :seedurl)} | READ-
 puts "Cached URL/RDF entries: #{report[:rl_entries].size} | RL errors: #{report[:rl_errors].size} | URL-RDF conflicts: #{report[:url_rdf_conflicts].size}"
 puts "Existing Webpages absent for cached URLs: #{report[:missing_event_webpage_urls].size} | RDF mismatches: #{report[:cache_to_webpage_rdf_mismatches].size}"
 puts "RDF URI namespace mismatches: #{report[:qa_namespace_mismatches].size} (QA copy)" if qa_copy
+puts "Identity comparisons by row: #{report.dig(:identity_diagnostics, :row_counts_by_kind).inspect}"
+puts "Unique URLs with unresolved identity: #{report.dig(:identity_diagnostics, :unique_unresolved_urls)}"
+puts "URL conflicts by kind: #{report.dig(:identity_diagnostics, :conflicting_urls).group_by { |row| row[:classification] }.transform_values(&:size).inspect}"
 report[:selected_sources].each do |source|
   puts "  RL #{source[:rl_id]} #{source[:property]} #{source[:source_language]} count=#{source[:count]} DSL ops=#{source[:algorithm_steps].join(',')} sha=#{source[:algorithm_sha256][0, 12]}"
 end
