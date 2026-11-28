@@ -156,9 +156,11 @@ module MeridianLivePaginationAudit
 
       PATHS.each do |language, path|
         report[:pages][language] = {}
-        page_numbers = full ? [0] : AUDIT_PAGES.to_a
-        observed_last_page = nil
-        page_numbers.each do |number|
+        numbers = full ? [0] : AUDIT_PAGES.to_a
+        last_page = nil
+        position = 0
+        while position < numbers.length
+          number = numbers.fetch(position)
           url = "#{ROOT}#{path}?page=#{number}"
           begin
             snapshot_path = snapshots[[language, number]]
@@ -168,61 +170,39 @@ module MeridianLivePaginationAudit
             extracted = extract_page(fetched.fetch(:html), url, language, source_by_language.fetch(language).fetch(:xpath))
             raise "no event links from selected XPath" if extracted.fetch(:urls).empty?
             raise "out-of-scope or malformed XPath values" if extracted.fetch(:rejected_xpath_values).any?
+
+            if full
+              if number == 0
+                last_page = pager.last_page
+                raise "No explicit last-page navigation on first page" if last_page.nil?
+                raise "Out-of-range terminal page #{last_page}" unless last_page.between?(0, MAX_PAGES - 1)
+                numbers = (0..last_page).to_a
+              else
+                raise "Pager last-page changed mid-capture" if pager.last_page && pager.last_page != last_page
+                raise "Last page still links to a next page" if number == last_page && pager.next_page
+              end
+            end
+
             report[:pages][language][number] = { url: url, http: snapshot_path ? nil : 200, sha256: fetched.fetch(:sha256),
               bytes: fetched.fetch(:bytes), final_url: fetched.fetch(:final_url), capture_mode: fetched[:capture_mode] || "live_http",
               source_id: source_by_language.fetch(language).fetch(:source_id),
               source_sha256: source_by_language.fetch(language).fetch(:source_sha256),
               captured_at: Time.current.utc.iso8601, **identity, **extracted,
               pager_last_page: pager.last_page, pager_next_page: pager.next_page }
-
-            next unless full
-
-            if number == 0
-              observed_last_page = pager.last_page
-              raise "No explicit last-page navigation on first page" if observed_last_page.nil?
-              raise "Out-of-range terminal page #{observed_last_page}" unless observed_last_page.between?(0, MAX_PAGES - 1)
-              page_numbers = (0..observed_last_page).to_a
-              # each reads the receiver only once: enumerate the remaining
-              # discovered page numbers explicitly in a separate phase.
-              break
-            end
           rescue StandardError => error
             report[:errors] << "#{language} page #{number}: #{error.class}: #{error.message}"
             report[:pages][language][number] = { url: url, status: "blocked", error: error.class.name }
             break if full
           end
+          position += 1
         end
 
-        next unless full && observed_last_page && report[:errors].none? { |e| e.start_with?("#{language} page 0:") }
-        (1..observed_last_page).each do |number|
-          url = "#{ROOT}#{path}?page=#{number}"
-          begin
-            fetched = fetch_page(url)
-            identity = validate_calendar_html!(fetched.fetch(:html), url, language)
-            pager = ResourceLists::MeridianPager.call(html: fetched.fetch(:html), url: url)
-            extracted = extract_page(fetched.fetch(:html), url, language, source_by_language.fetch(language).fetch(:xpath))
-            raise "no event links from selected XPath" if extracted.fetch(:urls).empty?
-            raise "out-of-scope or malformed XPath values" if extracted.fetch(:rejected_xpath_values).any?
-            raise "Pager last-page changed mid-capture" if pager.last_page && pager.last_page != observed_last_page
-            raise "Last page still links to a next page" if number == observed_last_page && pager.next_page
-            report[:pages][language][number] = { url: url, http: 200, sha256: fetched.fetch(:sha256),
-              bytes: fetched.fetch(:bytes), final_url: fetched.fetch(:final_url), capture_mode: "live_http",
-              source_id: source_by_language.fetch(language).fetch(:source_id),
-              source_sha256: source_by_language.fetch(language).fetch(:source_sha256),
-              captured_at: Time.current.utc.iso8601, **identity, **extracted,
-              pager_last_page: pager.last_page, pager_next_page: pager.next_page }
-          rescue StandardError => error
-            report[:errors] << "#{language} page #{number}: #{error.class}: #{error.message}"
-            report[:pages][language][number] = { url: url, status: "blocked", error: error.class.name }
-            break
-          end
-        end
-        if report[:pages][language].keys.sort == (0..observed_last_page).to_a &&
+        if full && !last_page.nil? && report[:pages][language].keys.sort == (0..last_page).to_a &&
             report[:pages][language].values.none? { |row| row[:status] == "blocked" }
           report[:terminal_evidence] = {} if report[:terminal_evidence].is_a?(String)
-          report[:terminal_evidence][language] = { last_page: observed_last_page,
-            expected_pages: observed_last_page + 1, verified_pages: report[:pages][language].size,
-            note: "Explicit first-page last link; all numbered pages fetched. Not proof of atomic snapshot." }
+          report[:terminal_evidence][language] = { last_page: last_page, expected_pages: last_page + 1,
+            verified_pages: report[:pages][language].size,
+            note: "Explicit last-page link plus all numbered responses. Not an atomic snapshot." }
         end
       end
 
