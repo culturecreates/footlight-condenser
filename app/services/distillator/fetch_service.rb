@@ -69,6 +69,27 @@ module Distillator
         return result
       end
 
+      # Copied QA sites must never read or mutate Wringer's shared URL cache.
+      # The normal fetch/rollout path is unchanged for ordinary websites.
+      qa_website_id = Distillator::QaFetchIsolation.website_id(website: website, website_id: website_id, log_context: log_context)
+      if qa_website_id
+        if client || Distillator::BooleanParam.parse(scrape_options[:force_legacy]) ||
+            Distillator::BooleanParam.parse(scrape_options[:wringer_compatibility])
+          return fetch_blocked_result(url: url, error: "QA fetch cannot use a legacy/compatibility client",
+            reason: :qa_legacy_fetch_forbidden).merge(fetch_path: "blocked")
+        end
+        eligibility = fetch_eligibility(url: url, render_js: render_js, scrape_options: scrape_options,
+          client: nil, agent: agent, use_wringer: use_wringer, safe_wringer_call: safe_wringer_call, logger: logger)
+        return fetch_blocked_result(url: url, error: eligibility.details[:guard_error] || eligibility.reason.to_s,
+          reason: eligibility.reason, diagnostic_reason: eligibility.details[:guard_reason]).merge(fetch_path: "blocked") unless eligibility.eligible?
+
+        result = guarded_internal_fetch(url: url, render_js: render_js, scrape_options: scrape_options,
+          agent: agent, use_wringer: use_wringer, safe_wringer_call: safe_wringer_call, logger: logger)
+          .merge(fetch_path: "native")
+        log_fetch_outcome(logger, mode: :active, mode_source: :qa_isolation, url: url, result: result, log_context: log_context)
+        return result
+      end
+
       mode_resolution = Distillator::FetchMode.resolution(
         explicit_mode: mode,
         website: website,
