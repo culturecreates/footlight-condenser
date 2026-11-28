@@ -24,14 +24,22 @@ module ResourceLists
         values.one? && values.first.match?(/\A\d+\z/)
       @first_page = values.first.to_i
       @filters = @pairs.reject { |key, _| key == @parameter }.tally
+      # Keep every non-page query byte unchanged, including bare query keys,
+      # percent-encoding style, duplicate filters, and empty parameters.
+      @raw_parts = @start.query.to_s.split("&", -1).freeze
+      @page_index = @raw_parts.index { |part| URI.decode_www_form(part).first&.first == @parameter }
+      raise ArgumentError, "Cannot locate #{@parameter} in raw query" unless @page_index
     rescue URI::InvalidURIError, ArgumentError => e
       raise ArgumentError, "Invalid pagination URL: #{e.message}"
     end
 
     def url_for(page)
       raise ArgumentError, "Expected nonnegative page number" unless page.is_a?(Integer) && page >= 0
+      parts = @raw_parts.dup
+      raw_key = parts.fetch(@page_index).split("=", 2).first
+      parts[@page_index] = "#{raw_key}=#{page}"
       target = @start.dup
-      target.query = URI.encode_www_form(@pairs.map { |key, value| [key, key == @parameter ? page.to_s : value] })
+      target.query = parts.join("&")
       target.to_s
     end
 

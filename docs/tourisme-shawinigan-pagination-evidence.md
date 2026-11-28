@@ -87,3 +87,51 @@ by this probe.
 2. Existing DSL extraction on captured pages and parity with prior data.
 3. Atomic, last-good-preserving production activation as part of a separate
    verified implementation. PR #15 remains read-only.
+
+## Operator-confirmed selected calendar boundaries (2026-11-27)
+
+Two distinct filters were reported:
+
+| Selection | Observed final page | Notes |
+|---|---:|---|
+| Unfiltered calendar | 11 | Applies only with no category selected |
+| Culture category | 9 | `categories[0]=culture` |
+
+The culture selection was observed at:
+
+`https://www.tourismeshawinigan.com/evenements/?search_query&categories%5B0%5D=culture&page=9`
+
+These endpoints were supplied from the operator's browsing observations.
+An independent live fetch was unavailable, so they remain **capture-specific
+observations**, not permanent page caps or independently verified termination
+rules. The page counts may change with new or expired events.
+
+**Critical URL contract:** The `search_query` parameter is supplied as a
+bare key without `=`. The `categories%5B0%5D=culture` parameter must remain
+present; it is not equivalent to the unfiltered calendar. A generic query
+re-encoder could change `search_query` into `search_query=`, which is
+semantically often but **not universally** equivalent. To avoid silent
+behavior changes, `NumberedPageQuery#url_for` now updates **only the raw
+page-value segment**, retaining the rest of the original query unchanged
+(including percent-encoding, repeated parameters, and bare keys). URL
+validation still compares the decoded filter **multiset**.
+
+Targeted read-only trials, with independent outputs and no event XPath:
+
+```bash
+bundle exec ruby test/services/resource_lists/numbered_page_query_test.rb
+
+bundle exec ruby script/resource_list_numbered_probe.rb \
+  'https://www.tourismeshawinigan.com/evenements/?page=1' \
+  12 /tmp/resource-list-trials/shawinigan-all
+
+bundle exec ruby script/resource_list_numbered_probe.rb \
+  'https://www.tourismeshawinigan.com/evenements/?search_query&categories%5B0%5D=culture&page=1' \
+  10 /tmp/resource-list-trials/shawinigan-culture
+```
+
+Do not merge these Source inventories, hardcode pages 9 or 11 as permanent
+limits, or treat HTTP 200 beyond either page as proof of additional events.
+Only a coherent response chain, actual site navigation semantics, and
+existing-DSL replay can support a last-good-preserving migration.
+

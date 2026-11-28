@@ -79,4 +79,28 @@ class NumberedPageQueryTest < Minitest::Test
     refute query.matches_page?(query.url_for(3).sub("p=156", "p=157"), page: 3)
   end
 
+  def test_shawinigan_culture_filter_preserves_exact_query_syntax
+    base = "https://www.tourismeshawinigan.com/evenements/?search_query&categories%5B0%5D=culture&page=9"
+    query = ResourceLists::NumberedPageQuery.new(start_url: base)
+    assert_equal base.sub("page=9", "page=1"), query.url_for(1)
+    assert query.matches_page?(query.url_for(1), page: 1)
+    assert query.matches_page?(base.sub("page=9", "page=8"), page: 8)
+    refute query.matches_page?(base.sub("culture", "musique"), page: 9)
+    refute query.matches_page?(base.sub("&categories%5B0%5D=culture", ""), page: 9)
+  end
+
+  def test_preserves_raw_query_encoding_bare_keys_and_repeated_filters
+    base = "https://example.org/calendar?search_query&name=some%20thing&tag%5B%5D=A&tag%5B%5D=B&page=1&encoded=x%2By"
+    query = ResourceLists::NumberedPageQuery.new(start_url: base)
+    assert_equal base.sub("page=1", "page=2"), query.url_for(2)
+    assert query.matches_page?(query.url_for(2), page: 2)
+  end
+
+  def test_preserves_encoded_page_key_while_changing_only_its_value
+    base = "https://example.org/calendar?p%61ge=1&category=culture"
+    query = ResourceLists::NumberedPageQuery.new(start_url: base)
+    assert_equal base.sub("=1", "=2"), query.url_for(2)
+    assert query.matches_page?(query.url_for(2), page: 2)
+  end
+
 end
