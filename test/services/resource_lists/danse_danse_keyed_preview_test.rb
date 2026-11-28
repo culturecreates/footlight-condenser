@@ -95,8 +95,13 @@ module ResourceLists
     test "failed later page blocks all pairing output instead of falling back to earlier pages" do
       copy = qa_site
       configure_extra_page(copy, "en", 2)
-      Distillator::FetchService.stubs(:fetch_result).returns(response("fr", "a"))
-      Distillator::FetchService.stubs(:fetch_result).with(
+      { "en" => "https://www.dansedanse.ca/en/shows",
+        "fr" => "https://www.dansedanse.ca/fr/spectacles" }.each do |language, url|
+        Distillator::FetchService.expects(:fetch_result).with(
+          url: url, render_js: false, scrape_options: {}, mode: :internal
+        ).once.returns(response(language, "a"))
+      end
+      Distillator::FetchService.expects(:fetch_result).with(
         url: "https://www.dansedanse.ca/en/shows?page=2", render_js: false,
         scrape_options: {}, mode: :internal
       ).returns({ status: :abort, http_code: 503, body: nil })
@@ -109,8 +114,13 @@ module ResourceLists
     test "cross-page duplicate key with conflicting URLs never silently overwrites" do
       copy = qa_site
       configure_extra_page(copy, "en", 2)
-      Distillator::FetchService.stubs(:fetch_result).returns(response("fr", "a"))
-      Distillator::FetchService.stubs(:fetch_result).with(
+      { "en" => "https://www.dansedanse.ca/en/shows",
+        "fr" => "https://www.dansedanse.ca/fr/spectacles" }.each do |language, url|
+        Distillator::FetchService.expects(:fetch_result).with(
+          url: url, render_js: false, scrape_options: {}, mode: :internal
+        ).once.returns(response(language, "a"))
+      end
+      Distillator::FetchService.expects(:fetch_result).with(
         url: "https://www.dansedanse.ca/en/shows?page=2", render_js: false,
         scrape_options: {}, mode: :internal
       ).returns({ status: :ok, http_code: 200,
