@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# Run any Condenser Rails command against an explicitly selected local PostgreSQL database.
+# No databases are created/reset automatically. See README.md.
+set -Eeuo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# Optional developer-local defaults (gitignored). CLI options override these.
+[[ ! -f .condenser.local ]] || source .condenser.local
+DB="${CONDENSER_DB:-}"
+RAILS_TARGET_ENV="${CONDENSER_RAILS_ENV:-${RAILS_ENV:-development}}"
+DB_HOST="${CONDENSER_PGHOST:-${PGHOST:-/var/run/postgresql}}"
+DB_PORT="${CONDENSER_PGPORT:-${PGPORT:-5432}}"
+
+usage() {
+  cat <<'HELP'
+Usage: bin/condenser [--db NAME] [--rails-env development|test] [--pghost HOST]
+                     [--pgport PORT] <rails command> [args...]
+       bin/condenser [--pghost HOST] [--pgport PORT] list-dbs
+
+Examples:
+  bin/condenser --db footlight_condenser_dansedanse_qa server -p 3000
+  bin/condenser --db footlight_condenser_dansedanse_qa runner 'puts Website.count'
+  bin/condenser --db footlight_condenser_staging_work db:migrate:status
+  bin/condenser --db footlight_condenser_keyed_qa_test --rails-env test test test/models/website_test.rb
+  bin/condenser list-dbs
+
+Set CONDENSER_DB / CONDENSER_PGHOST / CONDENSER_PGPORT in a gitignored
+.condenser.local file for reusable defaults; --db overrides the database.
+Rails tests require an explicitly disposable database ending in _test.
+A staging-derived database can be inspected with --rails-env development.
+HELP
+}
+
+while (($#)); do
+  case "$1" in
+    --db|--rails-env|--pghost|--pgport)
+      option="$1"
+      (($# >= 2)) && [[ -n "$2" ]] || { echo "Missing value for $option" >&2; exit 2; }
+      case "$option" in
+        --db) DB="$2";;
+        --rails-env) RAILS_TARGET_ENV="$2";;
+        --pghost) DB_HOST="$2";;
+        --pgport) DB_PORT="$2";;
+      esac
+      shift 2;;
+    -h|--help) usage; exit 0;;
+    --) shift; break;;
+    -*) echo "Unknown wrapper option: $1" >&2; usage >&2; exit 2;;
+    *) break;;
+  esac
+done
+
+(($#)) || { usage >&2; exit 2; }
+command="$1"
+shift
+[[ "$DB_PORT" =~ ^[0-9]+$ ]] && ((10#$DB_PORT >= 1 && 10#$DB_PORT <= 65535)) || {
+  echo "Invalid PostgreSQL port: $DB_PORT" >&2; exit 2;
+}
+
+if [[ "$command" == list-dbs ]]; then
+  (($# == 0)) || { echo "list-dbs takes no arguments" >&2; exit 2; }
+  exec env -u DATABASE_URL -u TEST_DATABASE_URL -u PGDATABASE -u PGOPTIONS \
+    PGHOST="$DB_HOST" PGPORT="$DB_PORT" \
+    psql -X -A -t -d postgres -c "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname"
+fi
+
+[[ -n "$DB" && "$DB" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$ ]] || {
+  echo "Select a database with --db NAME (or CONDENSER_DB in .condenser.local)." >&2; exit 2;
+}
+[[ "$RAILS_TARGET_ENV" == development || "$RAILS_TARGET_ENV" == test ]] || {
+  echo "Only local Rails environments development and test are supported." >&2; exit 2;
+}
+
+# Rails tests clear fixtures and may recreate the test schema. Never target a restored snapshot.
+if [[ "$RAILS_TARGET_ENV" == test && ! "$DB" =~ _test$ ]]; then
+  echo "Refusing Rails test environment on non-disposable database '$DB'." >&2; exit 2
+fi
+if [[ "$command" == test || "$command" == test:* || "$command" == spec || "$command" == spec:* ]]; then
+  if [[ "$RAILS_TARGET_ENV" != test || ! "$DB" =~ _test$ ]]; then
+    echo "Rails tests require --rails-env test and a disposable *_test database." >&2; exit 2
+  fi
+fi
+
+# Always select the database through the config/database.yml legacy keys.
+# Unset DATABASE_URL so it cannot silently override the chosen database.
+if [[ "$RAILS_TARGET_ENV" == test ]]; then
+  db_env=('FOOTLIGHT-CONDENSER-DB_TEST='"$DB")
+else
+  db_env=('FOOTLIGHT-CONDENSER-DB_DEV='"$DB")
+fi
+
+echo "Condenser: env=$RAILS_TARGET_ENV db=$DB host=$DB_HOST port=$DB_PORT command=$command" >&2
+if [[ "$command" == dev ]]; then
+  exec env -u DATABASE_URL -u TEST_DATABASE_URL -u PGDATABASE -u PGOPTIONS \
+    -u 'FOOTLIGHT-CONDENSER-DB_DEV' -u 'FOOTLIGHT-CONDENSER-DB_TEST' \
+    RAILS_ENV="$RAILS_TARGET_ENV" PGHOST="$DB_HOST" PGPORT="$DB_PORT" DISABLE_SPRING=1 \
+    "${db_env[@]}" bin/dev "$@"
+fi
+
+exec env -u DATABASE_URL -u TEST_DATABASE_URL -u PGDATABASE -u PGOPTIONS \
+  -u 'FOOTLIGHT-CONDENSER-DB_DEV' -u 'FOOTLIGHT-CONDENSER-DB_TEST' \
+  RAILS_ENV="$RAILS_TARGET_ENV" PGHOST="$DB_HOST" PGPORT="$DB_PORT" DISABLE_SPRING=1 \
+  "${db_env[@]}" bin/rails "$command" "$@"
