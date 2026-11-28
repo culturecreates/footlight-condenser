@@ -243,6 +243,16 @@ module MeridianLivePaginationAudit
         paired_existing_identities: paired, unmatched_existing_identities: unmatched,
         new_or_unmapped_urls: new_urls, duplicate_urls_across_pages: repeated
       }
+      terminal_verified = full && report[:terminal_evidence].is_a?(Hash) &&
+        report[:terminal_evidence].keys.sort == PATHS.keys.sort
+      report[:pairing_review] = {
+        terminal_verified: terminal_verified,
+        existing_pairs_verified: terminal_verified && report[:errors].empty? &&
+          unmatched.empty? && new_urls.empty? && !paired.empty?,
+        unmapped_urls: new_urls.length,
+        unmatched_existing_identities: unmatched.length,
+        note: "Existing RDF identities only. New-event keys and URI minting remain unverified."
+      }
       report[:status] = report[:errors].empty? ? "diagnostic_only" : "blocked"
     end
     puts "Database: #{report[:database]} | #{report[:site]} | READ-ONLY | #{report[:status]}"
@@ -254,6 +264,7 @@ module MeridianLivePaginationAudit
     r = report[:reconciliation]
     puts "URLs: #{r[:count_by_language]} | existing bilingual RDF pairs: #{r[:existing_bilingual_rdf_pairs]} | cross-page: #{r[:cross_page_rdf_pairs]}"
     puts "Unmapped URLs: #{r[:new_or_unmapped_urls].size} | unmatched existing RDF: #{r[:unmatched_existing_identities].size} | repeated URLs: #{r[:duplicate_urls_across_pages].size}"
+    puts "Existing pairing review: #{report[:pairing_review].inspect}"
     report[:errors].each { |error| warn "BLOCKED: #{error}" }
     puts "Live terminal proof: #{report[:terminal_evidence]}; no import or mutation"
     if output
